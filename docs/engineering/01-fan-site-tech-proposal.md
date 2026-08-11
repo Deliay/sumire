@@ -185,25 +185,30 @@ sequenceDiagram
 
 ## 7. 项目结构
 
+项目已迁移为 pnpm workspace monorepo，前端代码位于 `apps/bookstore/`：
+
 ```
 sumire/
-├── app/
-│   ├── layout.tsx            # 全局布局（导航/页脚/字体）
-│   ├── page.tsx              # 主页
-│   ├── about/page.tsx        # 档案页
-│   ├── assets/page.tsx       # 素材库
-│   └── tools/[slug]/page.tsx # 工具分发（registry 驱动）
-├── features/                 # 各页面/工具业务模块
-│   ├── home/  about/  assets/  tools/
-├── components/               # 设计系统组件
-├── lib/
-│   ├── content/              # schemas.ts + loader
-│   └── tools/registry.ts     # 工具注册表
-├── content/                  # profile.yaml / assets.yaml ...
-├── public/assets/            # original/ 原图 + thumbnails/
-├── scripts/generate-thumbnails.ts
-├── tests/                    # e2e（Playwright）
-└── docs/                     # product / engineering / design
+├── apps/bookstore/           # 堇色书屋（Next.js 静态站）
+│   ├── app/
+│   │   ├── layout.tsx            # 全局布局（导航/页脚/字体）
+│   │   ├── page.tsx              # 主页
+│   │   ├── about/page.tsx        # 档案页
+│   │   ├── assets/page.tsx       # 素材库
+│   │   └── tools/[slug]/page.tsx # 工具分发（registry 驱动）
+│   ├── features/                 # 各页面/工具业务模块
+│   │   ├── home/  about/  assets/  tools/
+│   ├── components/               # 设计系统组件
+│   ├── lib/
+│   │   ├── content/              # schemas.ts + loader
+│   │   └── tools/registry.ts     # 工具注册表
+│   ├── content/                  # profile.yaml / assets.yaml ...
+│   ├── public/assets/            # original/ 原图 + thumbnails/
+│   ├── scripts/generate-thumbnails.ts
+│   ├── tests/                    # e2e（Playwright）
+│   └── package.json
+├── docs/                     # product / engineering / design
+└── pnpm-workspace.yaml       # 管理 apps/*
 ```
 
 ## 8. 测试策略

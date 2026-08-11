@@ -21,6 +21,12 @@
 | vercel-react-best-practices | React / Next.js 最佳实践 |
 | frontend-design | 前端界面设计规范 |
 
+## Monorepo 结构
+
+- `apps/bookstore/`：堇色书屋（粉丝站前端，Next.js + SSG）
+- `docs/`：产品文档、技术方案、设计文档
+- 包管理：pnpm workspace（`pnpm-workspace.yaml` 管理 `apps/*`）
+
 ## 文档结构
 
 - 产品文档：`docs/product/`（生命周期：draft → reviewed → shipping → released）

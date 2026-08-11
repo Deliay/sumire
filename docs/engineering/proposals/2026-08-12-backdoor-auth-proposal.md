@@ -22,12 +22,13 @@ type: Permanent
 
 - 提供登入/登出能力，不开放注册，超管单账号（`supersumire`）；
 - 会话 7 天有效，允许多端同时在线、各自独立登出；
+- 账号等业务数据持久化到 MongoDB，Redis 仅承担会话与限速等临时状态；
 - 后台与书店路由/服务相互独立，互不阻塞发布；
-- 本地开发统一由 Aspire 编排（bookstore + api + Redis）。
+- 本地开发统一由 Aspire 编排（bookstore + api + Redis + MongoDB）。
 
 ### 1.3 范围
 
-- 做：`servers/api`（Express 后端 + 鉴权）、后台前端框架（登录页 + 仪表盘布局）、书店页脚「管理 →」入口、Redis 会话存储、Aspire 编排；
+- 做：`servers/api`（Express 后端 + 鉴权）、后台前端框架（登录页 + 仪表盘布局）、书店页脚「管理 →」入口、Redis 会话存储、MongoDB 持久化、Aspire 编排；
 - 不做：注册、多管理员账号、任何具体管理功能、占位导航。
 
 ## 2. 技术架构
@@ -36,12 +37,13 @@ type: Permanent
 
 ```mermaid
 graph TD
-    U[浏览器] -->|/backdoor/login /backdoor| A[api<br>Express + TS]
-    U -->|书店静态页| B[bookstore<br>Next.js SSG]
+    U[浏览器] -->|api.sumire.live<br>/backdoor/login /backdoor| A[api<br>Express + TS]
+    U -->|sumire.live 书店静态页| B[bookstore<br>Next.js SSG]
     A -->|Session 读写| C[(Redis)]
+    A -->|业务数据持久化| M[(MongoDB)]
     A -->|静态资源| D[后台前端<br>React SPA]
     U -->|点击页脚「管理 →」| B
-    B -.->|跳转 /backdoor| A
+    B -.->|外部链接跳转<br>api.sumire.live/backdoor| A
 ```
 
 后台前端为 React SPA，构建产物由 `servers/api` 静态托管；书店仅提供入口链接，不感知后台状态。
@@ -53,11 +55,12 @@ graph TD
 | 后端框架 | Node.js + Express 5 + TypeScript（strict） | `servers/api` |
 | 鉴权方案 | **Session-Cookie + Redis 会话存储** | 服务端会话，7 天 TTL，多端独立 |
 | 会话存储 | ioredis + Redis | 会话即 Redis key，TTL 天然过期 |
+| 业务数据 | MongoDB（Mongoose） | 账号、后台业务数据持久化 |
 | 密码存储 | bcrypt | 哈希存储，不落明文 |
 | 后台前端 | React + Vite + Tailwind CSS v4 | `apps/backdoor-web`，复用书店设计 token |
 | 防爆破 | express-rate-limit（Redis 存储） | 登录接口限速 |
 | 测试 | Vitest（单元）+ Playwright（E2E） | |
-| 编排 | Aspire（C# AppHost，`infra/aspire`） | bookstore + api + Redis 容器 |
+| 编排 | Aspire（C# AppHost，`infra/aspire`） | bookstore + api + Redis + MongoDB 容器 |
 | 包管理 | pnpm workspace | `servers/*`、`apps/*` 纳入 workspace |
 
 ### 2.3 鉴权方案选型（决策）
@@ -79,9 +82,10 @@ graph LR
     A[servers/api] --> B[app: Express 装配/静态托管]
     A --> C[auth: 登录/登出/会话校验]
     A --> D[session: Redis 会话中间件]
-    A --> E[routes: /api/auth/*]
-    F[apps/backdoor-web] --> G[login 页面]
-    F --> H[dashboard 布局 + 仪表盘]
+    A --> E[db: MongoDB 数据层]
+    A --> F[routes: /api/auth/*]
+    G[apps/backdoor-web] --> H[login 页面]
+    G --> I[dashboard 布局 + 仪表盘]
 ```
 
 ## 3. API 设计
@@ -98,29 +102,33 @@ graph LR
 
 - **会话存储**：Redis key `session:<id>`，TTL = 7 天（登录时刷新）；
 - **Cookie**：`sumire_sid`，`HttpOnly`、`SameSite=Lax`；生产 `Secure`；
-- **密码**：`supersumire` 的 bcrypt 哈希存于环境变量 `BACKDOOR_PASSWORD_HASH`，不写入代码仓库；默认密码 `salamander` 的哈希由部署方生成，文档提示上线前修改；
+- **密码**：`supersumire` 的 bcrypt 哈希持久化于 MongoDB `users` 集合，不写入代码仓库；默认密码 `salamander` 的哈希由部署方生成，文档提示上线前修改；
 - **防爆破**：登录接口按 IP 限速（如 5 次/分钟），Redis 计数；
 - **会话校验**：受保护路由（`/backdoor` 下非 `/login`）由中间件校验 Cookie → Redis，失效则 302 至 `/backdoor/login`。
 
 ## 4. 路由规划
 
+`servers/api` 独立部署于线上域名 `api.sumire.live`，后台与鉴权接口均挂在该域名下；书店静态站保持 `sumire.live` 托管，仅以外部链接指向后台。
+
 | 路由 | 提供方 | 说明 |
 |------|--------|------|
-| `/backdoor/login` | api | 登录页（无需会话） |
-| `/backdoor` | api | 后台首页（需会话，未登录重定向） |
-| `/backdoor/*` | api | 后续管理功能页面（需会话） |
-| `/api/auth/*` | api | 鉴权 API |
-| 书店 `/` | bookstore | 页脚右下角「管理 →」链接跳转 `/backdoor` |
+| `https://api.sumire.live/backdoor/login` | api | 登录页（无需会话） |
+| `https://api.sumire.live/backdoor` | api | 后台首页（需会话，未登录重定向） |
+| `https://api.sumire.live/backdoor/*` | api | 后续管理功能页面（需会话） |
+| `https://api.sumire.live/api/auth/*` | api | 鉴权 API |
+| 书店 `/` | bookstore | 页脚右下角「管理 →」链接跳转 `https://api.sumire.live/backdoor` |
 
-部署时通过反向代理将 `/backdoor*` 与 `/api/auth/*` 转发至 `servers/api`；书店静态页保持 GitHub Pages 托管，互不影响。
+`api.sumire.live` 与 `sumire.live` 为跨域部署。会话 Cookie 落在 `api.sumire.live` 域下（`SameSite=Lax` 不跨域携带），后台鉴权全部在同域内完成，不受跨域影响；书店与后台仅通过显式外链跳转，无接口调用。
 
 ## 5. 数据模型
 
-- 会话：Redis `session:<id>` → JSON `{ userId, username, createdAt, lastSeenAt }`，TTL 7 天；
-- 账号：V1 无用户表，超管账号（用户名 + 密码哈希）由环境变量注入：
-  - `BACKDOOR_USERNAME`（默认 `supersumire`）
-  - `BACKDOOR_PASSWORD_HASH`（bcrypt）
-- 登录限速：Redis `login:<ip>` 计数。
+- **MongoDB（业务数据持久化）**：
+  - `users`：`{ username, passwordHash, role, createdAt }`，V1 种子超管记录（`supersumire`），密码 bcrypt 哈希；
+  - 后续管理功能（素材、档案等）的集合在此扩展。
+- **Redis（临时状态）**：
+  - 会话：`session:<id>` → JSON `{ userId, username, createdAt, lastSeenAt }`，TTL 7 天；
+  - 登录限速：`login:<ip>` 计数。
+- 账号凭据初始化：启动时若 `users` 集合无超管记录，以环境变量 `BACKDOOR_PASSWORD_HASH`（bcrypt）种子插入。
 
 ## 6. 项目结构
 
@@ -133,6 +141,7 @@ sumire/
 │       │   ├── app.ts            # Express 装配、静态托管
 │       │   ├── auth/             # 登录/登出/会话中间件
 │       │   ├── session/          # Redis 会话
+│       │   ├── db/               # MongoDB 连接与模型
 │       │   └── routes/           # /api/auth/*
 │       ├── tests/
 │       └── package.json
@@ -145,7 +154,7 @@ sumire/
 │       │   └── api/              # 鉴权 API 调用
 │       ├── tests/
 │       └── package.json
-├── infra/aspire/                 # AppHost（接入 api + Redis）
+├── infra/aspire/                 # AppHost（接入 api + Redis + MongoDB）
 └── docs/
 ```
 
@@ -161,16 +170,17 @@ sumire/
 
 | 环境 | 用途 | 部署方式 |
 |------|------|---------|
-| 本地开发 | 联调 | Aspire 编排：bookstore + api + Redis 容器 |
-| 生产 | 后台服务 | `servers/api` 独立进程 + Redis 托管；反代 `/backdoor*`、`/api/auth/*` 至后端 |
+| 本地开发 | 联调 | Aspire 编排：bookstore + api + Redis + MongoDB 容器 |
+| 生产 | 后台服务 | `servers/api` 独立进程托管于 `api.sumire.live`，配套 Redis/MongoDB；Cookie 域与 SameSite 均按同域处理 |
 
 ### 8.2 配置管理
 
 | 变量 | 说明 |
 |------|------|
 | `REDIS_URL` | Redis 连接串 |
-| `BACKDOOR_USERNAME` | 超管用户名（默认 `supersumire`） |
-| `BACKDOOR_PASSWORD_HASH` | 超管密码 bcrypt 哈希 |
+| `MONGODB_URL` | MongoDB 连接串 |
+| `BACKDOOR_USERNAME` | 超管用户名（默认 `supersumire`，仅首次种子） |
+| `BACKDOOR_PASSWORD_HASH` | 超管密码 bcrypt 哈希（仅首次种子） |
 | `SESSION_SECRET` | 会话签名密钥 |
 | `COOKIE_SECURE` | 生产置 true |
 

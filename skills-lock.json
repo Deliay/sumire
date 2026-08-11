@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "skills": {
+    "frontend-design": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "skillPath": "skills/frontend-design/SKILL.md",
+      "computedHash": "4eabc66183767153e404b39d1b839b1c37f2d82d86f0a0d7e880a579d8d62336"
+    },
+    "tdd": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/tdd/SKILL.md",
+      "computedHash": "614ac2e45fb0ec02f6ce422d26bd9aa4e33aa4867323f5a3a5c0c20b96f78ff4"
+    },
+    "vercel-react-best-practices": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/react-best-practices/SKILL.md",
+      "computedHash": "3219a1944e404ffc14d1d9d6aef6dd2e3855b81387ee0a044ccbfe14d34c2357"
+    },
+    "z-coding": {
+      "source": "deliay/zero-ash-cookbook",
+      "sourceType": "github",
+      "skillPath": "z-coding/SKILL.md",
+      "computedHash": "6648880e9b9dcc11b3833a03a6045a95f52ae1a82839669daf1f5429245cf505"
+    },
+    "z-test": {
+      "source": "deliay/zero-ash-cookbook",
+      "sourceType": "github",
+      "skillPath": "z-test/SKILL.md",
+      "computedHash": "ad13d78917890f406f013072ff704d829cd8fb8b0bb7e59b43dbeccfdb787e15"
+    }
+  }
+}

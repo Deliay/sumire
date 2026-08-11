@@ -1,5 +1,5 @@
 ---
-description: 枝堇Sumire 后台系统 V1 技术方案——Express 后端 + Session/Redis 鉴权 + 独立后台前端
+description: 枝堇Sumire 后台系统 V1 技术方案——Express 后端 + Session/Redis 鉴权 + 独立后台前端，含契约与 API/e2e 测试细节
 type: Permanent
 ---
 
@@ -7,10 +7,18 @@ type: Permanent
 
 **功能名称**: 后台系统 V1——登入登出
 **关联 PRD**: [[../product/requirements/draft/2026-08-12-backdoor-auth-prd.md]]
-**技术提案版本**: v1.0
+**关联设计**: [[../design/03-backdoor-design.md]]
+**技术提案版本**: v1.1
 **创建日期**: 2026-08-12
 **作者**: ash
 **feat-branch**: `feat/backdoor-auth`
+
+## 修订记录
+
+| 版本 | 日期 | 说明 |
+|------|------|------|
+| v1.0 | 2026-08-12 | 初版：Express + Session/Redis + MongoDB + Aspire 编排 |
+| v1.1 | 2026-08-12 | 重写：补充 API 契约（OpenAPI，§3.3）；测试策略由概述展开为可执行的 API 测试与 e2e 测试方案（§8，含目录结构、技术选型、用例清单、运行方式与验收追踪）；Aspire 示意与现有 `apphost.cs` 写法对齐 |
 
 ## 1. 概述
 
@@ -28,8 +36,8 @@ type: Permanent
 
 ### 1.3 范围
 
-- 做：`servers/api`（Express 后端 + 鉴权）、后台前端框架（登录页 + 仪表盘布局）、书店页脚「管理 →」入口、Redis 会话存储、MongoDB 持久化、Aspire 编排；
-- 不做：注册、多管理员账号、任何具体管理功能、占位导航。
+- 做：`servers/api`（Express 后端 + 鉴权）、后台前端框架（登录页 + 仪表盘布局）、书店页脚「管理 →」入口、Redis 会话存储、MongoDB 持久化、API 契约（OpenAPI）、Aspire 编排、API 集成测试与 e2e 测试工程；
+- 不做：注册、多管理员账号、找回/修改密码界面、任何具体管理功能、占位导航。
 
 ## 2. 技术架构
 
@@ -58,10 +66,12 @@ graph TD
 | 业务数据 | MongoDB（Mongoose） | 账号、后台业务数据持久化 |
 | 密码存储 | bcrypt | 哈希存储，不落明文 |
 | 后台前端 | React + Vite + Tailwind CSS v4 | `apps/backdoor-web`，复用书店设计 token |
+| API 契约 | OpenAPI 3.1（YAML） | `contract/backdoor-auth.openapi.yaml`，见 §3.3 |
 | 防爆破 | express-rate-limit（Redis 存储） | 登录接口限速 |
-| 测试 | Vitest（单元）+ Playwright（E2E） | |
+| 单元测试 | Vitest | `servers/api` 与 `apps/backdoor-web` 各自内部 |
+| 集成测试 | Vitest（API，`tests/api`）+ Playwright（e2e，`tests/e2e`） | 详见 §8 |
 | 编排 | Aspire（C# AppHost，`infra/aspire`） | bookstore + api + Redis + MongoDB 容器，见 §7 |
-| 包管理 | pnpm workspace | `servers/*`、`apps/*` 纳入 workspace |
+| 包管理 | pnpm workspace | `servers/*`、`apps/*`、`tests/*` 纳入 workspace |
 
 ### 2.3 鉴权方案选型（决策）
 
@@ -94,17 +104,95 @@ graph LR
 
 | 方法 | 路径 | 说明 | 请求体 | 响应 |
 |------|------|------|--------|------|
-| POST | `/api/auth/login` | 登录 | `{ username, password }` | 200 `{ ok: true }`，Set-Cookie session；401 `{ error: "账号或密码错误" }`；429 限速 |
-| POST | `/api/auth/logout` | 登出（删除会话） | — | 200，清除 Cookie |
-| GET | `/api/auth/me` | 当前会话校验 | — | 200 `{ ok: true, username }`；401 未登录 |
+| POST | `/api/auth/login` | 登录 | `{ username, password }` | 200 `{ ok: true, username }`，Set-Cookie 会话；401 `{ error: "账号或密码错误" }`；429 `{ error: "尝试过于频繁" }` |
+| POST | `/api/auth/logout` | 登出（删除当前会话） | — | 200 `{ ok: true }`，清除 Cookie；未登录调用亦返回 200（幂等） |
+| GET | `/api/auth/me` | 当前会话校验 | — | 200 `{ ok: true, username }`；401 `{ error: "未登录" }` |
+
+约定：
+
+- 所有错误响应均为 `{ error: string }`，提示语为中文；
+- 登录失败（401）不区分账号错误与密码错误；
+- `logout` 设计为幂等：无会话/会话已失效时同样返回 200 并清除 Cookie，前端无需区分。
 
 ### 3.2 会话与安全模型
 
-- **会话存储**：Redis key `session:<id>`，TTL = 7 天（登录时刷新）；
-- **Cookie**：`sumire_sid`，`HttpOnly`、`SameSite=Lax`；生产 `Secure`；
-- **密码**：`supersumire` 的 bcrypt 哈希持久化于 MongoDB `users` 集合，不写入代码仓库；默认密码 `salamander` 的哈希由部署方生成，文档提示上线前修改；
-- **防爆破**：登录接口按 IP 限速（如 5 次/分钟），Redis 计数；
-- **会话校验**：受保护路由（`/backdoor` 下非 `/login`）由中间件校验 Cookie → Redis，失效则 302 至 `/backdoor/login`。
+- **会话存储**：Redis key `session:<id>`，value 为 JSON `{ userId, username, createdAt, lastSeenAt }`，TTL = 7 天；每次通过会话校验时刷新 TTL（滑动过期）；
+- **会话 id**：`crypto.randomUUID()` 生成，不可猜测；Redis 中不存在自增或可枚举的会话键名（key 含随机 id）；
+- **Cookie**：`sumire_sid`，`HttpOnly`、`Path=/`、`SameSite=Lax`；生产 `Secure`；`Max-Age` 与 TTL 一致（7 天）；
+- **密码**：`supersumire` 的 bcrypt 哈希持久化于 MongoDB `users` 集合，不写入代码仓库；初始密码 `salamander` 的哈希由部署方以 `BACKDOOR_PASSWORD_HASH` 注入，文档提示上线前修改；
+- **防爆破**：登录接口按 IP 限速 5 次/分钟（Redis 计数，窗口 60s），超限返回 429；限速计数与会话无关；
+- **会话校验**：受保护路由（`/backdoor` 下非 `/login`，以及依赖会话的 API）由中间件校验 Cookie → Redis，页面路由失效则 302 至 `/backdoor/login`，API 路由失效则返回 401。
+
+### 3.3 API 契约（OpenAPI）
+
+契约式开发：鉴权 API 的 OpenAPI 3.1 规范作为单一事实源，放置在 `contract/backdoor-auth.openapi.yaml`。实现与 `tests/api` 集成测试都以契约为准——测试用例只依据契约与 PRD 编写，禁止对照 `servers/` 实现编写（避免射箭画靶）。契约骨架：
+
+```yaml
+openapi: 3.1.0
+info:
+  title: sumire backdoor auth
+  version: 1.0.0
+paths:
+  /api/auth/login:
+    post:
+      summary: 登录
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string }
+      responses:
+        "200":
+          description: 登录成功，Set-Cookie 写入会话
+          headers:
+            Set-Cookie:
+              schema: { type: string }
+              description: sumire_sid=<id>; HttpOnly; Path=/; SameSite=Lax; Max-Age=604800（生产含 Secure）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthOk" }
+        "401": { $ref: "#/components/responses/InvalidCredentials" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /api/auth/logout:
+    post:
+      summary: 登出（幂等，删除当前会话）
+      responses:
+        "200":
+          description: 会话已删除，Set-Cookie 立即过期
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Ok" }
+  /api/auth/me:
+    get:
+      summary: 当前会话校验
+      responses:
+        "200":
+          description: 已登录
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthOk" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+components:
+  schemas:
+    Ok:     { type: object, properties: { ok: { type: boolean, const: true } } }
+    AuthOk: { type: object, properties: { ok: { type: boolean, const: true }, username: { type: string } } }
+    Error:  { type: object, properties: { error: { type: string } } }
+  responses:
+    InvalidCredentials:
+      description: 账号或密码错误
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Unauthorized:
+      description: 未登录或会话已失效
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    RateLimited:
+      description: 尝试过于频繁
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+```
 
 ## 4. 路由规划
 
@@ -113,7 +201,7 @@ graph LR
 | 路由 | 提供方 | 说明 |
 |------|--------|------|
 | `https://api.sumire.live/backdoor/login` | api | 登录页（无需会话） |
-| `https://api.sumire.live/backdoor` | api | 后台首页（需会话，未登录重定向） |
+| `https://api.sumire.live/backdoor` | api | 后台首页（需会话，未登录 302 重定向） |
 | `https://api.sumire.live/backdoor/*` | api | 后续管理功能页面（需会话） |
 | `https://api.sumire.live/api/auth/*` | api | 鉴权 API |
 | 书店 `/` | bookstore | 页脚右下角「管理 →」链接跳转 `https://api.sumire.live/backdoor` |
@@ -123,44 +211,49 @@ graph LR
 ## 5. 数据模型
 
 - **MongoDB（业务数据持久化）**：
-  - `users`：`{ username, passwordHash, role, createdAt }`，V1 种子超管记录（`supersumire`），密码 bcrypt 哈希；
+  - `users`：`{ username, passwordHash, role, createdAt }`，V1 种子超管记录（`supersumire`，`role: "superadmin"`），密码 bcrypt 哈希；
   - 后续管理功能（素材、档案等）的集合在此扩展。
 - **Redis（临时状态）**：
-  - 会话：`session:<id>` → JSON `{ userId, username, createdAt, lastSeenAt }`，TTL 7 天；
-  - 登录限速：`login:<ip>` 计数。
-- 账号凭据初始化：启动时若 `users` 集合无超管记录，以环境变量 `BACKDOOR_PASSWORD_HASH`（bcrypt）种子插入。
+  - 会话：`session:<id>` → JSON `{ userId, username, createdAt, lastSeenAt }`，TTL 7 天，滑动过期；
+  - 登录限速：`login:<ip>` 计数，窗口 60 秒。
+- 账号凭据初始化：启动时若 `users` 集合无超管记录，以环境变量 `BACKDOOR_USERNAME` / `BACKDOOR_PASSWORD_HASH`（bcrypt）种子插入；已存在则不覆盖（密码轮换通过后续管理功能或手工更新完成）。
 
 ## 6. 项目结构
 
 ```
 sumire/
+├── contract/
+│   └── backdoor-auth.openapi.yaml  # 鉴权 API 契约（§3.3）
 ├── servers/
-│   └── api/                      # Express 后端 + 鉴权
+│   └── api/                        # Express 后端 + 鉴权
 │       ├── src/
-│       │   ├── index.ts          # 服务入口
-│       │   ├── app.ts            # Express 装配、静态托管
-│       │   ├── auth/             # 登录/登出/会话中间件
-│       │   ├── session/          # Redis 会话
-│       │   ├── db/               # MongoDB 连接与模型
-│       │   └── routes/           # /api/auth/*
-│       ├── tests/
+│       │   ├── index.ts            # 服务入口
+│       │   ├── app.ts              # Express 装配、静态托管
+│       │   ├── auth/               # 登录/登出/会话中间件
+│       │   ├── session/            # Redis 会话
+│       │   ├── db/                 # MongoDB 连接与模型
+│       │   └── routes/             # /api/auth/*
+│       ├── tests/                  # 单元测试（Vitest）
 │       └── package.json
 ├── apps/
-│   ├── bookstore/                # 书店（不变，仅页脚加链接）
-│   └── backdoor-web/             # 后台前端（React + Vite）
+│   ├── bookstore/                  # 书店（不变，仅页脚加链接）
+│   └── backdoor-web/               # 后台前端（React + Vite）
 │       ├── src/
-│       │   ├── pages/            # Login / Dashboard
-│       │   ├── components/       # 后台布局（顶栏/侧栏）
-│       │   └── api/              # 鉴权 API 调用
-│       ├── tests/
+│       │   ├── pages/              # Login / Dashboard
+│       │   ├── components/         # 后台布局（顶栏/侧栏）
+│       │   └── api/                # 鉴权 API 调用
+│       ├── tests/                  # 单元测试（Vitest）
 │       └── package.json
-├── infra/aspire/                 # AppHost（编排 bookstore + api + Redis + MongoDB）
+├── tests/
+│   ├── api/                        # API 集成测试（Vitest，见 §8.2）
+│   └── e2e/                        # e2e 集成测试（Playwright，见 §8.3）
+├── infra/aspire/                   # AppHost（编排 bookstore + api + Redis + MongoDB）
 └── docs/
 ```
 
 ## 7. 编排方案（Aspire）
 
-本地开发由 Aspire 统一编排，AppHost 位于 `infra/aspire/apphost.cs`（C# 单文件）。V1 编排 bookstore、api、Redis、MongoDB 四个资源，实现一条命令启动全部依赖。
+本地开发由 Aspire 统一编排，AppHost 位于 `infra/aspire/apphost.cs`（C# 单文件，Aspire 13 SDK）。V1 编排 bookstore、api、Redis、MongoDB 四个资源，实现一条命令启动全部依赖。现有 `apphost.cs` 仅含 bookstore，本方案按 §7.2 扩展。
 
 ### 7.1 资源清单
 
@@ -173,20 +266,24 @@ sumire/
 
 ### 7.2 依赖与注入
 
-- `api` 通过 `.WithReference(redis)` / `.WithReference(mongodb)` 注入连接配置，`WaitFor(redis)` / `WaitFor(mongodb)` 确保存储就绪后再启动；
+- `api` 通过 `.WithReference(redis)` / `.WithReference(mongodb)` 注入连接配置（`ConnectionStrings__redis` / `ConnectionStrings__mongodb` 由 api 侧映射为 `REDIS_URL` / `MONGODB_URL`），`WaitFor(redis)` / `WaitFor(mongodb)` 确保存储就绪后再启动；
 - `api` 使用 `.WithHttpEndpoint(env: "PORT")` 暴露 http 端点；
 - **跨域白名单**：书店与后台为跨域部署，`api` 必须 `.WithReference(bookstore)`，将 bookstore 的 http endpoint 以 `CORS_ORIGINS` 注入自身环境变量，作为 CORS 允许来源；本地开发时即书店 dev server 地址，生产时该变量由部署方替换为 `https://sumire.live`；
 - `api` 所需环境变量（`SESSION_SECRET`、`BACKDOOR_PASSWORD_HASH` 等）由 `.WithEnvironment()` 注入。
 
 ```csharp
-// infra/aspire/apphost.cs（示意）
+// infra/aspire/apphost.cs（目标形态示意）
+#:sdk Aspire.AppHost.Sdk@13.4.6
 #:package Aspire.Hosting.JavaScript@*
 #:package Aspire.Hosting.Redis@*
 #:package Aspire.Hosting.MongoDB@*
 
+#pragma warning disable ASPIREJAVASCRIPT001
+
 var builder = DistributedApplication.CreateBuilder(args);
 
-var bookstore = builder.AddNextJsApp("bookstore", "../../apps/bookstore")
+var bookstore = builder
+    .AddNextJsApp("bookstore", "../../apps/bookstore", runScriptName: "dev")
     .WithPnpm()
     .WithHttpEndpoint(env: "PORT")
     .WithExternalHttpEndpoints();
@@ -201,7 +298,9 @@ var api = builder.AddNodeApp("api", "../../servers/api", "server.js")
     .WithReference(mongodb).WaitFor(mongodb)
     .WithReference(bookstore)
     .WithEnvironment("CORS_ORIGINS", bookstore.GetEndpoint("http"))
-    .WithEnvironment("SESSION_SECRET", "dev-secret");
+    .WithEnvironment("SESSION_SECRET", "dev-secret")
+    .WithEnvironment("BACKDOOR_USERNAME", "supersumire")
+    .WithEnvironment("BACKDOOR_PASSWORD_HASH", "<dev bcrypt hash>");
 
 builder.Build().Run();
 ```
@@ -223,9 +322,131 @@ aspire start
 
 ## 8. 测试策略
 
-- **单元（Vitest）**：登录/登出逻辑、会话中间件、密码哈希校验、限速；
-- **E2E（Playwright）**：未登录访问 `/backdoor` 重定向登录页 → 正确凭据登录进仪表盘 → 登出后重定向登录页；错误凭据提示；多端独立登出；
-- 书店回归：页脚链接存在且可跳转。
+测试分三层：单元测试随实现走（Vitest，各包内部）；**API 集成测试**与 **e2e 集成测试**为独立工程（`tests/api`、`tests/e2e`），只依据契约与 PRD 编写用例，禁止对照实现编写。集成测试运行依赖 Aspire 拉起完整环境，目标 endpoint 通过 `aspire describe` 获取并以环境变量注入测试工程。
+
+### 8.1 测试范围与验收追踪
+
+测试范围 = PRD §3.2 验收标准（AC-1 ~ AC-14）+ 契约中的全部接口行为。每条 AC 至少被一条集成用例覆盖：
+
+| AC | 描述摘要 | 覆盖位置 |
+|----|---------|---------|
+| AC-1 | 未登录访问 `/backdoor` 跳转登录页 | e2e `auth-redirect`、api `page-guard` |
+| AC-2 | 正确凭据登录进入后台首页 | e2e `login-success`、api `login-200` |
+| AC-3 | 错误凭据提示且不区分原因 | e2e `login-failure`、api `login-401` |
+| AC-4 | 无注册入口 | api `no-register-route`（契约外路径 404） |
+| AC-5 | 7 天内刷新保持登录 | api `session-persist`（Cookie + TTL 断言） |
+| AC-6 | 后台可点击登出 | e2e `logout-entry` |
+| AC-7 | 登出后会话立即失效 | e2e `logout-invalidates`、api `logout-200` |
+| AC-8 | 多端会话独立 | api `multi-session` |
+| AC-9 | 布局为顶栏 + 侧栏 + 内容区 | e2e `dashboard-layout` |
+| AC-10 | 仪表盘欢迎语、无占位 | e2e `dashboard-content` |
+| AC-11 | 视觉与书店一致 | e2e `visual-sanity`（截图人工核对 + token 断言） |
+| AC-12~14 | 书店页脚「管理 →」链接 | e2e `bookstore-footer-link` |
+| — | 登录限速 429 | api `login-rate-limit` |
+| — | Cookie 安全属性 | api `cookie-attributes` |
+
+### 8.2 API 集成测试（`tests/api`）
+
+- **技术选型**：TypeScript + Vitest + `fetch`（Node 22 内置），手工维护 Cookie jar（从 `Set-Cookie` 解析 `sumire_sid`，随后续请求回带）。不引入 supertest——测试目标是**运行中的服务**而非 Express app 实例，与契约的黑盒定位一致；
+- **目录结构**：
+
+```
+tests/api/
+├── src/
+│   └── api/
+│       ├── client.ts          # fetch 封装：baseURL、Cookie jar、JSON 助手
+│       ├── login.test.ts      # 登录用例
+│       ├── logout.test.ts     # 登出用例
+│       ├── session.test.ts    # 会话/me/限速用例
+│       └── guard.test.ts      # 页面路由守卫（302）用例
+├── tests/api/AGENTS.md        # 工程约定（创建时写入）
+├── package.json
+└── vitest.config.ts
+```
+
+- **用例清单**（依据契约 §3.3 与 PRD，黑盒）：
+
+| 用例 | 步骤 | 断言 |
+|------|------|------|
+| `login-200` | POST `/api/auth/login` 正确凭据 | 200；`{ ok: true, username: "supersumire" }`；响应含 `Set-Cookie: sumire_sid=...` |
+| `cookie-attributes` | 同上，解析 Set-Cookie | 含 `HttpOnly`、`Path=/`、`SameSite=Lax`、`Max-Age=604800`；生产模式含 `Secure` |
+| `login-401` | 错误密码 / 不存在用户各一次 | 均 401；`{ error }` 文案相同，均为"账号或密码错误"；不下发 Cookie |
+| `login-400` | 缺 `username` 或 `password` 字段 | 4xx + `{ error }`（契约允许 400 或 401，实现后回填精确值） |
+| `no-register-route` | POST `/api/auth/register`（契约外） | 404 |
+| `me-200` | 登录后带 Cookie GET `/api/auth/me` | 200 `{ ok: true, username }` |
+| `me-401` | 无 Cookie / 伪造 sid 访问 `/api/auth/me` | 401 `{ error }` |
+| `session-persist` | 登录后间隔再次请求 `me` | 连续两次 200；Redis 侧会话 TTL ≈ 7 天且滑动刷新（通过 `me` 可用性间接断言，不直连 Redis） |
+| `logout-200` | 登录 → logout → 带原 Cookie 请求 `me` | logout 200 `{ ok: true }`；Set-Cookie 使 `sumire_sid` 过期；后续 `me` 401 |
+| `logout-idempotent` | 未登录直接 logout | 200（幂等） |
+| `multi-session` | 同一凭据登录两次得到 sid₁/sid₂；用 sid₁ logout | sid₂ 的 `me` 仍 200，sid₁ 的 `me` 401 |
+| `login-rate-limit` | 同 IP 1 分钟内连续 6 次错误登录 | 前 5 次 401，第 6 次 429 `{ error }` |
+| `page-guard` | 无 Cookie GET `/backdoor` 与 `/backdoor/anything` | 302，`Location` 指向 `/backdoor/login`；GET `/backdoor/login` 为 200 |
+
+- **运行方式**：
+
+```bash
+cd infra/aspire && aspire start          # 拉起 bookstore + api + redis + mongodb
+aspire describe api --output json         # 取 api 的 http endpoint
+cd tests/api && API_BASE_URL=http://localhost:<port> pnpm vitest run
+```
+
+`API_BASE_URL` 为唯一必需环境变量；测试运行前用 `GET /api/auth/me` 轮询等待服务就绪（超时 30s）。限速用例放在最后执行（或独立 `describe.sequential`），避免污染其他用例的计数窗口。
+
+- **分支与评审**：基于开发分支创建 `test/<slug>` 分支编写用例，提 PR（description 附用例清单）评审通过后再运行；失败用例由 subagent 按 `docs/engineering` 与契约修复，修复落在同一 test 分支，全绿后合并回开发分支。
+
+### 8.3 e2e 集成测试（`tests/e2e`）
+
+- **技术选型**：Playwright（与 bookstore 现有 e2e 选型一致）；测试目标为两个前端面——书店（页脚入口）与后台（登录页/仪表盘）；
+- **目录结构**：
+
+```
+tests/e2e/
+├── src/
+│   ├── backdoor/
+│   │   ├── auth.spec.ts        # 重定向、登录成功/失败、登出
+│   │   └── dashboard.spec.ts   # 布局、欢迎语、视觉走查
+│   ├── bookstore/
+│   │   └── footer-link.spec.ts # 页脚「管理 →」入口
+│   └── tools/                  # 排查用临时脚本（不入用例集）
+├── playwright.config.ts
+├── tests/e2e/AGENTS.md         # 工程约定（创建时写入）
+└── package.json
+```
+
+- **用例清单**（依据 PRD 验收标准与设计文档）：
+
+| 用例 | 覆盖 AC | 操作路径与断言 |
+|------|--------|--------------|
+| `auth-redirect` | AC-1 | 未登录访问 `API_BASE_URL/backdoor` → URL 变为 `/backdoor/login`，登录表单可见 |
+| `login-success` | AC-2、AC-5 | 登录页输入正确凭据 → 跳转 `/backdoor`，欢迎语可见；`page.reload()` 后仍在仪表盘 |
+| `login-failure` | AC-3 | 输入错误密码 → 停留登录页，出现"账号或密码错误"提示；密码框清空可重试 |
+| `dashboard-layout` | AC-9 | 仪表盘存在顶部栏（站点名 + 登出按钮）、左侧导航（仅"仪表盘"一项且为选中态）、内容区 |
+| `dashboard-content` | AC-10 | 内容区展示欢迎语（含"欢迎回来"），无"敬请期待"类占位文案 |
+| `visual-sanity` | AC-11 | 断言根元素背景为 `--color-bg`（`#16121c`）、主按钮使用应援色系；附整页截图供人工核对 |
+| `logout-entry` / `logout-invalidates` | AC-6、AC-7 | 点击顶栏"登出" → 回登录页；后退/直接访问 `/backdoor` 再次跳转登录页 |
+| `bookstore-footer-link` | AC-12~14 | 打开书店首页，页脚右下角存在「管理 →」链接，`href` 指向 `https://api.sumire.live/backdoor`（生产值；本地断言链接文本与位置，跳转目标以环境变量覆盖）；点击后落在后台登录页 |
+
+- **编写标准**：每条用例编写阶段必须有截图验证——操作前一张、操作完成后一张，确认操作路径真实生效；调试完成后移除截图逻辑，仅保留断言行（视觉走查 `visual-sanity` 的截图保留为 artifact）。无法通过 UI 体现的（如 Cookie 属性）在 API 层断言，e2e 不重复覆盖。
+- **运行方式**：
+
+```bash
+cd infra/aspire && aspire start
+aspire describe api --output json        # api endpoint
+aspire describe bookstore --output json  # bookstore endpoint
+cd tests/e2e && API_BASE_URL=http://localhost:<api-port> \
+  BOOKSTORE_BASE_URL=http://localhost:<bookstore-port> \
+  pnpm playwright test
+```
+
+`playwright.config.ts` 不使用 `webServer` 自动拉起（服务由 Aspire 统一管理），两个 baseURL 均由环境变量注入；未注入时跳过对应 spec（`test.skip`），保证书店侧与后台侧用例可独立运行。
+
+- **分支与评审**：同 API 测试流程——`e2e/<slug>` 分支、PR 附用例清单评审、失败修复同分支、全绿合并。
+
+### 8.4 单元测试（实现侧）
+
+- `servers/api`：bcrypt 校验、会话中间件（有效/失效/伪造 sid）、限速计数逻辑、种子插入幂等；
+- `apps/backdoor-web`：登录表单状态（提交中禁用、错误提示展示）、路由守卫组件；
+- 书店：页脚组件渲染链接的单元测试（现有 Vitest 体系内）。
 
 ## 9. 部署方案
 
@@ -244,7 +465,7 @@ aspire start
 | `MONGODB_URL` | MongoDB 连接串 |
 | `CORS_ORIGINS` | CORS 允许来源（本地为 bookstore 端点；生产为 `https://sumire.live`） |
 | `BACKDOOR_USERNAME` | 超管用户名（默认 `supersumire`，仅首次种子） |
-| `BACKDOOR_PASSWORD_HASH` | 超管密码 bcrypt 哈希（仅首次种子） |
+| `BACKDOOR_PASSWORD_HASH` | 超管密码 bcrypt 哈希（仅首次种子；生产部署后应立即轮换） |
 | `SESSION_SECRET` | 会话签名密钥 |
 | `COOKIE_SECURE` | 生产置 true |
 
@@ -253,12 +474,14 @@ aspire start
 - [ ] 未登录访问 `/backdoor` 重定向 `/backdoor/login`
 - [ ] 超管凭据登录成功进入仪表盘；错误凭据提示"账号或密码错误"
 - [ ] 登出后会话立即失效；多端各自独立
-- [ ] 会话 7 天有效，`HttpOnly` Cookie，登录接口限速
+- [ ] 会话 7 天有效，`HttpOnly` Cookie，登录接口限速 5 次/分钟
 - [ ] 书店页脚右下角「管理 →」链接可跳转
-- [ ] 单元测试 + E2E 全绿；Aspire 本地编排可一键启动
+- [ ] `contract/backdoor-auth.openapi.yaml` 与实现一致
+- [ ] 单元测试 + `tests/api` + `tests/e2e` 全绿；Aspire 本地编排可一键启动
 
 ## 11. 相关文档
 
 - PRD：[[../product/requirements/draft/2026-08-12-backdoor-auth-prd.md]]
+- 后台设计：[[../design/03-backdoor-design.md]]
 - 视觉识别：[[../design/01-visual-identity.md]]
 - 前端规范：[[frontend-rules.md]]

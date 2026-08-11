@@ -19,6 +19,12 @@
       "skillPath": "skills/react-best-practices/SKILL.md",
       "computedHash": "3219a1944e404ffc14d1d9d6aef6dd2e3855b81387ee0a044ccbfe14d34c2357"
     },
+    "z-aspire-orchestrator": {
+      "source": "deliay/zero-ash-cookbook",
+      "sourceType": "github",
+      "skillPath": "z-aspire-orchestrator/SKILL.md",
+      "computedHash": "6d2b6ac1b50a34e018eb5e3f5005052f93b64b83b3c78e1c160aab08618f89b6"
+    },
     "z-coding": {
       "source": "deliay/zero-ash-cookbook",
       "sourceType": "github",

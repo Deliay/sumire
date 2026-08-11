@@ -22,3 +22,8 @@ export const getProfile = cache((): Profile =>
 export const getAssets = cache((): Asset[] =>
   loadYaml("assets.yaml", assetsSchema),
 );
+
+export const getAssetById = cache(
+  (id: string): Asset | undefined =>
+    getAssets().find((asset) => asset.id === id),
+);

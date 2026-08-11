@@ -54,7 +54,7 @@ graph TD
 | 图片 | `next/image` + 预生成缩略图 | 素材原图放 `public/assets`，列表用缩略图 |
 | 测试 | Vitest + Testing Library / Playwright | 单元测试 + E2E |
 | 包管理 | pnpm | |
-| 部署 | Vercel | PR 自动 preview |
+| 部署 | GitHub Pages（自定义域名 sumire.live） | 静态导出 + GitHub Actions |
 
 ### 2.3 模块划分
 
@@ -228,8 +228,11 @@ sumire/
 
 | 环境 | 用途 | 部署方式 |
 |------|------|---------|
-| Preview | PR 审阅 | Vercel 自动 preview |
-| Production | 正式站点 | 合并 main 自动部署 |
+| Production | 正式站点（https://sumire.live） | main 分支 push 触发 GitHub Actions：构建 → 静态导出 `out/` → 部署 GitHub Pages |
+
+- Next.js 以 `output: "export"` 静态导出；`public/CNAME` 声明自定义域名 `sumire.live`；
+- 若部署到项目子路径（无自定义域名时），通过 `NEXT_PUBLIC_BASE_PATH` 注入 basePath；
+- PR 验证暂以本地 lint/单测/E2E + 构建为准，后续可加 PR preview 环境。
 
 ### 9.2 配置管理
 
@@ -240,7 +243,7 @@ V1 无密钥与运行时配置；站点级常量（外链、版权文案）放 `
 - [ ] 技术方案评审通过
 - [ ] 三个页面 SSG 构建通过，`content:check` 通过
 - [ ] 单元测试覆盖率达标，E2E 关键路径通过
-- [ ] Vercel preview 可访问，LCP < 2.5s
+- [ ] GitHub Actions 部署成功，https://sumire.live 可访问，LCP < 2.5s
 - [ ] UI 中无未上线功能入口
 
 ## 11. 相关文档

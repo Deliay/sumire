@@ -5,7 +5,8 @@ import PaperCard from "@/components/PaperCard";
 import Tag from "@/components/Tag";
 import VineDivider from "@/components/VineDivider";
 import VineTimeline from "@/features/about/VineTimeline";
-import { getProfile } from "@/lib/content";
+import { getAssetById, getProfile } from "@/lib/content";
+import { assetThumbnailUrl } from "@/lib/content/shared";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "主播档案" };
@@ -29,6 +30,8 @@ function SectionTitle({
 
 export default function AboutPage() {
   const profile = getProfile();
+  const portraitAsset = getAssetById("standing-02");
+  if (!portraitAsset) throw new Error("missing asset: standing-02");
 
   const facts: [string, string][] = [
     ["本名", profile.displayName],
@@ -79,8 +82,8 @@ export default function AboutPage() {
           <div className="grid items-center gap-8 sm:grid-cols-[220px_1fr]">
             <div className="mx-auto w-44 overflow-hidden rounded-lg border border-vine/50 bg-soft sm:w-full">
               <Image
-                src="/assets/thumbnails/standing-02.webp"
-                alt="枝堇立绘（披肩）"
+                src={assetThumbnailUrl(portraitAsset)}
+                alt={portraitAsset.title}
                 width={500}
                 height={1000}
                 className="h-auto w-full"

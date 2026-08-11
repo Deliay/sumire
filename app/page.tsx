@@ -5,7 +5,8 @@ import PaperCard from "@/components/PaperCard";
 import VineDivider from "@/components/VineDivider";
 import ColorChip from "@/features/home/ColorChip";
 import EntryCard from "@/features/home/EntryCard";
-import { getProfile, getSite } from "@/lib/content";
+import { getAssetById, getProfile, getSite } from "@/lib/content";
+import { assetThumbnailUrl } from "@/lib/content/shared";
 
 const FACTS = (profile: ReturnType<typeof getProfile>) => [
   { label: "生日", value: profile.birthdayText },
@@ -17,6 +18,8 @@ const FACTS = (profile: ReturnType<typeof getProfile>) => [
 export default function Home() {
   const profile = getProfile();
   const site = getSite();
+  const heroAsset = getAssetById("standing-01");
+  if (!heroAsset) throw new Error("missing asset: standing-01");
 
   return (
     <>
@@ -66,8 +69,8 @@ export default function Home() {
 
           <div className="pointer-events-none absolute inset-x-0 bottom-0 top-16 opacity-25 sm:opacity-40 lg:relative lg:inset-auto lg:opacity-100">
             <Image
-              src="/assets/thumbnails/standing-01.webp"
-              alt="枝堇全身立绘"
+              src={assetThumbnailUrl(heroAsset)}
+              alt={heroAsset.title}
               width={1000}
               height={2000}
               priority

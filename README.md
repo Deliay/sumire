@@ -17,6 +17,11 @@ pnpm build        # 生产构建（含缩略图生成）
 技术栈：Next.js（App Router, SSG）+ TypeScript + Tailwind CSS v4 + Vitest + Playwright。
 内容数据在 `content/*.yaml`，规范见 `docs/engineering/frontend-rules.md`。
 
+## 部署
+
+静态导出到 GitHub Pages，自定义域名 <https://sumire.live>。
+push 到 `main` 触发 `.github/workflows/deploy.yml` 自动构建与部署。
+
 ## 文档
 
 - 产品文档：`docs/product/`

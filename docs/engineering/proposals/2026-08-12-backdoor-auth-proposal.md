@@ -118,7 +118,7 @@ graph LR
 | `https://api.sumire.live/api/auth/*` | api | 鉴权 API |
 | 书店 `/` | bookstore | 页脚右下角「管理 →」链接跳转 `https://api.sumire.live/backdoor` |
 
-`api.sumire.live` 与 `sumire.live` 为跨域部署。会话 Cookie 落在 `api.sumire.live` 域下（`SameSite=Lax` 不跨域携带），后台鉴权全部在同域内完成，不受跨域影响；书店与后台仅通过显式外链跳转，无接口调用。
+`api.sumire.live` 与 `sumire.live` 为跨域部署。会话 Cookie 落在 `api.sumire.live` 域下（`SameSite=Lax` 不跨域携带），后台登录与鉴权均在同域内完成；api 通过 `CORS_ORIGINS`（书店域名）白名单放行书店来源的请求（见 §7.2）。书店与后台通过显式外链跳转，无接口调用。
 
 ## 5. 数据模型
 
@@ -173,9 +173,9 @@ sumire/
 
 ### 7.2 依赖与注入
 
-- `api` 通过 `.WithReference(redis)` / `.WithReference(mongodb)` 注入连接配置，`waitFor(redis)` / `waitFor(mongodb)` 确保存储就绪后再启动；
+- `api` 通过 `.WithReference(redis)` / `.WithReference(mongodb)` 注入连接配置，`WaitFor(redis)` / `WaitFor(mongodb)` 确保存储就绪后再启动；
 - `api` 使用 `.WithHttpEndpoint(env: "PORT")` 暴露 http 端点；
-- `bookstore` 保持独立，不依赖 api（后台为跨域外链，无接口调用）；
+- **跨域白名单**：书店与后台为跨域部署，`api` 必须 `.WithReference(bookstore)`，将 bookstore 的 http endpoint 以 `CORS_ORIGINS` 注入自身环境变量，作为 CORS 允许来源；本地开发时即书店 dev server 地址，生产时该变量由部署方替换为 `https://sumire.live`；
 - `api` 所需环境变量（`SESSION_SECRET`、`BACKDOOR_PASSWORD_HASH` 等）由 `.WithEnvironment()` 注入。
 
 ```csharp
@@ -199,6 +199,8 @@ var api = builder.AddNodeApp("api", "../../servers/api", "server.js")
     .WithExternalHttpEndpoints()
     .WithReference(redis).WaitFor(redis)
     .WithReference(mongodb).WaitFor(mongodb)
+    .WithReference(bookstore)
+    .WithEnvironment("CORS_ORIGINS", bookstore.GetEndpoint("http"))
     .WithEnvironment("SESSION_SECRET", "dev-secret");
 
 builder.Build().Run();
@@ -216,7 +218,8 @@ aspire start
 ### 7.4 验证要点
 
 - `aspire restore` 恢复依赖、`aspire start` 启动、`aspire describe` 确认资源状态；
-- bookstore 与 api、redis、mongodb 均健康；未登录访问后台跳转登录页。
+- bookstore 与 api、redis、mongodb 均健康；未登录访问后台跳转登录页；
+- 跨域校验：api 的 `CORS_ORIGINS` 为 bookstore 端点，书店域名发起的请求被 CORS 允许，其他来源被拒绝。
 
 ## 8. 测试策略
 
@@ -239,6 +242,7 @@ aspire start
 |------|------|
 | `REDIS_URL` | Redis 连接串 |
 | `MONGODB_URL` | MongoDB 连接串 |
+| `CORS_ORIGINS` | CORS 允许来源（本地为 bookstore 端点；生产为 `https://sumire.live`） |
 | `BACKDOOR_USERNAME` | 超管用户名（默认 `supersumire`，仅首次种子） |
 | `BACKDOOR_PASSWORD_HASH` | 超管密码 bcrypt 哈希（仅首次种子） |
 | `SESSION_SECRET` | 会话签名密钥 |

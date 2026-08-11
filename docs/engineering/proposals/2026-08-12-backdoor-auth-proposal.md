@@ -60,7 +60,7 @@ graph TD
 | 后台前端 | React + Vite + Tailwind CSS v4 | `apps/backdoor-web`，复用书店设计 token |
 | 防爆破 | express-rate-limit（Redis 存储） | 登录接口限速 |
 | 测试 | Vitest（单元）+ Playwright（E2E） | |
-| 编排 | Aspire（C# AppHost，`infra/aspire`） | bookstore + api + Redis + MongoDB 容器 |
+| 编排 | Aspire（C# AppHost，`infra/aspire`） | bookstore + api + Redis + MongoDB 容器，见 §7 |
 | 包管理 | pnpm workspace | `servers/*`、`apps/*` 纳入 workspace |
 
 ### 2.3 鉴权方案选型（决策）
@@ -154,26 +154,86 @@ sumire/
 │       │   └── api/              # 鉴权 API 调用
 │       ├── tests/
 │       └── package.json
-├── infra/aspire/                 # AppHost（接入 api + Redis + MongoDB）
+├── infra/aspire/                 # AppHost（编排 bookstore + api + Redis + MongoDB）
 └── docs/
 ```
 
-## 7. 测试策略
+## 7. 编排方案（Aspire）
+
+本地开发由 Aspire 统一编排，AppHost 位于 `infra/aspire/apphost.cs`（C# 单文件）。V1 编排 bookstore、api、Redis、MongoDB 四个资源，实现一条命令启动全部依赖。
+
+### 7.1 资源清单
+
+| 资源名 | 类型 | 说明 |
+|--------|------|------|
+| `bookstore` | Next.js App | 现有书店，`AddNextJsApp` + `.WithPnpm()` |
+| `api` | Node.js App | 后端服务，`AddNodeApp("api", "../../servers/api", ...)` |
+| `redis` | Redis 容器 | 会话与限速存储 |
+| `mongodb` | MongoDB 容器 | 业务数据持久化 |
+
+### 7.2 依赖与注入
+
+- `api` 通过 `.WithReference(redis)` / `.WithReference(mongodb)` 注入连接配置，`waitFor(redis)` / `waitFor(mongodb)` 确保存储就绪后再启动；
+- `api` 使用 `.WithHttpEndpoint(env: "PORT")` 暴露 http 端点；
+- `bookstore` 保持独立，不依赖 api（后台为跨域外链，无接口调用）；
+- `api` 所需环境变量（`SESSION_SECRET`、`BACKDOOR_PASSWORD_HASH` 等）由 `.WithEnvironment()` 注入。
+
+```csharp
+// infra/aspire/apphost.cs（示意）
+#:package Aspire.Hosting.JavaScript@*
+#:package Aspire.Hosting.Redis@*
+#:package Aspire.Hosting.MongoDB@*
+
+var builder = DistributedApplication.CreateBuilder(args);
+
+var bookstore = builder.AddNextJsApp("bookstore", "../../apps/bookstore")
+    .WithPnpm()
+    .WithHttpEndpoint(env: "PORT")
+    .WithExternalHttpEndpoints();
+
+var redis = builder.AddRedis("redis");
+var mongodb = builder.AddMongoDB("mongodb");
+
+var api = builder.AddNodeApp("api", "../../servers/api", "server.js")
+    .WithHttpEndpoint(env: "PORT")
+    .WithExternalHttpEndpoints()
+    .WithReference(redis).WaitFor(redis)
+    .WithReference(mongodb).WaitFor(mongodb)
+    .WithEnvironment("SESSION_SECRET", "dev-secret");
+
+builder.Build().Run();
+```
+
+### 7.3 本地启动
+
+```bash
+cd infra/aspire
+aspire start
+```
+
+启动后 `aspire describe` 应展示四个资源全部 `Running/Healthy`；访问 dashboard 中 api 的端点即后台（`/backdoor`），bookstore 端点即书店。
+
+### 7.4 验证要点
+
+- `aspire restore` 恢复依赖、`aspire start` 启动、`aspire describe` 确认资源状态；
+- bookstore 与 api、redis、mongodb 均健康；未登录访问后台跳转登录页。
+
+## 8. 测试策略
 
 - **单元（Vitest）**：登录/登出逻辑、会话中间件、密码哈希校验、限速；
 - **E2E（Playwright）**：未登录访问 `/backdoor` 重定向登录页 → 正确凭据登录进仪表盘 → 登出后重定向登录页；错误凭据提示；多端独立登出；
 - 书店回归：页脚链接存在且可跳转。
 
-## 8. 部署方案
+## 9. 部署方案
 
-### 8.1 环境规划
+### 9.1 环境规划
 
 | 环境 | 用途 | 部署方式 |
 |------|------|---------|
 | 本地开发 | 联调 | Aspire 编排：bookstore + api + Redis + MongoDB 容器 |
 | 生产 | 后台服务 | `servers/api` 独立进程托管于 `api.sumire.live`，配套 Redis/MongoDB；Cookie 域与 SameSite 均按同域处理 |
 
-### 8.2 配置管理
+### 9.2 配置管理
 
 | 变量 | 说明 |
 |------|------|
@@ -184,7 +244,7 @@ sumire/
 | `SESSION_SECRET` | 会话签名密钥 |
 | `COOKIE_SECURE` | 生产置 true |
 
-## 9. 验收标准
+## 10. 验收标准
 
 - [ ] 未登录访问 `/backdoor` 重定向 `/backdoor/login`
 - [ ] 超管凭据登录成功进入仪表盘；错误凭据提示"账号或密码错误"
@@ -193,7 +253,7 @@ sumire/
 - [ ] 书店页脚右下角「管理 →」链接可跳转
 - [ ] 单元测试 + E2E 全绿；Aspire 本地编排可一键启动
 
-## 10. 相关文档
+## 11. 相关文档
 
 - PRD：[[../product/requirements/draft/2026-08-12-backdoor-auth-prd.md]]
 - 视觉识别：[[../design/01-visual-identity.md]]

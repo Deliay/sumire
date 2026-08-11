@@ -30,5 +30,5 @@
 ## 开发约定
 
 - 分支命名：`<type>/<slug>`（`prd` 文档分支 / `feat` 开发分支），禁止 rebase/squash，只 merge；
-- 开发遵循 TDD；写代码前加载对应目录的 AGENTS.md 与相关规范；
+- 开发遵循 TDD；写代码前加载对应目录的 AGENTS.md 与 `docs/engineering/frontend-rules.md`；
 - 未上线的功能不得在 UI 中显示占位入口。

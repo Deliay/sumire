@@ -1,0 +1,150 @@
+@import "tailwindcss";
+
+/* ============================================================
+   堇色书屋 · 视觉识别
+   设计依据 docs/design/01-visual-identity.md：
+   雨夜书屋（深底）/ 旧纸张（纸页）/ 藤蔓（线）/ 蕾丝（框）/ 紫花微光（点）
+   ============================================================ */
+
+@theme {
+  /* 应援色 */
+  --color-primary: #b4a6bf;
+  --color-primary-deep: #8f7d9e;
+
+  /* 夜 */
+  --color-night: #16121c;
+  --color-raised: #1f1929;
+  --color-soft: #2a2136;
+
+  /* 纸页 */
+  --color-paper: #f0eaf4;
+  --color-paper-dim: #d9cfe0;
+
+  /* 文字 */
+  --color-ink: #efeaf4;
+  --color-ink-dim: #a99bb8;
+  --color-ink-on-paper: #342a40;
+
+  /* 点睛 */
+  --color-flower: #8b5fd6;
+  --color-vine: #5e4a75;
+  --color-eye: #7fb0e6;
+
+  /* 字体（变量由 app/layout.tsx 的 next/font 注入） */
+  --font-serif: var(--font-noto-serif-sc), "Noto Serif SC", serif;
+  --font-sans: var(--font-noto-sans-sc), "Noto Sans SC", sans-serif;
+  --font-display: var(--font-cormorant), "Cormorant Garamond", serif;
+
+  /* 入场动效 */
+  --animate-rise: rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+body {
+  background-color: var(--color-night);
+  color: var(--color-ink);
+}
+
+::selection {
+  background: color-mix(in oklab, var(--color-flower) 55%, transparent);
+}
+
+/* ---------- 雾气：大面积径向渐变缓慢漂移 ---------- */
+@keyframes fog-drift {
+  from {
+    transform: translate3d(-4%, -2%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(4%, 3%, 0) scale(1.08);
+  }
+}
+
+.fog {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(64px);
+  pointer-events: none;
+}
+
+.fog-a {
+  animation: fog-drift 26s ease-in-out infinite alternate;
+}
+
+.fog-b {
+  animation: fog-drift 34s ease-in-out infinite alternate-reverse;
+}
+
+/* ---------- 蕾丝花边：重复扇贝纹 ---------- */
+.lace-x {
+  height: 14px;
+  background-repeat: repeat-x;
+  background-size: 28px 14px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='14' viewBox='0 0 28 14'%3E%3Cpath d='M0 4 Q3.5 10 7 4 Q10.5 10 14 4 Q17.5 10 21 4 Q24.5 10 28 4' fill='none' stroke='%238f7d9e' stroke-width='1'/%3E%3Ccircle cx='7' cy='11' r='0.9' fill='%23b4a6bf'/%3E%3Ccircle cx='21' cy='11' r='0.9' fill='%23b4a6bf'/%3E%3C/svg%3E");
+}
+
+/* ---------- 纸页：细微噪点 + 泛黄径向渐变 ---------- */
+.paper {
+  background-color: var(--color-paper);
+  color: var(--color-ink-on-paper);
+  background-image:
+    radial-gradient(ellipse at 30% 0%, rgb(139 95 214 / 0.06), transparent 60%),
+    radial-gradient(circle at 1px 1px, rgb(52 42 64 / 0.05) 1px, transparent 0);
+  background-size:
+    100% 100%,
+    22px 22px;
+}
+
+/* ---------- 藤蔓生长（需配合 pathLength="1"） ---------- */
+.vine-draw path[data-grow] {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: vine-grow 2.4s ease-out 0.7s forwards;
+}
+
+@keyframes vine-grow {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ---------- 紫花节点：微光 ---------- */
+.flower-node {
+  background: radial-gradient(
+    circle,
+    #cfb2f2 0%,
+    var(--color-flower) 45%,
+    rgb(139 95 214 / 0) 72%
+  );
+  box-shadow: 0 0 14px 3px rgb(139 95 214 / 0.5);
+}
+
+/* ---------- 入场 ---------- */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---------- 尊重减少动态偏好 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .fog-a,
+  .fog-b {
+    animation: none;
+  }
+
+  .vine-draw path[data-grow] {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

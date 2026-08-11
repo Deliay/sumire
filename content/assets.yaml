@@ -1,0 +1,36 @@
+# 素材清单：file 为 public/assets/original/ 下的文件名，缩略图由 pnpm thumbnails 生成。
+- id: standing-01
+  title: 枝堇立绘 ①（持书）
+  category: standing
+  file: standing-01.png
+  width: 2000
+  height: 4000
+  note: 全身立绘，手持书本，藤蔓尾巴
+- id: standing-02
+  title: 枝堇立绘 ②（披肩）
+  category: standing
+  file: standing-02.png
+  width: 1280
+  height: 2560
+  note: 全身立绘，蕾丝披肩与手套
+- id: illustration-01
+  title: 氛围插画 · 缠身
+  category: illustration
+  file: illustration-01.png
+  width: 1280
+  height: 961
+  note: 雾气与发光堇花，藤蔓缠身
+- id: promo-captain-gift-debut
+  title: 出道月大航海回馈
+  category: promo
+  file: promo-captain-gift-debut.png
+  width: 1280
+  height: 901
+  note: 舰长 / 提督礼物宣传图
+- id: promo-weekly-schedule
+  title: 本周日程 · 周表样式
+  category: promo
+  file: promo-weekly-schedule.png
+  width: 1280
+  height: 830
+  note: 周表视觉参考

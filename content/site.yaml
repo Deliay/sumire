@@ -1,0 +1,10 @@
+# 站点级配置：名称、声明、外链。所有文案以官方公开信息为准。
+name: 堇色书屋
+tagline: 枝堇Sumire 非官方应援站
+description: 枝堇Sumire（VirtuaReal 二十八期）的非官方粉丝网站——主播档案、周边素材与粉丝工具集。
+disclaimer: 本站为非官方粉丝作品，与 VirtuaReal 及主播本人无关；站内素材版权归枝堇Sumire 及 VirtuaReal 所有，请勿用于商业用途。
+color: "#b4a6bf"
+links:
+  bilibili: https://space.bilibili.com/1150976664
+  live: https://live.bilibili.com/1727076670
+  moegirl: https://zh.moegirl.org.cn/%E6%9E%9D%E5%A0%87

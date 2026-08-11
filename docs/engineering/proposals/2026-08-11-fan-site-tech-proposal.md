@@ -6,7 +6,7 @@ type: Permanent
 # 枝堇Sumire 粉丝站 V1 - 技术提案
 
 **功能名称**: 枝堇Sumire 粉丝向网站 V1
-**关联 PRD**: [[../product/draft/01-sumire-fan-site-prd.md]]
+**关联 PRD**: [[../product/requirements/reviewed/2026-08-11-sumire-fan-site-prd.md]]
 **技术提案版本**: v1.0
 **创建日期**: 2026-08-11
 **作者**: ash
@@ -253,6 +253,6 @@ V1 无密钥与运行时配置；站点级常量（外链、版权文案）放 `
 
 ## 11. 相关文档
 
-- PRD：[[../product/draft/01-sumire-fan-site-prd.md]]
+- PRD：[[../product/requirements/reviewed/2026-08-11-sumire-fan-site-prd.md]]
 - 视觉识别：[[../design/01-visual-identity.md]]
 - 页面设计：[[../design/02-page-design.md]]

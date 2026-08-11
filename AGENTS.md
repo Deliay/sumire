@@ -29,8 +29,8 @@
 
 ## 文档结构
 
-- 产品文档：`docs/product/`（生命周期：draft → reviewed → shipping → released）
-- 技术方案：`docs/engineering/`
+- 产品文档：`docs/product/requirements/`（生命周期：`draft` → `reviewed` → `shipping` → `released`，以 `YYYY-MM-DD` 为前缀命名）
+- 技术方案：`docs/engineering/proposals/`（以 `YYYY-MM-DD` 为前缀命名）
 - 设计文档：`docs/design/`（视觉识别与页面设计细节）
 
 ## 开发约定

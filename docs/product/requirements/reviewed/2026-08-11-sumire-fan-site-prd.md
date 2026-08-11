@@ -182,7 +182,7 @@ flowchart TD
 
 ## 七、相关文档
 
-- 技术方案：[[../../engineering/01-fan-site-tech-proposal.md]]
+- 技术方案：[[../../engineering/proposals/2026-08-11-fan-site-tech-proposal.md]]
 - 视觉识别：[[../../design/01-visual-identity.md]]
 - 页面设计：[[../../design/02-page-design.md]]
 - 参考资料：[枝堇Sumire B 站空间](https://space.bilibili.com/1150976664/)、[萌娘百科·枝堇](https://zh.moegirl.org.cn/%E6%9E%9D%E5%A0%87)

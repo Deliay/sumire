@@ -66,5 +66,5 @@ pnpm thumbnails   # 重新生成素材缩略图
 
 ## 相关文档
 
-- 技术方案：[[01-fan-site-tech-proposal.md]]
-- PRD：[[../product/reviewed/01-sumire-fan-site-prd.md]]
+- 技术方案：[[proposals/2026-08-11-fan-site-tech-proposal.md]]
+- PRD：[[../product/requirements/reviewed/2026-08-11-sumire-fan-site-prd.md]]

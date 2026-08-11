@@ -17,7 +17,7 @@ description: 'USE FOR: development, dev, write code, read code, write tech propo
 
 ## 阅读产品文档
 
-每次开发前需要指定一个产品文档，默认可以用`ask`或者`question`工具从目录`docs/product/reviewed`列出日期最新的几个文档，让用户选择或输入`<产品文档>`。
+每次开发前需要指定一个产品文档，默认可以用`ask`或者`question`工具从目录`docs/product/requirements/reviewed`列出日期最新的几个文档，让用户选择或输入`<产品文档>`。
 
 ## 开发流程
 

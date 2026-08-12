@@ -20,8 +20,9 @@ export function validateStrength(password: string): StrengthResult {
   return { ok: errors.length === 0, errors };
 }
 
-export const hashPassword = (password: string): Promise<string> =>
-  import("bcryptjs").then(({ hash }) => hash(password, 10));
+import bcrypt from "bcryptjs";
+
+export const hashPassword = (password: string): Promise<string> => bcrypt.hash(password, 10);
 
 export const verifyPassword = (password: string, hash: string): Promise<boolean> =>
-  import("bcryptjs").then(({ compare }) => compare(password, hash));
+  bcrypt.compare(password, hash);

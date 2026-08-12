@@ -34,7 +34,9 @@ type: Permanent
 
 ```mermaid
 gitGraph
-    commit id: "feat/monorepo (需求总分支)"
+    commit id: "main"
+    branch feat/monorepo
+    commit id: "方案 v1.3 (eeed726)"
     branch feat/backdoor-auth
     commit id: "contract + workspace"
     branch servers/backdoor-auth

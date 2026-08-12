@@ -5,16 +5,18 @@ type: Permanent
 
 # 前端开发规范
 
-本文件是 sumire 前端开发的统一约定，开发前必须加载。视觉规则见 [[../design/01-visual-identity.md]]，页面规则见 [[../design/02-page-design.md]]。
+本文件是 sumire 前端开发的统一约定，开发前必须加载。视觉规则见 [[../design/01-visual-identity.md]]，页面规则见 [[../design/02-page-design.md]]。前端项目位于 monorepo 的 `apps/bookstore/`，下文目录均为该目录内的相对路径。
 
 ## 技术栈
 
 - Next.js（App Router）+ React + TypeScript（strict），全部页面静态生成（SSG）
 - Tailwind CSS v4，设计 token 定义在 `app/globals.css` 的 `@theme` 中
 - 内容：仓库内 YAML（`content/`）+ Zod 校验（`lib/content/`）
-- 测试：Vitest（单元）+ Playwright（E2E），包管理 pnpm
+- 测试：Vitest（单元）+ Playwright（E2E），包管理 pnpm workspace
 
 ## 常用命令
+
+在 `apps/bookstore/` 目录下执行：
 
 ```bash
 pnpm dev          # 本地开发
@@ -64,5 +66,5 @@ pnpm thumbnails   # 重新生成素材缩略图
 
 ## 相关文档
 
-- 技术方案：[[01-fan-site-tech-proposal.md]]
-- PRD：[[../product/reviewed/01-sumire-fan-site-prd.md]]
+- 技术方案：[[proposals/2026-08-11-fan-site-tech-proposal.md]]
+- PRD：[[../product/requirements/reviewed/2026-08-11-sumire-fan-site-prd.md]]

@@ -16,7 +16,7 @@ z-coding/
 
 ## 开发流程
 
-1. **阅读产品文档** - 从 `docs/product/reviewed` 选择最新的产品文档
+1. **阅读产品文档** - 从 `docs/product/requirements/reviewed` 选择最新的产品文档
 2. **创建需求分支** - 基于产品文档创建 `feat/<slug>` 分支
 3. **编写技术方案** - 编写提案并提交 PR 进行 review
 4. **更新 Contract** - 定义 API 契约并提交 PR 进行 review

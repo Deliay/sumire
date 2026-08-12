@@ -175,5 +175,5 @@ flowchart TD
 ## 7. 相关文档
 
 - 视觉识别：[[01-visual-identity.md]]
-- PRD：[[../product/draft/01-sumire-fan-site-prd.md]]
-- 技术方案：[[../engineering/01-fan-site-tech-proposal.md]]
+- PRD：[[../product/requirements/reviewed/2026-08-11-sumire-fan-site-prd.md]]
+- 技术方案：[[../engineering/proposals/2026-08-11-fan-site-tech-proposal.md]]

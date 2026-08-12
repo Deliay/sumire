@@ -104,4 +104,4 @@ type: Permanent
 ## 7. 相关文档
 
 - 页面设计：[[02-page-design.md]]
-- PRD：[[../product/draft/01-sumire-fan-site-prd.md]]
+- PRD：[[../product/requirements/reviewed/2026-08-11-sumire-fan-site-prd.md]]

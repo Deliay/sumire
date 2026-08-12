@@ -1,3 +1,9 @@
+packages:
+  - apps/*
+  - packages/*
+  - servers/*
+  - tests/*
+
 allowBuilds:
   esbuild: true
   sharp: true

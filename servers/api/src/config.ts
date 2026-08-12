@@ -7,10 +7,16 @@ const getEnv = (key: string, fallback?: string): string => {
   return value;
 };
 
+const envOr = (key: string): string | undefined => {
+  const v = process.env[key];
+  return v === undefined || v === "" ? undefined : v;
+};
+
 export const config = {
   port: Number(getEnv("PORT", "3001")),
-  redisUrl: getEnv("REDIS_URL", "redis://localhost:6379"),
-  mongodbUrl: getEnv("MONGODB_URL", "mongodb://localhost:27017/sumire"),
+  // Aspire 通过类型化属性 REDIS_URI / ConnectionStrings__redis 注入 Redis，MongoDB 走 ConnectionStrings__mongodb
+  redisUrl: envOr("REDIS_URL") ?? envOr("REDIS_URI") ?? envOr("ConnectionStrings__redis") ?? "redis://localhost:6379",
+  mongodbUrl: envOr("MONGODB_URL") ?? envOr("ConnectionStrings__mongodb") ?? "mongodb://localhost:27017/sumire",
   sessionSecret: getEnv("SESSION_SECRET", "dev-secret"),
   cookieSecure: getEnv("COOKIE_SECURE", "false") === "true",
   corsOrigins: (getEnv("CORS_ORIGINS", "") || "")

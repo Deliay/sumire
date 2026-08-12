@@ -23,7 +23,7 @@ export default function LoginCard() {
     setError("");
     const { status, data } = await login(username, password);
     setLoading(false);
-    if (status === 200 && data.ok) {
+    if (status === 200 && "ok" in data && data.ok) {
       // 登录成功后刷新会话状态，避免守卫仍按未登录处理而跳回登录页
       await refresh();
       if (data.mustChangePassword) {
@@ -31,6 +31,11 @@ export default function LoginCard() {
       } else {
         router.replace("/backdoor");
       }
+      return;
+    }
+    if (status === 429) {
+      // 限速提示单独展示，不与凭据错误混淆
+      setError("error" in data ? data.error ?? "尝试过于频繁，请稍后再试" : "尝试过于频繁，请稍后再试");
       return;
     }
     setError("账号或密码错误");

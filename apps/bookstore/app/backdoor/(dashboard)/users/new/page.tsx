@@ -8,8 +8,7 @@ import PrimaryButton from "@/features/backdoor/components/PrimaryButton";
 import PasswordRulesHint from "@/features/backdoor/components/PasswordRulesHint";
 import RoleSelect from "@/features/backdoor/components/RoleSelect";
 import { RequireRole } from "@/features/backdoor/RequireRole";
-
-const RANK: Record<Role, number> = { superadmin: 2, admin: 1, member: 0 };
+import { creatableRoles } from "@/features/backdoor/roleAccess";
 
 export default function NewUserPage() {
   const { session } = useSession();
@@ -21,14 +20,8 @@ export default function NewUserPage() {
   const [error, setError] = useState("");
 
   const me = session.status === "authenticated" ? session.me : null;
-  const myRank = me ? RANK[me.role] : 0;
-  // 可选角色：超管可建任意；管理员仅成员（admin 可建 member，rank 低于自己的）
-  const options: Role[] =
-    myRank >= 2
-      ? ["superadmin", "admin", "member"]
-      : myRank === 1
-        ? ["member"]
-        : [];
+  // 可选角色按当前用户权限限定：超管任意、管理员仅成员
+  const options: Role[] = me ? creatableRoles(me.role) : [];
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();

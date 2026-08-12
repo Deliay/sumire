@@ -43,8 +43,14 @@ export interface ApiError {
   error?: string;
 }
 
-export async function login(username: string, password: string): Promise<{ status: number; data: MeResponse }> {
-  return request<MeResponse>("/api/auth/login", { method: "POST", body: { username, password } });
+export async function login(
+  username: string,
+  password: string,
+): Promise<{ status: number; data: MeResponse | ApiError }> {
+  return request<MeResponse | ApiError>("/api/auth/login", {
+    method: "POST",
+    body: { username, password },
+  });
 }
 
 export async function logout(): Promise<void> {

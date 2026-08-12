@@ -17,7 +17,6 @@ export const config = {
   // Aspire 通过类型化属性 REDIS_URI / ConnectionStrings__redis 注入 Redis，MongoDB 走 ConnectionStrings__mongodb
   redisUrl: envOr("REDIS_URL") ?? envOr("REDIS_URI") ?? envOr("ConnectionStrings__redis") ?? "redis://localhost:6379",
   mongodbUrl: envOr("MONGODB_URL") ?? envOr("SUMIRE_URI") ?? envOr("ConnectionStrings__sumire") ?? envOr("ConnectionStrings__mongodb") ?? "mongodb://localhost:27017/sumire",
-  sessionSecret: getEnv("SESSION_SECRET", "dev-secret"),
   cookieSecure: getEnv("COOKIE_SECURE", "false") === "true",
   corsOrigins: (getEnv("CORS_ORIGINS", "") || "")
     .split(",")

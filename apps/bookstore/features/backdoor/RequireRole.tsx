@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "@/features/backdoor/session";
 import type { Role } from "@/features/backdoor/api";
 import GuardLoading from "@/features/backdoor/components/GuardLoading";
-
-const RANK: Record<Role, number> = { superadmin: 2, admin: 1, member: 0 };
+import { atLeast } from "@/features/backdoor/roleAccess";
 
 interface RequireRoleProps {
   /** 所需最小角色层级 */
@@ -20,12 +19,12 @@ export function RequireRole({ role, children }: RequireRoleProps) {
   const router = useRouter();
 
   useEffect(() => {
-    if (session.status === "authenticated" && RANK[session.me.role] < RANK[role]) {
+    if (session.status === "authenticated" && !atLeast(session.me.role, role)) {
       router.replace("/backdoor");
     }
   }, [session, role, router]);
 
   if (session.status !== "authenticated") return <GuardLoading />;
-  if (RANK[session.me.role] < RANK[role]) return <GuardLoading />;
+  if (!atLeast(session.me.role, role)) return <GuardLoading />;
   return <>{children}</>;
 }

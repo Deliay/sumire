@@ -1,5 +1,5 @@
 ---
-description: 枝堇Sumire 后台系统 V1 技术方案——Express 后端 + Session/Redis 鉴权 + 独立后台前端，含契约与 API/e2e 测试细节
+description: 枝堇Sumire 后台系统 V1 技术方案——书店内 /backdoor 路由 + Express 纯 API 鉴权服务，含契约与 API/e2e 测试细节
 type: Permanent
 ---
 
@@ -8,7 +8,7 @@ type: Permanent
 **功能名称**: 后台系统 V1——登入登出
 **关联 PRD**: [[../product/requirements/draft/2026-08-12-backdoor-auth-prd.md]]
 **关联设计**: [[../design/03-backdoor-design.md]]
-**技术提案版本**: v1.1
+**技术提案版本**: v1.2
 **创建日期**: 2026-08-12
 **作者**: ash
 **feat-branch**: `feat/backdoor-auth`
@@ -18,26 +18,27 @@ type: Permanent
 | 版本 | 日期 | 说明 |
 |------|------|------|
 | v1.0 | 2026-08-12 | 初版：Express + Session/Redis + MongoDB + Aspire 编排 |
-| v1.1 | 2026-08-12 | 重写：补充 API 契约（OpenAPI，§3.3）；测试策略由概述展开为可执行的 API 测试与 e2e 测试方案（§8，含目录结构、技术选型、用例清单、运行方式与验收追踪）；Aspire 示意与现有 `apphost.cs` 写法对齐 |
+| v1.1 | 2026-08-12 | 重写：补充 OpenAPI 契约；测试策略展开为 API/e2e 集成测试方案 |
+| v1.2 | 2026-08-12 | 返工修订：**取消独立后台前端 `apps/backdoor-web`，后台页面并入 `apps/bookstore`（`/backdoor` 路由前缀）；`servers/api` 只提供 API 服务，不再静态托管前端**。会话守卫改为页面客户端校验（`/api/auth/me`），跨域模型改为同 site 跨源 + CORS 凭证 |
 
 ## 1. 概述
 
 ### 1.1 背景
 
-书店站点为纯静态（Next.js SSG，GitHub Pages 托管），不具备服务端能力。随着后续管理功能（素材、档案、弹幕后台等）推进，需要一个受保护的独立后台。V1 建立「鉴权 + 后台界面框架」骨架，为后续管理功能提供统一入口。
+书店站点为纯静态（Next.js SSG，GitHub Pages 托管），不具备服务端能力。随着后续管理功能（素材、档案、弹幕后台等）推进，需要一个受保护的独立后台。V1 建立「鉴权 + 后台界面框架」骨架：**后台页面作为书店应用的 `/backdoor` 路由区实现**（与公开内容路由隔离、保持 SSG），**鉴权能力由独立后端 `servers/api` 以纯 API 形式提供**。
 
 ### 1.2 目标
 
 - 提供登入/登出能力，不开放注册，超管单账号（`supersumire`）；
 - 会话 7 天有效，允许多端同时在线、各自独立登出；
 - 账号等业务数据持久化到 MongoDB，Redis 仅承担会话与限速等临时状态；
-- 后台与书店路由/服务相互独立，互不阻塞发布；
+- 后台页面归属书店（`/backdoor` 前缀），后端只提供 API、不托管任何页面；
 - 本地开发统一由 Aspire 编排（bookstore + api + Redis + MongoDB）。
 
 ### 1.3 范围
 
-- 做：`servers/api`（Express 后端 + 鉴权）、后台前端框架（登录页 + 仪表盘布局）、书店页脚「管理 →」入口、Redis 会话存储、MongoDB 持久化、API 契约（OpenAPI）、Aspire 编排、API 集成测试与 e2e 测试工程；
-- 不做：注册、多管理员账号、找回/修改密码界面、任何具体管理功能、占位导航。
+- 做：`apps/bookstore` 新增 `/backdoor` 路由区（登录页 + 仪表盘布局）、`servers/api`（Express 纯 API：鉴权）、书店页脚「管理 →」入口、Redis 会话存储、MongoDB 持久化、API 契约（OpenAPI）、Aspire 编排、API 集成测试与 e2e 测试工程；
+- 不做：注册、多管理员账号、找回/修改密码界面、任何具体管理功能、占位导航、后端对前端页面的任何形式的托管。
 
 ## 2. 技术架构
 
@@ -45,30 +46,28 @@ type: Permanent
 
 ```mermaid
 graph TD
-    U[浏览器] -->|api.sumire.live<br>/backdoor/login /backdoor| A[api<br>Express + TS]
-    U -->|sumire.live 书店静态页| B[bookstore<br>Next.js SSG]
+    U[浏览器] -->|sumire.live<br>/backdoor/login /backdoor| B[bookstore<br>Next.js SSG]
+    U -->|sumire.live 书店公开页| B
+    B -->|同源页面内 fetch<br>credentials: include| A[api.sumire.live<br>Express 纯 API]
     A -->|Session 读写| C[(Redis)]
     A -->|业务数据持久化| M[(MongoDB)]
-    A -->|静态资源| D[后台前端<br>React SPA]
-    U -->|点击页脚「管理 →」| B
-    B -.->|外部链接跳转<br>api.sumire.live/backdoor| A
 ```
 
-后台前端为 React SPA，构建产物由 `servers/api` 静态托管；书店仅提供入口链接，不感知后台状态。
+后台页面（HTML/JS）全部由书店应用以 `/backdoor` 路由提供；页面内通过 `fetch(..., { credentials: "include" })` 调用 `api.sumire.live` 的鉴权 API。`servers/api` 只暴露 `/api/*`，不返回任何页面。
 
 ### 2.2 技术栈
 
 | 层级 | 技术选型 | 说明 |
 |------|---------|------|
-| 后端框架 | Node.js + Express 5 + TypeScript（strict） | `servers/api` |
+| 后台页面 | Next.js（书店应用内 `/backdoor` 路由，SSG + 客户端会话守卫） | `apps/bookstore/app/backdoor/*`，复用书店设计 token 与组件体系 |
+| 后端框架 | Node.js + Express 5 + TypeScript（strict） | `servers/api`，纯 API 服务 |
 | 鉴权方案 | **Session-Cookie + Redis 会话存储** | 服务端会话，7 天 TTL，多端独立 |
 | 会话存储 | ioredis + Redis | 会话即 Redis key，TTL 天然过期 |
 | 业务数据 | MongoDB（Mongoose） | 账号、后台业务数据持久化 |
 | 密码存储 | bcrypt | 哈希存储，不落明文 |
-| 后台前端 | React + Vite + Tailwind CSS v4 | `apps/backdoor-web`，复用书店设计 token |
 | API 契约 | OpenAPI 3.1（YAML） | `contract/backdoor-auth.openapi.yaml`，见 §3.3 |
 | 防爆破 | express-rate-limit（Redis 存储） | 登录接口限速 |
-| 单元测试 | Vitest | `servers/api` 与 `apps/backdoor-web` 各自内部 |
+| 单元测试 | Vitest | `servers/api` 与 `apps/bookstore` 各自内部 |
 | 集成测试 | Vitest（API，`tests/api`）+ Playwright（e2e，`tests/e2e`） | 详见 §8 |
 | 编排 | Aspire（C# AppHost，`infra/aspire`） | bookstore + api + Redis + MongoDB 容器，见 §7 |
 | 包管理 | pnpm workspace | `servers/*`、`apps/*`、`tests/*` 纳入 workspace |
@@ -89,14 +88,17 @@ graph TD
 
 ```mermaid
 graph LR
-    A[servers/api] --> B[app: Express 装配/静态托管]
-    A --> C[auth: 登录/登出/会话校验]
-    A --> D[session: Redis 会话中间件]
-    A --> E[db: MongoDB 数据层]
-    A --> F[routes: /api/auth/*]
-    G[apps/backdoor-web] --> H[login 页面]
-    G --> I[dashboard 布局 + 仪表盘]
+    B[apps/bookstore] --> B1[app/backdoor/login 登录页]
+    B --> B2[app/backdoor 仪表盘布局 + 欢迎页]
+    B --> B3[features/backdoor 会话守卫/鉴权 API 调用]
+    A[servers/api] --> C[app: Express 装配（仅 /api 路由）]
+    A --> D[auth: 登录/登出/会话校验]
+    A --> E[session: Redis 会话中间件]
+    A --> F[db: MongoDB 数据层]
+    A --> G[routes: /api/auth/*]
 ```
+
+**会话守卫（关键决策）**：书店保持 SSG，无服务端渲染能力，因此 `/backdoor` 页面的守卫在**客户端**完成——页面加载后先渲染加载态，调用 `GET /api/auth/me`；200 渲染内容，401 跳转 `/backdoor/login`。公开页与后台页静态产物均可公开缓存，机密性完全由 API 层的 401 保证（V1 仪表盘无敏感数据，后续管理页面的数据一律经 API 获取，同样受 401 保护）。
 
 ## 3. API 设计
 
@@ -112,16 +114,18 @@ graph LR
 
 - 所有错误响应均为 `{ error: string }`，提示语为中文；
 - 登录失败（401）不区分账号错误与密码错误；
-- `logout` 设计为幂等：无会话/会话已失效时同样返回 200 并清除 Cookie，前端无需区分。
+- `logout` 设计为幂等：无会话/会话已失效时同样返回 200 并清除 Cookie，前端无需区分；
+- `servers/api` 仅暴露 `/api/*` 前缀路由，其余路径一律 404（不含任何页面或静态资源托管）。
 
 ### 3.2 会话与安全模型
 
 - **会话存储**：Redis key `session:<id>`，value 为 JSON `{ userId, username, createdAt, lastSeenAt }`，TTL = 7 天；每次通过会话校验时刷新 TTL（滑动过期）；
 - **会话 id**：`crypto.randomUUID()` 生成，不可猜测；Redis 中不存在自增或可枚举的会话键名（key 含随机 id）；
-- **Cookie**：`sumire_sid`，`HttpOnly`、`Path=/`、`SameSite=Lax`；生产 `Secure`；`Max-Age` 与 TTL 一致（7 天）；
+- **Cookie**：`sumire_sid`，`HttpOnly`、`Path=/`、`SameSite=Lax`；生产 `Secure`；`Max-Age` 与 TTL 一致（7 天）。**不设置 `Domain`**（host-only，落在 `api.sumire.live`）；
+- **跨域模型**：页面在 `sumire.live`、API 在 `api.sumire.live`，属**同 site（eTLD+1 相同）跨源**。`SameSite=Lax` 按 site 判定，书店页面发起的 `fetch(..., { credentials: "include" })` 可正常携带 Cookie；CORS 侧 api 对 `CORS_ORIGINS` 白名单来源返回 `Access-Control-Allow-Origin`（精确来源，禁用 `*`）+ `Access-Control-Allow-Credentials: true`；
 - **密码**：`supersumire` 的 bcrypt 哈希持久化于 MongoDB `users` 集合，不写入代码仓库；初始密码 `salamander` 的哈希由部署方以 `BACKDOOR_PASSWORD_HASH` 注入，文档提示上线前修改；
 - **防爆破**：登录接口按 IP 限速 5 次/分钟（Redis 计数，窗口 60s），超限返回 429；限速计数与会话无关；
-- **会话校验**：受保护路由（`/backdoor` 下非 `/login`，以及依赖会话的 API）由中间件校验 Cookie → Redis，页面路由失效则 302 至 `/backdoor/login`，API 路由失效则返回 401。
+- **会话校验**：`/api/auth/*` 中需要会话的接口由中间件校验 Cookie → Redis，失效返回 401；页面侧守卫见 §2.4（客户端基于 `/api/auth/me` 结果跳转）。
 
 ### 3.3 API 契约（OpenAPI）
 
@@ -196,17 +200,17 @@ components:
 
 ## 4. 路由规划
 
-`servers/api` 独立部署于线上域名 `api.sumire.live`，后台与鉴权接口均挂在该域名下；书店静态站保持 `sumire.live` 托管，仅以外部链接指向后台。
+后台页面与书店同站（`sumire.live` 的 `/backdoor` 前缀），鉴权 API 挂在 `api.sumire.live`；`servers/api` 只提供 API。
 
 | 路由 | 提供方 | 说明 |
 |------|--------|------|
-| `https://api.sumire.live/backdoor/login` | api | 登录页（无需会话） |
-| `https://api.sumire.live/backdoor` | api | 后台首页（需会话，未登录 302 重定向） |
-| `https://api.sumire.live/backdoor/*` | api | 后续管理功能页面（需会话） |
-| `https://api.sumire.live/api/auth/*` | api | 鉴权 API |
-| 书店 `/` | bookstore | 页脚右下角「管理 →」链接跳转 `https://api.sumire.live/backdoor` |
+| `https://sumire.live/backdoor/login` | bookstore | 登录页（静态页面，无需会话） |
+| `https://sumire.live/backdoor` | bookstore | 后台首页（静态页面 + 客户端会话守卫，未登录跳转登录页） |
+| `https://sumire.live/backdoor/*` | bookstore | 后续管理功能页面（同一守卫模式） |
+| `https://api.sumire.live/api/auth/*` | api | 鉴权 API（仅此前缀，其余 404） |
+| 书店 `/` | bookstore | 页脚右下角「管理 →」链接跳转同站 `/backdoor` |
 
-`api.sumire.live` 与 `sumire.live` 为跨域部署。会话 Cookie 落在 `api.sumire.live` 域下（`SameSite=Lax` 不跨域携带），后台登录与鉴权均在同域内完成；api 通过 `CORS_ORIGINS`（书店域名）白名单放行书店来源的请求（见 §7.2）。书店与后台通过显式外链跳转，无接口调用。
+页面与 API 为同 site 跨源：会话 Cookie host-only 落在 `api.sumire.live`，书店页面以 `credentials: "include"` 调用 API 时携带（`SameSite=Lax` 同 site 放行）；api 通过 `CORS_ORIGINS`（书店域名）白名单 + `Allow-Credentials` 放行书店来源的请求（见 §3.2、§7.2）。书店与后台页面间无跨应用跳转，仅为站内路由切换。
 
 ## 5. 数据模型
 
@@ -225,10 +229,10 @@ sumire/
 ├── contract/
 │   └── backdoor-auth.openapi.yaml  # 鉴权 API 契约（§3.3）
 ├── servers/
-│   └── api/                        # Express 后端 + 鉴权
+│   └── api/                        # Express 纯 API 后端（鉴权，无页面托管）
 │       ├── src/
 │       │   ├── index.ts            # 服务入口
-│       │   ├── app.ts              # Express 装配、静态托管
+│       │   ├── app.ts              # Express 装配（仅挂载 /api 路由 + CORS）
 │       │   ├── auth/               # 登录/登出/会话中间件
 │       │   ├── session/            # Redis 会话
 │       │   ├── db/                 # MongoDB 连接与模型
@@ -236,20 +240,21 @@ sumire/
 │       ├── tests/                  # 单元测试（Vitest）
 │       └── package.json
 ├── apps/
-│   ├── bookstore/                  # 书店（不变，仅页脚加链接）
-│   └── backdoor-web/               # 后台前端（React + Vite）
-│       ├── src/
-│       │   ├── pages/              # Login / Dashboard
-│       │   ├── components/         # 后台布局（顶栏/侧栏）
-│       │   └── api/                # 鉴权 API 调用
-│       ├── tests/                  # 单元测试（Vitest）
-│       └── package.json
+│   └── bookstore/                  # 书店 + 后台页面（/backdoor 路由区）
+│       ├── app/
+│       │   └── backdoor/
+│       │       ├── login/          # 登录页（静态）
+│       │       └── page.tsx        # 仪表盘（布局 + 客户端守卫）
+│       ├── features/backdoor/      # 会话守卫、鉴权 API 调用（credentials: include）
+│       └── components/             # 复用书店组件体系 + 后台布局组件（顶栏/侧栏）
 ├── tests/
 │   ├── api/                        # API 集成测试（Vitest，见 §8.2）
 │   └── e2e/                        # e2e 集成测试（Playwright，见 §8.3）
 ├── infra/aspire/                   # AppHost（编排 bookstore + api + Redis + MongoDB）
 └── docs/
 ```
+
+`/backdoor` 路由区与书店公开页共享构建与部署，但通过独立的路由分组与布局与公开内容隔离；公开页导航不出现后台入口（仅页脚「管理 →」链接）。
 
 ## 7. 编排方案（Aspire）
 
@@ -259,8 +264,8 @@ sumire/
 
 | 资源名 | 类型 | 说明 |
 |--------|------|------|
-| `bookstore` | Next.js App | 现有书店，`AddNextJsApp` + `.WithPnpm()` |
-| `api` | Node.js App | 后端服务，`AddNodeApp("api", "../../servers/api", ...)` |
+| `bookstore` | Next.js App | 书店（含 `/backdoor` 页面），`AddNextJsApp` + `.WithPnpm()` |
+| `api` | Node.js App | 纯 API 后端，`AddNodeApp("api", "../../servers/api", ...)` |
 | `redis` | Redis 容器 | 会话与限速存储 |
 | `mongodb` | MongoDB 容器 | 业务数据持久化 |
 
@@ -268,7 +273,8 @@ sumire/
 
 - `api` 通过 `.WithReference(redis)` / `.WithReference(mongodb)` 注入连接配置（`ConnectionStrings__redis` / `ConnectionStrings__mongodb` 由 api 侧映射为 `REDIS_URL` / `MONGODB_URL`），`WaitFor(redis)` / `WaitFor(mongodb)` 确保存储就绪后再启动；
 - `api` 使用 `.WithHttpEndpoint(env: "PORT")` 暴露 http 端点；
-- **跨域白名单**：书店与后台为跨域部署，`api` 必须 `.WithReference(bookstore)`，将 bookstore 的 http endpoint 以 `CORS_ORIGINS` 注入自身环境变量，作为 CORS 允许来源；本地开发时即书店 dev server 地址，生产时该变量由部署方替换为 `https://sumire.live`；
+- **跨域白名单**：页面（bookstore）与 API（api）为同 site 跨源部署，`api` 必须 `.WithReference(bookstore)`，将 bookstore 的 http endpoint 以 `CORS_ORIGINS` 注入自身环境变量，作为 CORS 允许来源（需同时放行凭证，见 §3.2）；本地开发时即书店 dev server 地址，生产时该变量由部署方替换为 `https://sumire.live`；
+- **bookstore 感知 api 地址**：bookstore 的 `/backdoor` 页面需要知道 API base URL，通过 `.WithReference(api)` 将 api 端点以 `NEXT_PUBLIC_API_BASE_URL` 注入 bookstore 环境变量；生产为 `https://api.sumire.live`；
 - `api` 所需环境变量（`SESSION_SECRET`、`BACKDOOR_PASSWORD_HASH` 等）由 `.WithEnvironment()` 注入。
 
 ```csharp
@@ -282,12 +288,6 @@ sumire/
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-var bookstore = builder
-    .AddNextJsApp("bookstore", "../../apps/bookstore", runScriptName: "dev")
-    .WithPnpm()
-    .WithHttpEndpoint(env: "PORT")
-    .WithExternalHttpEndpoints();
-
 var redis = builder.AddRedis("redis");
 var mongodb = builder.AddMongoDB("mongodb");
 
@@ -296,11 +296,20 @@ var api = builder.AddNodeApp("api", "../../servers/api", "server.js")
     .WithExternalHttpEndpoints()
     .WithReference(redis).WaitFor(redis)
     .WithReference(mongodb).WaitFor(mongodb)
-    .WithReference(bookstore)
-    .WithEnvironment("CORS_ORIGINS", bookstore.GetEndpoint("http"))
     .WithEnvironment("SESSION_SECRET", "dev-secret")
     .WithEnvironment("BACKDOOR_USERNAME", "supersumire")
     .WithEnvironment("BACKDOOR_PASSWORD_HASH", "<dev bcrypt hash>");
+
+var bookstore = builder
+    .AddNextJsApp("bookstore", "../../apps/bookstore", runScriptName: "dev")
+    .WithPnpm()
+    .WithHttpEndpoint(env: "PORT")
+    .WithExternalHttpEndpoints()
+    .WithReference(api)
+    .WithEnvironment("NEXT_PUBLIC_API_BASE_URL", api.GetEndpoint("http"));
+
+// api 的 CORS 白名单引用 bookstore 端点（声明在 bookstore 之后）
+api.WithEnvironment("CORS_ORIGINS", bookstore.GetEndpoint("http"));
 
 builder.Build().Run();
 ```
@@ -312,13 +321,13 @@ cd infra/aspire
 aspire start
 ```
 
-启动后 `aspire describe` 应展示四个资源全部 `Running/Healthy`；访问 dashboard 中 api 的端点即后台（`/backdoor`），bookstore 端点即书店。
+启动后 `aspire describe` 应展示四个资源全部 `Running/Healthy`；访问 bookstore 端点的 `/backdoor` 即后台，api 端点仅提供 `/api/*`。
 
 ### 7.4 验证要点
 
 - `aspire restore` 恢复依赖、`aspire start` 启动、`aspire describe` 确认资源状态；
-- bookstore 与 api、redis、mongodb 均健康；未登录访问后台跳转登录页；
-- 跨域校验：api 的 `CORS_ORIGINS` 为 bookstore 端点，书店域名发起的请求被 CORS 允许，其他来源被拒绝。
+- bookstore 与 api、redis、mongodb 均健康；未登录访问 `/backdoor` 跳转登录页；
+- 跨域校验：api 的 `CORS_ORIGINS` 为 bookstore 端点，书店来源的带凭证请求被允许，其他来源被拒绝；api 直接访问非 `/api` 路径返回 404。
 
 ## 8. 测试策略
 
@@ -330,11 +339,11 @@ aspire start
 
 | AC | 描述摘要 | 覆盖位置 |
 |----|---------|---------|
-| AC-1 | 未登录访问 `/backdoor` 跳转登录页 | e2e `auth-redirect`、api `page-guard` |
+| AC-1 | 未登录访问 `/backdoor` 跳转登录页 | e2e `auth-redirect` |
 | AC-2 | 正确凭据登录进入后台首页 | e2e `login-success`、api `login-200` |
 | AC-3 | 错误凭据提示且不区分原因 | e2e `login-failure`、api `login-401` |
 | AC-4 | 无注册入口 | api `no-register-route`（契约外路径 404） |
-| AC-5 | 7 天内刷新保持登录 | api `session-persist`（Cookie + TTL 断言） |
+| AC-5 | 7 天内刷新保持登录 | api `session-persist`（Cookie + TTL 断言）、e2e `login-success` 含 reload |
 | AC-6 | 后台可点击登出 | e2e `logout-entry` |
 | AC-7 | 登出后会话立即失效 | e2e `logout-invalidates`、api `logout-200` |
 | AC-8 | 多端会话独立 | api `multi-session` |
@@ -344,6 +353,8 @@ aspire start
 | AC-12~14 | 书店页脚「管理 →」链接 | e2e `bookstore-footer-link` |
 | — | 登录限速 429 | api `login-rate-limit` |
 | — | Cookie 安全属性 | api `cookie-attributes` |
+| — | api 不托管页面（纯 API） | api `api-only-surface` |
+| — | CORS 凭证与白名单 | api `cors-credentials` |
 
 ### 8.2 API 集成测试（`tests/api`）
 
@@ -354,11 +365,11 @@ aspire start
 tests/api/
 ├── src/
 │   └── api/
-│       ├── client.ts          # fetch 封装：baseURL、Cookie jar、JSON 助手
+│       ├── client.ts          # fetch 封装：baseURL、Cookie jar、JSON/Origin 助手
 │       ├── login.test.ts      # 登录用例
 │       ├── logout.test.ts     # 登出用例
 │       ├── session.test.ts    # 会话/me/限速用例
-│       └── guard.test.ts      # 页面路由守卫（302）用例
+│       └── surface.test.ts    # 服务边界：纯 API 表面、CORS
 ├── tests/api/AGENTS.md        # 工程约定（创建时写入）
 ├── package.json
 └── vitest.config.ts
@@ -369,7 +380,7 @@ tests/api/
 | 用例 | 步骤 | 断言 |
 |------|------|------|
 | `login-200` | POST `/api/auth/login` 正确凭据 | 200；`{ ok: true, username: "supersumire" }`；响应含 `Set-Cookie: sumire_sid=...` |
-| `cookie-attributes` | 同上，解析 Set-Cookie | 含 `HttpOnly`、`Path=/`、`SameSite=Lax`、`Max-Age=604800`；生产模式含 `Secure` |
+| `cookie-attributes` | 同上，解析 Set-Cookie | 含 `HttpOnly`、`Path=/`、`SameSite=Lax`、`Max-Age=604800`；不含 `Domain`（host-only）；生产模式含 `Secure` |
 | `login-401` | 错误密码 / 不存在用户各一次 | 均 401；`{ error }` 文案相同，均为"账号或密码错误"；不下发 Cookie |
 | `login-400` | 缺 `username` 或 `password` 字段 | 4xx + `{ error }`（契约允许 400 或 401，实现后回填精确值） |
 | `no-register-route` | POST `/api/auth/register`（契约外） | 404 |
@@ -380,30 +391,34 @@ tests/api/
 | `logout-idempotent` | 未登录直接 logout | 200（幂等） |
 | `multi-session` | 同一凭据登录两次得到 sid₁/sid₂；用 sid₁ logout | sid₂ 的 `me` 仍 200，sid₁ 的 `me` 401 |
 | `login-rate-limit` | 同 IP 1 分钟内连续 6 次错误登录 | 前 5 次 401，第 6 次 429 `{ error }` |
-| `page-guard` | 无 Cookie GET `/backdoor` 与 `/backdoor/anything` | 302，`Location` 指向 `/backdoor/login`；GET `/backdoor/login` 为 200 |
+| `api-only-surface` | GET `/`、`/backdoor`、`/backdoor/login` | 一律 404（api 不托管任何页面）；`GET /api/auth/me` 可达（401 而非 404） |
+| `cors-credentials` | 带 `Origin: <bookstore>` 的预检与带 Origin 实际请求 | 预检返回 `Access-Control-Allow-Origin: <精确来源>`（非 `*`）且 `Access-Control-Allow-Credentials: true`；非白名单 Origin 无 CORS 头 |
 
 - **运行方式**：
 
 ```bash
 cd infra/aspire && aspire start          # 拉起 bookstore + api + redis + mongodb
 aspire describe api --output json         # 取 api 的 http endpoint
-cd tests/api && API_BASE_URL=http://localhost:<port> pnpm vitest run
+aspire describe bookstore --output json   # 取 bookstore 端点（CORS 用例的 Origin）
+cd tests/api && API_BASE_URL=http://localhost:<port> \
+  BOOKSTORE_ORIGIN=http://localhost:<bookstore-port> \
+  pnpm vitest run
 ```
 
-`API_BASE_URL` 为唯一必需环境变量；测试运行前用 `GET /api/auth/me` 轮询等待服务就绪（超时 30s）。限速用例放在最后执行（或独立 `describe.sequential`），避免污染其他用例的计数窗口。
+`API_BASE_URL` 为必需环境变量，`BOOKSTORE_ORIGIN` 仅 CORS 用例需要；测试运行前用 `GET /api/auth/me` 轮询等待服务就绪（超时 30s）。限速用例放在最后执行（或独立 `describe.sequential`），避免污染其他用例的计数窗口。
 
 - **分支与评审**：基于开发分支创建 `test/<slug>` 分支编写用例，提 PR（description 附用例清单）评审通过后再运行；失败用例由 subagent 按 `docs/engineering` 与契约修复，修复落在同一 test 分支，全绿后合并回开发分支。
 
 ### 8.3 e2e 集成测试（`tests/e2e`）
 
-- **技术选型**：Playwright（与 bookstore 现有 e2e 选型一致）；测试目标为两个前端面——书店（页脚入口）与后台（登录页/仪表盘）；
+- **技术选型**：Playwright（与 bookstore 现有 e2e 选型一致）；测试目标只有一个前端应用——bookstore（公开页 + `/backdoor` 后台页面），API 行为在 `tests/api` 覆盖；
 - **目录结构**：
 
 ```
 tests/e2e/
 ├── src/
 │   ├── backdoor/
-│   │   ├── auth.spec.ts        # 重定向、登录成功/失败、登出
+│   │   ├── auth.spec.ts        # 客户端守卫重定向、登录成功/失败、登出
 │   │   └── dashboard.spec.ts   # 布局、欢迎语、视觉走查
 │   ├── bookstore/
 │   │   └── footer-link.spec.ts # 页脚「管理 →」入口
@@ -417,36 +432,32 @@ tests/e2e/
 
 | 用例 | 覆盖 AC | 操作路径与断言 |
 |------|--------|--------------|
-| `auth-redirect` | AC-1 | 未登录访问 `API_BASE_URL/backdoor` → URL 变为 `/backdoor/login`，登录表单可见 |
+| `auth-redirect` | AC-1 | 未登录访问 `BOOKSTORE_BASE_URL/backdoor` → 先呈加载态，随后 URL 变为 `/backdoor/login`，登录表单可见（客户端守卫基于 `/api/auth/me` 401） |
 | `login-success` | AC-2、AC-5 | 登录页输入正确凭据 → 跳转 `/backdoor`，欢迎语可见；`page.reload()` 后仍在仪表盘 |
 | `login-failure` | AC-3 | 输入错误密码 → 停留登录页，出现"账号或密码错误"提示；密码框清空可重试 |
 | `dashboard-layout` | AC-9 | 仪表盘存在顶部栏（站点名 + 登出按钮）、左侧导航（仅"仪表盘"一项且为选中态）、内容区 |
 | `dashboard-content` | AC-10 | 内容区展示欢迎语（含"欢迎回来"），无"敬请期待"类占位文案 |
 | `visual-sanity` | AC-11 | 断言根元素背景为 `--color-bg`（`#16121c`）、主按钮使用应援色系；附整页截图供人工核对 |
 | `logout-entry` / `logout-invalidates` | AC-6、AC-7 | 点击顶栏"登出" → 回登录页；后退/直接访问 `/backdoor` 再次跳转登录页 |
-| `bookstore-footer-link` | AC-12~14 | 打开书店首页，页脚右下角存在「管理 →」链接，`href` 指向 `https://api.sumire.live/backdoor`（生产值；本地断言链接文本与位置，跳转目标以环境变量覆盖）；点击后落在后台登录页 |
+| `bookstore-footer-link` | AC-12~14 | 打开书店首页，页脚右下角存在「管理 →」链接，`href` 为 `/backdoor`（同站路由）；点击后落在后台登录页 |
 
-- **编写标准**：每条用例编写阶段必须有截图验证——操作前一张、操作完成后一张，确认操作路径真实生效；调试完成后移除截图逻辑，仅保留断言行（视觉走查 `visual-sanity` 的截图保留为 artifact）。无法通过 UI 体现的（如 Cookie 属性）在 API 层断言，e2e 不重复覆盖。
+- **编写标准**：每条用例编写阶段必须有截图验证——操作前一张、操作完成后一张，确认操作路径真实生效；调试完成后移除截图逻辑，仅保留断言行（视觉走查 `visual-sanity` 的截图保留为 artifact）。无法通过 UI 体现的（如 Cookie 属性、CORS 头）在 API 层断言，e2e 不重复覆盖。
 - **运行方式**：
 
 ```bash
 cd infra/aspire && aspire start
-aspire describe api --output json        # api endpoint
-aspire describe bookstore --output json  # bookstore endpoint
-cd tests/e2e && API_BASE_URL=http://localhost:<api-port> \
-  BOOKSTORE_BASE_URL=http://localhost:<bookstore-port> \
-  pnpm playwright test
+aspire describe bookstore --output json  # bookstore endpoint（页面 + 后台同站）
+cd tests/e2e && BOOKSTORE_BASE_URL=http://localhost:<bookstore-port> pnpm playwright test
 ```
 
-`playwright.config.ts` 不使用 `webServer` 自动拉起（服务由 Aspire 统一管理），两个 baseURL 均由环境变量注入；未注入时跳过对应 spec（`test.skip`），保证书店侧与后台侧用例可独立运行。
+`playwright.config.ts` 不使用 `webServer` 自动拉起（服务由 Aspire 统一管理），`BOOKSTORE_BASE_URL` 由环境变量注入。e2e 通过浏览器真实完成登录，API 可达性由 bookstore 页面行为间接验证（页面内 `NEXT_PUBLIC_API_BASE_URL` 已由 Aspire 注入 bookstore）。
 
 - **分支与评审**：同 API 测试流程——`e2e/<slug>` 分支、PR 附用例清单评审、失败修复同分支、全绿合并。
 
 ### 8.4 单元测试（实现侧）
 
-- `servers/api`：bcrypt 校验、会话中间件（有效/失效/伪造 sid）、限速计数逻辑、种子插入幂等；
-- `apps/backdoor-web`：登录表单状态（提交中禁用、错误提示展示）、路由守卫组件；
-- 书店：页脚组件渲染链接的单元测试（现有 Vitest 体系内）。
+- `servers/api`：bcrypt 校验、会话中间件（有效/失效/伪造 sid）、限速计数逻辑、CORS 白名单与凭证头、种子插入幂等、非 `/api` 路径 404；
+- `apps/bookstore`：登录表单状态（提交中禁用、错误提示展示）、`/backdoor` 客户端守卫组件（me 200 渲染 / 401 跳转 / 校验中加载态）、页脚「管理 →」链接渲染。
 
 ## 9. 部署方案
 
@@ -455,27 +466,31 @@ cd tests/e2e && API_BASE_URL=http://localhost:<api-port> \
 | 环境 | 用途 | 部署方式 |
 |------|------|---------|
 | 本地开发 | 联调 | Aspire 编排：bookstore + api + Redis + MongoDB 容器 |
-| 生产 | 后台服务 | `servers/api` 独立进程托管于 `api.sumire.live`，配套 Redis/MongoDB；Cookie 域与 SameSite 均按同域处理 |
+| 生产 | 书店 + 后台页面 | `apps/bookstore` 静态产物托管于 `sumire.live`（SSG 不变，`/backdoor` 页面为静态页 + 客户端守卫） |
+| 生产 | 鉴权 API | `servers/api` 独立进程托管于 `api.sumire.live`，配套 Redis/MongoDB，仅暴露 `/api/*` |
 
 ### 9.2 配置管理
 
 | 变量 | 说明 |
 |------|------|
-| `REDIS_URL` | Redis 连接串 |
-| `MONGODB_URL` | MongoDB 连接串 |
-| `CORS_ORIGINS` | CORS 允许来源（本地为 bookstore 端点；生产为 `https://sumire.live`） |
+| `REDIS_URL` | Redis 连接串（api） |
+| `MONGODB_URL` | MongoDB 连接串（api） |
+| `CORS_ORIGINS` | CORS 允许来源（api；本地为 bookstore 端点，生产为 `https://sumire.live`） |
 | `BACKDOOR_USERNAME` | 超管用户名（默认 `supersumire`，仅首次种子） |
 | `BACKDOOR_PASSWORD_HASH` | 超管密码 bcrypt 哈希（仅首次种子；生产部署后应立即轮换） |
 | `SESSION_SECRET` | 会话签名密钥 |
 | `COOKIE_SECURE` | 生产置 true |
+| `NEXT_PUBLIC_API_BASE_URL` | 书店页面调用 API 的 base URL（bookstore；本地为 api 端点，生产为 `https://api.sumire.live`） |
 
 ## 10. 验收标准
 
-- [ ] 未登录访问 `/backdoor` 重定向 `/backdoor/login`
+- [ ] 未登录访问 `/backdoor` 跳转 `/backdoor/login`（客户端守卫）
 - [ ] 超管凭据登录成功进入仪表盘；错误凭据提示"账号或密码错误"
 - [ ] 登出后会话立即失效；多端各自独立
 - [ ] 会话 7 天有效，`HttpOnly` Cookie，登录接口限速 5 次/分钟
-- [ ] 书店页脚右下角「管理 →」链接可跳转
+- [ ] 书店页脚右下角「管理 →」链接可跳转同站 `/backdoor`
+- [ ] `servers/api` 仅提供 `/api/*`，非 API 路径一律 404，不托管任何页面
+- [ ] CORS 白名单精确来源 + 放行凭证，非白名单来源被拒绝
 - [ ] `contract/backdoor-auth.openapi.yaml` 与实现一致
 - [ ] 单元测试 + `tests/api` + `tests/e2e` 全绿；Aspire 本地编排可一键启动
 

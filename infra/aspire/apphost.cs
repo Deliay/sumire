@@ -10,8 +10,8 @@ var builder = DistributedApplication.CreateBuilder(args);
 var redis = builder.AddRedis("redis");
 var mongodb = builder.AddMongoDB("mongodb")
     .WithImage("mongo", "7")
+    .WithLifetime(ContainerLifetime.Session)
     .AddDatabase("sumire");
-
 var api = builder
     .AddJavaScriptApp("api", "../../servers/api", runScriptName: "dev")
     .WithHttpEndpoint(env: "PORT")

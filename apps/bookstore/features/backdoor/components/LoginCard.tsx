@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import TextField from "@/features/backdoor/components/TextField";
 import PrimaryButton from "@/features/backdoor/components/PrimaryButton";
 import { login } from "@/features/backdoor/api";
+import { useSession } from "@/features/backdoor/session";
 
 /** 登录卡片：标识 + 表单 + 固定高度错误区。 */
 export default function LoginCard() {
   const router = useRouter();
+  const { refresh } = useSession();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -22,6 +24,8 @@ export default function LoginCard() {
     const { status, data } = await login(username, password);
     setLoading(false);
     if (status === 200 && data.ok) {
+      // 登录成功后刷新会话状态，避免守卫仍按未登录处理而跳回登录页
+      await refresh();
       if (data.mustChangePassword) {
         router.replace("/backdoor/change-password");
       } else {

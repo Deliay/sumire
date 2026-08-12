@@ -6,15 +6,17 @@ import TextField from "@/features/backdoor/components/TextField";
 import PrimaryButton from "@/features/backdoor/components/PrimaryButton";
 import PasswordRulesHint from "@/features/backdoor/components/PasswordRulesHint";
 import { changePassword } from "@/features/backdoor/api";
+import { useSession } from "@/features/backdoor/session";
 
 interface ChangePasswordCardProps {
-  /** true 表示强制改密独立页形态（不渲染后台布局）；false 为日常改密布局内形态。 */
+  /** 保留：标识是否为强制改密独立页形态（默认 true）。 */
   standalone?: boolean;
 }
 
 /** 修改密码卡片：原密码 + 新密码 + 确认 + 强度提示。 */
 export default function ChangePasswordCard({ standalone = true }: ChangePasswordCardProps) {
   const router = useRouter();
+  const { refresh } = useSession();
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -33,11 +35,9 @@ export default function ChangePasswordCard({ standalone = true }: ChangePassword
     const { status, data } = await changePassword(oldPassword, newPassword);
     setLoading(false);
     if (status === 200) {
-      if (standalone) {
-        router.replace("/backdoor");
-      } else {
-        router.replace("/backdoor");
-      }
+      // 改密成功后刷新会话，清除强制改密标记，避免守卫仍引导回改密页
+      await refresh();
+      router.replace("/backdoor");
       return;
     }
     setError("error" in data ? data.error ?? "修改密码失败" : "修改密码失败");

@@ -54,7 +54,7 @@ test.describe("backdoor change-password", () => {
     await page.getByLabel("新密码", { exact: true }).fill("short");
     await page.getByLabel("确认新密码", { exact: true }).fill("short");
     await page.getByRole("button", { name: "确认修改" }).click();
-    await expect(page.locator("form p[role='alert']")).toContainText("密码长度至少 16 位");
+    await expect(page.locator("form p[role='alert']")).toContainText("密码长度至少 12 位");
     await expect(page).toHaveURL(/\/backdoor\/change-password$/);
   });
 
@@ -76,19 +76,24 @@ test.describe("backdoor change-password", () => {
     await expect(page).toHaveURL(/\/backdoor$/);
   });
 
-  test("new-user-force-change (AC-18): 超管创建成员后，新账号初始密码登录落在改密页", async ({ page }) => {
+  test("new-user-force-change (AC-18): 超管经 dialog 创建成员后，新账号初始密码登录落在改密页", async ({ page }) => {
     requireApiUrl();
     const accounts = getAccounts();
-    // 超管登录后台 → 创建成员 → 记录用户名与初始密码
+    // 超管登录后台 → 用户管理 dialog 创建成员 → 记录用户名与初始密码
     const run = Date.now().toString(36);
     const newUser = `e2e_nu_${run}`;
     const initialPassword = `E2e_InitNu_${run}Z9!`;
     await loginWithCredentials(page, accounts.superadmin.username, accounts.superadmin.password);
-    await page.goto(`${BASE}/backdoor/users/new`);
+    await page.goto(`${BASE}/backdoor/users`);
+    await page.getByRole("button", { name: /增加用户/ }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
     await page.getByLabel("用户名").fill(newUser);
     await page.getByLabel("初始密码").fill(initialPassword);
     await page.getByRole("button", { name: "创建用户" }).click();
     await expect(page.getByRole("status")).toContainText("已创建");
+    // 关闭 dialog 后再登出（modal 遮罩会拦截顶栏点击）
+    await page.getByRole("button", { name: "关闭" }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
     // 登出，用新账号初始密码登录 → 落在改密页
     await page.getByRole("button", { name: "登出" }).click();
     await expect(page).toHaveURL(/\/backdoor\/login$/);

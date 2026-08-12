@@ -12,18 +12,18 @@ describe("SideNav 按角色渲染", () => {
     cleanup();
   });
 
-  it("超管可见仪表盘/增加用户/用户管理", () => {
+  it("超管可见仪表盘/用户管理", () => {
     render(<SideNav role="superadmin" />);
     expect(screen.getByText("仪表盘")).toBeTruthy();
-    expect(screen.getByText("增加用户")).toBeTruthy();
     expect(screen.getByText("用户管理")).toBeTruthy();
+    expect(screen.queryByText("增加用户")).toBeNull();
   });
 
-  it("管理员可见仪表盘/增加用户，不见用户管理", () => {
+  it("管理员仅见仪表盘（无用户管理/增加用户）", () => {
     render(<SideNav role="admin" />);
     expect(screen.getByText("仪表盘")).toBeTruthy();
-    expect(screen.getByText("增加用户")).toBeTruthy();
     expect(screen.queryByText("用户管理")).toBeNull();
+    expect(screen.queryByText("增加用户")).toBeNull();
   });
 
   it("成员仅见仪表盘", () => {

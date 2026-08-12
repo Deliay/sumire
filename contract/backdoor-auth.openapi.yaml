@@ -67,7 +67,7 @@ paths:
                 oldPassword: { type: string }
                 newPassword:
                   type: string
-                  description: ≥16 位，含字母、数字、符号，且不同于原密码
+                  description: ≥12 位，含字母、数字、符号，且不同于原密码
       responses:
         "200":
           description: 修改成功
@@ -103,7 +103,7 @@ paths:
               required: [username, password, role]
               properties:
                 username: { type: string }
-                password: { type: string, description: "初始密码，≥16 位，含字母、数字、符号" }
+                password: { type: string, description: "初始密码，≥12 位，含字母、数字、符号" }
                 role: { $ref: "#/components/schemas/Role" }
       responses:
         "201":

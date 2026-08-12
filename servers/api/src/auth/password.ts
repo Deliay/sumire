@@ -1,6 +1,6 @@
 /**
  * 密码强度校验与哈希。
- * 规则：长度 ≥ 16，且同时包含字母（a-zA-Z）、数字（0-9）、符号（字母数字外可见字符）。
+ * 规则：长度 ≥ 12，且同时包含字母（a-zA-Z）、数字（0-9）、符号（字母数字外可见字符）。
  */
 export interface StrengthResult {
   ok: boolean;
@@ -13,7 +13,7 @@ const hasSymbol = (s: string) => /[^a-zA-Z0-9]/.test(s);
 
 export function validateStrength(password: string): StrengthResult {
   const errors: string[] = [];
-  if (password.length < 16) errors.push("密码长度至少 16 位");
+  if (password.length < 12) errors.push("密码长度至少 12 位");
   if (!hasLetter(password)) errors.push("密码需包含字母");
   if (!hasDigit(password)) errors.push("密码需包含数字");
   if (!hasSymbol(password)) errors.push("密码需包含符号");

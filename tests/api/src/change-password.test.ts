@@ -13,10 +13,10 @@ beforeAll(async () => {
 });
 
 const weakPasswords = {
-  tooShort: "Ab1!@defg", // 长度 < 16
-  noSymbol: "Abcdefghijklmn1234", // 缺符号
-  noDigit: "abcdefghijklmno!@", // 缺数字
-  noLetter: "1234567890123456!@", // 缺字母
+  tooShort: "Ab1!@defg", // 长度 8 < 12
+  noSymbol: "Abcdefghijk1234", // 缺符号（≥12）
+  noDigit: "abcdefghijk!@", // 缺数字（≥12）
+  noLetter: "123456789012!@", // 缺字母（≥12）
 };
 
 /** 创建全新成员账号并登录，返回 jar 与密码（用于改密类用例，不改种子超管）。 */

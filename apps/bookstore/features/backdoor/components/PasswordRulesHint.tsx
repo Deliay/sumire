@@ -8,7 +8,7 @@ interface PasswordRulesHintProps {
 export default function PasswordRulesHint({ password }: PasswordRulesHintProps) {
   const rules = checkPasswordRules(password);
   const items = [
-    { key: "length", label: "至少 16 位", met: rules.length },
+    { key: "length", label: "至少 12 位", met: rules.length },
     { key: "letter", label: "包含字母", met: rules.letter },
     { key: "digit", label: "包含数字", met: rules.digit },
     { key: "symbol", label: "包含符号", met: rules.symbol },

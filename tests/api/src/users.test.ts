@@ -157,9 +157,9 @@ describe("create user", () => {
 describe("password-policy 在创建用户初始密码上复验", () => {
   it.each([
     "Ab1!@defg",
-    "Abcdefghijklmn1234",
-    "abcdefghijklmno!@",
-    "1234567890123456!@",
+    "Abcdefghijk1234",
+    "abcdefghijk!@",
+    "123456789012!@",
   ])("初始密码 %s → 400", async (password) => {
     const sa = await asSuperadmin();
     const res = await request("/api/users", {

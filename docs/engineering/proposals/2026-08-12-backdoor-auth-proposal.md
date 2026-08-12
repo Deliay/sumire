@@ -20,7 +20,7 @@ type: Permanent
 | v1.0 | 2026-08-12 | 初版：Express + Session/Redis + MongoDB + Aspire 编排 |
 | v1.1 | 2026-08-12 | 重写：补充 OpenAPI 契约；测试策略展开为 API/e2e 集成测试方案 |
 | v1.2 | 2026-08-12 | 返工修订：后台页面并入 `apps/bookstore`（`/backdoor` 路由前缀）；`servers/api` 只提供 API |
-| v1.3 | 2026-08-12 | 返工修订：引入角色体系（superadmin/admin/member）与权限中间件；新增用户管理（`GET /api/users`，仅超管）、增加用户（`POST /api/users`，按角色降级创建）、修改密码（`POST /api/auth/change-password`）；首次登录强制改密（`mustChangePassword`）；密码强度规则（≥16 位，含字母、数字、符号）；契约与测试用例同步扩充 |
+| v1.3 | 2026-08-12 | 返工修订：引入角色体系（superadmin/admin/member）与权限中间件；新增用户管理（`GET /api/users`，仅超管）、增加用户（`POST /api/users`，按角色降级创建）、修改密码（`POST /api/auth/change-password`）；首次登录强制改密（`mustChangePassword`）；密码强度规则（≥12 位，含字母、数字、符号）；契约与测试用例同步扩充 |
 
 ## 1. 概述
 
@@ -32,14 +32,14 @@ type: Permanent
 
 - 登入/登出，不开放注册；会话 7 天有效，多端同时在线、各自独立登出；
 - 角色体系：`superadmin` > `admin` > `member`；用户管理（列表）仅超管；增加用户按角色降级创建（超管任意，admin 仅 member）；
-- 首次登录强制修改密码；密码强度规则：≥ 16 位且含字母、数字、符号；
+- 首次登录强制修改密码；密码强度规则：≥ 12 位且含字母、数字、符号；
 - 账号等业务数据持久化到 MongoDB，Redis 仅承担会话与限速等临时状态；
 - 后台页面归属书店（`/backdoor` 前缀），后端只提供 API、不托管任何页面；
 - 本地开发统一由 Aspire 编排（bookstore + api + Redis + MongoDB）。
 
 ### 1.3 范围
 
-- 做：`apps/bookstore` 新增 `/backdoor` 路由区（登录页、强制改密页、仪表盘布局、用户管理、增加用户）、`servers/api`（Express 纯 API：鉴权 + 用户管理 + 权限中间件）、书店页脚「管理 →」入口、Redis 会话存储、MongoDB 持久化、API 契约（OpenAPI）、Aspire 编排、API 集成测试与 e2e 测试工程；
+- 做：`apps/bookstore` 新增 `/backdoor` 路由区（登录页、强制改密页、仪表盘布局、用户管理——含内嵌「增加用户」dialog）、`servers/api`（Express 纯 API：鉴权 + 用户管理 + 权限中间件）、书店页脚「管理 →」入口、Redis 会话存储、MongoDB 持久化、API 契约（OpenAPI）、Aspire 编排、API 集成测试与 e2e 测试工程；
 - 不做：自助注册、找回密码、删除/停用用户、修改他人密码、任何具体业务管理功能、占位导航、后端对前端页面的任何形式的托管。
 
 ## 2. 技术架构
@@ -94,8 +94,7 @@ graph LR
     B[apps/bookstore] --> B1[app/backdoor/login 登录页]
     B --> B2[app/backdoor/change-password 强制改密页]
     B --> B3[app/backdoor 仪表盘布局]
-    B --> B4[app/backdoor/users 用户管理·超管]
-    B --> B5[app/backdoor/users/new 增加用户·超管/管理员]
+    B --> B4[app/backdoor/users 用户管理·超管<br>含内嵌 CreateUserDialog 增加用户]
     B --> B6[features/backdoor 会话守卫/权限守卫/API 调用]
     A[servers/api] --> C[app: Express 装配（仅 /api 路由 + CORS）]
     A --> D[auth: 登录/登出/改密/会话中间件]
@@ -108,7 +107,7 @@ graph LR
 **守卫模型（关键决策）**：书店保持 SSG，无服务端渲染能力，因此守卫在**客户端**完成，分两层——
 
 1. **会话守卫**：`/backdoor` 下所有页面加载后先渲染加载态，调用 `GET /api/auth/me`；401 跳转 `/backdoor/login`；返回 `mustChangePassword: true` 时跳转 `/backdoor/change-password`（改密页除外，避免循环）；
-2. **权限守卫**：`/backdoor/users`（需 superadmin）与 `/backdoor/users/new`（需 admin 及以上）在 `me` 返回后按 `role` 判定，不满足则跳转仪表盘（无权限提示）；导航按 `role` 渲染对应入口。
+2. **权限守卫**：`/backdoor/users`（需 superadmin）在 `me` 返回后按 `role` 判定，不满足则跳转仪表盘（无权限提示）；「增加用户」以用户管理页内 dialog 形式内嵌（`CreateUserDialog`），不设独立路由；导航按 `role` 渲染对应入口。
 
 机密性完全由 API 层保证：页面静态产物可公开缓存，用户数据一律经 API 获取并独立鉴权（401/403），页面隐藏入口只是体验层。
 
@@ -139,7 +138,7 @@ graph LR
 - **会话 id**：`crypto.randomUUID()` 生成，不可猜测；
 - **Cookie**：`sumire_sid`，`HttpOnly`、`Path=/`、`SameSite=Lax`；生产 `Secure`；`Max-Age` 7 天；**不设置 `Domain`**（host-only，落在 `api.sumire.live`）；
 - **跨域模型**：页面在 `sumire.live`、API 在 `api.sumire.live`，同 site（eTLD+1 相同）跨源。`SameSite=Lax` 按 site 判定，`credentials: "include"` 的 fetch 可携带 Cookie；CORS 对 `CORS_ORIGINS` 白名单返回精确 `Access-Control-Allow-Origin`（禁用 `*`）+ `Access-Control-Allow-Credentials: true`；
-- **密码强度规则**（`change-password` 的 `newPassword` 与 `POST /api/users` 的 `password` 统一执行，服务端为准）：长度 ≥ 16，且必须同时包含字母（a-zA-Z）、数字（0-9）、符号（字母数字外可见字符）。校验失败返回 400，提示缺失项；
+- **密码强度规则**（`change-password` 的 `newPassword` 与 `POST /api/users` 的 `password` 统一执行，服务端为准）：长度 ≥ 12，且必须同时包含字母（a-zA-Z）、数字（0-9）、符号（字母数字外可见字符）。校验失败返回 400，提示缺失项；
 - **改密约束**：`newPassword` 与 `oldPassword` 相同返回 400「新密码不能与原密码相同」；`oldPassword` 校验失败返回 401「原密码错误」；改密成功后将用户 `mustChangePassword` 置 `false` 并以新哈希落库，当前会话保持有效（其他端会话 V1 不下线）；
 - **强制改密**：`users.mustChangePassword = true` 的账号（初始超管、被创建的新用户）登录成功但响应标记 `mustChangePassword: true`；页面守卫将其限制在改密页（见 §2.4），`change-password` 是该状态下唯一有副作用的写接口；
 - **权限中间件**：`requireRole("superadmin")` 保护 `GET /api/users`；`POST /api/users` 内按创建者角色判定目标角色合法性——superadmin 可创建任意角色，admin 仅可创建 member，member 403；角色不在枚举内返回 400；
@@ -208,7 +207,7 @@ paths:
               required: [oldPassword, newPassword]
               properties:
                 oldPassword: { type: string }
-                newPassword: { type: string, description: "≥16 位，含字母、数字、符号，且不同于原密码" }
+                newPassword: { type: string, description: "≥12 位，含字母、数字、符号，且不同于原密码" }
       responses:
         "200":
           description: 修改成功
@@ -242,7 +241,7 @@ paths:
               required: [username, password, role]
               properties:
                 username: { type: string }
-                password: { type: string, description: "初始密码，≥16 位，含字母、数字、符号" }
+                password: { type: string, description: "初始密码，≥12 位，含字母、数字、符号" }
                 role: { $ref: "#/components/schemas/Role" }
       responses:
         "201":
@@ -311,7 +310,7 @@ components:
 | `https://sumire.live/backdoor/change-password` | bookstore | 修改密码页（需会话；强制改密时唯一可达页） |
 | `https://sumire.live/backdoor` | bookstore | 仪表盘（需会话，客户端守卫） |
 | `https://sumire.live/backdoor/users` | bookstore | 用户管理（需会话 + superadmin 权限守卫） |
-| `https://sumire.live/backdoor/users/new` | bookstore | 增加用户（需会话 + admin 及以上权限守卫） |
+| `https://sumire.live/backdoor/users` | bookstore | 用户管理（需会话 + superadmin 权限守卫）；「增加用户」为页内 dialog，无独立路由 |
 | `https://api.sumire.live/api/auth/*`、`/api/users` | api | 鉴权与用户管理 API（仅 `/api` 前缀，其余 404） |
 | 书店 `/` | bookstore | 页脚右下角「管理 →」链接跳转同站 `/backdoor` |
 
@@ -351,8 +350,7 @@ sumire/
 │       │   └── backdoor/
 │       │       ├── login/          # 登录页（静态）
 │       │       ├── change-password/# 修改密码页（强制改密落地页）
-│       │       ├── users/          # 用户管理（超管）
-│       │       │   └── new/        # 增加用户（超管/管理员）
+│       │       ├── users/          # 用户管理（超管；内含 CreateUserDialog 增加用户）
 │       │       └── page.tsx        # 仪表盘（布局 + 守卫）
 │       ├── features/backdoor/      # 会话守卫、权限守卫、API 调用（credentials: include）
 │       └── components/             # 复用书店组件体系 + 后台布局组件（顶栏/侧栏）
@@ -518,7 +516,7 @@ tests/api/
 | `change-password-200` | 初始密码登录 → 改密（合规新密码） → `me` → 旧密码登录 / 新密码登录 | 改密 200；`me.mustChangePassword=false`；旧密码登录 401，新密码登录 200 |
 | `change-password-same-as-old` | `newPassword` = `oldPassword` | 400 `{ error }`「新密码不能与原密码相同」 |
 | `change-password-wrong-old` | `oldPassword` 错误 | 401 `{ error }`「原密码错误」 |
-| `password-policy`（用例组） | `newPassword` 分别：长度 15 / 纯字母+数字 ≥16 / 缺数字 / 缺符号 / 合规对照 | 前四类 400 且提示对应规则；对照 200。同一规则组在 `POST /api/users` 的初始密码上复验一遍 |
+| `password-policy`（用例组） | `newPassword` 分别：长度 11 / 纯字母+数字 ≥12 / 缺数字 / 缺符号 / 合规对照 | 前四类 400 且提示对应规则；对照 200。同一规则组在 `POST /api/users` 的初始密码上复验一遍 |
 | `users-list-200` | 超管登录 GET `/api/users` | 200；`users` 数组元素含 `username`/`role`/`createdAt`；含 `supersumire` |
 | `users-list-403` | admin / member 登录后 GET `/api/users` | 403 `{ error }` |
 | `users-list-401` | 未登录 GET `/api/users` | 401 |
@@ -582,8 +580,8 @@ tests/e2e/
 | `new-user-force-change` | AC-18 | 超管创建成员 → 新账号初始密码登录 → 落在改密页 |
 | `users-list-superadmin` | AC-19、AC-21 | 超管登录 → 导航含「用户管理」；打开列表可见 `supersumire` 及新建账号的用户名/角色/创建时间；创建管理员账号成功并出现在列表 |
 | `users-list-hidden` | AC-20 | 管理员/成员登录 → 导航无「用户管理」；直接访问 `/backdoor/users` 被引导回仪表盘 |
-| `create-user-by-admin` | AC-22 | 管理员打开「增加用户」→ 角色选项仅「成员」；创建成员成功 |
-| `nav-by-role` | AC-23、AC-27 | 三种角色分别登录核对导航：成员仅「仪表盘」；管理员另有「增加用户」；超管另有「用户管理」「增加用户」 |
+| `create-user-by-admin` | AC-22 | 超管在用户管理页打开「增加用户」dialog → 角色选项含管理员/成员；创建成员成功 |
+| `nav-by-role` | AC-23、AC-27 | 三种角色分别登录核对导航：成员仅「仪表盘」；管理员仅「仪表盘」；超管另有「用户管理」 |
 | `dashboard-layout` | AC-9 | 顶部栏（站点名 + 登出）、左侧导航、内容区齐全 |
 | `dashboard-content` | AC-10 | 欢迎语（含"欢迎回来"）可见，无占位文案 |
 | `visual-sanity` | AC-11 | 根元素背景 `--color-bg`（`#16121c`）、主按钮应援色系；附整页截图供人工核对 |
@@ -636,7 +634,7 @@ cd tests/e2e && BOOKSTORE_BASE_URL=http://localhost:<bookstore-port> pnpm playwr
 
 - [ ] 未登录访问 `/backdoor` 跳转 `/backdoor/login`（客户端守卫）
 - [ ] 登录成功进入仪表盘；错误凭据提示"账号或密码错误"
-- [ ] 初始密码账号首次登录被强制改密；新密码须不同于原密码且满足强度规则（≥16 位，含字母、数字、符号）
+- [ ] 初始密码账号首次登录被强制改密；新密码须不同于原密码且满足强度规则（≥12 位，含字母、数字、符号）
 - [ ] 用户管理（列表）仅超管可见/可用；非超管页面与接口均被拒（403）
 - [ ] 超管可创建任意角色用户；管理员仅可创建成员；成员无创建能力
 - [ ] 新创建用户首次登录同样强制改密

@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Noto_Sans_SC, Noto_Serif_SC } from "next/font/google";
-import Footer from "@/components/Footer";
-import NavBar from "@/components/NavBar";
 import { getSite } from "@/lib/content";
-import { getTools } from "@/lib/tools/registry";
 import "./globals.css";
 
 const notoSerifSC = Noto_Serif_SC({
@@ -44,9 +41,7 @@ export default function RootLayout({
       className={`${notoSerifSC.variable} ${notoSansSC.variable} ${cormorant.variable}`}
     >
       <body className="bg-night font-sans text-ink antialiased">
-        <NavBar siteName={site.name} tools={getTools()} />
-        <main className="min-h-svh">{children}</main>
-        <Footer site={site} />
+        {children}
       </body>
     </html>
   );

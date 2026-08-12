@@ -53,7 +53,7 @@ type: Permanent
 
 - 加载 `docs/engineering/backend-rules.md`（步骤 0 产出）；
 - 按提案 §6 结构实现：`src/index.ts`（入口）、`app.ts`（仅挂载 `/api` 路由 + CORS）、`auth/`（登录/登出/改密/会话中间件）、`rbac/requireRole`、`session/`（ioredis，`session:<id>` JSON，TTL 7 天滑动）、`db/`（Mongoose `users` 模型：`username/passwordHash/role/mustChangePassword/createdAt`）、`routes/`（`/api/auth/*`、`/api/users`）；
-- 关键行为以契约与提案 §3.2 为准：bcrypt 哈希、密码强度规则（≥16 位且含字母/数字/符号）、改密 same-as-old 400 / wrong-old 401、强制改密标记、创建用户角色降级（superadmin 任意 / admin 仅 member / member 403）、登录限速 5 次/分钟/IP（Redis）、Cookie `sumire_sid`（HttpOnly/Path=/SameSite=Lax/Max-Age=604800/无 Domain，生产 Secure）、logout 幂等、非 `/api` 路径一律 404、启动时种子超管（`BACKDOOR_USERNAME`/`BACKDOOR_PASSWORD_HASH`，幂等不覆盖）；
+- 关键行为以契约与提案 §3.2 为准：bcrypt 哈希、密码强度规则（≥12 位且含字母/数字/符号）、改密 same-as-old 400 / wrong-old 401、强制改密标记、创建用户角色降级（superadmin 任意 / admin 仅 member / member 403）、登录限速 5 次/分钟/IP（Redis）、Cookie `sumire_sid`（HttpOnly/Path=/SameSite=Lax/Max-Age=604800/无 Domain，生产 Secure）、logout 幂等、非 `/api` 路径一律 404、启动时种子超管（`BACKDOOR_USERNAME`/`BACKDOOR_PASSWORD_HASH`，幂等不覆盖）；
 - 单元测试（Vitest）覆盖提案 §8.4 后端清单：强度校验各分支、`requireRole` 权限矩阵、角色降级规则、改密分支、限速计数、种子幂等、404 边界；
 - 更新 `servers/api/AGENTS.md`。
 
@@ -62,8 +62,8 @@ type: Permanent
 #### 1b. `apps/bookstore` `/backdoor` 路由区（前端 subagent）
 
 - 加载 `docs/engineering/frontend-rules.md`、`frontend-design` 与 `vercel-react-best-practices` skill，视觉严格按设计文档 `docs/design/03-backdoor-design.md`；
-- 路由（保持 SSG，全部守卫在客户端）：`app/backdoor/login/page.tsx`（登录页，静态无需守卫）、`app/backdoor/change-password/page.tsx`（强制改密独立页 + 日常改密布局内两形态）、`app/backdoor/layout.tsx` + `page.tsx`（仪表盘布局：TopBar + SideNav + 内容区）、`app/backdoor/users/page.tsx`（用户管理，仅超管）、`app/backdoor/users/new/page.tsx`（增加用户，超管/管理员）；
-- `features/backdoor/`：API client（`fetch(..., { credentials: "include" })`，base URL 取 `NEXT_PUBLIC_API_BASE_URL`）、会话守卫（me 401 → 登录页；`mustChangePassword` → 改密页，改密页除外防循环）、权限守卫（users 需 superadmin、users/new 需 admin+，不满足跳仪表盘）、导航按角色渲染；
+- 路由（保持 SSG，全部守卫在客户端）：`app/backdoor/login/page.tsx`（登录页，静态无需守卫）、`app/backdoor/change-password/page.tsx`（强制改密独立页 + 日常改密布局内两形态）、`app/backdoor/layout.tsx` + `page.tsx`（仪表盘布局：TopBar + SideNav + 内容区）、`app/backdoor/users/page.tsx`（用户管理，仅超管，内嵌 CreateUserDialog 增加用户）；
+- `features/backdoor/`：API client（`fetch(..., { credentials: "include" })`，base URL 取 `NEXT_PUBLIC_API_BASE_URL`）、会话守卫（me 401 → 登录页；`mustChangePassword` → 改密页，改密页除外防循环）、权限守卫（users 需 superadmin，不满足跳仪表盘）、导航按角色渲染；
 - 组件按设计文档 §5 清单：`LoginCard`、`ChangePasswordCard`、`PasswordRulesHint`、`TextField`、`PrimaryButton`、`TopBar`、`SideNav`、`RoleBadge`、`UserTable`、`RoleSelect`、`SessionNote`、`GuardLoading`（静态藤蔓分隔线复用书店 `VineDivider`）；仅用 `@theme` token 色，后台不使用氛围动效，控件过渡 ≤200ms 且尊重 `prefers-reduced-motion`；不出现注册/找回密码入口，不出现未上线功能占位；
 - `components/Footer.tsx` 右下角新增「管理 →」链接（`href="/backdoor"`，样式与页脚一致）；
 - 单元测试（Vitest）覆盖提案 §8.4 前端清单：表单状态、守卫三分支、权限导航渲染、页脚链接；

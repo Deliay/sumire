@@ -1,5 +1,5 @@
 ---
-description: 枝堇Sumire 后台系统 V1 实现方案——基于 PRD v1.3 与技术提案 v1.3 的契约式实施计划（分支模型、实施步骤、验证与追踪）
+description: 枝堇Sumire 后台系统 V1 实现方案——基于 PRD v1.3 与技术提案 v1.3 的契约式实施计划（单分支实施、实施步骤、验证与追踪）
 type: Permanent
 ---
 
@@ -12,7 +12,7 @@ type: Permanent
 **创建日期**: 2026-08-12
 **作者**: ash
 
-本方案将技术提案 v1.3 落实为可执行的实施计划，遵循 z-coding 契约式开发流程：创建需求分支 → 编写技术方案（已完成）→ 更新 Contract → 创建开发分支 → 编写实现（并行 subagent）→ 编排服务 → 覆盖 API 测试 → 覆盖 e2e 测试。全程遵循 TDD，实现代码前先加载对应目录的 AGENTS.md 与 `docs/engineering/frontend-rules.md`。
+本方案将技术提案 v1.3 落实为可执行的实施计划，遵循 z-coding 契约式开发流程：更新 Contract → 编写实现（并行 subagent）→ 编排服务 → 覆盖 API 测试 → 覆盖 e2e 测试。按需求方指示，**不再切任何开发/子分支，全部工作直接在需求总分支 `feat/monorepo` 上进行**，按步骤小步提交。全程遵循 TDD，实现代码前先加载对应目录的 AGENTS.md 与 `docs/engineering/frontend-rules.md`。
 
 ## 1. 现状与差距
 
@@ -28,59 +28,28 @@ type: Permanent
 | `docs/engineering/backend-rules.md` | 不存在（z-coding 后端开发要求加载） | 随后端实现一并产出 |
 | 各新目录 AGENTS.md | 不存在 | 实现过程中按 z-coding 固定知识库要求创建/更新 |
 
-## 2. 分支模型
+## 2. 分支与提交
 
-禁止 rebase/squash，只 merge；提交信息格式 `<type>: <描述>`。
-
-```mermaid
-gitGraph
-    commit id: "main"
-    branch feat/monorepo
-    commit id: "方案 v1.3 (eeed726)"
-    branch feat/backdoor-auth
-    commit id: "contract + workspace"
-    branch servers/backdoor-auth
-    commit id: "api 实现+单测"
-    checkout feat/backdoor-auth
-    branch apps/backdoor-auth
-    commit id: "/backdoor 页面+单测"
-    checkout feat/backdoor-auth
-    merge servers/backdoor-auth
-    merge apps/backdoor-auth
-    commit id: "Aspire 编排"
-    branch test/backdoor-auth
-    commit id: "API 集成测试"
-    checkout feat/backdoor-auth
-    branch e2e/backdoor-auth
-    commit id: "e2e 测试"
-    checkout feat/backdoor-auth
-    merge test/backdoor-auth
-    merge e2e/backdoor-auth
-    checkout feat/monorepo
-    merge feat/backdoor-auth id: "评审通过后合回需求总分支"
-```
-
-- `feat/backdoor-auth`：开发分支，自 `feat/monorepo` 切出并推送远端；契约、编排、文档更新直接落在该分支；
-- `servers/backdoor-auth`、`apps/backdoor-auth`：两个实现子分支，各自提 PR 到 `feat/backdoor-auth`，评审通过后 merge；
-- `test/backdoor-auth`、`e2e/backdoor-auth`：集成测试分支，PR 附用例清单评审，失败修复落同分支，全绿后 merge；
-- 全部完成后 `feat/backdoor-auth` 合回 `feat/monorepo`，需求总 PR #3 随之更新。
+- **单分支实施**：不创建开发分支与子分支，契约、实现、编排、测试、文档全部直接在需求总分支 `feat/monorepo` 上提交并推送，需求总 PR #3 随提交持续更新；
+- 按步骤小步提交，提交信息格式 `<type>: <描述>`，与仓库现有风格一致；禁止 rebase/squash；
+- 两个实现 subagent（步骤 1）在同一分支上按目录隔离并行推进：`servers/api` 与 `apps/bookstore` 文件不相交，分别提交，不互相等待；
+- 每个步骤完成后以该步骤的「验证」条目为准通过再进入下一步。
 
 ## 3. 实施步骤
 
-### 步骤 0：开发分支与工程基座（feat/backdoor-auth）
+### 步骤 0：工程基座（feat/monorepo）
 
-1. 自 `feat/monorepo` 切出 `feat/backdoor-auth` 并推送远端；
-2. `pnpm-workspace.yaml` 增加 `servers/*`、`tests/*`；
-3. 新建 `contract/backdoor-auth.openapi.yaml`：将提案 §3.3 的契约骨架补全为完整可校验的 OpenAPI 3.1 文档（6 个接口、Role/Ok/MeOk/User/Error schema、7 个复用 response），作为单一事实源；
-4. 新建 `docs/engineering/backend-rules.md`：后端统一约定（Express 5 + TS strict、分层 `auth/rbac/session/db/routes`、错误响应统一 `{ error }` 中文文案、Vitest 单测要求、分支与提交格式），格式对齐 `frontend-rules.md`。
+1. `pnpm-workspace.yaml` 增加 `servers/*`、`tests/*`；
+2. 新建 `contract/backdoor-auth.openapi.yaml`：将提案 §3.3 的契约骨架补全为完整可校验的 OpenAPI 3.1 文档（6 个接口、Role/Ok/MeOk/User/Error schema、7 个复用 response），作为单一事实源；
+3. 新建 `docs/engineering/backend-rules.md`：后端统一约定（Express 5 + TS strict、分层 `auth/rbac/session/db/routes`、错误响应统一 `{ error }` 中文文案、Vitest 单测要求、提交格式），格式对齐 `frontend-rules.md`。
 
 **验证**：`pnpm install` 通过；契约文件可被 OpenAPI 校验工具解析。
 
-### 步骤 1：并行实现（两个 subagent，各自分支 + PR）
+### 步骤 1：并行实现（两个 subagent，同分支按目录隔离）
 
-两个子项目实现互相独立（页面只依赖契约规定的 HTTP 接口，以 `NEXT_PUBLIC_API_BASE_URL` 指向 API），可并行推进。每个 subagent 的待办按 z-coding 模板：代码实现 → 提交 → 覆盖单元测试 → 运行并修复 → 提交 → 更新 AGENTS.md → 提 PR 等待 review。遵循 TDD（先写失败测试再实现）。
+两个子项目实现互相独立（页面只依赖契约规定的 HTTP 接口，以 `NEXT_PUBLIC_API_BASE_URL` 指向 API），可并行推进。每个 subagent 的待办按 z-coding 模板：代码实现 → 提交 → 覆盖单元测试 → 运行并修复 → 提交 → 更新 AGENTS.md。遵循 TDD（先写失败测试再实现）。
 
-#### 1a. `servers/api`（分支 `servers/backdoor-auth`，后端 subagent）
+#### 1a. `servers/api`（后端 subagent）
 
 - 加载 `docs/engineering/backend-rules.md`（步骤 0 产出）；
 - 按提案 §6 结构实现：`src/index.ts`（入口）、`app.ts`（仅挂载 `/api` 路由 + CORS）、`auth/`（登录/登出/改密/会话中间件）、`rbac/requireRole`、`session/`（ioredis，`session:<id>` JSON，TTL 7 天滑动）、`db/`（Mongoose `users` 模型：`username/passwordHash/role/mustChangePassword/createdAt`）、`routes/`（`/api/auth/*`、`/api/users`）；
@@ -90,7 +59,7 @@ gitGraph
 
 **验证**：`pnpm -C servers/api test && pnpm -C servers/api lint`（或 tsc）全绿。
 
-#### 1b. `apps/bookstore` `/backdoor` 路由区（分支 `apps/backdoor-auth`，前端 subagent）
+#### 1b. `apps/bookstore` `/backdoor` 路由区（前端 subagent）
 
 - 加载 `docs/engineering/frontend-rules.md`、`frontend-design` 与 `vercel-react-best-practices` skill，视觉严格按设计文档 `docs/design/03-backdoor-design.md`；
 - 路由（保持 SSG，全部守卫在客户端）：`app/backdoor/login/page.tsx`（登录页，静态无需守卫）、`app/backdoor/change-password/page.tsx`（强制改密独立页 + 日常改密布局内两形态）、`app/backdoor/layout.tsx` + `page.tsx`（仪表盘布局：TopBar + SideNav + 内容区）、`app/backdoor/users/page.tsx`（用户管理，仅超管）、`app/backdoor/users/new/page.tsx`（增加用户，超管/管理员）；
@@ -102,30 +71,30 @@ gitGraph
 
 **验证**：`pnpm -C apps/bookstore lint && pnpm -C apps/bookstore test && pnpm -C apps/bookstore build` 全绿。
 
-### 步骤 2：Aspire 编排（feat/backdoor-auth，SKILL: z-aspire-orchestrator）
+### 步骤 2：Aspire 编排（SKILL: z-aspire-orchestrator）
 
 - 按提案 §7.2 目标形态改写 `infra/aspire/apphost.cs`：增加 `Aspire.Hosting.Redis`、`Aspire.Hosting.MongoDB` package；`AddNodeApp("api", "../../servers/api", ...)` + `WithHttpEndpoint(env: "PORT")` + `WithReference/WaitFor(redis, mongodb)`；注入 `SESSION_SECRET`、`BACKDOOR_USERNAME`、`BACKDOOR_PASSWORD_HASH`（开发用 bcrypt 哈希）；bookstore 侧 `WithReference(api)` + `NEXT_PUBLIC_API_BASE_URL`；api 侧 `CORS_ORIGINS` 引用 bookstore endpoint（声明在 bookstore 之后）。
 
 **验证**：`cd infra/aspire && aspire restore && aspire start`，`aspire describe` 四资源全部 Running/Healthy；未登录访问 bookstore 端点 `/backdoor` 跳转登录页；api 非 `/api` 路径 404。
 
-### 步骤 3：API 集成测试（分支 test/backdoor-auth，SKILL: z-test）
+### 步骤 3：API 集成测试（SKILL: z-test）
 
 - 新建 `tests/api/`（TS + Vitest + Node 内置 fetch，手工 Cookie jar，不用 supertest）；目录结构、基态、数据隔离策略（随机后缀用户名、不动 `supersumire` 种子密码、限速用例最后执行）严格按提案 §8.2；
 - 用例清单 = 提案 §8.2 全部 28 条（`login-200` ~ `cors-credentials`），只依据契约与 PRD 编写，禁止对照 `servers/` 实现；
-- PR 附用例清单评审后运行：Aspire 拉起环境，`aspire describe` 取端点注入 `API_BASE_URL`/`BOOKSTORE_ORIGIN`，失败用例由 subagent 按契约修复（修复落同分支），全绿后 merge。
+- 运行方式：Aspire 拉起环境，`aspire describe` 取端点注入 `API_BASE_URL`/`BOOKSTORE_ORIGIN`；失败用例由 subagent 按契约与 `docs/engineering` 修复（实现侧问题改实现、用例侧问题改用例），全部用例通过后提交。
 
-### 步骤 4：e2e 集成测试（分支 e2e/backdoor-auth，SKILL: z-test）
+### 步骤 4：e2e 集成测试（SKILL: z-test）
 
 - 新建 `tests/e2e/`（Playwright，`playwright.config.ts` 不用 `webServer`，`BOOKSTORE_BASE_URL` 环境变量注入）；目录结构按提案 §8.3；
 - 用例清单 = 提案 §8.3 全部 16 条（`auth-redirect` ~ `bookstore-footer-link`），覆盖 AC-1~AC-27 中页面层条目；编写阶段每条用例前后截图验证，调试完成后移除截图逻辑（`visual-sanity` 截图保留为 artifact）；
 - `globalSetup` 通过 API 准备三种角色的已完成改密账号（用户名带运行标识后缀，与 tests/api 基态隔离）；
-- 分支/评审/修复流程同步骤 3。
+- 运行与修复流程同步骤 3，全部用例通过后提交。
 
-### 步骤 5：收尾与验收（feat/backdoor-auth → feat/monorepo）
+### 步骤 5：收尾与验收
 
 1. 更新根 `AGENTS.md`：Monorepo 结构补充 `servers/api`、`contract/`、`tests/`、`infra/aspire` 编排说明；
 2. 核对提案 §10 验收标准全量通过；PRD AC-1~AC-27 每条均有集成用例覆盖（追踪表见提案 §8.1）；
-3. `feat/backdoor-auth` 合回 `feat/monorepo`（merge，不 squash），推送后确认需求总 PR #3 更新。
+3. 推送 `feat/monorepo`，确认需求总 PR #3 已包含全部实现与测试。
 
 ## 4. 依赖与风险
 

@@ -1,0 +1,16 @@
+{
+  "name": "@sumire/api-tests",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  },
+  "packageManager": "pnpm@11.3.0"
+}

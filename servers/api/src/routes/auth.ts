@@ -18,6 +18,7 @@ export function createAuthRouter(store: SessionStore, rateLimiter: RateLimiter):
     const user = await findUserByUsername(username);
     const ok = user ? await verifyPassword(password, user.passwordHash) : false;
     if (!user || !ok) {
+      await rateLimiter.recordFailure(req.ip ?? req.socket?.remoteAddress ?? "unknown");
       res.status(401).json({ error: "账号或密码错误" });
       return;
     }

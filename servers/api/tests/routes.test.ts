@@ -26,9 +26,10 @@ function memSessionStore(): SessionStore {
 }
 
 const unlimited: RateLimiter = {
-  async allow() {
-    return true;
+  async isBlocked() {
+    return false;
   },
+  async recordFailure() {},
   dispose() {},
 };
 

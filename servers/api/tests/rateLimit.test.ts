@@ -5,42 +5,50 @@ import type { Request, Response } from "express";
 
 function fakeRedis() {
   const store = new Map<string, number>();
-  const expire = vi.fn();
   return {
     redis: {
+      async get(key: string) {
+        return store.has(key) ? String(store.get(key)) : null;
+      },
       async incr(key: string) {
         const next = (store.get(key) ?? 0) + 1;
         store.set(key, next);
         return next;
       },
-      expire,
-    } as unknown as Parameters<typeof RedisRateLimiter.prototype.allow>[0] extends never ? never : never,
+      async expire() {
+        return 1;
+      },
+    } as never,
     store,
-    expire,
   };
 }
 
-describe("RedisRateLimiter.allow 限速计数", () => {
-  it("前 5 次放行，第 6 次拒绝", async () => {
-    const redis = new RedisRateLimiter(fakeRedis().redis as never);
-    for (let i = 1; i <= 5; i++) {
-      expect(await redis.allow("1.2.3.4")).toBe(true);
+describe("RedisRateLimiter 限速计数", () => {
+  it("5 次失败后 isBlocked 为 true，第 6 次被拒", async () => {
+    const limiter = new RedisRateLimiter(fakeRedis().redis as never);
+    for (let i = 0; i < 5; i++) {
+      expect(await limiter.isBlocked("1.2.3.4")).toBe(false);
+      await limiter.recordFailure("1.2.3.4");
     }
-    expect(await redis.allow("1.2.3.4")).toBe(false);
+    expect(await limiter.isBlocked("1.2.3.4")).toBe(true);
   });
 
   it("不同 IP 独立计数", async () => {
-    const redis = new RedisRateLimiter(fakeRedis().redis as never);
-    for (let i = 1; i <= 5; i++) {
-      await redis.allow("ip-a");
-    }
-    expect(await redis.allow("ip-b")).toBe(true);
+    const limiter = new RedisRateLimiter(fakeRedis().redis as never);
+    for (let i = 0; i < 5; i++) await limiter.recordFailure("ip-a");
+    expect(await limiter.isBlocked("ip-a")).toBe(true);
+    expect(await limiter.isBlocked("ip-b")).toBe(false);
   });
 });
 
 describe("loginRateLimit 中间件", () => {
-  it("超限返回 429", async () => {
+  it("已限速时返回 429", async () => {
     const limiter = new RedisRateLimiter(fakeRedis().redis as never);
+    await limiter.recordFailure("9.9.9.9");
+    await limiter.recordFailure("9.9.9.9");
+    await limiter.recordFailure("9.9.9.9");
+    await limiter.recordFailure("9.9.9.9");
+    await limiter.recordFailure("9.9.9.9");
     const mw = loginRateLimit(limiter);
     let status = 0;
     let body: unknown;
@@ -55,9 +63,12 @@ describe("loginRateLimit 中间件", () => {
         return this;
       },
     } as unknown as Response;
-    for (let i = 1; i <= 5; i++) await mw(req, res, () => {});
-    await mw(req, res, () => {});
+    let nextCalled = false;
+    await mw(req, res, () => {
+      nextCalled = true;
+    });
     expect(status).toBe(429);
     expect(body).toEqual({ error: "尝试过于频繁，请稍后再试" });
+    expect(nextCalled).toBe(false);
   });
 });

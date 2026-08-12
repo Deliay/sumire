@@ -14,6 +14,7 @@ export interface AppDeps {
 
 export function createApp(deps: AppDeps): Application {
   const app = express();
+  app.set("trust proxy", true);
 
   // CORS：白名单精确来源 + 放行凭证（禁用 *）
   const origins = config.corsOrigins;

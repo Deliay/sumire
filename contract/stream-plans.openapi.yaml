@@ -1,0 +1,106 @@
+openapi: 3.1.0
+info:
+  title: sumire stream plans
+  description: 枝堇Sumire 周表（直播日程）API 契约。单一事实源，实现与 tests/api 集成测试均以本文档为准。公开读、受限写（superadmin/admin）。
+  version: 1.0.0
+servers:
+  - url: https://api.sumire.live
+paths:
+  /api/stream-plans:
+    get:
+      summary: 查询直播计划（公开）
+      description: 无需登录。按日期区间返回直播计划（按日期升序）。from/to 缺省返回全部。
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema: { $ref: "#/components/schemas/Date" }
+          description: 起始日期（含），YYYY-MM-DD
+        - name: to
+          in: query
+          required: false
+          schema: { $ref: "#/components/schemas/Date" }
+          description: 结束日期（含），YYYY-MM-DD
+      responses:
+        "200":
+          description: 直播计划列表（按日期升序）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  plans:
+                    type: array
+                    items: { $ref: "#/components/schemas/StreamPlan" }
+        "400":
+          description: 日期参数格式非法
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    post:
+      summary: 新增直播计划（受限）
+      description: 需登录，角色限 superadmin / admin（复用 rbac 层级判定）。同日同主题判重返回 409。
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [date, title]
+              properties:
+                date: { $ref: "#/components/schemas/Date" }
+                title: { $ref: "#/components/schemas/Title" }
+      responses:
+        "201":
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, id, date, title]
+                properties:
+                  ok: { type: boolean, const: true }
+                  id: { type: string }
+                  date: { $ref: "#/components/schemas/Date" }
+                  title: { $ref: "#/components/schemas/Title" }
+        "400":
+          description: 日期非法（格式或非真实日期）/ 主题为空或超 50 字符
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "401":
+          description: 未登录或会话已失效
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "403":
+          description: 已登录但角色权限不足（member）
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "409":
+          description: 同日同主题已存在
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sumire_sid
+  schemas:
+    Date:
+      type: string
+      description: 直播日期，YYYY-MM-DD（真实日期）
+      pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+    Title:
+      type: string
+      description: 直播主题，trim 后 1–50 字符
+      minLength: 1
+      maxLength: 50
+    StreamPlan:
+      type: object
+      required: [id, date, title, createdAt]
+      properties:
+        id: { type: string }
+        date: { $ref: "#/components/schemas/Date" }
+        title: { $ref: "#/components/schemas/Title" }
+        createdAt: { type: string, format: date-time }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }

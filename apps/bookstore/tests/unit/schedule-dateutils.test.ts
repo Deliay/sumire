@@ -5,6 +5,7 @@ import {
   daysInMonth,
   shiftMonth,
   toDateStr,
+  monthRange,
 } from "@/features/schedule/dateUtils";
 
 describe("parseDateStr", () => {
@@ -65,5 +66,13 @@ describe("shiftMonth", () => {
 describe("toDateStr", () => {
   it("补零", () => {
     expect(toDateStr(2026, 1, 5)).toBe("2026-01-05");
+  });
+});
+
+describe("monthRange", () => {
+  it("返回某月 from/to 区间（含首末）", () => {
+    expect(monthRange(2026, 2)).toEqual({ from: "2026-02-01", to: "2026-02-28" });
+    expect(monthRange(2024, 2)).toEqual({ from: "2024-02-01", to: "2024-02-29" }); // 闰年
+    expect(monthRange(2026, 8)).toEqual({ from: "2026-08-01", to: "2026-08-31" });
   });
 });

@@ -72,6 +72,11 @@ export function toDateStr(y: number, m: number, d: number): string {
   return `${y}-${mm}-${dd}`;
 }
 
+/** 某年某月的 from/to 区间（YYYY-MM-DD，含首末）。 */
+export function monthRange(y: number, m: number): { from: string; to: string } {
+  return { from: toDateStr(y, m, 1), to: toDateStr(y, m, daysInMonth(y, m)) };
+}
+
 export function shiftMonth(y: number, m: number, delta: number): { y: number; m: number } {
   const total = y * 12 + (m - 1) + delta;
   return { y: Math.floor(total / 12), m: (total % 12) + 1 };

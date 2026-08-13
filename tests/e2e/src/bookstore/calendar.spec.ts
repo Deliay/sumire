@@ -28,9 +28,18 @@ test.describe("bookstore 日历页与主页入口", () => {
     expect(create.status).toBe(201);
 
     // 访客无需登录打开公开日历页
+    const streamPlanRequests: string[] = [];
+    page.on("request", (req) => {
+      if (req.url().includes("/api/stream-plans")) streamPlanRequests.push(req.url());
+    });
+
     await page.goto(`${BASE}/calendar`);
     await expect(page.getByRole("heading", { name: "直播日程" })).toBeVisible();
-    await expect(page.getByText("直播日程")).toBeVisible();
+
+    // 初始加载按当前月区间拉取（携带 from/to），不拉全量
+    await expect
+      .poll(() => streamPlanRequests.find((u) => u.includes("from=") && u.includes("to=")))
+      .toBeTruthy();
   });
 
   test("home-entry-to-calendar: 主页出现本周日程入口，可进入 /calendar", async ({ page }) => {

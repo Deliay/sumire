@@ -101,9 +101,11 @@ sequenceDiagram
 
 #### 实现点 2: `/backdoor` 未配置 API 基址即 404
 
-- **描述**: 在 `apps/bookstore/app/backdoor/layout.tsx`（Server Component）中读取 `process.env.NEXT_PUBLIC_API_BASE_URL`（与 `api.ts:16` 同一来源，统一由 `api.ts` 导出的常量判断），为空时调用 `notFound()`，渲染路由区就近的 `not-found` 页面。
-- **技术细节**: `NEXT_PUBLIC_*` 变量在静态导出构建期内联，因此「未配置」在构建时确定，`notFound()` 的产物即静态 404 内容；`api.ts` 中集中导出判断结果（如 `API_CONFIGURED`），layout 与 `api.ts` 共用，避免两处判断口径漂移。
+- **描述**: 在 `apps/bookstore/app/backdoor/layout.tsx`（Server Component）中读取 `api.ts` 导出的 `API_CONFIGURED`（`NEXT_PUBLIC_API_BASE_URL` 非空即已配置），为 `false` 时直接渲染站点风格 404 组件（`components/NotFoundPage.tsx`），使 `SessionProvider` 完全不进入组件树，从根上杜绝未配置形态下发往主站自身的 `/api/*` 请求。
+- **技术细节**: `NEXT_PUBLIC_*` 变量在静态导出构建期内联，「未配置」在构建时确定；`api.ts` 的 `request()` 同时在 `!API_CONFIGURED` 时短路（返回 `status: 0`、不调用 `fetch`）作为请求层兜底；layout 守卫与请求层共用 `API_CONFIGURED`，避免口径漂移。
 - **风险点**: 守卫发生在构建时——同一构建产物无法通过运行时注入基址切换形态；本地联调（Aspire 注入端点）与 Pages 生产构建需分别以配置/不配置该变量构建，已在测试策略中覆盖两种构建形态。
+
+> **实现偏差记录（2026-08-13，返工修订）**：初版在 layout 内调用 `notFound()`，经代码评审发现其在 `output: "export"` 下不可靠——404 文案仅落入 RSC flight payload 的 not-found slot，客户端仍可能水合 `SessionProvider` 并 `fetchMe()`，违反「未配置形态不产生发往主站自身的后台类请求」。修订后改为**直接在 layout 中条件渲染 `components/NotFoundPage`**（未配置时不渲染 `SessionProvider`），并在 `api.ts` 的 `request()` 中按 `API_CONFIGURED` 短路，双保险保证「404 页可见 + 无 `/api/*` 请求」。经 `next build`（`output: "export"`）实测：未配置构建下 `/backdoor`、`/backdoor/login`、`/backdoor/users`、`/backdoor/change-password` 静态 HTML 可见内容即为「页面不存在」，且不加载 `SessionProvider` chunk、不发 `/api/*` 请求；已配置构建仍渲染 `SessionProvider` 守卫态。根级 `app/not-found.tsx` 复用同一 `NotFoundPage` 组件，作为全站未匹配路由的 404。
 
 ## 6. 技术决策
 
@@ -129,14 +131,18 @@ sequenceDiagram
 apps/bookstore/
 ├── app/
 │   ├── (site)/layout.tsx          # 不变（Footer 挂载点）
+│   ├── not-found.tsx              # 全站未匹配路由 404（复用 NotFoundPage）
 │   └── backdoor/
-│       └── layout.tsx             # 新增未配置即 notFound() 守卫
+│       └── layout.tsx             # 未配置 API 基址即直接渲染 NotFoundPage（守卫）
 ├── components/
-│   └── Footer.tsx                 # 删除「管理 →」链接
+│   ├── Footer.tsx                 # 删除「管理 →」链接
+│   └── NotFoundPage.tsx           # 站点风格 404 页（根级/后台守卫共用）
 ├── features/backdoor/
-│   └── api.ts                     # 导出统一的「已配置」判断
+│   └── api.ts                     # 导出 API_CONFIGURED + request 未配置短路
 └── tests/unit/
-    └── footer-link.test.tsx       # 更新断言
+    ├── footer-link.test.tsx       # 更新断言
+    ├── backdoor-layout.test.tsx   # 守卫两分支（渲染 404 / 渲染 children）
+    └── backdoor-api-config.test.ts # API_CONFIGURED 与未配置短路
 tests/e2e/                         # 新增：未配置构建形态下 /backdoor 返回 404
 ```
 

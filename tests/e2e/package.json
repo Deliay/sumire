@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "test": "playwright test",
-    "test:headed": "playwright test --headed"
+    "test:headed": "playwright test --headed",
+    "test:unconfigured": "playwright test --config playwright.unconfigured.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

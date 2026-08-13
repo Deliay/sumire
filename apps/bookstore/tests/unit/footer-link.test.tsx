@@ -17,10 +17,10 @@ const site = {
 };
 
 describe("Footer 管理入口", () => {
-  it("右下角渲染「管理 →」链接指向 /backdoor", () => {
-    render(<Footer site={site} />);
-    const link = screen.getByText("管理 →");
-    expect(link).toBeTruthy();
-    expect(link.getAttribute("href")).toBe("/backdoor");
+  it("页脚不渲染任何指向 /backdoor 的链接", () => {
+    const { container } = render(<Footer site={site} />);
+    expect(screen.queryByRole("link", { name: /管理/ })).toBeNull();
+    expect(screen.queryByText("管理 →")).toBeNull();
+    expect(container.querySelector('a[href="/backdoor"]')).toBeNull();
   });
 });

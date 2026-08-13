@@ -21,14 +21,9 @@ export default function CreatePlanDialog({ open, onClose, onCreated }: CreatePla
 
   if (!open) return null;
 
-  const canSubmit = date.trim() !== "" && title.trim() !== "" && !loading;
-
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!canSubmit) {
-      setError("请填写日期与直播主题");
-      return;
-    }
+    if (loading) return;
     setLoading(true);
     setError("");
     const { status, data } = await createPlan(date, title.trim());
@@ -96,7 +91,7 @@ export default function CreatePlanDialog({ open, onClose, onCreated }: CreatePla
             maxLength={50}
             required
           />
-          <PrimaryButton type="submit" loading={loading} disabled={!canSubmit}>
+          <PrimaryButton type="submit" loading={loading}>
             保存计划
           </PrimaryButton>
           {error && (

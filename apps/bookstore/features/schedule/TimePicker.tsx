@@ -63,7 +63,12 @@ export default function TimePicker({ id, value, onChange, invalid }: TimePickerP
           setEditing(value);
           setOpen(true);
         }}
-        onBlur={handleBlur}
+        onBlur={(e) => {
+          handleBlur();
+          if (wrapRef.current && !wrapRef.current.contains(e.relatedTarget as Node)) {
+            setOpen(false);
+          }
+        }}
         onChange={(e) => setEditing(e.target.value)}
         className={`w-full rounded-md border bg-soft px-3 py-2 text-base tabular-nums text-ink outline-none transition-colors duration-150 focus:border-flower ${
           invalid ? "border-flower" : "border-vine/50"

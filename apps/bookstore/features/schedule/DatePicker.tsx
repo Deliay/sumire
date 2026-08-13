@@ -75,7 +75,12 @@ export default function DatePicker({ id, value, onChange, invalid }: DatePickerP
           setEditing(value);
           openPicker();
         }}
-        onBlur={handleBlur}
+        onBlur={(e) => {
+          handleBlur();
+          if (wrapRef.current && !wrapRef.current.contains(e.relatedTarget as Node)) {
+            setOpen(false);
+          }
+        }}
         onChange={(e) => setEditing(e.target.value)}
         className={`w-full rounded-md border bg-soft px-3 py-2 text-base text-ink outline-none transition-colors duration-150 focus:border-flower ${
           invalid ? "border-flower" : "border-vine/50"

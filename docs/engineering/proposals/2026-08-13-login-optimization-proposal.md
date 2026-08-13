@@ -105,6 +105,8 @@ sequenceDiagram
 - **技术细节**: `NEXT_PUBLIC_*` 变量在静态导出构建期内联，因此「未配置」在构建时确定，`notFound()` 的产物即静态 404 内容；`api.ts` 中集中导出判断结果（如 `API_CONFIGURED`），layout 与 `api.ts` 共用，避免两处判断口径漂移。
 - **风险点**: 守卫发生在构建时——同一构建产物无法通过运行时注入基址切换形态；本地联调（Aspire 注入端点）与 Pages 生产构建需分别以配置/不配置该变量构建，已在测试策略中覆盖两种构建形态。
 
+> **实现偏差记录（2026-08-13）**：守卫落在 `app/backdoor/layout.tsx`，在 layout 内调用 `notFound()` 抛出的 404 会向上冒泡到**根级** not-found 边界，而不会命中 `app/backdoor/not-found.tsx`（段级 not-found 只包裹该段 page，不含 layout 自身）。经 `next build`（`output: "export"`）实测确认，未配置构建下 `/backdoor`、`/backdoor/login`、`/backdoor/users`、`/backdoor/change-password` 均渲染站点风格 404 且无 `/api/*` 请求。因此 404 页按实现方案的兜底方案落为**根级 `app/not-found.tsx`**（同时成为全站未匹配路由的 404），不再单独创建 `app/backdoor/not-found.tsx`。
+
 ## 6. 技术决策
 
 ### 6.1 决策列表
@@ -129,6 +131,7 @@ sequenceDiagram
 apps/bookstore/
 ├── app/
 │   ├── (site)/layout.tsx          # 不变（Footer 挂载点）
+│   ├── not-found.tsx              # 站点风格 404 页（根级；见实现偏差记录）
 │   └── backdoor/
 │       └── layout.tsx             # 新增未配置即 notFound() 守卫
 ├── components/

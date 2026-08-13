@@ -294,6 +294,8 @@ tests/api/                           # 新增：stream-plans CRUD / 鉴权 / 校
 tests/e2e/                           # 新增：录入→编辑→删除闭环、公开查看、主页入口、未配置形态
 ```
 
+> 实现偏差：月网格等纯函数未单建 `monthGrid.ts`，并入既有 `features/schedule/dateUtils.ts`（含 `monthGrid`/`parseTimeStr`，日历与 `DatePicker` 共用，避免无收益的重命名 churn）；新增 `features/schedule/useDismiss.ts` 承载浮层收起机制。
+
 ## 8. 测试策略
 
 ### 8.1 测试覆盖要求

@@ -8,6 +8,7 @@ import { toDateStr } from "@/features/schedule/dateUtils";
 import VineDivider from "@/components/VineDivider";
 
 const WEEK_LABEL = ["一", "二", "三", "四", "五", "六", "日"] as const;
+const WEEK_EN = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] as const;
 
 /** 本周（周一~周日）起始的 YYYY-MM-DD 字符串。 */
 function weekRange(): { from: string; to: string } {
@@ -92,7 +93,7 @@ export default function WeeklySchedule() {
             </div>
           ) : (
             <ul className="flex flex-col gap-2">
-              {WEEK_LABEL.map((label, i) => {
+              {WEEK_LABEL.map((_, i) => {
                 const key = dayKey(mondayBase, i);
                 const dayPlans = plans.filter((p) => p.date === key);
                 return (
@@ -100,16 +101,17 @@ export default function WeeklySchedule() {
                     key={key}
                     className="flex items-center gap-4 rounded border-b border-ink-on-paper/10 py-2 last:border-b-0"
                   >
-                    <span className="w-8 shrink-0 text-center font-display text-sm text-ink-on-paper/60">
-                      周{label}
+                    <span className="w-12 shrink-0 text-center font-display text-xs tracking-widest text-ink-on-paper/60">
+                      {WEEK_EN[i]}.
                     </span>
                     <span className="w-10 shrink-0 text-sm tabular-nums text-ink-on-paper/50">
                       {key.slice(8)}
                     </span>
-                    <span className="flex-1 text-sm">
+                    <span className="flex flex-1 items-center gap-3 text-sm">
                       {dayPlans.length > 0 ? (
                         dayPlans.map((p) => (
-                          <span key={p.id} className="mr-3 inline-block text-ink-on-paper">
+                          <span key={p.id} className="inline-flex items-center gap-1.5 text-ink-on-paper">
+                            <span className="tabular-nums text-ink-on-paper/60">{p.startTime}</span>
                             {p.title}
                           </span>
                         ))

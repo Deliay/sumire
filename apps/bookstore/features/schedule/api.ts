@@ -3,12 +3,27 @@ import { API_BASE_URL, API_CONFIGURED } from "@/features/backdoor/api";
 export interface StreamPlan {
   id: string;
   date: string;
+  startTime: string;
   title: string;
   createdAt: string;
 }
 
+export interface StreamPlanInput {
+  date: string;
+  startTime: string;
+  title: string;
+}
+
 export interface ApiError {
   error?: string;
+}
+
+interface OkResponse {
+  ok: true;
+  id: string;
+  date: string;
+  startTime: string;
+  title: string;
 }
 
 async function request<T>(
@@ -51,7 +66,23 @@ export async function listPlans(
 /** 新增直播计划（受限写，superadmin/admin）。 */
 export async function createPlan(
   date: string,
+  startTime: string,
   title: string,
-): Promise<{ status: number; data: { ok: true; id: string; date: string; title: string } | ApiError }> {
-  return request("/api/stream-plans", { method: "POST", body: { date, title } });
+): Promise<{ status: number; data: OkResponse | ApiError }> {
+  return request("/api/stream-plans", { method: "POST", body: { date, startTime, title } });
+}
+
+/** 编辑直播计划（受限写；改日期即改期）。 */
+export async function updatePlan(
+  id: string,
+  input: StreamPlanInput,
+): Promise<{ status: number; data: OkResponse | ApiError }> {
+  return request(`/api/stream-plans/${id}`, { method: "PUT", body: input });
+}
+
+/** 删除直播计划（受限写）。 */
+export async function deletePlan(
+  id: string,
+): Promise<{ status: number; data: { ok: true } | ApiError }> {
+  return request(`/api/stream-plans/${id}`, { method: "DELETE" });
 }

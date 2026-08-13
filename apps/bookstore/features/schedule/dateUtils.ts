@@ -81,3 +81,16 @@ export function shiftMonth(y: number, m: number, delta: number): { y: number; m:
   const total = y * 12 + (m - 1) + delta;
   return { y: Math.floor(total / 12), m: (total % 12) + 1 };
 }
+
+/**
+ * 容错解析 HH:mm（接受缺位如 "9:5"→"09:05"），返回归一化的 "HH:mm" 或 null。
+ * 拒绝 24:00 / 12:60 等非法时间。
+ */
+export function parseTimeStr(value: string): string | null {
+  const m = /^(\d{1,2}):(\d{1,2})$/.exec(value.trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+}

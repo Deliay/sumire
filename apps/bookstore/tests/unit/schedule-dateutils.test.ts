@@ -6,6 +6,7 @@ import {
   shiftMonth,
   toDateStr,
   monthRange,
+  parseTimeStr,
 } from "@/features/schedule/dateUtils";
 
 describe("parseDateStr", () => {
@@ -74,5 +75,26 @@ describe("monthRange", () => {
     expect(monthRange(2026, 2)).toEqual({ from: "2026-02-01", to: "2026-02-28" });
     expect(monthRange(2024, 2)).toEqual({ from: "2024-02-01", to: "2024-02-29" }); // 闰年
     expect(monthRange(2026, 8)).toEqual({ from: "2026-08-01", to: "2026-08-31" });
+  });
+});
+
+describe("parseTimeStr", () => {
+  it("合法 HH:mm 原样返回", () => {
+    expect(parseTimeStr("08:00")).toBe("08:00");
+    expect(parseTimeStr("23:59")).toBe("23:59");
+    expect(parseTimeStr("00:00")).toBe("00:00");
+  });
+
+  it("缺位容错补零（9:5 → 09:05）", () => {
+    expect(parseTimeStr("9:5")).toBe("09:05");
+    expect(parseTimeStr("8:30")).toBe("08:30");
+  });
+
+  it("非法时间 → null", () => {
+    expect(parseTimeStr("24:00")).toBeNull();
+    expect(parseTimeStr("12:60")).toBeNull();
+    expect(parseTimeStr("12:")).toBeNull();
+    expect(parseTimeStr("abc")).toBeNull();
+    expect(parseTimeStr("")).toBeNull();
   });
 });

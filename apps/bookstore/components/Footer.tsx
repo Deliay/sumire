@@ -47,12 +47,6 @@ export default function Footer({ site }: { site: Site }) {
             <span>
               {site.name} · {site.tagline}
             </span>
-            <a
-              href="/backdoor"
-              className="ml-auto text-ink-dim transition-colors hover:text-flower"
-            >
-              管理 →
-            </a>
           </div>
         </div>
       </div>

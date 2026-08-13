@@ -16,6 +16,17 @@ cd tests/e2e && BOOKSTORE_BASE_URL=http://localhost:<bookstore-port> \
 
 `BOOKSTORE_BASE_URL` 必填；`API_BASE_URL` 供 globalSetup 准备账号与 spec 内建号使用。
 
+### 未配置形态（独立命令）
+
+未配置 `NEXT_PUBLIC_API_BASE_URL` 的静态构建下，`/backdoor` 应呈现 404。该形态不依赖 Aspire/API，独立运行：
+
+```bash
+pnpm -C apps/bookstore build        # 不设置 NEXT_PUBLIC_API_BASE_URL（未配置形态）
+cd tests/e2e && pnpm test:unconfigured
+```
+
+`playwright.unconfigured.config.ts` 无 `globalSetup`，`scripts/serve-static.mjs` 静态伺服 `apps/bookstore/out`（clean-url + 404 回退），`BOOKSTORE_STATIC_BASE_URL` 由配置注入；未设置时对应 spec 自动 `skip`。
+
 ## 结构
 
 - `global-setup.ts`：通过 API 准备超管/管理员/成员三角色已完成改密账号，写入 `.accounts.json`

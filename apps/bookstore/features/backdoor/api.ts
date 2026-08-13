@@ -17,6 +17,9 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
 export const API_BASE_URL = BASE_URL;
 
+/** 后台 API 基址是否已配置（非空即已配置）；layout 守卫与请求层共用此判断，避免口径漂移。 */
+export const API_CONFIGURED = BASE_URL !== "";
+
 async function request<T>(
   path: string,
   options: { method?: string; body?: unknown } = {},

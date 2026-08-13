@@ -24,6 +24,9 @@ async function request<T>(
   path: string,
   options: { method?: string; body?: unknown } = {},
 ): Promise<{ status: number; data: T }> {
+  if (!API_CONFIGURED) {
+    return { status: 0, data: null as unknown as T };
+  }
   const res = await fetch(`${BASE_URL}${path}`, {
     method: options.method ?? "GET",
     headers: options.body !== undefined ? { "Content-Type": "application/json" } : undefined,

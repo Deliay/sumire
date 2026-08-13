@@ -7,6 +7,7 @@ async function loadApi() {
 describe("API_CONFIGURED 单一事实源", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
+    vi.restoreAllMocks();
     vi.resetModules();
   });
 
@@ -20,5 +21,14 @@ describe("API_CONFIGURED 单一事实源", () => {
     vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://localhost:4000");
     const { API_CONFIGURED } = await loadApi();
     expect(API_CONFIGURED).toBe(true);
+  });
+
+  it("未配置时 fetchMe 直接返回 status 0 且不发起网络请求", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "");
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const { fetchMe } = await loadApi();
+    const res = await fetchMe();
+    expect(res.status).toBe(0);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

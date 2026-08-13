@@ -2,14 +2,14 @@ openapi: 3.1.0
 info:
   title: sumire stream plans
   description: 枝堇Sumire 周表（直播日程）API 契约。单一事实源，实现与 tests/api 集成测试均以本文档为准。公开读、受限写（superadmin/admin）。
-  version: 1.0.0
+  version: 1.1.0
 servers:
   - url: https://api.sumire.live
 paths:
   /api/stream-plans:
     get:
       summary: 查询直播计划（公开）
-      description: 无需登录。按日期区间返回直播计划（按日期升序）。from/to 缺省返回全部。
+      description: 无需登录。按日期区间返回直播计划（按 date + startTime 升序）。from/to 缺省返回全部。
       parameters:
         - name: from
           in: query
@@ -23,7 +23,7 @@ paths:
           description: 结束日期（含），YYYY-MM-DD
       responses:
         "200":
-          description: 直播计划列表（按日期升序）
+          description: 直播计划列表（按 date + startTime 升序）
           content:
             application/json:
               schema:
@@ -37,7 +37,7 @@ paths:
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
     post:
       summary: 新增直播计划（受限）
-      description: 需登录，角色限 superadmin / admin（复用 rbac 层级判定）。同日同主题判重返回 409。
+      description: 需登录，角色限 superadmin / admin（复用 rbac 层级判定）。同日同时间同主题判重返回 409。
       security:
         - cookieAuth: []
       requestBody:
@@ -46,9 +46,10 @@ paths:
           application/json:
             schema:
               type: object
-              required: [date, title]
+              required: [date, startTime, title]
               properties:
                 date: { $ref: "#/components/schemas/Date" }
+                startTime: { $ref: "#/components/schemas/StartTime" }
                 title: { $ref: "#/components/schemas/Title" }
       responses:
         "201":
@@ -57,14 +58,15 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [ok, id, date, title]
+                required: [ok, id, date, startTime, title]
                 properties:
                   ok: { type: boolean, const: true }
                   id: { type: string }
                   date: { $ref: "#/components/schemas/Date" }
+                  startTime: { $ref: "#/components/schemas/StartTime" }
                   title: { $ref: "#/components/schemas/Title" }
         "400":
-          description: 日期非法（格式或非真实日期）/ 主题为空或超 50 字符
+          description: 日期/开始时间非法或缺失、主题为空或超 50 字符
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
         "401":
           description: 未登录或会话已失效
@@ -73,7 +75,92 @@ paths:
           description: 已登录但角色权限不足（member）
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
         "409":
-          description: 同日同主题已存在
+          description: 同日同时间同主题已存在
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+  /api/stream-plans/{id}:
+    put:
+      summary: 编辑直播计划（受限）
+      description: 需登录，角色限 superadmin / admin。三个字段（日期/开始时间/主题）均可修改，改日期即改期。与其他计划重复（排除自身）返回 409。
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: 直播计划 ObjectId
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [date, startTime, title]
+              properties:
+                date: { $ref: "#/components/schemas/Date" }
+                startTime: { $ref: "#/components/schemas/StartTime" }
+                title: { $ref: "#/components/schemas/Title" }
+      responses:
+        "200":
+          description: 编辑成功（返回更新后的计划）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, id, date, startTime, title]
+                properties:
+                  ok: { type: boolean, const: true }
+                  id: { type: string }
+                  date: { $ref: "#/components/schemas/Date" }
+                  startTime: { $ref: "#/components/schemas/StartTime" }
+                  title: { $ref: "#/components/schemas/Title" }
+        "400":
+          description: 日期/开始时间非法或缺失、主题为空或超 50 字符、id 非合法 ObjectId
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "401":
+          description: 未登录或会话已失效
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "403":
+          description: 已登录但角色权限不足（member）
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404":
+          description: 计划不存在
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "409":
+          description: 与其他计划同日同时间同主题重复（排除自身）
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    delete:
+      summary: 删除直播计划（受限）
+      description: 需登录，角色限 superadmin / admin。删除后不可恢复。
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: 直播计划 ObjectId
+      responses:
+        "200":
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean, const: true }
+        "400":
+          description: id 非合法 ObjectId
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "401":
+          description: 未登录或会话已失效
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "403":
+          description: 已登录但角色权限不足（member）
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404":
+          description: 计划不存在
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
 components:
   securitySchemes:
@@ -86,6 +173,10 @@ components:
       type: string
       description: 直播日期，YYYY-MM-DD（真实日期）
       pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+    StartTime:
+      type: string
+      description: 开播时间，HH:mm（24 小时制，00:00–23:59，真实时间）
+      pattern: "^([01]\\d|2[0-3]):[0-5]\\d$"
     Title:
       type: string
       description: 直播主题，trim 后 1–50 字符
@@ -93,12 +184,14 @@ components:
       maxLength: 50
     StreamPlan:
       type: object
-      required: [id, date, title, createdAt]
+      required: [id, date, startTime, title, createdAt]
       properties:
         id: { type: string }
         date: { $ref: "#/components/schemas/Date" }
+        startTime: { $ref: "#/components/schemas/StartTime" }
         title: { $ref: "#/components/schemas/Title" }
         createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time, description: 最近编辑时间，未编辑过则缺省 }
     Error:
       type: object
       required: [error]

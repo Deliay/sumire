@@ -2,7 +2,7 @@
 
 枝堇Sumire 粉丝站前端——Next.js（App Router）全静态（SSG）+ 后台 `/backdoor` 路由区（客户端会话/权限守卫）。
 
-开发前加载 `docs/engineering/frontend-rules.md`、`docs/design/03-backdoor-design.md` 与 `docs/engineering/backend-rules.md`（后台页面依赖的 API 契约见 `contract/backdoor-auth.openapi.yaml`）。
+开发前加载 `docs/engineering/frontend-rules.md`、`docs/design/03-backdoor-design.md` 与 `docs/engineering/backend-rules.md`（后台页面依赖的 API 契约见 `contract/backdoor-auth.openapi.yaml`；直播计划契约见 `contract/stream-plans.openapi.yaml`）。
 
 ## 技术栈
 
@@ -41,6 +41,13 @@ pnpm lint         # ESLint
 - API 调用统一走 `features/backdoor/api.ts`，`fetch(..., { credentials: "include" })`，base URL 取 `NEXT_PUBLIC_API_BASE_URL`；
 - 视觉严格按 `docs/design/03-backdoor-design.md`：仅用 `@theme` token 色，后台不使用氛围动效，控件过渡 ≤200ms 且尊重 `prefers-reduced-motion`；
 - 不出现注册/找回密码入口，不出现未上线功能占位。
+
+## 周表 / 直播计划约定
+
+- `features/schedule/`：直播计划业务组件——`CalendarView`（可复用月视图日历，周一开头，纯 `YYYY-MM-DD` 字符串比较规避时区；有计划日期展示至多 2 条 `HH:mm 主题` 摘要，更多以 +N 收尾；`onSelectDay` 上抛所选日）、`DayDetailDialog`（当日详细安排弹层，`readOnly` 切换只读/管理双模式，管理态含行内编辑/删除二次确认与「+ 增加计划」）、`PlanFormDialog`（录入/编辑双态表单，父组件变更 key 重置初始值）、`DatePicker`/`TimePicker`（定制选择器，只读输入 + 浮层，键入容错经 `dateUtils.parseTimeStr`/`parseDateStr`）、`api.ts`（`listPlans`/`createPlan`/`updatePlan`/`deletePlan`，复用 `features/backdoor/api.ts` 的 `API_BASE_URL`/`API_CONFIGURED` 口径）、`dateUtils.ts`（日历网格与时间解析纯函数）、`useDismiss.ts`（浮层点击外部/Esc 收起）、`CalendarViewPage`（公开日历页主体，接只读 `DayDetailDialog`）；
+- 公开日历页 `app/(site)/calendar/page.tsx`：构建时守卫，未配置 `NEXT_PUBLIC_API_BASE_URL` 直接渲染 `components/NotFoundPage`（不加载日历 chunk、不发请求），已配置时渲染 `CalendarViewPage`；
+- 后台直播计划页 `app/backdoor/(dashboard)/schedule/page.tsx`：复用 `(dashboard)/layout.tsx` 会话守卫；日历点击某天弹管理态 `DayDetailDialog`（member 只读降级，与后端 403 口径一致）；弹层内增加（日期预填所选日）/编辑（可改期）/删除（二次确认）后重拉当前月区间，编辑移出所选日提示「已移至 X 月 X 日」；
+- 主页入口 `features/home/WeeklySchedule.tsx`：仅 `API_CONFIGURED` 时由 `app/(site)/page.tsx` 挂载（未配置不留占位）；初始渲染固定最小高度加载骨架，避免 hydration 布局跳动；缎条为 `MON. + HH:mm 主题`。
 
 提交前 `pnpm lint && pnpm test && pnpm build` 全绿。
 

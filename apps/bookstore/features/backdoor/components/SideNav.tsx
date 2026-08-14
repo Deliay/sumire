@@ -16,6 +16,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/backdoor", label: "仪表盘", roles: ["superadmin", "admin", "member"] },
+  { href: "/backdoor/schedule", label: "直播计划", roles: ["superadmin", "admin", "member"] },
   { href: "/backdoor/users", label: "用户管理", roles: ["superadmin"] },
 ];
 

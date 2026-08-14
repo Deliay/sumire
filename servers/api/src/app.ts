@@ -5,6 +5,7 @@ import type { RateLimiter } from "./auth/rateLimit";
 import { sessionMiddleware } from "./auth/session";
 import { createAuthRouter } from "./routes/auth";
 import { createUsersRouter } from "./routes/users";
+import { createStreamPlansRouter } from "./routes/streamPlans";
 import { config } from "./config";
 
 export interface AppDeps {
@@ -39,6 +40,7 @@ export function createApp(deps: AppDeps): Application {
 
   api.use("/auth", authRouter);
   api.use("/users", createUsersRouter());
+  api.use("/stream-plans", createStreamPlansRouter());
 
   app.use("/api", api);
 

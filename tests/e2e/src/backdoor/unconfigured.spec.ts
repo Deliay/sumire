@@ -9,6 +9,8 @@ const BACKDOOR_PATHS = [
   "/backdoor/change-password",
 ];
 
+const UNCONFIGURED_PUBLIC_PATHS = ["/calendar"];
+
 test.describe("backdoor 未配置形态 404", () => {
   test.skip(
     !STATIC_BASE,
@@ -29,4 +31,24 @@ test.describe("backdoor 未配置形态 404", () => {
       expect(apiRequests).toEqual([]);
     });
   }
+
+  for (const path of UNCONFIGURED_PUBLIC_PATHS) {
+    test(`${path}（公开页）未配置时呈现站点 404 且不发起 /api 请求`, async ({ page }) => {
+      const apiRequests: string[] = [];
+      page.on("request", (req) => {
+        if (req.url().includes("/api/")) apiRequests.push(req.url());
+      });
+
+      await page.goto(`${STATIC_BASE}${path}`);
+      await expect(page.getByText("页面不存在")).toBeVisible();
+      await expect(page.getByText("返回首页")).toBeVisible();
+      expect(apiRequests).toEqual([]);
+    });
+  }
+
+  test("/ 主页未配置时无本周日程入口", async ({ page }) => {
+    await page.goto(`${STATIC_BASE}/`);
+    await expect(page.getByRole("heading", { name: "本周日程" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: /查看完整日历/ })).toHaveCount(0);
+  });
 });

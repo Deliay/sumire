@@ -1,0 +1,110 @@
+import { test, expect } from "@playwright/test";
+import { getAccounts } from "../tools/accounts";
+import { loginViaUi } from "./helpers";
+
+const BASE = process.env.BOOKSTORE_BASE_URL ?? "http://localhost:3000";
+
+function todayStr(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+/** 当月最后一天。 */
+function lastDayOfMonth(): number {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+}
+
+/** 目标日期：尽量留在当月视图内（今天非月末则 +1，否则 -1）。 */
+function moveTarget(): string {
+  const now = new Date();
+  const d = now.getDate() < lastDayOfMonth() ? now.getDate() + 1 : now.getDate() - 1;
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+test.describe("backdoor 直播计划", () => {
+  test("schedule-crud-loop: 点击某天→当日弹层增加(日期预填)→编辑改期→删除二次确认闭环", async ({ page }) => {
+    const accounts = getAccounts();
+    await loginViaUi(page, accounts.superadmin, BASE);
+    await expect(page.getByRole("link", { name: "直播计划" })).toBeVisible();
+    await page.getByRole("link", { name: "直播计划" }).click();
+    await expect(page.getByRole("heading", { name: "直播计划" })).toBeVisible();
+
+    const run = Date.now().toString(36);
+    const title = `e2e计划_${run}`;
+    const today = todayStr();
+
+    // 点击今天 → 当日详细安排弹层
+    const todayCell = page.locator(`[data-testid="calendar-day"][data-date="${today}"]`);
+    await todayCell.click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+
+    // 弹层内「增加计划」→ 日期预填所选日
+    await page.getByRole("button", { name: /增加计划/ }).click();
+    await expect(page.getByRole("dialog").filter({ hasText: "增加直播计划" })).toBeVisible();
+    await expect(page.getByLabel("日期")).toHaveValue(/\d+ 年 \d+ 月 \d+ 日/);
+
+    const timeInput = page.getByLabel("开始时间");
+    await timeInput.click();
+    await timeInput.fill("20:00");
+    await timeInput.blur();
+    await page.getByLabel("直播主题").fill(title);
+    await page.getByRole("button", { name: "确认" }).click();
+
+    // 保存后当日弹层（列出全部计划）即时可见新计划
+    await expect(page.getByRole("dialog").getByText(title)).toBeVisible();
+
+    // 编辑改期到另一天
+    await page.getByRole("button", { name: `编辑 ${title}` }).click();
+    const target = moveTarget();
+    await expect(page.getByRole("dialog").filter({ hasText: "编辑直播计划" })).toBeVisible();
+    await expect(page.getByLabel("直播主题")).toHaveValue(title);
+    const dateField = page.getByLabel("日期");
+    await dateField.click();
+    await dateField.fill(target);
+    await dateField.blur();
+    await page.getByRole("button", { name: "确认" }).click();
+
+    // 移出所选日：原日弹层移除该条、提示已移至、目标日弹层出现该条
+    await expect(page.getByRole("dialog").getByText(title)).toHaveCount(0);
+    await expect(page.getByText(/已移至 \d+ 月 \d+ 日/)).toBeVisible();
+    await page.getByRole("dialog").getByRole("button", { name: "关闭" }).click();
+
+    const targetCell = page.locator(`[data-testid="calendar-day"][data-date="${target}"]`);
+    await targetCell.click();
+    await expect(page.getByRole("dialog").getByText(title)).toBeVisible();
+
+    // 删除（二次确认）→ 从目标日弹层移除
+    await page.getByRole("button", { name: `删除 ${title}` }).click();
+    await page.getByRole("button", { name: "确认删除" }).click();
+    await expect(page.getByRole("dialog").getByText(title)).toHaveCount(0);
+  });
+
+  test("schedule-member-readonly: member 可见日历与当日弹层，但无增加/编辑/删除入口", async ({ page }) => {
+    const accounts = getAccounts();
+    await loginViaUi(page, accounts.member, BASE);
+    await expect(page.getByRole("link", { name: "直播计划" })).toBeVisible();
+    await page.getByRole("link", { name: "直播计划" }).click();
+    await expect(page.getByRole("heading", { name: "直播计划" })).toBeVisible();
+    await expect(page.getByTestId("calendar-day").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "增加直播计划" })).toHaveCount(0);
+
+    // 点击今天 → 只读弹层，无管理操作
+    const today = todayStr();
+    await page.locator(`[data-testid="calendar-day"][data-date="${today}"]`).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(page.getByRole("button", { name: /增加计划/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "编辑" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "删除" })).toHaveCount(0);
+  });
+
+  test("schedule-empty-submit: 日期/开始时间/主题未填全时提交按钮禁用", async ({ page }) => {
+    const accounts = getAccounts();
+    await loginViaUi(page, accounts.superadmin, BASE);
+    await page.getByRole("link", { name: "直播计划" }).click();
+    await page.getByRole("button", { name: "增加直播计划" }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    // 空表单：确认按钮禁用
+    await expect(page.getByRole("button", { name: "确认" })).toBeDisabled();
+  });
+});

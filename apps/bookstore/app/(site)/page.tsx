@@ -5,6 +5,8 @@ import PaperCard from "@/components/PaperCard";
 import VineDivider from "@/components/VineDivider";
 import ColorChip from "@/features/home/ColorChip";
 import EntryCard from "@/features/home/EntryCard";
+import WeeklySchedule from "@/features/home/WeeklySchedule";
+import { API_CONFIGURED } from "@/features/backdoor/api";
 import { getAssetById, getProfile, getSite } from "@/lib/content";
 import { assetThumbnailUrl } from "@/lib/content/shared";
 
@@ -107,6 +109,9 @@ export default function Home() {
           />
         </div>
       </section>
+
+      {/* ---------- 本周日程 ---------- */}
+      {API_CONFIGURED && <WeeklySchedule />}
 
       {/* ---------- 速览 ---------- */}
       <section className="mx-auto w-full max-w-6xl px-5 pt-14 lg:px-10">

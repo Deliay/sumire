@@ -4,6 +4,7 @@ import { Menu, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { API_CONFIGURED } from "@/features/backdoor/api";
 import type { ToolModule } from "@/lib/tools/registry";
 
 interface NavBarProps {
@@ -15,6 +16,7 @@ const BASE_LINKS = [
   { href: "/", label: "主页" },
   { href: "/about", label: "档案" },
   { href: "/assets", label: "素材" },
+  ...(API_CONFIGURED ? [{ href: "/calendar", label: "日历" }] : []),
 ];
 
 export default function NavBar({ siteName, tools }: NavBarProps) {

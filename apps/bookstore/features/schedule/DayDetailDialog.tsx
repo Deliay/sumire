@@ -53,10 +53,17 @@ export default function DayDetailDialog({
     onClose();
   }
 
+  // readOnly 模式用 paper 色系（浅底深字），管理模式用 raised 色系（深底浅字）
+  const textMain = readOnly ? "text-ink-on-paper" : "text-ink";
+  const textSub = readOnly ? "text-ink-on-paper/70" : "text-ink/70";
+  const textDim = readOnly ? "text-ink-on-paper/60" : "text-ink-dim";
+  const divider = readOnly ? "border-ink-on-paper/10" : "border-vine/30";
+  const emptyText = readOnly ? "text-ink-on-paper/50" : "text-ink-dim";
+
   const body = (
     <>
       {sorted.length === 0 ? (
-        <p className="py-6 text-center text-sm italic text-ink-on-paper/50">
+        <p className={`py-6 text-center text-sm italic ${emptyText}`}>
           这一天书屋静悄悄的。
         </p>
       ) : (
@@ -64,18 +71,18 @@ export default function DayDetailDialog({
           {sorted.map((p) => (
             <li
               key={p.id}
-              className="flex items-center gap-3 border-b border-ink-on-paper/10 py-3 last:border-b-0"
+              className={`flex items-center gap-3 border-b ${divider} py-3 last:border-b-0`}
             >
-              <span className="w-12 shrink-0 text-right font-display text-sm tabular-nums text-ink-on-paper/70">
+              <span className={`w-12 shrink-0 text-right font-display text-sm tabular-nums ${textSub}`}>
                 {p.startTime}
               </span>
-              <span className="flex-1 text-sm text-ink-on-paper">{p.title}</span>
+              <span className={`flex-1 text-sm ${textMain}`}>{p.title}</span>
               {!readOnly && onEdit && onDelete && (
                 <span className="flex shrink-0 items-center gap-2">
                   <button
                     type="button"
                     onClick={() => onEdit(p)}
-                    className="text-xs text-ink-on-paper/60 transition-colors hover:text-ink-on-paper"
+                    className={`text-xs ${textDim} transition-colors hover:${textMain}`}
                     aria-label={`编辑 ${p.title}`}
                   >
                     编辑
@@ -83,7 +90,7 @@ export default function DayDetailDialog({
                   <button
                     type="button"
                     onClick={() => setConfirmId(p.id)}
-                    className="text-xs text-ink-on-paper/60 transition-colors hover:text-flower"
+                    className={`text-xs ${textDim} transition-colors hover:text-flower`}
                     aria-label={`删除 ${p.title}`}
                   >
                     删除
@@ -92,7 +99,7 @@ export default function DayDetailDialog({
               )}
               {!readOnly && confirmId === p.id && (
                 <span className="flex shrink-0 items-center gap-2 rounded bg-soft px-2 py-1">
-                  <span className="text-xs text-ink">确认删除 {p.startTime} {p.title}？</span>
+                  <span className={`text-xs ${textMain}`}>确认删除 {p.startTime} {p.title}？</span>
                   <button
                     type="button"
                     onClick={() => {
@@ -108,7 +115,7 @@ export default function DayDetailDialog({
                   <button
                     type="button"
                     onClick={() => setConfirmId(null)}
-                    className="text-xs text-ink-dim"
+                    className={`text-xs ${textDim}`}
                     aria-label="取消删除"
                   >
                     取消

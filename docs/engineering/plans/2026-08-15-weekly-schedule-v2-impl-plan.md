@@ -1,5 +1,5 @@
 ---
-description: 周表二期实现方案 v1.0——基于 PRD v1.0 与技术提案 v1.0 的实施计划（生成周表图片弹层：ISO 周切换、Canvas 纯前端绘制、长按/右键保存；日历历史直播混合展示：服务端代理 + Redis 缓存 + 静默降级；分支策略、契约先行、并行实现、TDD 步骤、验证与验收）
+description: 周表二期实现方案 v1.1——基于 PRD v1.0 与技术提案 v1.0 的实施计划（生成周表图片弹层：ISO 周切换、Canvas 纯前端绘制、长按/右键保存；日历历史直播混合展示：服务端代理 + Redis 缓存 + 静默降级，LIVE_HISTORY_UPSTREAM_URL 未配置时回退 PRD 内网地址；分支策略、契约先行、并行实现、TDD 步骤、验证与验收）
 type: Permanent
 ---
 
@@ -12,8 +12,10 @@ type: Permanent
 **素材坐标**: `apps/bookstore/public/assets/original/AGENTS.md`（`weekly-schedules-raw.jpg`，1665×1080）
 **需求总分支**: `prd/weekly-schedule-v2`
 **开发分支**: `feat/weekly-schedule-v2`（自 `prd/weekly-schedule-v2` 切出）
-**版本**: v1.0（2026-08-15）
+**版本**: v1.1（2026-08-15，评审返工修订）
 **作者**: sumire workflow
+
+> 修订记录：v1.1——按返工意见明确 `LIVE_HISTORY_UPSTREAM_URL` 的回退口径：**任何环境下未配置该变量时，必须回退到 PRD 给定的内网上游地址 `http://vtuber.internal.fffdan.com/api/b/live/1727076670/history`**。该回退落实为两层：后端 `config.ts` 内置缺省值（进程独立运行时兜底），Aspire `apphost.cs` 注入时同样内置缺省值（编排环境未设变量时兜底）；两处缺省值同源同址，不得留空或抛错。
 
 本方案将技术提案 v1.0 落实为可执行的实施计划。**前提事实**：一期 `feat/weekly-schedule` 已合入主线，`features/schedule/` 已具备 `CalendarView`（月视图，周一开头，公开站与后台共用）、`DayDetailDialog`（只读/管理双模式）、`PlanFormDialog`、`api.ts`（`listPlans` 公开读）；`servers/api` 具备公开读/受限写路由模式、ioredis 会话设施与 MongoDB；Aspire 编排含 Redis。本期为**纯增量**：新增一份契约、一条后端代理路由、一个前端 `weeklyImage/` 模块，并改造日历组件为双来源混合渲染。整体顺序：**契约新增 → 后端与前端并行增量（subagent）→ 服务编排 → API 集成测试 → e2e → 收尾验收**。全程遵循 TDD（先写失败测试再实现）；写代码前加载对应目录 AGENTS.md 与 `docs/engineering/backend-rules.md`（后端）/ `docs/engineering/frontend-rules.md`（前端）。
 
@@ -23,8 +25,8 @@ type: Permanent
 |----|---------------------|---------------------------|
 | 契约 | `contract/` 仅 `backdoor-auth`、`stream-plans` 两份 | 新增 `contract/live-history.openapi.yaml`：`GET /api/live-history` 公开读，200 + `{ ok, records[] }`（记录仅 `title`/`startDate`/`stopDate`，≤100 条按 `startDate` 倒序），降级形态 200 + `{ ok: false, records: [] }` |
 | 后端路由 | `routes/` 有 auth、users、streamPlans | 新增 `routes/liveHistory.ts`：公开读代理——Redis 缓存（key `live-history:latest`，TTL 300s）→ 未命中拉上游（5s 超时）→ 裁剪三字段、缺 `title`/`startDate` 丢弃、倒序取 100 条 → 写缓存返回；失败时 stale-if-error，否则降级体；`app.ts` 挂载 `api.use("/live-history", …)` |
-| 后端配置 | `config.ts` 无上游地址项 | `config.ts` 增加 `liveHistoryUpstreamUrl`：`LIVE_HISTORY_UPSTREAM_URL` 环境变量，缺省为 PRD 给定内网地址；内网地址不进前端 bundle |
-| Aspire 编排 | api 资源注入 Redis/MongoDB/会话种子 | `infra/aspire/apphost.cs` 为 api 注入 `LIVE_HISTORY_UPSTREAM_URL`（取编排环境变量，缺省 PRD 地址），便于测试环境指向 stub 上游 |
+| 后端配置 | `config.ts` 无上游地址项 | `config.ts` 增加 `liveHistoryUpstreamUrl`：读 `LIVE_HISTORY_UPSTREAM_URL` 环境变量，**未配置时必须回退到 PRD 给定内网地址 `http://vtuber.internal.fffdan.com/api/b/live/1727076670/history`**（内置缺省值，非必填项、不得抛错）；内网地址不进前端 bundle |
+| Aspire 编排 | api 资源注入 Redis/MongoDB/会话种子 | `infra/aspire/apphost.cs` 为 api 注入 `LIVE_HISTORY_UPSTREAM_URL`（取编排进程环境变量，**未设置时同样回退到 PRD 内网地址**，保证 `aspire start` 开箱即用），测试环境可指向 stub 上游 |
 | 前端取数 | `features/schedule/api.ts`：`listPlans`/`createPlan`/`updatePlan`/`deletePlan` | 扩展：`LiveRecord` 类型与 `listLiveHistory()`；`API_CONFIGURED` 为假或请求失败返回 `{ ok: false, records: [] }` |
 | 日历组件 | `CalendarView` 仅渲染人工计划（至多 2 条 + 「+N」） | 改造为统一条目模型 `CalendarEntry`（plan/history 双来源）：新增 `mergeEntries.ts` 纯函数归一化合并；历史条目「实录」点标记 + 墨色弱化、恒为已播出样式；两路数据独立加载，历史失败静默降级 |
 | 当日安排弹层 | `DayDetailDialog` 仅列人工计划 | 改造：混合列出，历史行加「实际播出」小标签、只读（任何角色无编辑/删除入口）、附结束时刻 |
@@ -67,7 +69,7 @@ type: Permanent
    - 缓存命中：不发上游请求直接返回缓存内容；
    - 裁剪：缺 `title` 或 `startDate` 的条目丢弃；上游返回非数组/非法 JSON 按失败处理；
    - 降级：上游超时/网络错误/非法响应 → 有过期缓存返回过期缓存（stale-if-error）→ 无缓存返回 `{ ok: false, records: [] }`（HTTP 200）；
-2. 实现 `config.ts` 增量：`liveHistoryUpstreamUrl`（`LIVE_HISTORY_UPSTREAM_URL`，缺省 PRD 地址）；
+2. 实现 `config.ts` 增量：`liveHistoryUpstreamUrl`——`getEnv("LIVE_HISTORY_UPSTREAM_URL", "http://vtuber.internal.fffdan.com/api/b/live/1727076670/history")` 风格，**未配置时必须回退到 PRD 给定内网地址**（内置缺省值，不得因缺变量抛错）；单测覆盖「未设置环境变量时取内网缺省地址」；
 3. 实现 `routes/liveHistory.ts`：仅 GET、公开读；上游 `fetch` 5s 超时（`AbortSignal.timeout`）；缓存依赖注入最小接口（`get`/`set`），单测用内存 stub，上游请求以 `vi.stubGlobal("fetch", …)` 或注入 fetch 打桩；
 4. `app.ts` 挂载 `api.use("/live-history", createLiveHistoryRouter(…))`，Redis 客户端复用 `index.ts` 既有 ioredis 实例（经 deps 传入，不新建连接）；
 5. 确认转绿。
@@ -94,7 +96,7 @@ type: Permanent
 
 ### 步骤 4：服务编排（SKILL: z-aspire-orchestrator）
 
-- `infra/aspire/apphost.cs`：api 资源增加 `.WithEnvironment("LIVE_HISTORY_UPSTREAM_URL", …)`——取编排进程环境变量 `LIVE_HISTORY_UPSTREAM_URL`，缺省为 PRD 给定内网地址；Redis/MongoDB 注入链复用既有；
+- `infra/aspire/apphost.cs`：api 资源增加 `.WithEnvironment("LIVE_HISTORY_UPSTREAM_URL", …)`——取编排进程环境变量 `LIVE_HISTORY_UPSTREAM_URL`，**未设置时必须回退到 PRD 给定内网地址 `http://vtuber.internal.fffdan.com/api/b/live/1727076670/history`**（C# 侧内置缺省值，保证 `aspire start` 不设任何变量即可用）；Redis/MongoDB 注入链复用既有；
 - `aspire start` 后通过 `aspire describe` 注入集成测试端点；
 - API 集成测试运行方式：先起本地 stub 上游（见步骤 5），以 `LIVE_HISTORY_UPSTREAM_URL=http://localhost:<stub-port>` 启动 Aspire，使 api 代理指向 stub。
 

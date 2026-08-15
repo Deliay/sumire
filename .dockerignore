@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/.next
+**/.cache
+.git
+.github
+apps
+docs
+infra
+tests
+*.log

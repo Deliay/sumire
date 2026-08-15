@@ -29,7 +29,7 @@ pnpm lint         # ESLint
 | `features/backdoor/` | 后台会话守卫、权限守卫、API 调用、后台组件 |
 | `features/<模块>/` | 页面/工具业务组件 |
 | `components/` | 设计系统组件 |
-| `lib/` | 内容加载与工具 |
+| `lib/` | 内容加载与工具（含 `useMediaQuery.ts` 断点 hook：`useSyncExternalStore` 封装 matchMedia，SSR 快照固定 false） |
 | `content/` | 站点数据 YAML |
 | `public/assets/` | 素材原图与缩略图 |
 | `tests/` | 单元测试 |
@@ -44,7 +44,7 @@ pnpm lint         # ESLint
 
 ## 周表 / 直播计划约定
 
-- `features/schedule/`：直播计划业务组件——`CalendarView`（可复用月视图日历，周一开头，纯 `YYYY-MM-DD` 字符串比较规避时区；有计划日期展示至多 2 条 `HH:mm 主题` 摘要，更多以 +N 收尾；`onSelectDay` 上抛所选日）、`DayDetailDialog`（当日详细安排弹层，`readOnly` 切换只读/管理双模式，管理态含行内编辑/删除二次确认与「+ 增加计划」）、`PlanFormDialog`（录入/编辑双态表单，父组件变更 key 重置初始值）、`DatePicker`/`TimePicker`（定制选择器，只读输入 + 浮层，键入容错经 `dateUtils.parseTimeStr`/`parseDateStr`）、`api.ts`（`listPlans`/`createPlan`/`updatePlan`/`deletePlan`，复用 `features/backdoor/api.ts` 的 `API_BASE_URL`/`API_CONFIGURED` 口径）、`dateUtils.ts`（日历网格与时间解析纯函数）、`useDismiss.ts`（浮层点击外部/Esc 收起）、`CalendarViewPage`（公开日历页主体，接只读 `DayDetailDialog`）；
+- `features/schedule/`：直播计划业务组件——`CalendarView`（响应式日历：`< 640px` 渲染周视图（单周 7 天 + 周切换 + 今天），`≥ 640px` 维持既有月视图；`selectedDate` 单一事实源，月/周各自派生定位，断点跨越不丢选中日期；周一开头，纯 `YYYY-MM-DD` 字符串比较规避时区；有计划/历史日期展示摘要（月视图至多 2 条、周视图至多 4 条 `HH:mm 主题`，更多以 +N 收尾）；`onRangeChange(from, to)` 上抛可见范围（月视图月区间、周视图周一~周日），`onSelectDay` 上抛所选日）、`DayDetailDialog`（当日详细安排弹层，`readOnly` 切换只读/管理双模式，管理态含行内编辑/删除二次确认与「+ 增加计划」）、`PlanFormDialog`（录入/编辑双态表单，父组件变更 key 重置初始值）、`DatePicker`/`TimePicker`（定制选择器，只读输入 + 浮层，键入容错经 `dateUtils.parseTimeStr`/`parseDateStr`）、`api.ts`（`listPlans`/`createPlan`/`updatePlan`/`deletePlan`，复用 `features/backdoor/api.ts` 的 `API_BASE_URL`/`API_CONFIGURED` 口径）、`dateUtils.ts`（日历网格、周计算与时间解析纯函数：`weekDates`/`shiftWeek`/`formatWeekRange` 周计算、`monthGrid`/`monthRange`/`shiftMonth` 月计算、`parseDateStr`/`parseTimeStr` 解析）、`useDismiss.ts`（浮层点击外部/Esc 收起）、`CalendarViewPage`（公开日历页主体，接只读 `DayDetailDialog`）；
 - 公开日历页 `app/(site)/calendar/page.tsx`：构建时守卫，未配置 `NEXT_PUBLIC_API_BASE_URL` 直接渲染 `components/NotFoundPage`（不加载日历 chunk、不发请求），已配置时渲染 `CalendarViewPage`；
 - 后台直播计划页 `app/backdoor/(dashboard)/schedule/page.tsx`：复用 `(dashboard)/layout.tsx` 会话守卫；日历点击某天弹管理态 `DayDetailDialog`（member 只读降级，与后端 403 口径一致）；弹层内增加（日期预填所选日）/编辑（可改期）/删除（二次确认）后重拉当前月区间，编辑移出所选日提示「已移至 X 月 X 日」；
 - 主页入口 `features/home/WeeklySchedule.tsx`：仅 `API_CONFIGURED` 时由 `app/(site)/page.tsx` 挂载（未配置不留占位）；初始渲染固定最小高度加载骨架，避免 hydration 布局跳动；缎条为 `MON. + HH:mm 主题`（**不混入**历史直播记录，保持一期语义）；

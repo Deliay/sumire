@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { listPlans, type StreamPlan } from "@/features/schedule/api";
+import { useEffect, useMemo, useState } from "react";
+import { listLiveHistory, listPlans, type LiveRecord, type StreamPlan } from "@/features/schedule/api";
 import CalendarView from "@/features/schedule/CalendarView";
 import DayDetailDialog from "@/features/schedule/DayDetailDialog";
+import { mergeEntries } from "@/features/schedule/mergeEntries";
 import { monthRange } from "@/features/schedule/dateUtils";
 
 /** 当前月份的 from/to 区间（YYYY-MM-DD，含首末）。 */
@@ -15,6 +16,7 @@ function currentMonthRange(): { from: string; to: string } {
 /** 公开日历页主体：客户端按当前月区间拉取，翻月按新区间重新拉取；点击某天只读查看当日安排。 */
 export default function CalendarViewPage() {
   const [plans, setPlans] = useState<StreamPlan[]>([]);
+  const [records, setRecords] = useState<LiveRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
@@ -31,6 +33,16 @@ export default function CalendarViewPage() {
       }
     })();
   }, []);
+
+  // 历史直播记录独立加载，失败静默降级（仅展示计划）
+  useEffect(() => {
+    void (async () => {
+      const res = await listLiveHistory();
+      if (res.ok) setRecords(res.records);
+    })();
+  }, []);
+
+  const entries = useMemo(() => mergeEntries(plans, records), [plans, records]);
 
   function handleMonthChange(from: string, to: string) {
     void (async () => {
@@ -61,13 +73,13 @@ export default function CalendarViewPage() {
       ) : loading ? (
         <div className="min-h-80 animate-pulse rounded-md border border-vine/50 bg-raised" aria-busy="true" />
       ) : (
-        <CalendarView plans={plans} onMonthChange={handleMonthChange} onSelectDay={setSelectedDay} />
+        <CalendarView entries={entries} onMonthChange={handleMonthChange} onSelectDay={setSelectedDay} />
       )}
 
       <DayDetailDialog
         open={selectedDay !== null}
         date={selectedDay ?? ""}
-        plans={selectedDay ? plans.filter((p) => p.date === selectedDay) : []}
+        entries={selectedDay ? entries.filter((e) => e.date === selectedDay) : []}
         readOnly
         onClose={() => setSelectedDay(null)}
       />

@@ -85,7 +85,7 @@ export default function SchedulePage() {
     })();
   }, [range.from, range.to]);
 
-  function handleMonthChange(from: string, to: string) {
+  function handleRangeChange(from: string, to: string) {
     setRange({ from, to });
   }
 
@@ -150,7 +150,7 @@ export default function SchedulePage() {
       ) : loading ? (
         <div className="min-h-64 animate-pulse rounded-md border border-vine/50 bg-raised" aria-busy="true" />
       ) : (
-        <CalendarView entries={entries} onMonthChange={handleMonthChange} onSelectDay={setSelectedDay} />
+        <CalendarView entries={entries} onRangeChange={handleRangeChange} onSelectDay={setSelectedDay} />
       )}
 
       <DayDetailDialog

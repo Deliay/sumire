@@ -44,7 +44,7 @@ export default function CalendarViewPage() {
 
   const entries = useMemo(() => mergeEntries(plans, records), [plans, records]);
 
-  function handleMonthChange(from: string, to: string) {
+  function handleRangeChange(from: string, to: string) {
     void (async () => {
       const { status, data } = await listPlans(from, to);
       if (status === 200 && "plans" in data) {
@@ -73,7 +73,7 @@ export default function CalendarViewPage() {
       ) : loading ? (
         <div className="min-h-80 animate-pulse rounded-md border border-vine/50 bg-raised" aria-busy="true" />
       ) : (
-        <CalendarView entries={entries} onMonthChange={handleMonthChange} onSelectDay={setSelectedDay} />
+        <CalendarView entries={entries} onRangeChange={handleRangeChange} onSelectDay={setSelectedDay} />
       )}
 
       <DayDetailDialog

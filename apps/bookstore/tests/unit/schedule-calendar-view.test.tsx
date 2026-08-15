@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { cleanup, render, screen, fireEvent } from "@testing-library/react";
+import { cleanup, render, screen, fireEvent, act } from "@testing-library/react";
 import CalendarView from "@/features/schedule/CalendarView";
 import type { StreamPlan } from "@/features/schedule/api";
 import type { CalendarEntry } from "@/features/schedule/mergeEntries";
@@ -42,9 +42,37 @@ const historyEntry = (date: string, title: string, startTime = "20:00", startDat
   startTime,
 });
 
-describe("CalendarView", () => {
+/** 可变 matchMedia 桩：可动态 set matches 触发 change 事件。 */
+function mockMatchMedia(matches: boolean) {
+  let listener: ((e: { matches: boolean }) => void) | null = null;
+  const mql = {
+    matches,
+    media: "",
+    addEventListener: (_type: string, cb: (e: { matches: boolean }) => void) => {
+      listener = cb;
+    },
+    removeEventListener: () => {
+      listener = null;
+    },
+  };
+  return {
+    stub: () => mql,
+    set: (next: boolean) => {
+      mql.matches = next;
+      listener?.({ matches: next });
+    },
+  };
+}
+
+function weekday(s: string): number {
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, m - 1, d).getDay();
+}
+
+describe("CalendarView（月视图，默认无 matchMedia）", () => {
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
   });
 
   it("渲染当前月标题", () => {
@@ -112,13 +140,14 @@ describe("CalendarView", () => {
   });
 
   it("翻月回调返回新区间", () => {
-    const onMonthChange = vi.fn();
-    render(<CalendarView entries={[]} onMonthChange={onMonthChange} />);
+    const onRangeChange = vi.fn();
+    render(<CalendarView entries={[]} onRangeChange={onRangeChange} />);
     fireEvent.click(screen.getByLabelText("下一月"));
-    expect(onMonthChange).toHaveBeenCalledTimes(1);
-    const [from, to] = onMonthChange.mock.calls[0] as [string, string];
+    expect(onRangeChange).toHaveBeenCalledTimes(1);
+    const [from, to] = onRangeChange.mock.calls[0] as [string, string];
     expect(from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(to).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(from <= to).toBe(true);
   });
 
   it("点击某天触发 onSelectDay", () => {
@@ -129,5 +158,74 @@ describe("CalendarView", () => {
     const cell = dayCells.find((el) => el.getAttribute("data-date") === d)!;
     fireEvent.click(cell);
     expect(onSelectDay).toHaveBeenCalledWith(d);
+  });
+});
+
+describe("CalendarView（周视图，matchMedia 为真）", () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("渲染恰好 7 天且默认含今天", () => {
+    const mq = mockMatchMedia(true);
+    vi.stubGlobal("matchMedia", mq.stub);
+    render(<CalendarView entries={[]} />);
+    const cells = screen.getAllByTestId("calendar-day");
+    expect(cells).toHaveLength(7);
+    const today = todayStr();
+    expect(cells.some((c) => c.getAttribute("data-date") === today)).toBe(true);
+  });
+
+  it("周切换上抛周一~周日区间", () => {
+    const mq = mockMatchMedia(true);
+    vi.stubGlobal("matchMedia", mq.stub);
+    const onRangeChange = vi.fn();
+    render(<CalendarView entries={[]} onRangeChange={onRangeChange} />);
+    fireEvent.click(screen.getByLabelText("下一周"));
+    expect(onRangeChange).toHaveBeenCalledTimes(1);
+    const [from, to] = onRangeChange.mock.calls[0] as [string, string];
+    expect(weekday(from)).toBe(1); // 周一
+    expect(weekday(to)).toBe(0); // 周日
+    const [fy, fm, fd] = from.split("-").map(Number);
+    const [ty, tm, td] = to.split("-").map(Number);
+    const f = new Date(fy, fm - 1, fd);
+    const t = new Date(ty, tm - 1, td);
+    expect(Math.round((t.getTime() - f.getTime()) / 86400000)).toBe(6);
+  });
+
+  it("「今天」回到本周并上抛本周区间", () => {
+    const mq = mockMatchMedia(true);
+    vi.stubGlobal("matchMedia", mq.stub);
+    const onRangeChange = vi.fn();
+    render(<CalendarView entries={[]} onRangeChange={onRangeChange} />);
+    fireEvent.click(screen.getByLabelText("下一周"));
+    fireEvent.click(screen.getByRole("button", { name: "今天" }));
+    expect(onRangeChange).toHaveBeenCalledTimes(2);
+    const [from, to] = onRangeChange.mock.calls[1] as [string, string];
+    const today = todayStr();
+    expect(from <= today && today <= to).toBe(true);
+  });
+
+  it("周视图点击某天触发 onSelectDay", () => {
+    const mq = mockMatchMedia(true);
+    vi.stubGlobal("matchMedia", mq.stub);
+    const onSelectDay = vi.fn();
+    const d = todayStr();
+    render(<CalendarView entries={[]} onSelectDay={onSelectDay} />);
+    const cell = screen.getAllByTestId("calendar-day").find((el) => el.getAttribute("data-date") === d)!;
+    fireEvent.click(cell);
+    expect(onSelectDay).toHaveBeenCalledWith(d);
+  });
+
+  it("断点跨越后选中日期不丢（周→月定位到同月）", () => {
+    const mq = mockMatchMedia(true);
+    vi.stubGlobal("matchMedia", mq.stub);
+    render(<CalendarView entries={[]} />);
+    fireEvent.click(screen.getByLabelText("下一周"));
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    act(() => mq.set(false));
+    expect(screen.getByText(`${d.getFullYear()} 年 ${d.getMonth() + 1} 月`)).toBeTruthy();
   });
 });

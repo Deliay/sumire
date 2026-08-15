@@ -38,6 +38,50 @@ function todayStr(): string {
   return toDateStr(now.getFullYear(), now.getMonth() + 1, now.getDate());
 }
 
+interface DaySummariesProps {
+  entries: CalendarEntry[];
+  isPast: boolean;
+  maxSummaries: number;
+  /** 空天是否渲染「—」占位（月视图补位格为 false）。 */
+  showEmpty: boolean;
+}
+
+/** 单日条目摘要列表（月/周两形态共用）：HH:mm 主题、+N 收口、历史来源样式、空天占位。 */
+function DaySummaries({ entries, isPast, maxSummaries, showEmpty }: DaySummariesProps) {
+  const shown = entries.slice(0, maxSummaries);
+  const extra = entries.length - maxSummaries;
+  return (
+    <div className="flex flex-col gap-0.5">
+      {shown.map((e) => {
+        const isHistory = e.kind === "history";
+        return (
+          <span
+            key={isHistory ? `h-${e.record.startDate}-${e.record.title}` : e.plan.id}
+            data-testid={isHistory ? "history-title" : "plan-title"}
+            className={`truncate rounded px-1 py-0.5 text-[11px] leading-tight ${
+              isHistory || isPast ? "text-ink-dim/80" : "bg-soft text-ink"
+            }`}
+          >
+            <span
+              aria-hidden
+              className={`mr-0.5 inline-block h-1 w-1 rounded-full align-middle ${
+                isHistory ? "bg-vine" : "bg-eye"
+              }`}
+            />
+            <span className="tabular-nums">{e.startTime}</span> {entryTitle(e)}
+          </span>
+        );
+      })}
+      {extra > 0 && (
+        <span className="text-[11px] tabular-nums text-ink-dim">+{extra}</span>
+      )}
+      {entries.length === 0 && showEmpty && (
+        <span className="text-[11px] text-ink-dim/50">—</span>
+      )}
+    </div>
+  );
+}
+
 interface DayCellProps {
   dateStr: string;
   day: number;
@@ -45,16 +89,13 @@ interface DayCellProps {
   entries: CalendarEntry[];
   today: string;
   maxSummaries: number;
-  tall: boolean;
   onSelectDay?: (date: string) => void;
 }
 
-/** 单日格子渲染（月/周两形态共用）：日期数字、今天标记、过去弱化、条目摘要、+N 收口、历史来源样式、空天占位。 */
-function DayCell({ dateStr, day, inMonth, entries, today, maxSummaries, tall, onSelectDay }: DayCellProps) {
+/** 单日格子渲染（月视图）：日期数字、今天标记、过去弱化、条目摘要、+N 收口、历史来源样式、空天占位。 */
+function DayCell({ dateStr, day, inMonth, entries, today, maxSummaries, onSelectDay }: DayCellProps) {
   const isToday = dateStr === today;
   const isPast = dateStr < today;
-  const shown = entries.slice(0, maxSummaries);
-  const extra = entries.length - maxSummaries;
   const clickable = inMonth && !!onSelectDay;
   return (
     <button
@@ -63,7 +104,7 @@ function DayCell({ dateStr, day, inMonth, entries, today, maxSummaries, tall, on
       data-testid="calendar-day"
       onClick={() => clickable && onSelectDay?.(dateStr)}
       aria-label={inMonth ? `查看 ${dateStr} 安排` : undefined}
-      className={`relative flex ${tall ? "min-h-28" : "min-h-16"} flex-col rounded-md border p-1.5 text-left transition-colors ${
+      className={`relative flex min-h-16 flex-col rounded-md border p-1.5 text-left transition-colors ${
         isToday ? "border-flower" : "border-vine/40"
       } ${!inMonth ? "opacity-35" : ""} ${
         isToday ? "" : isPast ? "bg-night opacity-60" : "bg-raised hover:border-flower"
@@ -82,40 +123,13 @@ function DayCell({ dateStr, day, inMonth, entries, today, maxSummaries, tall, on
       >
         {day}
       </span>
-      <div className="flex flex-col gap-0.5">
-        {shown.map((e) => {
-          const isHistory = e.kind === "history";
-          return (
-            <span
-              key={isHistory ? `h-${e.record.startDate}-${e.record.title}` : e.plan.id}
-              data-testid={isHistory ? "history-title" : "plan-title"}
-              className={`truncate rounded px-1 py-0.5 text-[11px] leading-tight ${
-                isHistory || isPast ? "text-ink-dim/80" : "bg-soft text-ink"
-              }`}
-            >
-              <span
-                aria-hidden
-                className={`mr-0.5 inline-block h-1 w-1 rounded-full align-middle ${
-                  isHistory ? "bg-vine" : "bg-eye"
-                }`}
-              />
-              <span className="tabular-nums">{e.startTime}</span> {entryTitle(e)}
-            </span>
-          );
-        })}
-        {extra > 0 && (
-          <span className="text-[11px] tabular-nums text-ink-dim">+{extra}</span>
-        )}
-        {entries.length === 0 && inMonth && (
-          <span className="text-[11px] text-ink-dim/50">—</span>
-        )}
-      </div>
+      <DaySummaries entries={entries} isPast={isPast} maxSummaries={maxSummaries} showEmpty={inMonth} />
     </button>
   );
 }
 
 /**
- * 可复用响应式日历（周一开头，MON–SUN）。< 640px 渲染周视图（单周 7 天 + 周切换 + 今天），
+ * 可复用响应式日历（周一开头，MON–SUN）。< 640px 渲染周视图（单周 7 天纵向列表 + 周切换 + 今天），
  * ≥ 640px 维持既有月视图。有计划/历史条目日期展示摘要（更多以 +N 收尾）；过去（已播出）弱化、
  * 未来（待播出）高亮、今天藤蔓描边；历史记录恒为「已播出」弱化样式并以藤蔓点标记区分来源；
  * 点击某天上抛日期；可见范围变更经 onRangeChange 上抛。
@@ -222,30 +236,43 @@ export default function CalendarView({ entries, onRangeChange, onSelectDay }: Ca
           </button>
         </div>
 
-        <div className="grid grid-cols-7 gap-1">
-          {WEEKDAYS.map((w) => (
-            <div
-              key={w}
-              className="pb-1 text-center font-display text-xs tracking-widest text-ink-dim"
-            >
-              周{w}
-            </div>
-          ))}
-
-          {week.map((ds) => {
+        <div className="flex flex-col gap-2">
+          {week.map((ds, i) => {
             const p = parseDateStr(ds)!;
+            const dayEntries = entriesByDate.get(ds) ?? [];
+            const isToday = ds === today;
+            const isPast = ds < today;
             return (
-              <DayCell
+              <button
                 key={ds}
-                dateStr={ds}
-                day={p.d}
-                inMonth
-                entries={entriesByDate.get(ds) ?? []}
-                today={today}
-                maxSummaries={WEEK_MAX_SUMMARIES}
-                tall
-                onSelectDay={onSelectDay}
-              />
+                type="button"
+                data-date={ds}
+                data-testid="calendar-day"
+                onClick={() => onSelectDay?.(ds)}
+                aria-label={`查看 ${ds} 安排`}
+                className={`w-full rounded-md border p-3 text-left transition-colors ${
+                  isToday ? "border-flower" : "border-vine/40"
+                } ${isToday ? "" : isPast ? "bg-night opacity-60" : "bg-raised hover:border-flower"}`}
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`font-display text-sm ${
+                      isToday ? "font-bold text-flower" : isPast ? "text-ink-dim" : "text-ink"
+                    }`}
+                  >
+                    周{WEEKDAYS[i]}
+                  </span>
+                  <span className={`text-xs tabular-nums ${isToday ? "text-flower" : "text-ink-dim"}`}>
+                    {p.m} 月 {p.d} 日
+                  </span>
+                  {isToday && (
+                    <span aria-hidden className="ml-auto h-1.5 w-1.5 rounded-full bg-flower" />
+                  )}
+                </div>
+                <div className="mt-1.5">
+                  <DaySummaries entries={dayEntries} isPast={isPast} maxSummaries={WEEK_MAX_SUMMARIES} showEmpty />
+                </div>
+              </button>
             );
           })}
         </div>
@@ -296,7 +323,6 @@ export default function CalendarView({ entries, onRangeChange, onSelectDay }: Ca
             entries={entriesByDate.get(cell.dateStr) ?? []}
             today={today}
             maxSummaries={MONTH_MAX_SUMMARIES}
-            tall={false}
             onSelectDay={onSelectDay}
           />
         ))}

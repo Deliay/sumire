@@ -177,6 +177,15 @@ describe("CalendarView（周视图，matchMedia 为真）", () => {
     expect(cells.some((c) => c.getAttribute("data-date") === today)).toBe(true);
   });
 
+  it("周视图每天一行纵向展示，含周X 标签", () => {
+    const mq = mockMatchMedia(true);
+    vi.stubGlobal("matchMedia", mq.stub);
+    render(<CalendarView entries={[]} />);
+    for (const label of ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]) {
+      expect(screen.getByText(label)).toBeTruthy();
+    }
+  });
+
   it("周切换上抛周一~周日区间", () => {
     const mq = mockMatchMedia(true);
     vi.stubGlobal("matchMedia", mq.stub);

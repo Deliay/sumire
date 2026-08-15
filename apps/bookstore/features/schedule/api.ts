@@ -14,6 +14,17 @@ export interface StreamPlanInput {
   title: string;
 }
 
+export interface LiveRecord {
+  title: string;
+  startDate: string;
+  stopDate?: string;
+}
+
+export interface LiveHistoryResponse {
+  ok: boolean;
+  records: LiveRecord[];
+}
+
 export interface ApiError {
   error?: string;
 }
@@ -85,4 +96,23 @@ export async function deletePlan(
   id: string,
 ): Promise<{ status: number; data: { ok: true } | ApiError }> {
   return request(`/api/stream-plans/${id}`, { method: "DELETE" });
+}
+
+/**
+ * 查询历史直播记录（公开读）。未配置或请求失败时静默降级为
+ * `{ ok: false, records: [] }`，调用方据此不渲染历史条目。
+ */
+export async function listLiveHistory(): Promise<LiveHistoryResponse> {
+  if (!API_CONFIGURED) {
+    return { ok: false, records: [] };
+  }
+  try {
+    const { status, data } = await request<LiveHistoryResponse | ApiError>("/api/live-history");
+    if (status === 200 && "ok" in data && Array.isArray((data as LiveHistoryResponse).records)) {
+      return data as LiveHistoryResponse;
+    }
+    return { ok: false, records: [] };
+  } catch {
+    return { ok: false, records: [] };
+  }
 }

@@ -1,18 +1,22 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { StreamPlan } from "@/features/schedule/api";
+import type { CalendarEntry } from "@/features/schedule/mergeEntries";
 import { WEEKDAYS, monthGrid, shiftMonth, toDateStr } from "@/features/schedule/dateUtils";
 
 const MAX_SUMMARIES = 2;
 
 interface CalendarViewProps {
-  /** 当前展示区间的直播计划 */
-  plans: StreamPlan[];
+  /** 当前展示区间的日历条目（计划 + 历史直播，已归一化合并） */
+  entries: CalendarEntry[];
   /** 翻月回调，父组件按新月份拉取数据 */
   onMonthChange?: (from: string, to: string) => void;
   /** 点击某天回调，上抛所选日期 YYYY-MM-DD */
   onSelectDay?: (date: string) => void;
+}
+
+function entryTitle(entry: CalendarEntry): string {
+  return entry.kind === "plan" ? entry.plan.title : entry.record.title;
 }
 
 /** 当天 YYYY-MM-DD（本地日期，规避时区）。 */
@@ -22,26 +26,26 @@ function todayStr(): string {
 }
 
 /**
- * 可复用月视图日历（周一开头，MON–SUN）。有计划日期展示至多 2 条
+ * 可复用月视图日历（周一开头，MON–SUN）。有计划/历史条目日期展示至多 2 条
  * 「HH:mm 主题」摘要（更多以 +N 收尾）；过去（已播出）弱化、未来（待播出）高亮、
- * 今天藤蔓描边；点击某天上抛日期。
+ * 今天藤蔓描边；历史记录恒为「已播出」弱化样式并以藤蔓点标记区分来源；点击某天上抛日期。
  */
-export default function CalendarView({ plans, onMonthChange, onSelectDay }: CalendarViewProps) {
+export default function CalendarView({ entries, onMonthChange, onSelectDay }: CalendarViewProps) {
   const now = new Date();
   const [view, setView] = useState({ y: now.getFullYear(), m: now.getMonth() + 1 });
   const today = todayStr();
 
   const cells = useMemo(() => monthGrid(view.y, view.m), [view]);
-  const plansByDate = useMemo(() => {
-    const map = new Map<string, StreamPlan[]>();
-    for (const p of plans) {
-      const arr = map.get(p.date) ?? [];
-      arr.push(p);
-      map.set(p.date, arr);
+  const entriesByDate = useMemo(() => {
+    const map = new Map<string, CalendarEntry[]>();
+    for (const e of entries) {
+      const arr = map.get(e.date) ?? [];
+      arr.push(e);
+      map.set(e.date, arr);
     }
     for (const arr of map.values()) arr.sort((a, b) => a.startTime.localeCompare(b.startTime));
     return map;
-  }, [plans]);
+  }, [entries]);
 
   function goMonth(delta: number) {
     const next = shiftMonth(view.y, view.m, delta);
@@ -87,11 +91,11 @@ export default function CalendarView({ plans, onMonthChange, onSelectDay }: Cale
         ))}
 
         {cells.map((cell) => {
-          const cellPlans = plansByDate.get(cell.dateStr) ?? [];
+          const cellEntries = entriesByDate.get(cell.dateStr) ?? [];
           const isToday = cell.dateStr === today;
           const isPast = cell.dateStr < today;
-          const shown = cellPlans.slice(0, MAX_SUMMARIES);
-          const extra = cellPlans.length - MAX_SUMMARIES;
+          const shown = cellEntries.slice(0, MAX_SUMMARIES);
+          const extra = cellEntries.length - MAX_SUMMARIES;
           const clickable = cell.inMonth && onSelectDay;
           return (
             <button
@@ -121,24 +125,30 @@ export default function CalendarView({ plans, onMonthChange, onSelectDay }: Cale
                 {cell.d}
               </span>
               <div className="flex flex-col gap-0.5">
-                {shown.map((p) => (
-                  <span
-                    key={p.id}
-                    data-testid="plan-title"
-                    className={`truncate rounded px-1 py-0.5 text-[11px] leading-tight ${
-                      isPast
-                        ? "text-ink-dim/80"
-                        : "bg-soft text-ink"
-                    }`}
-                  >
-                    <span aria-hidden className="mr-0.5 inline-block h-1 w-1 rounded-full align-middle bg-eye" />
-                    <span className="tabular-nums">{p.startTime}</span> {p.title}
-                  </span>
-                ))}
+                {shown.map((e) => {
+                  const isHistory = e.kind === "history";
+                  return (
+                    <span
+                      key={isHistory ? `h-${e.record.startDate}-${e.record.title}` : e.plan.id}
+                      data-testid={isHistory ? "history-title" : "plan-title"}
+                      className={`truncate rounded px-1 py-0.5 text-[11px] leading-tight ${
+                        isHistory || isPast ? "text-ink-dim/80" : "bg-soft text-ink"
+                      }`}
+                    >
+                      <span
+                        aria-hidden
+                        className={`mr-0.5 inline-block h-1 w-1 rounded-full align-middle ${
+                          isHistory ? "bg-vine" : "bg-eye"
+                        }`}
+                      />
+                      <span className="tabular-nums">{e.startTime}</span> {entryTitle(e)}
+                    </span>
+                  );
+                })}
                 {extra > 0 && (
                   <span className="text-[11px] tabular-nums text-ink-dim">+{extra}</span>
                 )}
-                {cellPlans.length === 0 && cell.inMonth && (
+                {cellEntries.length === 0 && cell.inMonth && (
                   <span className="text-[11px] text-ink-dim/50">—</span>
                 )}
               </div>

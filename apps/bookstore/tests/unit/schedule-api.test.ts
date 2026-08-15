@@ -90,3 +90,51 @@ describe("schedule api 请求路径", () => {
     expect(res.status).toBe(200);
   });
 });
+
+describe("listLiveHistory", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    vi.resetModules();
+  });
+
+  it("未配置时静默降级为 { ok: false, records: [] } 且不发请求", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "");
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const { listLiveHistory } = await loadApi();
+    const res = await listLiveHistory();
+    expect(res).toEqual({ ok: false, records: [] });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("200 返回 records 原样透传", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://localhost:4000");
+    const records = [{ title: "歌杂", startDate: "2026-08-12T20:00:00+08:00" }];
+    const fetchSpy = vi.fn(async () => ({ status: 200, text: async () => JSON.stringify({ ok: true, records }) }));
+    vi.stubGlobal("fetch", fetchSpy);
+    const { listLiveHistory } = await loadApi();
+    const res = await listLiveHistory();
+    expect(res).toEqual({ ok: true, records });
+    const [url] = fetchSpy.mock.calls[0] as unknown as [string];
+    expect(url).toContain("/api/live-history");
+  });
+
+  it("请求失败（网络异常）时静默降级", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://localhost:4000");
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("network"); }));
+    const { listLiveHistory } = await loadApi();
+    const res = await listLiveHistory();
+    expect(res).toEqual({ ok: false, records: [] });
+  });
+
+  it("非 200 或非法体时静默降级", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://localhost:4000");
+    const fetchSpy = vi.fn(async () => ({ status: 500, text: async () => JSON.stringify({ error: "x" }) }));
+    vi.stubGlobal("fetch", fetchSpy);
+    const { listLiveHistory } = await loadApi();
+    const res = await listLiveHistory();
+    expect(res).toEqual({ ok: false, records: [] });
+  });
+});

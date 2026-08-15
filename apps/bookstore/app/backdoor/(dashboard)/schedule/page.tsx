@@ -1,10 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { deletePlan, listPlans, type StreamPlan } from "@/features/schedule/api";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  deletePlan,
+  listLiveHistory,
+  listPlans,
+  type LiveRecord,
+  type StreamPlan,
+} from "@/features/schedule/api";
 import CalendarView from "@/features/schedule/CalendarView";
 import DayDetailDialog from "@/features/schedule/DayDetailDialog";
 import PlanFormDialog from "@/features/schedule/PlanFormDialog";
+import WeeklyImageDialog from "@/features/schedule/weeklyImage/WeeklyImageDialog";
+import { mergeEntries } from "@/features/schedule/mergeEntries";
 import { useSession } from "@/features/backdoor/session";
 import { atLeast } from "@/features/backdoor/roleAccess";
 import { monthRange } from "@/features/schedule/dateUtils";
@@ -30,6 +38,7 @@ function currentMonthRange(): Range {
 export default function SchedulePage() {
   const { session } = useSession();
   const [plans, setPlans] = useState<StreamPlan[]>([]);
+  const [records, setRecords] = useState<LiveRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [range, setRange] = useState<Range>(() => currentMonthRange());
@@ -38,8 +47,19 @@ export default function SchedulePage() {
   const [form, setForm] = useState<FormState>({ open: false, mode: "create" });
   const [formNonce, setFormNonce] = useState(0);
   const [toast, setToast] = useState("");
+  const [imageOpen, setImageOpen] = useState(false);
 
   const canManage = session.status === "authenticated" && atLeast(session.me.role, "admin");
+
+  // 历史直播记录独立加载，失败静默降级（仅展示计划）
+  useEffect(() => {
+    void (async () => {
+      const res = await listLiveHistory();
+      if (res.ok) setRecords(res.records);
+    })();
+  }, []);
+
+  const entries = useMemo(() => mergeEntries(plans, records), [plans, records]);
 
   const refresh = useCallback(async (r: Range) => {
     const { status, data } = await listPlans(r.from, r.to);
@@ -108,28 +128,36 @@ export default function SchedulePage() {
           <h1 className="font-serif text-2xl font-semibold text-ink">直播计划</h1>
           <p className="mt-1 text-ink-dim">官方日程的日历，历史与未来一览</p>
         </div>
-        {canManage && (
+        <div className="flex items-center gap-3">
           <button
-            onClick={() => openCreate()}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-ink-on-paper transition-colors duration-150 hover:bg-primary-deep"
+            onClick={() => setImageOpen(true)}
+            className="rounded-md border border-vine/50 px-4 py-2 text-sm font-medium text-ink-dim transition-colors duration-150 hover:border-flower hover:text-ink"
           >
-            增加直播计划
+            生成周表图片
           </button>
-        )}
+          {canManage && (
+            <button
+              onClick={() => openCreate()}
+              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-ink-on-paper transition-colors duration-150 hover:bg-primary-deep"
+            >
+              增加直播计划
+            </button>
+          )}
+        </div>
       </div>
       {error ? (
         <p className="text-sm text-flower">{error}</p>
       ) : loading ? (
         <div className="min-h-64 animate-pulse rounded-md border border-vine/50 bg-raised" aria-busy="true" />
       ) : (
-        <CalendarView plans={plans} onMonthChange={handleMonthChange} onSelectDay={setSelectedDay} />
+        <CalendarView entries={entries} onMonthChange={handleMonthChange} onSelectDay={setSelectedDay} />
       )}
 
       <DayDetailDialog
         key={selectedDay ?? "none"}
         open={selectedDay !== null}
         date={selectedDay ?? ""}
-        plans={selectedDay ? plans.filter((p) => p.date === selectedDay) : []}
+        entries={selectedDay ? entries.filter((e) => e.date === selectedDay) : []}
         readOnly={!canManage}
         onClose={() => setSelectedDay(null)}
         onAdd={canManage ? () => openCreate(selectedDay ?? undefined) : undefined}
@@ -137,6 +165,8 @@ export default function SchedulePage() {
         onDelete={canManage ? handleDelete : undefined}
         deletingId={deletingId}
       />
+
+      <WeeklyImageDialog open={imageOpen} onClose={() => setImageOpen(false)} />
 
       <PlanFormDialog
         key={formNonce}

@@ -7,6 +7,7 @@ const BACKDOOR_PATHS = [
   "/backdoor/login",
   "/backdoor/users",
   "/backdoor/change-password",
+  "/backdoor/schedule",
 ];
 
 const UNCONFIGURED_PUBLIC_PATHS = ["/calendar"];

@@ -6,11 +6,15 @@ import { sessionMiddleware } from "./auth/session";
 import { createAuthRouter } from "./routes/auth";
 import { createUsersRouter } from "./routes/users";
 import { createStreamPlansRouter } from "./routes/streamPlans";
+import { createLiveHistoryRouter } from "./routes/liveHistory";
+import { createMemoryLiveHistoryCache, type LiveHistoryCache } from "./infra/liveHistoryCache";
 import { config } from "./config";
 
 export interface AppDeps {
   sessionStore: SessionStore;
   rateLimiter: RateLimiter;
+  /** 历史直播缓存（缺省内存实现，生产由 index.ts 注入 Redis 实现）。 */
+  liveHistoryCache?: LiveHistoryCache;
 }
 
 export function createApp(deps: AppDeps): Application {
@@ -41,6 +45,13 @@ export function createApp(deps: AppDeps): Application {
   api.use("/auth", authRouter);
   api.use("/users", createUsersRouter());
   api.use("/stream-plans", createStreamPlansRouter());
+  api.use(
+    "/live-history",
+    createLiveHistoryRouter({
+      upstreamUrl: config.liveHistoryUpstreamUrl,
+      cache: deps.liveHistoryCache ?? createMemoryLiveHistoryCache(),
+    }),
+  );
 
   app.use("/api", api);
 

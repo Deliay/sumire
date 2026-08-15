@@ -144,3 +144,69 @@ test.describe("bookstore 日历页与主页入口", () => {
     await expect(page.getByText("日程暂时翻不开了")).toHaveCount(0);
   });
 });
+
+function shiftDateStr(s: string, days: number): string {
+  const [y, m, d] = s.split("-").map(Number);
+  const dt = new Date(y, m - 1, d + days);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+}
+
+test.describe("bookstore 日历页移动端周视图", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test("calendar-mobile-week-view: 小宽度渲染周视图（恰好 7 天且含今天）", async ({ page }) => {
+    await page.goto(`${BASE}/calendar`);
+    await expect(page.getByRole("heading", { name: "直播日程" })).toBeVisible();
+    const cells = page.locator('[data-testid="calendar-day"]');
+    await expect(cells).toHaveCount(7);
+    const today = todayStr();
+    await expect(page.locator(`[data-testid="calendar-day"][data-date="${today}"]`)).toBeVisible();
+  });
+
+  test("calendar-mobile-week-switch: 周切换标题区间变化且格子平移 7 天", async ({ page }) => {
+    await page.goto(`${BASE}/calendar`);
+    await expect(page.locator('[data-testid="calendar-day"]')).toHaveCount(7);
+    const heading = page.getByRole("heading", { name: /年 .*月 · / });
+    await expect(heading).toBeVisible();
+    const beforeTitle = await heading.textContent();
+    const before = await page
+      .locator('[data-testid="calendar-day"]')
+      .evaluateAll((els) => els.map((e) => e.getAttribute("data-date")));
+
+    await page.getByRole("button", { name: "下一周" }).click();
+    await expect.poll(async () => await heading.textContent()).not.toBe(beforeTitle);
+
+    const after = await page
+      .locator('[data-testid="calendar-day"]')
+      .evaluateAll((els) => els.map((e) => e.getAttribute("data-date")));
+    for (let i = 0; i < 7; i++) {
+      expect(after[i]).toBe(shiftDateStr(before[i]!, 7));
+    }
+  });
+
+  test("calendar-mobile-week-today: 今天回到本周", async ({ page }) => {
+    await page.goto(`${BASE}/calendar`);
+    await expect(page.locator('[data-testid="calendar-day"]')).toHaveCount(7);
+    await page.getByRole("button", { name: "下一周" }).click();
+    await page.getByRole("button", { name: "今天" }).click();
+    const today = todayStr();
+    await expect(page.locator(`[data-testid="calendar-day"][data-date="${today}"]`)).toBeVisible();
+  });
+
+  test("calendar-mobile-week-day-dialog: 周视图点天打开只读弹层", async ({ page }) => {
+    const run = Date.now().toString(36);
+    const title = `e2e_wk_${run}`;
+    const d = todayStr();
+    await createPlan(d, title);
+
+    await page.goto(`${BASE}/calendar`);
+    await expect(page.locator('[data-testid="calendar-day"]')).toHaveCount(7);
+    await page.locator(`[data-testid="calendar-day"][data-date="${d}"]`).click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText(title)).toBeVisible();
+    await expect(page.getByRole("button", { name: "编辑" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "删除" })).toHaveCount(0);
+  });
+});

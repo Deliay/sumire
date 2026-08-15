@@ -83,6 +83,42 @@ export function shiftMonth(y: number, m: number, delta: number): { y: number; m:
 }
 
 /**
+ * 含 dateStr 的周一~周日 7 个 YYYY-MM-DD（周一为一周首日，与月视图口径一致）。
+ * 以本地时区构造 Date（禁用 new Date("YYYY-MM-DD") 的 UTC 解析），getDay 周日=0 映射为 6 回推周一。
+ */
+export function weekDates(dateStr: string): string[] {
+  const p = parseDateStr(dateStr);
+  if (!p) return [];
+  const base = new Date(p.y, p.m - 1, p.d);
+  const offset = (base.getDay() + 6) % 7;
+  const monday = new Date(p.y, p.m - 1, p.d - offset);
+  const result: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
+    result.push(toDateStr(d.getFullYear(), d.getMonth() + 1, d.getDate()));
+  }
+  return result;
+}
+
+/** dateStr ± delta*7 天（整周平移，跨月/跨年正确）。 */
+export function shiftWeek(dateStr: string, delta: number): string {
+  const p = parseDateStr(dateStr);
+  if (!p) return dateStr;
+  const d = new Date(p.y, p.m - 1, p.d + delta * 7);
+  return toDateStr(d.getFullYear(), d.getMonth() + 1, d.getDate());
+}
+
+/**
+ * 周区间可读标签：同月「8/10 – 8/16」，跨月/跨年两端各带月份（如「8/31 – 9/6」「12/28 – 1/3」）。
+ */
+export function formatWeekRange(from: string, to: string): string {
+  const f = parseDateStr(from);
+  const t = parseDateStr(to);
+  if (!f || !t) return `${from} – ${to}`;
+  return `${f.m}/${f.d} – ${t.m}/${t.d}`;
+}
+
+/**
  * 容错解析 HH:mm（接受缺位如 "9:5"→"09:05"），返回归一化的 "HH:mm" 或 null。
  * 拒绝 24:00 / 12:60 等非法时间。
  */

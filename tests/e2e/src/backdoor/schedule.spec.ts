@@ -9,6 +9,12 @@ function todayStr(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
+function shiftDateStr(s: string, days: number): string {
+  const [y, m, d] = s.split("-").map(Number);
+  const dt = new Date(y, m - 1, d + days);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+}
+
 /** 当月最后一天。 */
 function lastDayOfMonth(): number {
   const now = new Date();
@@ -144,5 +150,40 @@ test.describe("backdoor 直播计划", () => {
     await expect(dialog.getByText("长按保存图片，或右键另存为")).toBeVisible();
     await dialog.getByRole("button", { name: "关闭" }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
+});
+
+test.describe("backdoor 直播计划移动端周视图", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test("schedule-mobile-week-view: 小宽度渲染周视图且点天弹层可用", async ({ page }) => {
+    const accounts = getAccounts();
+    await loginViaUi(page, accounts.member, BASE);
+    await page.getByRole("link", { name: "直播计划" }).click();
+    await expect(page.getByRole("heading", { name: "直播计划" })).toBeVisible();
+
+    await expect(page.getByTestId("calendar-day")).toHaveCount(7);
+    const today = todayStr();
+    await page.locator(`[data-testid="calendar-day"][data-date="${today}"]`).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+  });
+
+  test("schedule-mobile-week-switch: 周切换后格子平移 7 天", async ({ page }) => {
+    const accounts = getAccounts();
+    await loginViaUi(page, accounts.member, BASE);
+    await page.getByRole("link", { name: "直播计划" }).click();
+    await expect(page.getByRole("heading", { name: "直播计划" })).toBeVisible();
+    await expect(page.getByTestId("calendar-day")).toHaveCount(7);
+
+    const before = await page
+      .getByTestId("calendar-day")
+      .evaluateAll((els) => els.map((e) => e.getAttribute("data-date")));
+    await page.getByRole("button", { name: "下一周" }).click();
+    const after = await page
+      .getByTestId("calendar-day")
+      .evaluateAll((els) => els.map((e) => e.getAttribute("data-date")));
+    for (let i = 0; i < 7; i++) {
+      expect(after[i]).toBe(shiftDateStr(before[i]!, 7));
+    }
   });
 });

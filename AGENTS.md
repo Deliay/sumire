@@ -25,7 +25,7 @@
 
 - `apps/bookstore/`：堇色书屋（粉丝站前端，Next.js + SSG；含后台 `/backdoor` 路由区，公开页与后台分别置于 `(site)` 路由组与 `app/backdoor`）
 - `servers/api/`：后台鉴权与用户管理 API（Express 5 + TS strict 纯 API，仅 `/api/*`）
-- `contract/`：API 契约（`backdoor-auth.openapi.yaml`、`stream-plans.openapi.yaml`，均为单一事实源）
+- `contract/`：API 契约（`backdoor-auth.openapi.yaml`、`stream-plans.openapi.yaml`、`live-history.openapi.yaml`，均为单一事实源）
 - `tests/api/`：API 黑盒集成测试（Vitest + fetch + Cookie jar）
 - `tests/e2e/`：E2E 集成测试（Playwright，bookstore 公开页 + `/backdoor`）
 - `infra/aspire/`：本地编排 AppHost（bookstore + api + Redis + MongoDB 四资源）

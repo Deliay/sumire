@@ -2,7 +2,7 @@
 
 枝堇Sumire 后台系统 V1 后端——Express 5 + TypeScript（strict）纯 API 服务，不托管任何页面。
 
-开发前加载 `docs/engineering/backend-rules.md` 与 API 契约 `contract/backdoor-auth.openapi.yaml`、`contract/stream-plans.openapi.yaml`（均为单一事实源）。
+开发前加载 `docs/engineering/backend-rules.md` 与 API 契约 `contract/backdoor-auth.openapi.yaml`、`contract/stream-plans.openapi.yaml`、`contract/live-history.openapi.yaml`（均为单一事实源）。
 
 ## 技术栈
 
@@ -34,7 +34,8 @@ pnpm lint       # tsc --noEmit 类型检查
 | `src/rbac/` | 角色与权限中间件 |
 | `src/session/` | Redis 会话与 Cookie |
 | `src/db/` | MongoDB 连接与 users、stream_plans 模型 |
-| `src/routes/` | /api/auth/*、/api/users、/api/stream-plans |
+| `src/routes/` | /api/auth/*、/api/users、/api/stream-plans、/api/live-history |
+| `src/infra/` | 历史直播 Redis 缓存抽象（`LiveHistoryCache`）与实现 |
 | `tests/` | 单元测试 |
 
 ## 关键约定
@@ -44,6 +45,7 @@ pnpm lint       # tsc --noEmit 类型检查
 - 初始超管 `supersumire` 由 `BACKDOOR_USERNAME`/`BACKDOOR_PASSWORD_HASH` 种子（幂等）；
 - 改密后 `mustChangePassword=false`；新用户创建后 `true`；
 - 登录限速 5 次/分钟/IP（Redis）；
-- `/api/stream-plans`：GET 公开读（无需登录，`from`/`to` 显式日期校验后走 `$gte`/`$lte`，拒绝对象注入）；POST/PUT/DELETE 走 `requireRole("admin")`（superadmin/admin 可写，member 403）。字段：`date` 为 `YYYY-MM-DD` 真实日期、`startTime` 为 `HH:mm` 真实时间（`isValidTime`）、`title` trim 后 1–50 字符；判重键 `(date, startTime, title)`（PUT 编辑排除自身 409）；PUT/DELETE `:id` 先校验 ObjectId 形态否则 400、不存在 404，PUT 写 `updatedAt`；`stream_plans` 集合由 mongoose 自动创建。
+- `/api/stream-plans`：GET 公开读（无需登录，`from`/`to` 显式日期校验后走 `$gte`/`$lte`，拒绝对象注入）；POST/PUT/DELETE 走 `requireRole("admin")`（superadmin/admin 可写，member 403）。字段：`date` 为 `YYYY-MM-DD` 真实日期、`startTime` 为 `HH:mm` 真实时间（`isValidTime`）、`title` trim 后 1–50 字符；判重键 `(date, startTime, title)`（PUT 编辑排除自身 409）；PUT/DELETE `:id` 先校验 ObjectId 形态否则 400、不存在 404，PUT 写 `updatedAt`；`stream_plans` 集合由 mongoose 自动创建；
+- `/api/live-history`：GET 公开读代理。上游地址 `config.liveHistoryUpstreamUrl`（读 `LIVE_HISTORY_UPSTREAM_URL`，**未配置时回退 PRD 内网地址 `http://vtuber.internal.fffdan.com/api/b/live/1727076670/history`**，内置缺省值、不得因缺变量抛错）；处理链：读 Redis 缓存（key `live-history:latest`，TTL 300s）→ 未命中 `fetch` 上游（5s 超时）→ 校验数组并裁剪为 `title`/`startDate`/`stopDate` 三字段（缺 `title`/`startDate` 丢弃）→ 按 `startDate` 倒序取 100 条 → 写缓存返回 `{ ok: true, records }`；上游失败（超时/网络错误/非法 JSON/非数组）→ stale-if-error 重读缓存，仍无则返回 `{ ok: false, records: [] }`（HTTP 200，不用 5xx）；缓存经 `AppDeps.liveHistoryCache` 注入（生产用 Redis 实现，缺省内存实现），上游 fetch 可注入便于单测。
 
 提交前 `pnpm lint && pnpm test` 全绿。相关文档：[[../../docs/engineering/backend-rules.md]]

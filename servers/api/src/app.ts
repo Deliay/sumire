@@ -23,6 +23,7 @@ export function createApp(deps: AppDeps): Application {
 
   // CORS：白名单精确来源 + 放行凭证（禁用 *）
   const origins = config.corsOrigins;
+  console.log(`[cors] 允许的 origin 白名单: ${origins.length === 0 ? "(未配置，放行全部)" : origins.join(", ")}`);
   app.use(
     cors({
       origin(origin, callback) {

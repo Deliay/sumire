@@ -3,6 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { cleanup, render, screen, fireEvent } from "@testing-library/react";
 import DayDetailDialog from "@/features/schedule/DayDetailDialog";
 import type { StreamPlan } from "@/features/schedule/api";
+import type { CalendarEntry } from "@/features/schedule/mergeEntries";
 
 const makePlan = (id: string, startTime: string, title: string): StreamPlan => ({
   id,
@@ -12,13 +13,28 @@ const makePlan = (id: string, startTime: string, title: string): StreamPlan => (
   createdAt: "",
 });
 
+const planEntry = (p: StreamPlan): CalendarEntry => ({
+  kind: "plan",
+  plan: p,
+  date: p.date,
+  startTime: p.startTime,
+});
+
+const historyEntry = (title: string, startTime: string, endTime?: string): CalendarEntry => ({
+  kind: "history",
+  record: { title, startDate: `2026-08-15T${startTime}:00` },
+  date: "2026-08-15",
+  startTime,
+  endTime,
+});
+
 afterEach(() => {
   cleanup();
 });
 
 describe("DayDetailDialog 只读模式", () => {
   it("展示空态文案", () => {
-    render(<DayDetailDialog open date="2026-08-15" plans={[]} readOnly onClose={() => {}} />);
+    render(<DayDetailDialog open date="2026-08-15" entries={[]} readOnly onClose={() => {}} />);
     expect(screen.getByText("这一天书屋静悄悄的。")).toBeTruthy();
   });
 
@@ -29,7 +45,7 @@ describe("DayDetailDialog 只读模式", () => {
         date="2026-08-15"
         readOnly
         onClose={() => {}}
-        plans={[makePlan("2", "20:00", "晚"), makePlan("1", "08:00", "早")]}
+        entries={[planEntry(makePlan("2", "20:00", "晚")), planEntry(makePlan("1", "08:00", "早"))]}
       />,
     );
     const list = screen.getByRole("dialog");
@@ -40,10 +56,27 @@ describe("DayDetailDialog 只读模式", () => {
     expect(screen.queryByText("编辑")).toBeNull();
     expect(screen.queryByText("删除")).toBeNull();
   });
+
+  it("历史记录行带「实际播出」标签、无编辑/删除、附结束时刻", () => {
+    render(
+      <DayDetailDialog
+        open
+        date="2026-08-15"
+        readOnly
+        onClose={() => {}}
+        entries={[historyEntry("实录场", "13:00", "15:00"), planEntry(makePlan("1", "20:00", "晚"))]}
+      />,
+    );
+    expect(screen.getByText("实录场")).toBeTruthy();
+    expect(screen.getByText("实际播出")).toBeTruthy();
+    expect(screen.getByText(/至 15:00/)).toBeTruthy();
+    expect(screen.queryByText("编辑")).toBeNull();
+    expect(screen.queryByText("删除")).toBeNull();
+  });
 });
 
 describe("DayDetailDialog 管理模式", () => {
-  it("展示编辑/删除与增加计划入口", () => {
+  it("展示编辑/删除与增加计划入口（仅计划条目）", () => {
     const onAdd = vi.fn();
     render(
       <DayDetailDialog
@@ -54,11 +87,14 @@ describe("DayDetailDialog 管理模式", () => {
         onAdd={onAdd}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
-        plans={[makePlan("1", "08:00", "早台读书")]}
+        entries={[planEntry(makePlan("1", "08:00", "早台读书")), historyEntry("实录", "09:00")]}
       />,
     );
     expect(screen.getByText("编辑")).toBeTruthy();
     expect(screen.getByText("删除")).toBeTruthy();
+    // 历史记录只读，不出现编辑/删除（此处仅计划行各一个编辑/删除按钮）
+    expect(screen.getAllByText("编辑")).toHaveLength(1);
+    expect(screen.getAllByText("删除")).toHaveLength(1);
     fireEvent.click(screen.getByText(/增加计划/));
     expect(onAdd).toHaveBeenCalled();
   });
@@ -73,7 +109,7 @@ describe("DayDetailDialog 管理模式", () => {
         onClose={() => {}}
         onEdit={vi.fn()}
         onDelete={onDelete}
-        plans={[makePlan("1", "08:00", "早台读书")]}
+        entries={[planEntry(makePlan("1", "08:00", "早台读书"))]}
       />,
     );
     fireEvent.click(screen.getByLabelText("删除 早台读书"));

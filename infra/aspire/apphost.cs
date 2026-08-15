@@ -22,7 +22,9 @@ var api = builder
     .WithEnvironment("SESSION_SECRET", "dev-secret")
     .WithEnvironment("BACKDOOR_USERNAME", "supersumire")
     // 初始超管密码 salamander 的 bcrypt 哈希（开发用）
-    .WithEnvironment("BACKDOOR_PASSWORD_HASH", "$2a$10$9.VeFEc2sm0u6oMKeio0L.0/7hxQIq54iqCkmlr0C5eHPRhgTKnii");
+    .WithEnvironment("BACKDOOR_PASSWORD_HASH", "$2a$10$9.VeFEc2sm0u6oMKeio0L.0/7hxQIq54iqCkmlr0C5eHPRhgTKnii")
+    // 历史直播上游地址：未设置编排进程环境变量时回退 PRD 内网地址，保证 aspire start 开箱即用
+    .WithEnvironment("LIVE_HISTORY_UPSTREAM_URL", Environment.GetEnvironmentVariable("LIVE_HISTORY_UPSTREAM_URL") ?? "http://vtuber.internal.fffdan.com/api/b/live/1727076670/history");
 
 var bookstore = builder
     .AddNextJsApp("bookstore", "../../apps/bookstore", runScriptName: "dev")

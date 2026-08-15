@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { StreamPlan } from "@/features/schedule/api";
+import type { CalendarEntry } from "@/features/schedule/mergeEntries";
 import { parseDateStr } from "@/features/schedule/dateUtils";
 
 const WEEKDAY_LABEL = ["日", "一", "二", "三", "四", "五", "六"] as const;
@@ -18,8 +19,8 @@ interface DayDetailDialogProps {
   open: boolean;
   /** 所选日 YYYY-MM-DD */
   date: string;
-  /** 当日直播计划（时间升序由组件内保证） */
-  plans: StreamPlan[];
+  /** 当日条目（计划 + 历史直播，时间升序由组件内保证） */
+  entries: CalendarEntry[];
   /** 只读模式（公开站 / member 降级） */
   readOnly: boolean;
   onClose: () => void;
@@ -30,11 +31,11 @@ interface DayDetailDialogProps {
   deletingId?: string | null;
 }
 
-/** 当日详细安排弹层：只读 / 管理双模式。 */
+/** 当日详细安排弹层：只读 / 管理双模式；历史记录只读（实际播出标签、无编辑/删除）。 */
 export default function DayDetailDialog({
   open,
   date,
-  plans,
+  entries,
   readOnly,
   onClose,
   onAdd,
@@ -46,7 +47,7 @@ export default function DayDetailDialog({
 
   if (!open) return null;
 
-  const sorted = [...plans].sort((a, b) => a.startTime.localeCompare(b.startTime));
+  const sorted = [...entries].sort((a, b) => a.startTime.localeCompare(b.startTime));
 
   function handleClose() {
     setConfirmId(null);
@@ -59,6 +60,7 @@ export default function DayDetailDialog({
   const textDim = readOnly ? "text-ink-on-paper/60" : "text-ink-dim";
   const divider = readOnly ? "border-ink-on-paper/10" : "border-vine/30";
   const emptyText = readOnly ? "text-ink-on-paper/50" : "text-ink-dim";
+  const tagCls = readOnly ? "border-ink-on-paper/30 text-ink-on-paper/60" : "border-vine/40 text-ink-dim";
 
   const body = (
     <>
@@ -68,62 +70,87 @@ export default function DayDetailDialog({
         </p>
       ) : (
         <ul className="flex flex-col">
-          {sorted.map((p) => (
-            <li
-              key={p.id}
-              className={`flex items-center gap-3 border-b ${divider} py-3 last:border-b-0`}
-            >
-              <span className={`w-12 shrink-0 text-right font-display text-sm tabular-nums ${textSub}`}>
-                {p.startTime}
-              </span>
-              <span className={`flex-1 text-sm ${textMain}`}>{p.title}</span>
-              {!readOnly && onEdit && onDelete && (
-                <span className="flex shrink-0 items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => onEdit(p)}
-                    className={`text-xs ${textDim} transition-colors hover:${textMain}`}
-                    aria-label={`编辑 ${p.title}`}
-                  >
-                    编辑
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmId(p.id)}
-                    className={`text-xs ${textDim} transition-colors hover:text-flower`}
-                    aria-label={`删除 ${p.title}`}
-                  >
-                    删除
-                  </button>
+          {sorted.map((e) => {
+            if (e.kind === "history") {
+              const key = `h-${e.record.startDate}-${e.record.title}`;
+              return (
+                <li
+                  key={key}
+                  data-testid="history-row"
+                  className={`flex items-center gap-3 border-b ${divider} py-3 last:border-b-0`}
+                >
+                  <span className={`w-12 shrink-0 text-right font-display text-sm tabular-nums ${textSub}`}>
+                    {e.startTime}
+                  </span>
+                  <span className={`flex-1 text-sm ${textDim}`}>{e.record.title}</span>
+                  <span className={`shrink-0 rounded border px-1.5 py-0.5 text-xs ${tagCls}`}>
+                    实际播出
+                  </span>
+                  {e.endTime && (
+                    <span className={`shrink-0 text-xs tabular-nums ${textDim}`}>至 {e.endTime}</span>
+                  )}
+                </li>
+              );
+            }
+
+            const p = e.plan;
+            return (
+              <li
+                key={p.id}
+                className={`flex items-center gap-3 border-b ${divider} py-3 last:border-b-0`}
+              >
+                <span className={`w-12 shrink-0 text-right font-display text-sm tabular-nums ${textSub}`}>
+                  {p.startTime}
                 </span>
-              )}
-              {!readOnly && confirmId === p.id && (
-                <span className="flex shrink-0 items-center gap-2 rounded bg-soft px-2 py-1">
-                  <span className={`text-xs ${textMain}`}>确认删除 {p.startTime} {p.title}？</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setConfirmId(null);
-                      onDelete?.(p.id);
-                    }}
-                    disabled={deletingId === p.id}
-                    className="text-xs font-medium text-flower disabled:opacity-50"
-                    aria-label="确认删除"
-                  >
-                    确认
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmId(null)}
-                    className={`text-xs ${textDim}`}
-                    aria-label="取消删除"
-                  >
-                    取消
-                  </button>
-                </span>
-              )}
-            </li>
-          ))}
+                <span className={`flex-1 text-sm ${textMain}`}>{p.title}</span>
+                {!readOnly && onEdit && onDelete && (
+                  <span className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onEdit(p)}
+                      className={`text-xs ${textDim} transition-colors hover:${textMain}`}
+                      aria-label={`编辑 ${p.title}`}
+                    >
+                      编辑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmId(p.id)}
+                      className={`text-xs ${textDim} transition-colors hover:text-flower`}
+                      aria-label={`删除 ${p.title}`}
+                    >
+                      删除
+                    </button>
+                  </span>
+                )}
+                {!readOnly && confirmId === p.id && (
+                  <span className="flex shrink-0 items-center gap-2 rounded bg-soft px-2 py-1">
+                    <span className={`text-xs ${textMain}`}>确认删除 {p.startTime} {p.title}？</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfirmId(null);
+                        onDelete?.(p.id);
+                      }}
+                      disabled={deletingId === p.id}
+                      className="text-xs font-medium text-flower disabled:opacity-50"
+                      aria-label="确认删除"
+                    >
+                      确认
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmId(null)}
+                      className={`text-xs ${textDim}`}
+                      aria-label="取消删除"
+                    >
+                      取消
+                    </button>
+                  </span>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
       {!readOnly && onAdd && (

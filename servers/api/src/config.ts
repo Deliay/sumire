@@ -24,6 +24,11 @@ export const config = {
     .filter(Boolean),
   backdoorUsername: getEnv("BACKDOOR_USERNAME", "supersumire"),
   backdoorPasswordHash: getEnv("BACKDOOR_PASSWORD_HASH", ""),
+  // 历史直播上游地址：未配置时必须回退到 PRD 给定内网地址（内置缺省值，非必填、不得抛错）
+  liveHistoryUpstreamUrl: getEnv(
+    "LIVE_HISTORY_UPSTREAM_URL",
+    "http://vtuber.internal.fffdan.com/api/b/live/1727076670/history",
+  ),
 };
 
 export const COOKIE_NAME = "sumire_sid";

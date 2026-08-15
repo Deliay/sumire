@@ -1,0 +1,45 @@
+openapi: 3.1.0
+info:
+  title: sumire live history
+  description: 枝堇Sumire 历史直播记录 API 契约。单一事实源，实现与 tests/api 集成测试均以本文档为准。服务端代理内网上游并做字段裁剪与短 TTL 缓存；上游地址不出现在客户端可见位置，前端仅经公开接口读取。
+  version: 1.0.0
+servers:
+  - url: https://api.sumire.live
+paths:
+  /api/live-history:
+    get:
+      summary: 查询历史直播记录（公开）
+      description: 无需登录。服务端代理内网上游（http://vtuber.internal.fffdan.com/api/b/live/1727076670/history），仅透传 title/startDate/stopDate 三字段，按 startDate 倒序取最近 100 条并做短 TTL 缓存。上游不可达/超时/返回非法时降级为 200 + { ok: false, records: [] }，不产生 5xx。本期固定取最近 100 条，按日期区间取数后续迭代。
+      security: []
+      responses:
+        "200":
+          description: 历史直播记录列表（按 startDate 倒序，≤100 条）；ok=false 表示上游不可用（静默降级体）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, records]
+                properties:
+                  ok:
+                    type: boolean
+                    description: true 表示成功取回记录；false 表示上游不可用，records 为空数组
+                  records:
+                    type: array
+                    maxItems: 100
+                    items: { $ref: "#/components/schemas/LiveRecord" }
+components:
+  schemas:
+    LiveRecord:
+      type: object
+      required: [title, startDate]
+      description: 历史直播记录，仅含 title/startDate/stopDate 三字段；缺 title 或 startDate 的条目由服务端丢弃
+      properties:
+        title:
+          type: string
+          description: 直播主题
+        startDate:
+          type: string
+          description: 开播时间（ISO 时间戳，含时区）
+        stopDate:
+          type: string
+          description: 结束时间（ISO 时间戳，含时区），上游未提供时缺省

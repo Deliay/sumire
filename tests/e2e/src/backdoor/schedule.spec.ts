@@ -107,4 +107,42 @@ test.describe("backdoor 直播计划", () => {
     // 空表单：确认按钮禁用
     await expect(page.getByRole("button", { name: "确认" })).toBeDisabled();
   });
+
+  test("schedule-weekly-image: 生成周表图片弹层（周切换器 + 预览 PNG + 保存提示）", async ({ page }) => {
+    const accounts = getAccounts();
+    await loginViaUi(page, accounts.superadmin, BASE);
+    await page.getByRole("link", { name: "直播计划" }).click();
+    await expect(page.getByRole("heading", { name: "直播计划" })).toBeVisible();
+
+    await page.getByRole("button", { name: "生成周表图片" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("heading", { name: "生成周表图片" })).toBeVisible();
+    await expect(dialog.getByText(/20\d\d 年第 \d+ 周/)).toBeVisible();
+    await expect(dialog.getByText("长按保存图片，或右键另存为")).toBeVisible();
+
+    // 预览 <img> src 为 PNG dataURL
+    const img = dialog.locator("img[alt='周表图片']");
+    await expect(img).toHaveAttribute("src", /^data:image\/png/);
+
+    // 切换周标签变化
+    const before = await dialog.getByText(/20\d\d 年第 \d+ 周/).textContent();
+    await dialog.getByRole("button", { name: "下一周" }).click();
+    const after = await dialog.getByText(/20\d\d 年第 \d+ 周/).textContent();
+    expect(after).not.toBe(before);
+  });
+
+  test("schedule-member-generate: member 可用「生成周表图片」，历史记录只读", async ({ page }) => {
+    const accounts = getAccounts();
+    await loginViaUi(page, accounts.member, BASE);
+    await page.getByRole("link", { name: "直播计划" }).click();
+    await expect(page.getByRole("heading", { name: "直播计划" })).toBeVisible();
+
+    await page.getByRole("button", { name: "生成周表图片" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("heading", { name: "生成周表图片" })).toBeVisible();
+    await expect(dialog.getByText("长按保存图片，或右键另存为")).toBeVisible();
+    await dialog.getByRole("button", { name: "关闭" }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
 });

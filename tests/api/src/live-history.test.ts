@@ -1,0 +1,170 @@
+import { beforeAll, afterAll, beforeEach, describe, expect, it } from "vitest";
+import { createServer, type Server } from "node:http";
+import { Redis } from "ioredis";
+import { request, waitForReady } from "./client.js";
+
+const API_BASE_URL = process.env.API_BASE_URL;
+if (!API_BASE_URL) {
+  throw new Error("缺少环境变量 API_BASE_URL（通过 aspire describe api 获取端点注入）");
+}
+
+// 缓存清理用（经 aspire describe redis 取端点注入）；未提供则跳过清理，缓存相关用例可能受串扰
+const REDIS_URL = process.env.REDIS_URL ?? "";
+const CACHE_KEY = "live-history:latest";
+
+const STUB_PORT = Number(process.env.LIVE_HISTORY_STUB_PORT ?? "9876");
+const STUB_BASE = `http://127.0.0.1:${STUB_PORT}`;
+
+type StubMode = "records" | "invalid" | "non-array" | "hang";
+
+let stubMode: StubMode = "records";
+let stubCalls = 0;
+
+/** 生成确定性样本：120 条含额外字段与缺字段条目的记录（startDate 递增）。 */
+function sampleRecords(): unknown[] {
+  const records: unknown[] = [];
+  const base = Date.UTC(2026, 0, 1, 12, 0, 0);
+  for (let i = 0; i < 120; i++) {
+    const start = new Date(base + i * 3600_000).toISOString();
+    records.push({
+      title: `history_${String(i).padStart(3, "0")}`,
+      startDate: start,
+      stopDate: new Date(base + i * 3600_000 + 7200_000).toISOString(),
+      extraField: "should-be-stripped",
+    });
+  }
+  // 缺字段条目：应由服务端丢弃
+  records.push({ title: "", startDate: new Date(base + 999 * 3600_000).toISOString() });
+  records.push({ startDate: new Date(base + 1000 * 3600_000).toISOString() });
+  return records;
+}
+
+function startStub(): Server {
+  const server = createServer((req, res) => {
+    if (req.url === "/api/b/live/1727076670/history") {
+      stubCalls += 1;
+      if (stubMode === "hang") {
+        // 超过 API 5s 超时后才响应，模拟上游悬挂
+        setTimeout(() => {
+          try {
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify([]));
+          } catch {
+            /* 连接已被 API 中止 */
+          }
+        }, 6000);
+        return;
+      }
+      if (stubMode === "invalid") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end("this-is-not-json");
+        return;
+      }
+      if (stubMode === "non-array") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ records: "not-an-array" }));
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(sampleRecords()));
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+  server.listen(STUB_PORT, "127.0.0.1");
+  return server;
+}
+
+async function clearCache(): Promise<void> {
+  if (!REDIS_URL) return;
+  const redis = new Redis(REDIS_URL, { lazyConnect: true });
+  try {
+    await redis.del(CACHE_KEY);
+  } catch {
+    // 缓存清理失败不影响用例主体
+  } finally {
+    redis.disconnect();
+  }
+}
+
+let server: Server;
+
+beforeAll(async () => {
+  server = startStub();
+  await waitForReady();
+});
+
+afterAll(() => {
+  if (server) server.close();
+});
+
+beforeEach(async () => {
+  await clearCache();
+});
+
+describe("GET /api/live-history（公开读代理）", () => {
+  it("live-history-200: 返回 { ok, records } 且仅含 title/startDate/stopDate 三字段", async () => {
+    stubMode = "records";
+    const res = await request("/api/live-history");
+    expect(res.status).toBe(200);
+    const body = res.body as { ok: boolean; records: unknown[] };
+    expect(body.ok).toBe(true);
+    expect(Array.isArray(body.records)).toBe(true);
+    for (const r of body.records) {
+      const keys = Object.keys(r as Record<string, unknown>).sort();
+      expect(keys).toEqual(["startDate", "stopDate", "title"]);
+    }
+  });
+
+  it("live-history-limit: 条数 ≤100 且按 startDate 倒序", async () => {
+    stubMode = "records";
+    const res = await request("/api/live-history");
+    const records = (res.body as { records: Array<{ startDate: string; title: string }> }).records;
+    expect(records.length).toBeLessThanOrEqual(100);
+    const dates = records.map((r) => r.startDate);
+    const sortedDesc = [...dates].sort().reverse();
+    expect(dates).toEqual(sortedDesc);
+  });
+
+  it("live-history-drop: 缺 title/startDate 的条目被丢弃", async () => {
+    stubMode = "records";
+    const res = await request("/api/live-history");
+    const records = (res.body as { records: Array<{ title: string }> }).records;
+    expect(records.every((r) => typeof r.title === "string" && r.title.length > 0)).toBe(true);
+    // 丢弃后应恰为 100 条（120 条正常 + 2 条缺字段，倒序取前 100）
+    expect(records).toHaveLength(100);
+  });
+
+  it("live-history-cache: 二次请求命中缓存（stub 调用数不变）", async () => {
+    stubMode = "records";
+    const first = await request("/api/live-history");
+    expect(first.status).toBe(200);
+    const callsAfterFirst = stubCalls;
+    const second = await request("/api/live-history");
+    expect(second.status).toBe(200);
+    expect(stubCalls).toBe(callsAfterFirst);
+    expect(second.body).toEqual(first.body);
+  });
+
+  it("live-history-timeout: 上游超时降级 ok:false + 空数组（HTTP 200）", async () => {
+    stubMode = "hang";
+    const res = await request("/api/live-history");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: false, records: [] });
+  });
+
+  it("live-history-invalid: 上游非法 JSON 降级 ok:false", async () => {
+    stubMode = "invalid";
+    const res = await request("/api/live-history");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: false, records: [] });
+  });
+
+  it("live-history-non-array: 上游返回非数组降级 ok:false", async () => {
+    stubMode = "non-array";
+    const res = await request("/api/live-history");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: false, records: [] });
+  });
+});

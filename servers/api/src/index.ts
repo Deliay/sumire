@@ -2,6 +2,7 @@ import { Redis } from "ioredis";
 import { createApp } from "./app";
 import { RedisSessionStore } from "./session/store";
 import { RedisRateLimiter } from "./auth/rateLimit";
+import { RedisLiveHistoryCache } from "./infra/liveHistoryCache";
 import { connectMongo, seedSuperadmin } from "./db/users";
 import { config } from "./config";
 
@@ -18,8 +19,9 @@ async function main(): Promise<void> {
   const redis = new Redis(config.redisUrl);
   const sessionStore = new RedisSessionStore(redis);
   const rateLimiter = new RedisRateLimiter(redis);
+  const liveHistoryCache = new RedisLiveHistoryCache(redis);
 
-  const app = createApp({ sessionStore, rateLimiter });
+  const app = createApp({ sessionStore, rateLimiter, liveHistoryCache });
   app.listen(config.port, () => {
     console.log(`sumire api listening on :${config.port}`);
   });

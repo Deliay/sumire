@@ -31,8 +31,8 @@ jobs:
           context: .
           file: servers/api/Dockerfile
           tags: |
-            ${{ secrets.DOCKER_ENDPOINT }}/sumire-api:${{ github.sha }}
-            ${{ secrets.DOCKER_ENDPOINT }}/sumire-api:latest
+            ${{ secrets.DOCKER_ENDPOINT }}/zero-tools/sumire-api:${{ github.sha }}
+            ${{ secrets.DOCKER_ENDPOINT }}/zero-tools/sumire-api:latest
           push: true
           provenance: false
           sbom: false

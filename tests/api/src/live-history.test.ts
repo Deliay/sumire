@@ -13,24 +13,34 @@ const REDIS_URL = process.env.REDIS_URL ?? "";
 const CACHE_KEY = "live-history:latest";
 
 const STUB_PORT = Number(process.env.LIVE_HISTORY_STUB_PORT ?? "9876");
-const STUB_BASE = `http://127.0.0.1:${STUB_PORT}`;
 
 type StubMode = "records" | "invalid" | "non-array" | "hang";
 
 let stubMode: StubMode = "records";
 let stubCalls = 0;
+let lastUpstreamQuery = "";
 
-/** 生成确定性样本：120 条含额外字段与缺字段条目的记录（startDate 递增）。 */
-function sampleRecords(): unknown[] {
+/**
+ * 生成确定性样本 items（真实上游分页信封 `{ total, page, pageSize, items }` 的 items）：
+ * 120 条含额外字段（coverUrl/liveId 等，须被裁剪）与缺字段条目（须被丢弃），startDate 递增。
+ */
+function sampleItems(): unknown[] {
   const records: unknown[] = [];
   const base = Date.UTC(2026, 0, 1, 12, 0, 0);
   for (let i = 0; i < 120; i++) {
     const start = new Date(base + i * 3600_000).toISOString();
     records.push({
+      liveId: `live-${i}`,
+      roomId: 1727076670,
       title: `history_${String(i).padStart(3, "0")}`,
+      coverUrl: "https://example.com/cover.jpg",
+      parentArea: "虚拟主播",
+      area: "虚拟日常",
+      isFinish: true,
       startDate: start,
       stopDate: new Date(base + i * 3600_000 + 7200_000).toISOString(),
-      extraField: "should-be-stripped",
+      danmakuCount: 1000,
+      watchCount: 2000,
     });
   }
   // 缺字段条目：应由服务端丢弃
@@ -39,10 +49,16 @@ function sampleRecords(): unknown[] {
   return records;
 }
 
+function sampleEnvelope(): { total: number; page: number; pageSize: number; items: unknown[] } {
+  return { total: 122, page: 1, pageSize: 100, items: sampleItems() };
+}
+
 function startStub(): Server {
   const server = createServer((req, res) => {
-    if (req.url === "/api/b/live/1727076670/history") {
+    const pathname = (req.url ?? "").split("?")[0];
+    if (pathname === "/api/b/live/1727076670/history") {
       stubCalls += 1;
+      lastUpstreamQuery = (req.url ?? "").includes("?") ? (req.url ?? "").slice((req.url ?? "").indexOf("?")) : "";
       if (stubMode === "hang") {
         // 超过 API 5s 超时后才响应，模拟上游悬挂
         setTimeout(() => {
@@ -62,11 +78,11 @@ function startStub(): Server {
       }
       if (stubMode === "non-array") {
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ records: "not-an-array" }));
+        res.end(JSON.stringify({ total: 1, page: 1, pageSize: 100, items: "not-an-array" }));
         return;
       }
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(sampleRecords()));
+      res.end(JSON.stringify(sampleEnvelope()));
       return;
     }
     res.writeHead(404);
@@ -168,6 +184,15 @@ describe("GET /api/live-history（公开读代理）", () => {
     expect(second.body).toEqual(first.body);
   });
 
+  it("live-history-page-params: 上游取数携带 page=1&pageSize=100", async () => {
+    stubMode = "records";
+    const res = await request("/api/live-history");
+    expect(res.status).toBe(200);
+    const qs = new URLSearchParams(lastUpstreamQuery);
+    expect(qs.get("page")).toBe("1");
+    expect(qs.get("pageSize")).toBe("100");
+  });
+
   it("live-history-timeout: 上游超时降级 ok:false + 空数组（HTTP 200）", async () => {
     stubMode = "hang";
     const res = await request("/api/live-history");
@@ -182,7 +207,7 @@ describe("GET /api/live-history（公开读代理）", () => {
     expect(res.body).toEqual({ ok: false, records: [] });
   });
 
-  it("live-history-non-array: 上游返回非数组降级 ok:false", async () => {
+  it("live-history-non-array: 上游信封 items 非数组降级 ok:false", async () => {
     stubMode = "non-array";
     const res = await request("/api/live-history");
     expect(res.status).toBe(200);

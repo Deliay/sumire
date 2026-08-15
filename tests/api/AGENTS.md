@@ -31,7 +31,8 @@ cd tests/api && API_BASE_URL=http://localhost:<api-port> \
 ```
 
 - `REDIS_URL` 用于用例间清理缓存（缺失则跳过清理，缓存相关用例可能串扰）；
-- `LIVE_HISTORY_STUB_PORT` 缺省 `9876`，须与 Aspire 启动时注入的 `LIVE_HISTORY_UPSTREAM_URL` 端口一致。
+- `LIVE_HISTORY_STUB_PORT` 缺省 `9876`，须与 Aspire 启动时注入的 `LIVE_HISTORY_UPSTREAM_URL` 端口一致；
+- stub 上游模拟真实分页信封形态 `{ total, page, pageSize, items }`（`items` 含额外字段与缺字段条目），与上游真实结构一致；API 取数应携带 `page=1&pageSize=100`。
 
 ## 目录
 

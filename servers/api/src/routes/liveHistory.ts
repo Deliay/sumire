@@ -20,19 +20,39 @@ export function isLiveRecord(value: unknown): value is LiveRecord {
 }
 
 /**
- * 裁剪上游响应：仅透传 title/startDate/stopDate 三字段，缺 title 或 startDate 丢弃，
- * 按 startDate 倒序取前 100 条。非数组直接返回空数组（由调用方按失败处理）。
+ * 从上游响应提取记录数组：兼容分页信封 `{ total, page, pageSize, items: [...] }` 与裸数组两种形态。
+ * 既非数组、也非含数组 items 的信封时返回 null（由调用方按失败处理）。
  */
-export function normalizeRecords(input: unknown): LiveRecord[] {
-  if (!Array.isArray(input)) return [];
+export function extractItems(input: unknown): unknown[] | null {
+  if (Array.isArray(input)) return input;
+  if (typeof input === "object" && input !== null) {
+    const items = (input as { items?: unknown }).items;
+    if (Array.isArray(items)) return items;
+  }
+  return null;
+}
+
+/**
+ * 裁剪记录列表：仅透传 title/startDate/stopDate 三字段，缺 title 或 startDate 丢弃，
+ * 按 startDate 倒序取前 100 条。
+ */
+export function normalizeRecords(list: unknown[]): LiveRecord[] {
   const out: LiveRecord[] = [];
-  for (const item of input) {
+  for (const item of list) {
     if (!isLiveRecord(item)) continue;
     const rec: LiveRecord = { title: item.title, startDate: item.startDate };
     if (typeof item.stopDate === "string") rec.stopDate = item.stopDate;
     out.push(rec);
   }
   return out.sort((a, b) => b.startDate.localeCompare(a.startDate)).slice(0, MAX_RECORDS);
+}
+
+/** 上游取数 URL：追加 `page=1&pageSize=100`（兼容上游已带查询串），保证一次拿到最多 100 条。 */
+export function buildUpstreamUrl(base: string): string {
+  const url = new URL(base);
+  url.searchParams.set("page", "1");
+  url.searchParams.set("pageSize", "100");
+  return url.toString();
 }
 
 export interface LiveHistoryRouterDeps {
@@ -68,13 +88,14 @@ export function createLiveHistoryRouter(deps: LiveHistoryRouterDeps): Router {
     }
 
     try {
-      const upstream = await fetchFn(deps.upstreamUrl, {
+      const upstream = await fetchFn(buildUpstreamUrl(deps.upstreamUrl), {
         signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       });
       if (!upstream.ok) throw new Error(`upstream status ${upstream.status}`);
       const json = (await upstream.json()) as unknown;
-      if (!Array.isArray(json)) throw new Error("upstream response is not an array");
-      const records = normalizeRecords(json);
+      const list = extractItems(json);
+      if (list === null) throw new Error("上游响应既非数组也非分页信封");
+      const records = normalizeRecords(list);
       const body = { ok: true, records };
       await deps.cache.set(LIVE_HISTORY_CACHE_KEY, JSON.stringify(body), LIVE_HISTORY_CACHE_TTL_SECONDS);
       res.status(200).json(body);

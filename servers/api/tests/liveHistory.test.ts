@@ -3,7 +3,13 @@ import type { Request, Response } from "express";
 import { createApp } from "../src/app";
 import type { SessionStore } from "../src/session/store";
 import type { RateLimiter } from "../src/auth/rateLimit";
-import { normalizeRecords, isLiveRecord, LIVE_HISTORY_CACHE_KEY } from "../src/routes/liveHistory";
+import {
+  normalizeRecords,
+  isLiveRecord,
+  extractItems,
+  buildUpstreamUrl,
+  LIVE_HISTORY_CACHE_KEY,
+} from "../src/routes/liveHistory";
 import type { LiveHistoryCache } from "../src/infra/liveHistoryCache";
 
 const INTERNAL_URL = "http://vtuber.internal.fffdan.com/api/b/live/1727076670/history";
@@ -80,6 +86,23 @@ function okJson(value: unknown): { ok: boolean; json: () => Promise<unknown> } {
   };
 }
 
+describe("extractItems", () => {
+  it("裸数组形态直接返回", () => {
+    expect(extractItems([1, 2])).toEqual([1, 2]);
+  });
+
+  it("分页信封形态提取 items", () => {
+    expect(extractItems({ total: 14, page: 1, pageSize: 100, items: [{ title: "x" }] })).toEqual([{ title: "x" }]);
+  });
+
+  it("非数组、非信封返回 null", () => {
+    expect(extractItems(null)).toBeNull();
+    expect(extractItems("x")).toBeNull();
+    expect(extractItems({})).toBeNull();
+    expect(extractItems({ items: "not-array" })).toBeNull();
+  });
+});
+
 describe("normalizeRecords / isLiveRecord", () => {
   it("仅透传三字段，缺 title/startDate 丢弃，按 startDate 倒序", () => {
     const input = [
@@ -96,12 +119,6 @@ describe("normalizeRecords / isLiveRecord", () => {
       { title: "d", startDate: "2026-08-11T20:00:00+08:00", stopDate: "y" },
       { title: "a", startDate: "2026-08-10T20:00:00+08:00", stopDate: "x" },
     ]);
-  });
-
-  it("非数组返回空数组", () => {
-    expect(normalizeRecords(null)).toEqual([]);
-    expect(normalizeRecords({})).toEqual([]);
-    expect(normalizeRecords("x")).toEqual([]);
   });
 
   it("超过 100 条仅取前 100 条（倒序）", () => {
@@ -124,6 +141,16 @@ describe("normalizeRecords / isLiveRecord", () => {
   });
 });
 
+describe("buildUpstreamUrl", () => {
+  it("追加 page=1&pageSize=100", () => {
+    expect(buildUpstreamUrl(INTERNAL_URL)).toBe(`${INTERNAL_URL}?page=1&pageSize=100`);
+  });
+
+  it("兼容上游已带查询串", () => {
+    expect(buildUpstreamUrl(`${INTERNAL_URL}?foo=bar`)).toBe(`${INTERNAL_URL}?foo=bar&page=1&pageSize=100`);
+  });
+});
+
 describe("GET /api/live-history（公开读代理）", () => {
   let fetchSpy: ReturnType<typeof vi.fn>;
 
@@ -139,12 +166,17 @@ describe("GET /api/live-history（公开读代理）", () => {
     return createApp({ sessionStore: memSessionStore(), rateLimiter: unlimited, liveHistoryCache: cache });
   }
 
-  it("缓存未命中 → 拉上游 → 裁剪倒序 → 写缓存 → { ok: true, records }", async () => {
+  it("缓存未命中 → 带分页参数拉上游 → 解析信封 items → 裁剪倒序 → 写缓存 → { ok: true, records }", async () => {
     fetchSpy.mockResolvedValue(
-      okJson([
-        { title: "早", startDate: "2026-08-10T08:00:00+08:00" },
-        { title: "晚", startDate: "2026-08-10T20:00:00+08:00" },
-      ]),
+      okJson({
+        total: 2,
+        page: 1,
+        pageSize: 100,
+        items: [
+          { title: "早", startDate: "2026-08-10T08:00:00+08:00", coverUrl: "x", danmakuCount: 1 },
+          { title: "晚", startDate: "2026-08-10T20:00:00+08:00" },
+        ],
+      }),
     );
     vi.stubGlobal("fetch", fetchSpy);
     const cache = memCache();
@@ -158,8 +190,18 @@ describe("GET /api/live-history（公开读代理）", () => {
       ],
     });
     expect(fetchSpy).toHaveBeenCalledTimes(1);
-    expect(fetchSpy.mock.calls[0][0]).toBe(INTERNAL_URL);
+    expect(fetchSpy.mock.calls[0][0]).toBe(`${INTERNAL_URL}?page=1&pageSize=100`);
     expect(cache.store.get(LIVE_HISTORY_CACHE_KEY)).toContain("晚");
+  });
+
+  it("裸数组形态（兼容）同样返回 records", async () => {
+    fetchSpy.mockResolvedValue(
+      okJson([{ title: "早", startDate: "2026-08-10T08:00:00+08:00" }]),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+    const r = await call(buildApp(memCache()), "/api/live-history");
+    expect(r.status).toBe(200);
+    expect(r.body).toEqual({ ok: true, records: [{ title: "早", startDate: "2026-08-10T08:00:00+08:00" }] });
   });
 
   it("缓存命中 → 不发上游请求直接返回缓存内容", async () => {
@@ -175,8 +217,16 @@ describe("GET /api/live-history（公开读代理）", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("上游非法 JSON（非数组）→ 降级体 { ok: false, records: [] }", async () => {
+  it("上游返回非信封且非数组 → 降级体 { ok: false, records: [] }", async () => {
     fetchSpy.mockResolvedValue(okJson({ records: "not-array" }));
+    vi.stubGlobal("fetch", fetchSpy);
+    const r = await call(buildApp(memCache()), "/api/live-history");
+    expect(r.status).toBe(200);
+    expect(r.body).toEqual({ ok: false, records: [] });
+  });
+
+  it("上游信封 items 非数组 → 降级体", async () => {
+    fetchSpy.mockResolvedValue(okJson({ total: 1, page: 1, pageSize: 100, items: "not-array" }));
     vi.stubGlobal("fetch", fetchSpy);
     const r = await call(buildApp(memCache()), "/api/live-history");
     expect(r.status).toBe(200);

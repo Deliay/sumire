@@ -21,8 +21,8 @@ cd tests/api && API_BASE_URL=http://localhost:<api-port> \
 `src/live-history.test.ts` 依赖 API 的上游指向本机 stub（测试进程内起 HTTP stub 于固定端口，默认 `9876`），并直连 Redis 清理缓存 key `live-history:latest`：
 
 ```bash
-# 起 Aspire 时把 api 上游指向 stub 端口（若测试端口非默认需一致）
-cd infra/aspire && LIVE_HISTORY_UPSTREAM_URL=http://127.0.0.1:9876 aspire start
+# 起 Aspire 时把 api 上游指向 stub（含完整路径，测试端口非默认需一致）
+cd infra/aspire && LIVE_HISTORY_UPSTREAM_URL=http://127.0.0.1:9876/api/b/live/1727076670/history aspire start
 aspire describe api --output json && aspire describe redis --output json
 cd tests/api && API_BASE_URL=http://localhost:<api-port> \
   REDIS_URL=<redis-connection-string> \

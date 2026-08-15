@@ -72,17 +72,37 @@ function startStub(): Server {
     res.writeHead(404);
     res.end();
   });
-  server.listen(STUB_PORT, "127.0.0.1");
   return server;
+}
+
+/** 启动 stub 并等待端口就绪（避免 beforeAll 后首请求时尚未绑定）。 */
+async function listenStub(server: Server): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const onError = (err: Error) => {
+      server.off("listening", onListening);
+      reject(err);
+    };
+    const onListening = () => {
+      server.off("error", onError);
+      resolve();
+    };
+    server.once("error", onError);
+    server.once("listening", onListening);
+    server.listen(STUB_PORT, "127.0.0.1");
+  });
 }
 
 async function clearCache(): Promise<void> {
   if (!REDIS_URL) return;
-  const redis = new Redis(REDIS_URL, { lazyConnect: true });
+  // Aspire 注入的 Redis 为 TLS（rediss://）自签证书，清理连接禁用证书校验
+  const opts = REDIS_URL.startsWith("rediss://")
+    ? { tls: { rejectUnauthorized: false } }
+    : {};
+  const redis = new Redis(REDIS_URL, { ...opts, lazyConnect: true });
   try {
     await redis.del(CACHE_KEY);
-  } catch {
-    // 缓存清理失败不影响用例主体
+  } catch (e) {
+    console.warn("缓存清理失败", e);
   } finally {
     redis.disconnect();
   }
@@ -92,6 +112,7 @@ let server: Server;
 
 beforeAll(async () => {
   server = startStub();
+  await listenStub(server);
   await waitForReady();
 });
 

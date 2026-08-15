@@ -79,4 +79,67 @@ test.describe("bookstore 日历页与主页入口", () => {
     await link.click();
     await expect(page.getByRole("heading", { name: "直播日程" })).toBeVisible();
   });
+
+  test("calendar-mixed-history: 日历同日混合展示计划与历史记录（来源可辨），历史只读", async ({ page }) => {
+    const run = Date.now().toString(36);
+    const planTitle = `e2e_plan_${run}`;
+    const histTitle = `e2e_hist_${run}`;
+    const d = todayStr();
+    await createPlan(d, planTitle);
+
+    // 历史记录：今日 00:00（本地，已过），保证按本地时区归入今日且不被视为未来
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setHours(1, 0, 0, 0);
+    await page.route("**/api/live-history", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          records: [{ title: histTitle, startDate: start.toISOString(), stopDate: end.toISOString() }],
+        }),
+      }),
+    );
+
+    await page.goto(`${BASE}/calendar`);
+    await expect(page.getByRole("heading", { name: "直播日程" })).toBeVisible();
+
+    const cell = page.locator(`[data-testid="calendar-day"][data-date="${d}"]`);
+    await expect(cell.getByTestId("plan-title").filter({ hasText: planTitle })).toBeVisible();
+    await expect(cell.getByTestId("history-title").filter({ hasText: histTitle })).toBeVisible();
+
+    // 点击当日弹层：历史行带「实际播出」标签，且无编辑/删除入口
+    await cell.click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText(histTitle)).toBeVisible();
+    await expect(dialog.getByText("实际播出")).toBeVisible();
+    await expect(page.getByRole("button", { name: "编辑" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "删除" })).toHaveCount(0);
+  });
+
+  test("calendar-history-degrade: 历史源降级时仅展示计划且无错误提示", async ({ page }) => {
+    const run = Date.now().toString(36);
+    const title = `e2e_deg_${run}`;
+    const d = todayStr();
+    await createPlan(d, title);
+
+    await page.route("**/api/live-history", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: false, records: [] }),
+      }),
+    );
+
+    await page.goto(`${BASE}/calendar`);
+    await expect(page.getByRole("heading", { name: "直播日程" })).toBeVisible();
+
+    const cell = page.locator(`[data-testid="calendar-day"][data-date="${d}"]`);
+    await expect(cell.getByTestId("plan-title").filter({ hasText: title })).toBeVisible();
+    await expect(page.getByTestId("history-title")).toHaveCount(0);
+    await expect(page.getByText("日程暂时翻不开了")).toHaveCount(0);
+  });
 });

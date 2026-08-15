@@ -45,6 +45,8 @@ jobs:
 
       - name: Build static site
         working-directory: apps/bookstore
+        env:
+          NEXT_PUBLIC_API_BASE_URL: https://api.sumire.live
         run: pnpm build
 
       - uses: actions/upload-pages-artifact@v3

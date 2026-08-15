@@ -106,14 +106,12 @@ test.describe("bookstore 日历页与主页入口", () => {
     await page.goto(`${BASE}/calendar`);
     await expect(page.getByRole("heading", { name: "直播日程" })).toBeVisible();
 
+    // 点击当日弹层：计划与历史混合列出，历史行带「实际播出」标签、只读
     const cell = page.locator(`[data-testid="calendar-day"][data-date="${d}"]`);
-    await expect(cell.getByTestId("plan-title").filter({ hasText: planTitle })).toBeVisible();
-    await expect(cell.getByTestId("history-title").filter({ hasText: histTitle })).toBeVisible();
-
-    // 点击当日弹层：历史行带「实际播出」标签，且无编辑/删除入口
     await cell.click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
+    await expect(dialog.getByText(planTitle)).toBeVisible();
     await expect(dialog.getByText(histTitle)).toBeVisible();
     await expect(dialog.getByText("实际播出")).toBeVisible();
     await expect(page.getByRole("button", { name: "编辑" })).toHaveCount(0);
@@ -138,8 +136,11 @@ test.describe("bookstore 日历页与主页入口", () => {
     await expect(page.getByRole("heading", { name: "直播日程" })).toBeVisible();
 
     const cell = page.locator(`[data-testid="calendar-day"][data-date="${d}"]`);
-    await expect(cell.getByTestId("plan-title").filter({ hasText: title })).toBeVisible();
-    await expect(page.getByTestId("history-title")).toHaveCount(0);
+    await cell.click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText(title)).toBeVisible();
+    await expect(dialog.getByText("实际播出")).toHaveCount(0);
     await expect(page.getByText("日程暂时翻不开了")).toHaveCount(0);
   });
 });

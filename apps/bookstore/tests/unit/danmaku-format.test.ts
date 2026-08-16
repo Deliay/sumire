@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { formatPrice, giftPriceTone, guardLevelName, guardLevelTone } from "@/features/danmaku/format";
+import {
+  formatPrice,
+  giftPriceTone,
+  guardBadgeAsset,
+  guardLevelName,
+  guardLevelTone,
+} from "@/features/danmaku/format";
 
 describe("guardLevelName 船型换算", () => {
   it("guard_level 3/2/1 → 舰长/提督/总督", () => {
@@ -27,14 +33,27 @@ describe("formatPrice 金额换算（元）", () => {
 });
 
 describe("guardLevelTone 船型着色", () => {
-  it("3 舰长蓝（eye）/2 提督紫（flower）/1 总督红（crimson）", () => {
-    expect(guardLevelTone(3)).toEqual({ bar: "bg-eye/70", chip: "bg-eye/25", text: "text-eye" });
-    expect(guardLevelTone(2)).toEqual({ bar: "bg-flower/70", chip: "bg-flower/30", text: "text-flower" });
-    expect(guardLevelTone(1)).toEqual({ bar: "bg-crimson/70", chip: "bg-crimson/25", text: "text-crimson" });
+  it("3 舰长蓝（eye）/2 提督紫（flower）/1 总督红（crimson），含条目打底色", () => {
+    expect(guardLevelTone(3)).toEqual({ bar: "bg-eye/70", chip: "bg-eye/25", text: "text-eye", item: "bg-eye/10" });
+    expect(guardLevelTone(2)).toEqual({ bar: "bg-flower/70", chip: "bg-flower/30", text: "text-flower", item: "bg-flower/10" });
+    expect(guardLevelTone(1)).toEqual({ bar: "bg-crimson/70", chip: "bg-crimson/25", text: "text-crimson", item: "bg-crimson/10" });
   });
 
   it("未知等级回退紫色（flower）", () => {
-    expect(guardLevelTone(0)).toEqual({ bar: "bg-flower/70", chip: "bg-flower/30", text: "text-flower" });
+    expect(guardLevelTone(0)).toEqual({ bar: "bg-flower/70", chip: "bg-flower/30", text: "text-flower", item: "bg-flower/10" });
+  });
+});
+
+describe("guardBadgeAsset 头像上船挂件", () => {
+  it("3/2/1 → 舰长/提督/总督本地素材路径", () => {
+    expect(guardBadgeAsset(3)).toBe("/assets/original/guard-badge-captain.png");
+    expect(guardBadgeAsset(2)).toBe("/assets/original/guard-badge-admiral.png");
+    expect(guardBadgeAsset(1)).toBe("/assets/original/guard-badge-governor.png");
+  });
+
+  it("未知/空等级返回 null（不渲染挂件）", () => {
+    expect(guardBadgeAsset(0)).toBeNull();
+    expect(guardBadgeAsset(9)).toBeNull();
   });
 });
 

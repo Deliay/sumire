@@ -138,6 +138,34 @@ describe("toLiveEvent danmaku 上船等级 guardLevel", () => {
   });
 });
 
+describe("toLiveEvent SC/礼物 上船等级 guardLevel", () => {
+  it("super_chat：uinfo.medal.guard_level>0 映射到 sender.guardLevel（舰长=3）", () => {
+    const fixture = clone(superChatFixture);
+    const uinfo = (fixture.payload.data as Record<string, unknown>).uinfo as Record<string, unknown>;
+    uinfo.medal = { guard_level: 3 };
+    expect(toLiveEvent(fixture)?.sender.guardLevel).toBe(3);
+  });
+
+  it("super_chat：guard_level 为 0 或缺位时 sender.guardLevel 为 null", () => {
+    const fixture = clone(superChatFixture);
+    const uinfo = (fixture.payload.data as Record<string, unknown>).uinfo as Record<string, unknown>;
+    uinfo.medal = { guard_level: 0 };
+    expect(toLiveEvent(fixture)?.sender.guardLevel).toBeNull();
+    delete uinfo.medal;
+    expect(toLiveEvent(fixture)?.sender.guardLevel).toBeNull();
+  });
+
+  it("gift：uinfo.medal.guard_level>0 映射到 sender.guardLevel（提督=2）", () => {
+    const fixture = clone(giftFixture);
+    (fixture.payload.data as Record<string, unknown>).uinfo = { medal: { guard_level: 2 } };
+    expect(toLiveEvent(fixture)?.sender.guardLevel).toBe(2);
+  });
+
+  it("gift：缺 uinfo/guard_level 时 sender.guardLevel 为 null", () => {
+    expect(toLiveEvent(clone(giftFixture))?.sender.guardLevel).toBeNull();
+  });
+});
+
 describe("toLiveEvent 缺字段容错", () => {
   it("danmaku：dm_v2 无 medal 时回退经典数组 info[3]（[0] 等级 [1] 牌名 [6] 颜色整数转 hex）", () => {
     const fixture = clone(danmakuFixture);

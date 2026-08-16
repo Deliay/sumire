@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { LiveEvent } from "@/features/danmaku/types";
 import type { Role } from "@/features/backdoor/api";
-import { COLUMN_PRESETS, COLUMNS_STORAGE_KEY } from "@/features/danmaku/columns";
+import { COLUMNS_STORAGE_KEY } from "@/features/danmaku/columns";
 
 const listLiveEvents = vi.fn();
 const markLiveEventRead = vi.fn();
@@ -40,10 +40,18 @@ function makeEvent(partial: Partial<LiveEvent> & Pick<LiveEvent, "eventId" | "ty
 const SC_EVENT = makeEvent({ eventId: "sc:1", type: "super_chat", content: "醒目留言一", price: 30 });
 const DM_EVENT = makeEvent({ eventId: "dm:1", type: "danmaku", content: "弹幕一" });
 const GIFT_EVENT = makeEvent({ eventId: "gift:1", type: "gift", price: 5, gift: { name: "辣条", count: 1 } });
+const GUARD_EVENT = makeEvent({
+  eventId: "guard:1",
+  type: "guard_buy",
+  price: 138,
+  guard: { level: 3, name: "舰长", count: 1 },
+});
 
 function mockListLiveEvents() {
   listLiveEvents.mockImplementation(async (types: string[]) => {
-    const items = [SC_EVENT, DM_EVENT, GIFT_EVENT].filter((e) => types.includes(e.type));
+    const items = [SC_EVENT, DM_EVENT, GIFT_EVENT, GUARD_EVENT].filter((e) =>
+      types.includes(e.type),
+    );
     return { status: 200, data: { total: items.length, page: 1, pageSize: 50, items } };
   });
 }
@@ -87,12 +95,48 @@ describe("DanmakuDashboard", () => {
     expect(await screen.findByText("弹幕一")).toBeTruthy();
     expect(screen.getByText("醒目留言一")).toBeTruthy();
     expect(screen.getByText(/辣条/)).toBeTruthy();
-    // 每节（栏 + 类型）独立检索请求：礼物+上船 | SC | 弹幕
+    // 每节（栏 + 类型）独立检索请求：礼物 | SC+上船 | 弹幕
     const calledTypes = listLiveEvents.mock.calls.map((c) => c[0]);
     expect(calledTypes).toContainEqual(["gift"]);
     expect(calledTypes).toContainEqual(["guard_buy"]);
     expect(calledTypes).toContainEqual(["super_chat"]);
     expect(calledTypes).toContainEqual(["danmaku"]);
+  });
+
+  it("默认 wide 渲染 礼物 | SC+上船(混排) | 弹幕 三栏标题", async () => {
+    render(<DanmakuDashboard />);
+    expect(await screen.findByRole("heading", { name: "礼物" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "SC + 上船" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "弹幕" })).toBeTruthy();
+  });
+
+  it("SC+上船 栏混排：SC 与上船事件合并为单一信息流（无类型小节标签）", async () => {
+    const { container } = render(<DanmakuDashboard />);
+    await screen.findByText("醒目留言一");
+    // 上船事件同栏渲染（混排合并）
+    expect(screen.getByText(/上船 · 舰长/)).toBeTruthy();
+    // 混排栏无 per-type 小节标签（分栏才渲染 SC / 上船 标签）
+    expect(container.querySelectorAll(".text-xs.font-medium.text-ink-dim")).toHaveLength(0);
+  });
+
+  it("配置面板把 SC+上船 栏切为分栏：渲染 SC/上船 两小节并持久化 mode=split", async () => {
+    const { container } = render(<DanmakuDashboard />);
+    await screen.findByText("醒目留言一");
+    fireEvent.click(screen.getByRole("button", { name: /配置「SC/ }));
+
+    // 默认混排：混排单选选中
+    expect((screen.getByRole("radio", { name: "混排" }) as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByRole("radio", { name: "分栏" }));
+
+    // 持久化 mode=split
+    const stored = JSON.parse(window.localStorage.getItem(COLUMNS_STORAGE_KEY) ?? "null");
+    expect(stored).toContainEqual({ id: "sc_guard", types: ["super_chat", "guard_buy"], mode: "split" });
+
+    // 分栏后渲染 SC / 上船 两小节标签
+    const labels = [...container.querySelectorAll(".text-xs.font-medium.text-ink-dim")].map(
+      (n) => n.textContent,
+    );
+    expect(labels).toEqual(["SC", "上船"]);
   });
 
   it("admin 双击 SC：乐观置灰并调用 read 接口", async () => {
@@ -243,7 +287,7 @@ describe("DanmakuDashboard", () => {
     );
   });
 
-  it("narrow(<640) 折叠为单栏全类型，无视图栏选择器，配置面板全部勾选", async () => {
+  it("narrow(<640) 折叠为单栏全类型，配置面板全部勾选", async () => {
     stubMatchMedia({ "(max-width: 639px)": true, "(min-width: 1024px)": false });
     render(<DanmakuDashboard />);
 
@@ -252,63 +296,11 @@ describe("DanmakuDashboard", () => {
     expect(screen.getByText("醒目留言一")).toBeTruthy();
     expect(screen.getByText(/辣条/)).toBeTruthy();
 
-    // 无视图栏选择器
-    expect(screen.queryByRole("combobox", { name: "视图栏" })).toBeNull();
-
     // 打开配置面板：全部四类勾选
-    fireEvent.click(screen.getByRole("button", { name: /配置「弹幕/ }));
+    fireEvent.click(screen.getByRole("button", { name: /配置「SC/ }));
     const checkboxes = screen.getAllByRole("checkbox");
     expect(checkboxes).toHaveLength(4);
     for (const cb of checkboxes) expect((cb as HTMLInputElement).checked).toBe(true);
-  });
-
-  it("medium(640-1023) 视图栏选择器仅 1/2 栏，默认 1 栏（单栏全类型）", async () => {
-    stubMatchMedia({ "(max-width: 639px)": false, "(min-width: 1024px)": false });
-    render(<DanmakuDashboard />);
-
-    const select = (await screen.findByRole("combobox", { name: "视图栏" })) as HTMLSelectElement;
-    const options = Array.from(select.querySelectorAll("option")).map((o) => o.textContent);
-    expect(options).toEqual(["1 栏", "2 栏"]);
-    expect(select.value).toBe("1");
-
-    // 默认单栏渲染全部四类
-    expect(await screen.findByText("弹幕一")).toBeTruthy();
-    expect(screen.getByText("醒目留言一")).toBeTruthy();
-  });
-
-  it("medium 选择 2 栏后按预设分组（上船+SC | 礼物+弹幕）并持久化", async () => {
-    stubMatchMedia({ "(max-width: 639px)": false, "(min-width: 1024px)": false });
-    render(<DanmakuDashboard />);
-
-    const select = (await screen.findByRole("combobox", { name: "视图栏" })) as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: "2" } });
-
-    expect(await screen.findByText("上船 + SC")).toBeTruthy();
-    expect(screen.getByText("礼物 + 弹幕")).toBeTruthy();
-
-    const stored = JSON.parse(window.localStorage.getItem(COLUMNS_STORAGE_KEY) ?? "null");
-    expect(stored).toEqual(COLUMN_PRESETS[2]);
-  });
-
-  it("wide(>=1024) 视图栏选择器仅 2/3 栏，默认 3 栏", async () => {
-    render(<DanmakuDashboard />);
-
-    const select = (await screen.findByRole("combobox", { name: "视图栏" })) as HTMLSelectElement;
-    const options = Array.from(select.querySelectorAll("option")).map((o) => o.textContent);
-    expect(options).toEqual(["2 栏", "3 栏"]);
-    expect(select.value).toBe("3");
-  });
-
-  it("wide 选择 2 栏后切换为 2 栏预设并持久化", async () => {
-    render(<DanmakuDashboard />);
-    expect(await screen.findByText("弹幕一")).toBeTruthy();
-
-    const select = (await screen.findByRole("combobox", { name: "视图栏" })) as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: "2" } });
-
-    expect(await screen.findByText("上船 + SC")).toBeTruthy();
-    const stored = JSON.parse(window.localStorage.getItem(COLUMNS_STORAGE_KEY) ?? "null");
-    expect(stored).toEqual(COLUMN_PRESETS[2]);
   });
 
   it("跨视口自适应不覆盖已存配置：桌面 3 栏在窄屏折叠为单栏", async () => {

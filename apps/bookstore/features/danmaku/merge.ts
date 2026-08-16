@@ -51,6 +51,18 @@ export interface MergedDanmaku {
   count: number;
 }
 
+/**
+ * 混排合并：把多个类型的事件列表合并为单一时间倒序列表（最新在前）。
+ * 混排栏（mode=mixed）将各勾选类型的历史/实时事件合并为一个信息流；时间相同按 eventId 稳定排序。
+ */
+export function mergeEventsByTime(...lists: LiveEvent[][]): LiveEvent[] {
+  return lists.flat().sort((a, b) => {
+    if (a.occurredAt !== b.occurredAt) return a.occurredAt < b.occurredAt ? 1 : -1;
+    if (a.eventId !== b.eventId) return a.eventId < b.eventId ? -1 : 1;
+    return 0;
+  });
+}
+
 /** 将事件列表中的重复弹幕折叠为一行（按折叠键全列表去重，代表行停在末次出现的原位）。 */
 export function mergeDanmaku(events: LiveEvent[]): MergedDanmaku[] {
   // 首遍：统计各折叠键的出现次数与末次出现下标。

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { longestNonRepeatSubstring, mergeDanmaku, danmakuMergeKey } from "@/features/danmaku/merge";
+import { longestNonRepeatSubstring, mergeDanmaku, mergeEventsByTime, danmakuMergeKey } from "@/features/danmaku/merge";
 import type { LiveEvent } from "@/features/danmaku/types";
 
 const SENDER: LiveEvent["sender"] = { uid: 1, name: "观众A", nameRomaji: null, face: null, medal: null, guardLevel: null };
@@ -92,5 +92,36 @@ describe("mergeDanmaku 弹幕折叠", () => {
     const rows = mergeDanmaku([dm("a", "你好"), gift, dm("b", "再见")]);
     expect(rows.map((r) => r.count)).toEqual([1, 1, 1]);
     expect(rows.map((r) => r.event.type)).toEqual(["danmaku", "gift", "danmaku"]);
+  });
+});
+
+describe("mergeEventsByTime 混排合并", () => {
+  function at(id: string, time: string): LiveEvent {
+    return { ...dm(id, "x"), eventId: id, occurredAt: time };
+  }
+
+  it("多列表按时间倒序合并（最新在前）", () => {
+    const sc = [at("sc:1", "2026-08-16T12:00:00.000Z")];
+    const guard = [
+      at("guard:2", "2026-08-16T12:00:05.000Z"),
+      at("guard:1", "2026-08-16T11:59:00.000Z"),
+    ];
+    expect(mergeEventsByTime(sc, guard).map((e) => e.eventId)).toEqual([
+      "guard:2",
+      "sc:1",
+      "guard:1",
+    ]);
+  });
+
+  it("时间相同按 eventId 稳定排序", () => {
+    const a = at("a", "2026-08-16T12:00:00.000Z");
+    const b = at("b", "2026-08-16T12:00:00.000Z");
+    expect(mergeEventsByTime([a, b], []).map((e) => e.eventId)).toEqual(["a", "b"]);
+  });
+
+  it("空列表与单列表原样返回", () => {
+    expect(mergeEventsByTime()).toEqual([]);
+    const only = [at("x", "2026-08-16T12:00:00.000Z")];
+    expect(mergeEventsByTime(only)).toEqual(only);
   });
 });

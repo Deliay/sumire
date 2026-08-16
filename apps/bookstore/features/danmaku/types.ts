@@ -63,9 +63,14 @@ export const LiveEventSchema = z.object({
 });
 export type LiveEvent = z.infer<typeof LiveEventSchema>;
 
-/** 栏位配置：一栏展示若干事件类型。 */
+/** 栏内布局：mixed=混排（勾选类型合并为一栏按时间混排）；split=分栏（每类型上下分栏，默认）。 */
+export const ColumnLayoutModeSchema = z.enum(["mixed", "split"]);
+export type ColumnLayoutMode = z.infer<typeof ColumnLayoutModeSchema>;
+
+/** 栏位配置：一栏展示若干事件类型，可选混排/分栏布局（缺省按分栏处理，兼容旧存储）。 */
 export const ColumnConfigSchema = z.object({
   id: z.string().min(1),
   types: z.array(LiveEventTypeSchema).min(1),
+  mode: ColumnLayoutModeSchema.optional(),
 });
 export type ColumnConfig = z.infer<typeof ColumnConfigSchema>;

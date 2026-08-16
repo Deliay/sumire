@@ -1,0 +1,259 @@
+openapi: 3.1.0
+info:
+  title: sumire live events
+  description: 枝堇Sumire 后台弹幕信息流 API 契约（/api/live-events 域）。单一事实源，实现与 tests/api 集成测试均以本文档为准。服务端代理内网直播事件上游（仅服务端可达，地址不出现在客户端可见位置），将上游原始 payload 归一化为稳定 LiveEvent 模型并合并已读状态；全部端点需登录。
+  version: 1.0.0
+servers:
+  - url: https://api.sumire.live
+paths:
+  /api/live-events:
+    get:
+      summary: 检索历史直播事件（member 及以上）
+      description: 需登录且角色 member 及以上。服务端代理内网上游分页检索（event/range），将原始信封归一化为 LiveEvent 并合并已读状态（read 字段）。type 为可重复查询参数（如 ?type=danmaku&type=super_chat），缺省表示全部四类；上游不可达/超时/返回非法时返回 502。
+      parameters:
+        - name: type
+          in: query
+          description: 事件类型过滤，可重复（重复参数形式 type=danmaku&type=super_chat）；缺省为全部类型
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { $ref: "#/components/schemas/LiveEventType" }
+        - name: page
+          in: query
+          description: 页码，从 1 开始
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          description: 每页条数，上限 100
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200":
+          description: 分页信封，items 已按上游倒序返回且 read 已合并
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [total, page, pageSize, items]
+                properties:
+                  total: { type: integer, description: 符合过滤条件的事件总数 }
+                  page: { type: integer }
+                  pageSize: { type: integer }
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/LiveEvent" }
+        "400":
+          description: type 含非法值，或分页参数非法（page/pageSize 非正整数或 pageSize 超上限 100）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: "type 参数非法" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "502":
+          description: 上游事件服务不可用（不可达 / 超时 / 返回非法）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: "上游事件服务不可用" }
+  /api/live-events/stream:
+    get:
+      summary: 订阅实时直播事件流（member 及以上，SSE）
+      description: "需登录且角色 member 及以上。响应 Content-Type: text/event-stream；服务端按连接向上游透传订阅，每条事件为一帧 data: <LiveEvent JSON>\\n\\n（已归一化并合并 read）；每 30s 发送一条 : ping 注释心跳保活。上游断流时服务端指数退避重连（1s 起步，30s 上限），重连成功前不关闭客户端连接。"
+      parameters:
+        - name: type
+          in: query
+          description: 事件类型过滤，可重复（同 /api/live-events）；缺省为全部类型
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { $ref: "#/components/schemas/LiveEventType" }
+      responses:
+        "200":
+          description: "SSE 事件流，帧格式 data: <LiveEvent JSON>\\n\\n，30s 一条 : ping 心跳注释"
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: 每条 data 帧负载为单个 LiveEvent JSON
+        "400":
+          description: type 含非法值（在建立 SSE 流、flushHeaders 之前返回）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: "type 参数非法" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/live-events/read:
+    post:
+      summary: 单条标记已读（admin 及以上）
+      description: 需登录且角色 admin 及以上。按 eventId 幂等 upsert 已读记录，重复调用返回相同结果。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [eventId]
+              properties:
+                eventId: { type: string, description: 事件唯一 ID（LiveEvent.eventId 派生规则） }
+      responses:
+        "200":
+          description: 已标记（幂等）
+          content: { application/json: { schema: { $ref: "#/components/schemas/Ok" } } }
+        "400":
+          description: eventId 缺失、为空或格式非法（前缀须为 dm/sc/gift/guard 之一）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: "eventId 不能为空" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/live-events/unread:
+    post:
+      summary: 单条取消已读（admin 及以上）
+      description: 需登录且角色 admin 及以上。撤销单条已读标记（幂等 upsert）；对因「全部已读」水位线而视为已读的条目，写入一条显式未读覆盖记录（优先级高于水位线）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [eventId]
+              properties:
+                eventId: { type: string, description: 事件唯一 ID（LiveEvent.eventId 派生规则） }
+      responses:
+        "200":
+          description: 已取消已读（幂等）
+          content: { application/json: { schema: { $ref: "#/components/schemas/Ok" } } }
+        "400":
+          description: eventId 缺失、为空或格式非法（前缀须为 dm/sc/gift/guard 之一）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: "eventId 不能为空" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/live-events/read-all:
+    post:
+      summary: 按类型全部已读（admin 及以上）
+      description: 需登录且角色 admin 及以上。为该类型当前已知的最新事件记录一条水位线（readBefore=occurredAt），此后检索/推送时 occurredAt <= readBefore 的事件视为已读；水位线只前进不后退，避免对历史全量事件逐条写入。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type]
+              properties:
+                type:
+                  type: string
+                  enum: [super_chat, guard_buy]
+                  description: 仅支持需要已读管理的类型
+      responses:
+        "200":
+          description: 水位线已写入。该类型当前无事件时返回 marked=0 且不写水位线；marked 仅统计上游首页（≤100 条）口径。
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, marked]
+                properties:
+                  ok: { type: boolean, const: true }
+                  marked: { type: integer, description: 本次被水位线覆盖为已读的事件数（仅统计上游首页 ≤100 条） }
+        "400":
+          description: type 缺失或非法（仅支持 super_chat / guard_buy）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: "type 参数非法" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "502":
+          description: 上游事件服务不可用（不可达 / 超时 / 返回非法）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: "上游事件服务不可用" }
+components:
+  schemas:
+    LiveEventType:
+      type: string
+      enum: [danmaku, super_chat, gift, guard_buy]
+    LiveEvent:
+      type: object
+      required: [eventId, type, occurredAt, sender, read]
+      description: 归一化直播事件。上游 B 站原始 payload（DANMU_MSG / SUPER_CHAT_MESSAGE / SEND_GIFT / GUARD_BUY）由服务端归一化，前端不感知 B 站结构；可选字段按事件类型出现（content 仅弹幕/SC、scColors 仅 SC、gift 仅礼物、guard 仅上船）。
+      properties:
+        eventId:
+          type: string
+          description: 事件唯一 ID，服务端派生保证幂等去重（danmaku → dm:{id_str}；super_chat → sc:{id}；gift → gift:{batch_combo_id ?? combo_id}；guard_buy → guard:{uid}:{start_time}）
+        type: { $ref: "#/components/schemas/LiveEventType" }
+        occurredAt:
+          type: string
+          format: date-time
+          description: 事件发生时间（ISO 时间戳，沿用上游信封 occurredAt）
+        sender:
+          type: object
+          required: [uid, name, face, medal]
+          properties:
+            uid: { type: integer, description: 发送者 B 站 uid }
+            name: { type: string, description: 发送者昵称 }
+            face:
+              type: [string, "null"]
+              description: 头像 URL；guard_buy 上游无头像，为 null，前端兜底渲染
+            medal:
+              type: [object, "null"]
+              required: [name, level, color]
+              description: 粉丝团牌子；无牌子为 null
+              properties:
+                name: { type: string, description: 牌子名 }
+                level: { type: integer, description: 牌子等级 }
+                color: { type: string, description: 牌子颜色（CSS 颜色值） }
+        content:
+          type: string
+          description: 弹幕文本 / SC 留言（仅 danmaku、super_chat）
+        price:
+          type: number
+          description: 金额（元）：SC 为 data.price；礼物=金瓜子 combo_total_coin/1000（银瓜子=0）；上船=price/1000
+        scColors:
+          type: object
+          required: [backgroundStart, backgroundEnd, fontColor]
+          description: SC 配色（仅 super_chat）
+          properties:
+            backgroundStart: { type: string }
+            backgroundEnd: { type: string }
+            fontColor: { type: string }
+        gift:
+          type: object
+          required: [name, count]
+          description: 礼物信息（仅 gift；连击事件经 batch_combo_id ?? combo_id 去重）
+          properties:
+            name: { type: string, description: 礼物名 }
+            count: { type: integer, description: 数量（连击为 combo_num） }
+        guard:
+          type: object
+          required: [level, name, count]
+          description: 上船信息（仅 guard_buy；level 3/2/1 → 舰长/提督/总督）
+          properties:
+            level: { type: integer, enum: [1, 2, 3], description: 3=舰长，2=提督，1=总督 }
+            name: { type: string, description: 船型名称（上游 gift_name） }
+            count: { type: integer, description: 数量（月数） }
+        read:
+          type: boolean
+          description: 已读状态，服务端出口统一合并（单条记录优先于水位线）
+    Ok:
+      type: object
+      properties:
+        ok: { type: boolean, const: true }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+  responses:
+    Unauthorized:
+      description: 未登录或会话已失效
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Forbidden:
+      description: 已登录但角色权限不足（如 member 调用写接口）
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }

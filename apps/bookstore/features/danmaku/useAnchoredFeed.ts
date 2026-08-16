@@ -1,0 +1,67 @@
+"use client";
+
+import { useCallback, useLayoutEffect, useRef, useState, type RefObject } from "react";
+
+/** 贴顶判定阈值（px）：scrollTop 不超过它视为贴顶，新事件到达保持跟随。 */
+export const ANCHOR_THRESHOLD = 8;
+/** 「回到顶部」悬浮按钮显示阈值（px）。 */
+export const BACK_TO_TOP_THRESHOLD = 200;
+
+/**
+ * prepend 锚定补偿计算（纯函数）：
+ * 离开顶部（scrollTop > 阈值）且容器变高时，返回补偿后的 scrollTop（旧值 + scrollHeight 差），
+ * 保证可视内容不跳；贴顶或容器未变高时返回 null（无需调整，贴顶保持跟随最新）。
+ */
+export function computeAnchorScrollTop(
+  scrollTop: number,
+  prevScrollHeight: number,
+  nextScrollHeight: number,
+  threshold: number = ANCHOR_THRESHOLD,
+): number | null {
+  if (scrollTop <= threshold) return null;
+  const diff = nextScrollHeight - prevScrollHeight;
+  if (diff <= 0) return null;
+  return scrollTop + diff;
+}
+
+interface AnchoredFeed {
+  containerRef: RefObject<HTMLDivElement | null>;
+  showBackToTop: boolean;
+  handleScroll: () => void;
+  scrollToTop: () => void;
+}
+
+/**
+ * 倒序信息流滚动锚定（提案 K4）：新事件 prepend 到顶部导致 scrollHeight 增长后，
+ * 若用户已离开顶部则按 scrollHeight 差补偿 scrollTop；scrollTop > 200 显示「回到顶部」。
+ */
+export function useAnchoredFeed(): AnchoredFeed {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const prevHeightRef = useRef(0);
+  const [showBackToTop, setShowBackToTop] = useState(false);
+
+  // 每次渲染后记录 scrollHeight 基线；高度增长（新事件 prepend 到顶部）且离开顶部时补偿。
+  // 无依赖数组：补偿基于「相邻两次渲染的高度差」，高度未变时 diff=0 天然幂等。
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const prev = prevHeightRef.current;
+    const next = el.scrollHeight;
+    if (prev > 0) {
+      const adjusted = computeAnchorScrollTop(el.scrollTop, prev, next);
+      if (adjusted !== null) el.scrollTop = adjusted;
+    }
+    prevHeightRef.current = next;
+  });
+
+  const handleScroll = useCallback(() => {
+    const el = containerRef.current;
+    setShowBackToTop(el ? el.scrollTop > BACK_TO_TOP_THRESHOLD : false);
+  }, []);
+
+  const scrollToTop = useCallback(() => {
+    containerRef.current?.scrollTo({ top: 0 });
+  }, []);
+
+  return { containerRef, showBackToTop, handleScroll, scrollToTop };
+}

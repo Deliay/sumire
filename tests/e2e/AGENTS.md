@@ -32,7 +32,7 @@ cd tests/e2e && pnpm test:unconfigured
 - `global-setup.ts`：通过 API 准备超管/管理员/成员三角色已完成改密账号，写入 `.accounts.json`
 - `src/tools/api.ts`：API 调用助手
 - `src/tools/accounts.ts`：从 `.accounts.json` 读取预置账号
-- `src/backdoor/`：后台相关用例（auth / change-password / users / dashboard / schedule 含周表图片生成弹层）
+- `src/backdoor/`：后台相关用例（auth / change-password / users / dashboard / schedule 含周表图片生成弹层 / danmaku 弹幕后台）
 - `src/bookstore/`：书店页脚入口与日历（含历史直播混合展示、降级）用例
 
 ## 约定

@@ -8,6 +8,7 @@ const BACKDOOR_PATHS = [
   "/backdoor/users",
   "/backdoor/change-password",
   "/backdoor/schedule",
+  "/backdoor/danmaku",
 ];
 
 const UNCONFIGURED_PUBLIC_PATHS = ["/calendar"];
@@ -29,6 +30,9 @@ test.describe("backdoor 未配置形态 404", () => {
       await expect(page.getByText("页面不存在")).toBeVisible();
       await expect(page.getByText("返回首页")).toBeVisible();
       await expect(page.getByLabel("用户名")).toHaveCount(0);
+      // 后台导航整体不渲染，无弹幕后台（及其它后台页）入口
+      await expect(page.getByRole("navigation", { name: "后台导航" })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: "弹幕后台" })).toHaveCount(0);
       expect(apiRequests).toEqual([]);
     });
   }

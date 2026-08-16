@@ -1,0 +1,20 @@
+{
+  "roomId": 1727076670,
+  "type": "guard_buy",
+  "occurredAt": "2026-08-16T13:25:30.000Z",
+  "liveSessionId": "20260816-live-1",
+  "payload": {
+    "cmd": "GUARD_BUY",
+    "data": {
+      "uid": 437917,
+      "username": "夜航星",
+      "guard_level": 3,
+      "num": 1,
+      "price": 138000,
+      "gift_name": "舰长",
+      "gift_id": 10003,
+      "start_time": 1755338730,
+      "end_time": 1755338730
+    }
+  }
+}

@@ -28,6 +28,7 @@ export default function Sender({ sender }: SenderProps) {
             alt=""
             className="size-7 shrink-0 rounded-full border border-vine/50 object-cover"
             loading="lazy"
+            referrerPolicy="no-referrer"
           />
         ) : (
           <span

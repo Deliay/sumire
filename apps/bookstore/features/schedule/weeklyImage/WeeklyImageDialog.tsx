@@ -155,7 +155,7 @@ export default function WeeklyImageDialog({
             </div>
           ) : (
             // eslint-disable-next-line @next/next/no-img-element -- 长按/右键保存依赖原生 <img>
-            <img src={dataUrl} alt="周表图片" className="w-full rounded" />
+            <img src={dataUrl} alt="周表图片" className="w-full rounded" referrerPolicy="no-referrer" />
           )}
         </div>
 

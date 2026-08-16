@@ -21,31 +21,34 @@ export default function SuperChatItem({ event, onToggleRead }: SuperChatItemProp
       data-event-id={event.eventId}
       onDoubleClick={onToggleRead ? () => onToggleRead(event) : undefined}
       title={onToggleRead ? "双击切换已读" : undefined}
-      className={`flex flex-col gap-1 px-3 py-2 transition-opacity duration-150 ${
+      className={`flex gap-2.5 px-3 py-2 transition-opacity duration-150 ${
         event.read ? "opacity-60" : ""
       } ${onToggleRead ? "cursor-pointer select-none" : ""}`}
     >
-      <div className="flex items-center justify-between gap-2">
-        <Sender sender={event.sender} />
-        {event.price !== undefined && (
-          <span className="shrink-0 text-sm font-semibold text-flower">{formatPrice(event.price)}</span>
+      <span aria-hidden className="w-1 shrink-0 self-stretch rounded-full bg-flower/70" />
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex items-center justify-between gap-2">
+          <Sender sender={event.sender} />
+          {event.price !== undefined && (
+            <span className="shrink-0 text-sm font-semibold text-flower">{formatPrice(event.price)}</span>
+          )}
+        </div>
+        {event.content !== undefined && (
+          <p
+            className="rounded-md px-2 py-1.5 text-sm break-words"
+            style={
+              colors
+                ? {
+                    background: `linear-gradient(135deg, ${colors.backgroundStart}, ${colors.backgroundEnd})`,
+                    color: colors.fontColor,
+                  }
+                : undefined
+            }
+          >
+            {event.content}
+          </p>
         )}
       </div>
-      {event.content !== undefined && (
-        <p
-          className="rounded-md px-2 py-1.5 text-sm break-words"
-          style={
-            colors
-              ? {
-                  background: `linear-gradient(135deg, ${colors.backgroundStart}, ${colors.backgroundEnd})`,
-                  color: colors.fontColor,
-                }
-              : undefined
-          }
-        >
-          {event.content}
-        </p>
-      )}
     </div>
   );
 }

@@ -10,9 +10,9 @@ import { ColumnConfigSchema, type ColumnConfig } from "./types";
 export const COLUMNS_STORAGE_KEY = "danmaku-backdoor.columns";
 
 export const DEFAULT_COLUMNS: ColumnConfig[] = [
-  { id: "danmaku", types: ["danmaku"] },
+  { id: "danmaku_gift", types: ["danmaku", "gift"] },
   { id: "super_chat", types: ["super_chat"] },
-  { id: "gift_guard", types: ["gift", "guard_buy"] },
+  { id: "guard_buy", types: ["guard_buy"] },
 ];
 
 const ColumnsSchema = z.array(ColumnConfigSchema).min(1);

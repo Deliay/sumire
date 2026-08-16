@@ -89,7 +89,8 @@ describe("toLiveEvent 四类事件映射（实测样本夹具）", () => {
 describe("toLiveEvent 缺字段容错", () => {
   it("danmaku：dm_v2 无 medal 时回退经典数组 info[3]（[0] 等级 [1] 牌名 [6] 颜色整数转 hex）", () => {
     const fixture = clone(danmakuFixture);
-    delete (fixture.payload.info[15] as { user: Record<string, unknown> }).user.medal;
+    const v2 = (fixture.payload.info[0] as unknown[])[15] as { user: Record<string, unknown> };
+    delete v2.user.medal;
     const e = toLiveEvent(fixture);
     expect(e).not.toBeNull();
     expect(e?.sender.medal).toEqual({
@@ -101,7 +102,8 @@ describe("toLiveEvent 缺字段容错", () => {
 
   it("danmaku：经典数组牌子名为空 → medal 为 null", () => {
     const fixture = clone(danmakuFixture);
-    delete (fixture.payload.info[15] as { user: Record<string, unknown> }).user.medal;
+    const v2 = (fixture.payload.info[0] as unknown[])[15] as { user: Record<string, unknown> };
+    delete v2.user.medal;
     (fixture.payload.info[3] as unknown[])[1] = "";
     const e = toLiveEvent(fixture);
     expect(e?.sender.medal).toBeNull();
@@ -109,10 +111,142 @@ describe("toLiveEvent 缺字段容错", () => {
 
   it("danmaku：dm_v2 缺 user.base.face → face 为 null", () => {
     const fixture = clone(danmakuFixture);
-    const v2 = fixture.payload.info[15] as { user: { base: Record<string, unknown> } };
+    const v2 = (fixture.payload.info[0] as unknown[])[15] as { user: { base: Record<string, unknown> } };
     delete v2.user.base.face;
     const e = toLiveEvent(fixture);
     expect(e?.sender.face).toBeNull();
+  });
+
+  it("danmaku：extra 已是对象（非 JSON 字符串）也能解析出 eventId 与内容", () => {
+    const fixture = clone(danmakuFixture);
+    const v2 = (fixture.payload.info[0] as unknown[])[15] as { extra: string };
+    v2.extra = { id_str: "6923001122334455", content: "堇宝今天唱什么呀" } as unknown as string;
+    const e = toLiveEvent(fixture);
+    expect(e).not.toBeNull();
+    expect(e?.eventId).toBe("dm:6923001122334455");
+    expect(e?.content).toBe("堇宝今天唱什么呀");
+  });
+
+  it("danmaku：回归——同一用户多条消息必须得到不同 eventId（v2 在 info[0][15]，extra.id_str 唯一）", () => {
+    const fixture = clone(danmakuFixture);
+    const info = fixture.payload.info as unknown[];
+    const i0 = info[0] as unknown[];
+    const v2 = i0[15] as { extra: string };
+    // 克隆第二份：同用户（info[2] 相同）、不同 id_str
+    v2.extra = JSON.stringify({ id_str: "AAAA0000", content: "第一条", mode: 0 });
+    const e1 = toLiveEvent(fixture);
+    v2.extra = JSON.stringify({ id_str: "BBBB1111", content: "第二条", mode: 0 });
+    const e2 = toLiveEvent(fixture);
+    expect(e1).not.toBeNull();
+    expect(e2).not.toBeNull();
+    expect(e1?.eventId).toBe("dm:AAAA0000");
+    expect(e2?.eventId).toBe("dm:BBBB1111");
+    expect(e1?.eventId).not.toBe(e2?.eventId);
+    expect(e1?.sender.uid).toBe(e2?.sender.uid);
+  });
+
+  it("danmaku：无 dm_v2（info[0][15] 缺失）时回退经典字段——eventId 用 info[0][7]、uid/name 用 info[2]、medal 用 info[3]", () => {
+    const fixture = clone(danmakuFixture);
+    (fixture.payload.info[0] as unknown[]).pop();
+    const e = toLiveEvent(fixture);
+    expect(e).not.toBeNull();
+    expect(e?.eventId).toBe("dm:9f3c2a1d");
+    expect(e?.sender.uid).toBe(248197);
+    expect(e?.sender.name).toBe("紫罗兰的信");
+    expect(e?.sender.face).toBeNull();
+    expect(e?.sender.medal).toEqual({
+      name: "堇色信笺",
+      level: 12,
+      color: `#${(12632257).toString(16).padStart(6, "0")}`,
+    });
+    expect(e?.content).toBe("堇宝今天唱什么呀");
+  });
+
+  it("danmaku：表情弹幕（info[0][13] 为 emoticon 对象）提取 emote.url 与 emote.name，仍保留 content", () => {
+    const fixture = clone(danmakuFixture);
+    const i0 = fixture.payload.info[0] as unknown[];
+    i0[12] = 1;
+    i0[13] = {
+      bulge_display: 1,
+      emoticon_unique: "room_1727076670_118056",
+      height: 162,
+      in_player_area: 1,
+      is_dynamic: 0,
+      url: "http://i0.hdslb.com/bfs/live/c6f3177115ef915da729d1b25708b69651ac5481.png",
+      width: 162,
+    };
+    const e = toLiveEvent(fixture);
+    expect(e).not.toBeNull();
+    expect(e?.emote).toEqual({
+      url: "http://i0.hdslb.com/bfs/live/c6f3177115ef915da729d1b25708b69651ac5481.png",
+      name: "堇宝今天唱什么呀",
+      width: 162,
+      height: 162,
+    });
+    expect(e?.content).toBe("堇宝今天唱什么呀");
+  });
+
+  it("danmaku：info[0][13] 为字符串（非表情）时不带 emote 字段", () => {
+    const fixture = clone(danmakuFixture);
+    const i0 = fixture.payload.info[0] as unknown[];
+    i0[12] = 0;
+    i0[13] = "{}";
+    const e = toLiveEvent(fixture);
+    expect(e).not.toBeNull();
+    expect(e?.emote).toBeUndefined();
+  });
+
+  it("danmaku：小表情（emoji 风格）经 extra.emots 按文本键解析——info[0][13] 无 emoticon 也能取到 emote", () => {
+    const fixture = clone(danmakuFixture);
+    const i0 = fixture.payload.info[0] as unknown[];
+    i0[12] = 0;
+    i0[13] = "{}";
+    (fixture.payload.info as unknown[])[1] = "[比心]";
+    const v2 = i0[15] as { extra: string };
+    v2.extra = JSON.stringify({
+      id_str: "6923001122334455",
+      content: "[比心]",
+      mode: 0,
+      emots: {
+        "[比心]": {
+          count: 1,
+          descript: "[比心]",
+          emoji: "[比心]",
+          emoticon_id: 217,
+          emoticon_unique: "emoji_217",
+          height: 20,
+          url: "http://i0.hdslb.com/bfs/live/4e029593562283f00d39b99e0557878c4199c71d.png",
+          width: 20,
+        },
+      },
+    });
+    const e = toLiveEvent(fixture);
+    expect(e).not.toBeNull();
+    expect(e?.content).toBe("[比心]");
+    expect(e?.emote).toEqual({
+      url: "http://i0.hdslb.com/bfs/live/4e029593562283f00d39b99e0557878c4199c71d.png",
+      name: "[比心]",
+      width: 20,
+      height: 20,
+    });
+  });
+
+  it("danmaku：emots 有映射但 content 无匹配键时不取 emote（保留纯文本）", () => {
+    const fixture = clone(danmakuFixture);
+    const i0 = fixture.payload.info[0] as unknown[];
+    i0[12] = 0;
+    i0[13] = "{}";
+    (fixture.payload.info as unknown[])[1] = "测试测试";
+    const v2 = i0[15] as { extra: string };
+    v2.extra = JSON.stringify({
+      id_str: "6923001122334455",
+      content: "测试测试",
+      mode: 0,
+      emots: { "[比心]": { url: "http://i0.hdslb.com/bfs/live/x.png", width: 20, height: 20 } },
+    });
+    const e = toLiveEvent(fixture);
+    expect(e?.content).toBe("测试测试");
+    expect(e?.emote).toBeUndefined();
   });
 
   it("super_chat：缺 data.uinfo 时回退 data.user_info", () => {

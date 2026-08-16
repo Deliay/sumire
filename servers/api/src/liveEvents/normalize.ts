@@ -20,6 +20,8 @@ export interface LiveEvent {
   occurredAt: string;
   sender: LiveEventSender;
   content?: string;
+  /** 弹幕表情图片（仅 danmaku）：上游 info[0][13] emoticon 对象存在时携带，前端渲染为图片。 */
+  emote?: { url: string; name?: string; width?: number; height?: number };
   price?: number;
   scColors?: { backgroundStart: string; backgroundEnd: string; fontColor: string };
   gift?: { name: string; count: number };
@@ -74,10 +76,12 @@ function medalFromMedalInfo(medalInfo: unknown): LiveEventSender["medal"] {
 function normalizeDanmaku(payload: Record<string, unknown>, occurredAt: string): LiveEvent | null {
   const info = asArray(payload.info);
   if (!info) return null;
-  // dm_v2 结构化字段（info[15]）：eventId 与头像的唯一来源
-  const v2 = asRecord(info[15]);
-  const extra = asRecord(parseJson(v2?.extra));
-  const idStr = asString(extra?.id_str);
+  // dm_v2 结构化字段（实测在 info[0][15]，部分样本在顶层 info[15]）：eventId 与头像的首选来源；
+  // 真实 payload 中 extra 可能是 JSON 字符串或已是对象
+  const v2 = asRecord(asArray(info[0])?.[15]) ?? asRecord(info[15]);
+  const extra = asRecord(parseJson(v2?.extra)) ?? asRecord(v2?.extra);
+  // eventId：优先 dm_v2 extra.id_str，回退经典数组 info[0][7]（每消息唯一的 dm hash 字符串）
+  const idStr = asString(extra?.id_str) ?? asString(asArray(info[0])?.[7]);
   if (!idStr) return null;
 
   const classicUser = asArray(info[2]);
@@ -104,12 +108,31 @@ function normalizeDanmaku(payload: Record<string, unknown>, occurredAt: string):
 
   const content = asString(info[1]) ?? asString(extra?.content);
 
+  // 表情弹幕：
+  // 1) 房间表情：上游 info[0][13] 为 emoticon 对象（含 url/width/height）；
+  // 2) 小表情（emoji 风格）：上游 extra.emots 为按文本键控的映射（如 {"[比心]": {url,width,height,...}}），
+  //    以 content 为键取出（如「[比心]」）。两处任一生效即视为表情，前端渲染图片而非纯文本。
+  const classicEmote = asRecord(asArray(info[0])?.[13]);
+  const emots = asRecord(extra?.emots);
+  const emotsEntry = content ? asRecord(emots?.[content]) : undefined;
+  const emoteSource = emotsEntry && asString(emotsEntry.url) ? emotsEntry : classicEmote;
+  const emoteUrl = asString(emoteSource?.url);
+  const emote = emoteUrl
+    ? {
+        url: emoteUrl,
+        ...(content ? { name: content } : {}),
+        ...(asNumber(emoteSource?.width) !== undefined ? { width: asNumber(emoteSource?.width) } : {}),
+        ...(asNumber(emoteSource?.height) !== undefined ? { height: asNumber(emoteSource?.height) } : {}),
+      }
+    : undefined;
+
   return {
     eventId: `dm:${idStr}`,
     type: "danmaku",
     occurredAt,
     sender: { uid, name, face, medal },
     ...(content !== undefined ? { content } : {}),
+    ...(emote ? { emote } : {}),
     read: false,
   };
 }

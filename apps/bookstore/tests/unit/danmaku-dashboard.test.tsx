@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { LiveEvent } from "@/features/danmaku/types";
 import type { Role } from "@/features/backdoor/api";
 
@@ -53,7 +53,10 @@ describe("DanmakuDashboard", () => {
     currentRole = "admin";
     // jsdom 无布局：virtualizer 经 offsetWidth/offsetHeight 实测视口，stub 固定尺寸
     vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(600);
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(600);
     vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(360);
+    // scrollHeight 无布局为 0 → 会误判「已达底部」：stub 较大值，滚动时才进入底部余量
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(2000);
     mockListLiveEvents();
     markLiveEventRead.mockResolvedValue({ status: 200, data: { ok: true } });
     markLiveEventUnread.mockResolvedValue({ status: 200, data: { ok: true } });
@@ -71,11 +74,11 @@ describe("DanmakuDashboard", () => {
     expect(await screen.findByText("弹幕一")).toBeTruthy();
     expect(screen.getByText("醒目留言一")).toBeTruthy();
     expect(screen.getByText(/辣条/)).toBeTruthy();
-    // 三栏各自的检索请求（弹幕 | SC | 礼物+上船）
+    // 三栏各自的检索请求（弹幕+礼物 | SC | 上船）
     const calledTypes = listLiveEvents.mock.calls.map((c) => c[0]);
-    expect(calledTypes).toContainEqual(["danmaku"]);
+    expect(calledTypes).toContainEqual(["danmaku", "gift"]);
     expect(calledTypes).toContainEqual(["super_chat"]);
-    expect(calledTypes).toContainEqual(["gift", "guard_buy"]);
+    expect(calledTypes).toContainEqual(["guard_buy"]);
   });
 
   it("admin 双击 SC：乐观置灰并调用 read 接口", async () => {
@@ -142,12 +145,11 @@ describe("DanmakuDashboard", () => {
     });
     render(<DanmakuDashboard />);
 
-    // 弹幕栏进入错误态：显示错误提示 + 重试按钮，不落入「暂无事件」
+    // 弹幕+礼物栏进入错误态：显示错误提示 + 重试按钮，不落入「暂无事件」
     expect(await screen.findByText("检索失败")).toBeTruthy();
     expect(screen.getByRole("button", { name: "重试" })).toBeTruthy();
-    // 其余栏正常渲染（SC 与礼物栏）
+    // 其余栏正常渲染（SC 栏独立不受影响）
     expect(screen.getByText("醒目留言一")).toBeTruthy();
-    expect(screen.getByText(/辣条/)).toBeTruthy();
   });
 
   it("历史检索失败后点击重试，重新检索并恢复该栏", async () => {
@@ -171,5 +173,43 @@ describe("DanmakuDashboard", () => {
     expect(await screen.findByText("检索失败")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "重试" }));
     expect(await screen.findByText("弹幕一")).toBeTruthy();
+  });
+
+  it("滚动接近尾部触发加载下一页历史（分页 append 去重）", async () => {
+    // 分页 mock：弹幕+gift 栏第一页 20 条 total=21，第二页 1 条 total=21
+    const page1 = Array.from({ length: 20 }, (_, i) =>
+      makeEvent({ eventId: `dm:p1-${i}`, type: "danmaku", content: `弹幕一页${i}` }),
+    );
+    listLiveEvents.mockImplementation(async (types: string[], page = 1) => {
+      if (types.includes("guard_buy") || (types.length === 1 && types[0] === "super_chat")) {
+        return { status: 200, data: { total: 0, page, pageSize: 50, items: [] } };
+      }
+      const page2Event = makeEvent({ eventId: "dm:2", type: "danmaku", content: "弹幕二（下一页）" });
+      return {
+        status: 200,
+        data: {
+          total: 21,
+          page,
+          pageSize: 20,
+          items: page === 1 ? page1 : [page2Event],
+        },
+      };
+    });
+    render(<DanmakuDashboard />);
+    expect(await screen.findByText("弹幕一页0")).toBeTruthy();
+
+    // 首屏第一页足够长、未触及尾部：未请求第二页
+    expect(listLiveEvents.mock.calls.some((c) => c[1] === 2)).toBe(false);
+
+    // 滚动至弹幕信息流底部（scrollHeight 2000 - clientHeight 600 - 余量）→ 触发加载第二页
+    const feed = document.querySelector('[aria-label="弹幕信息流"]') as HTMLElement;
+    expect(feed).not.toBeNull();
+    await act(async () => {
+      feed.scrollTop = 1400;
+      fireEvent.scroll(feed);
+    });
+    await waitFor(() =>
+      expect(listLiveEvents.mock.calls.some((c) => c[1] === 2)).toBe(true),
+    );
   });
 });

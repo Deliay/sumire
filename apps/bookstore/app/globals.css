@@ -29,6 +29,8 @@
   --color-flower: #8b5fd6;
   --color-vine: #5e4a75;
   --color-eye: #7fb0e6;
+  --color-crimson: #e06a7a;
+  --color-gold: #d8b25c;
 
   /* 字体（变量由 app/layout.tsx 的 next/font 注入） */
   --font-serif: var(--font-noto-serif-sc), "Noto Serif SC", serif;

@@ -27,3 +27,31 @@ export function formatPrice(price: number): string {
   const rounded = Math.round(price * 100) / 100;
   return `¥${Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}`;
 }
+
+/**
+ * 上船船型强调色（左竖条 / chip / 金额共用）：
+ * 3=舰长 → 蓝（eye）；2=提督 → 紫（flower）；1=总督 → 红（crimson）。
+ * 未知等级回退紫色。返回 Tailwind token 类名。
+ */
+export function guardLevelTone(level: number): { bar: string; chip: string; text: string } {
+  switch (level) {
+    case 3:
+      return { bar: "bg-eye/70", chip: "bg-eye/25", text: "text-eye" };
+    case 1:
+      return { bar: "bg-crimson/70", chip: "bg-crimson/25", text: "text-crimson" };
+    case 2:
+    default:
+      return { bar: "bg-flower/70", chip: "bg-flower/30", text: "text-flower" };
+  }
+}
+
+/**
+ * 礼物价值（元）强调色：<10 灰（ink-dim）；10-99 蓝（eye）；100-500 金（gold）；>500 红（crimson）。
+ * 返回 Tailwind token 类名。
+ */
+export function giftPriceTone(price: number): string {
+  if (price > 500) return "text-crimson";
+  if (price >= 100) return "text-gold";
+  if (price >= 10) return "text-eye";
+  return "text-ink-dim";
+}

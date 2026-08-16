@@ -70,13 +70,20 @@ function intToHexColor(value: unknown): string {
   return n !== undefined && n > 0 ? `#${n.toString(16).padStart(6, "0")}` : "#ffffff";
 }
 
+/** 牌子颜色：B 站既给 hex 字符串（#RRGGBB）也给十进制整数（medal_color），统一转 CSS hex。 */
+function medalColor(value: unknown): string {
+  const s = asString(value);
+  if (s && /^#[0-9a-fA-F]{6}$/.test(s)) return s;
+  return intToHexColor(value);
+}
+
 /** medal_info 形态（SC / 礼物共用）：牌子名为空视为无牌子。 */
 function medalFromMedalInfo(medalInfo: unknown): LiveEventSender["medal"] {
   const mi = asRecord(medalInfo);
   if (!mi) return null;
   const name = asString(mi.medal_name);
   if (!name) return null;
-  return { name, level: asNumber(mi.medal_level) ?? 0, color: asString(mi.medal_color) ?? "#ffffff" };
+  return { name, level: asNumber(mi.medal_level) ?? 0, color: medalColor(mi.medal_color) };
 }
 
 function normalizeDanmaku(payload: Record<string, unknown>, occurredAt: string): LiveEvent | null {
@@ -110,7 +117,7 @@ function normalizeDanmaku(payload: Record<string, unknown>, occurredAt: string):
   let medal: LiveEventSender["medal"] = null;
   const v2MedalName = asString(v2Medal?.name);
   if (v2Medal && v2MedalName) {
-    medal = { name: v2MedalName, level: asNumber(v2Medal.level) ?? 0, color: asString(v2Medal.color) ?? "#ffffff" };
+    medal = { name: v2MedalName, level: asNumber(v2Medal.level) ?? 0, color: medalColor(v2Medal.color) };
   } else {
     const classicMedal = asArray(info[3]);
     const classicName = asString(classicMedal?.[1]);

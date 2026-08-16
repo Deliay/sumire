@@ -34,6 +34,14 @@ describe("toLiveEvent 四类事件映射（实测样本夹具）", () => {
     });
   });
 
+  it("danmaku：dm_v2 user.medal.color 为十进制整数时转 CSS hex（B 站实测形态）", () => {
+    const fixture = clone(danmakuFixture) as Record<string, any>;
+    const info = (fixture.payload.info as any[])[0];
+    (info[15] as any).user.medal = { name: "堇色信笺", level: 34, color: 7996451 };
+    const e = toLiveEvent(fixture);
+    expect(e?.sender.medal).toEqual({ name: "堇色信笺", level: 34, color: "#7a0423" });
+  });
+
   it("super_chat：uinfo.base 昵称头像、medal_info 牌子、price 直接用元、scColors 映射", () => {
     const e = toLiveEvent(clone(superChatFixture));
     expect(e).not.toBeNull();

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { LiveEvent } from "@/features/danmaku/types";
 import type { Role } from "@/features/backdoor/api";
 
@@ -36,31 +36,6 @@ const DM_EVENT: LiveEvent = {
   read: false,
 };
 
-/** 模拟 Fullscreen API：requestFullscreen/exitFullscreen/fullscreenElement。 */
-function mockFullscreen() {
-  let fullscreenEl: Element | null = null;
-  const request = vi.fn(() => {
-    fullscreenEl = document.body;
-    dispatchFullscreenChange();
-    return Promise.resolve();
-  });
-  const exit = vi.fn(() => {
-    fullscreenEl = null;
-    dispatchFullscreenChange();
-    return Promise.resolve();
-  });
-  function dispatchFullscreenChange() {
-    document.dispatchEvent(new Event("fullscreenchange"));
-  }
-  Object.defineProperty(document, "fullscreenElement", {
-    configurable: true,
-    get: () => fullscreenEl,
-  });
-  HTMLElement.prototype.requestFullscreen = request as typeof HTMLElement.prototype.requestFullscreen;
-  document.exitFullscreen = exit as typeof document.exitFullscreen;
-  return { request, exit };
-}
-
 describe("DanmakuPage 全屏模式", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -79,10 +54,6 @@ describe("DanmakuPage 全屏模式", () => {
     cleanup();
     vi.clearAllMocks();
     vi.restoreAllMocks();
-    // 清掉 fullscreen 相关覆盖
-    Reflect.deleteProperty(document, "fullscreenElement");
-    Reflect.deleteProperty(HTMLElement.prototype, "requestFullscreen");
-    Reflect.deleteProperty(document, "exitFullscreen");
   });
 
   it("页头同一行结尾渲染「全屏模式」按钮", async () => {
@@ -92,33 +63,27 @@ describe("DanmakuPage 全屏模式", () => {
     expect(btn.getAttribute("aria-pressed")).toBe("false");
   });
 
-  it("点击后请求全屏，按钮切换为「退出全屏」", async () => {
-    const { request } = mockFullscreen();
+  it("点击后以 fixed 遮罩占满网页窗口，出现「退出全屏」按钮", async () => {
     render(<DanmakuPage />);
-    const btn = await screen.findByRole("button", { name: "全屏模式" });
-    fireEvent.click(btn);
-    expect(request).toHaveBeenCalledTimes(1);
-    expect(await screen.findByRole("button", { name: "退出全屏" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "退出全屏" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(await screen.findByRole("button", { name: "全屏模式" }));
+    const overlay = document.querySelector(".fixed.inset-0.z-50") as HTMLElement;
+    expect(overlay).not.toBeNull();
+    const exitBtn = await screen.findByRole("button", { name: "退出全屏" });
+    expect(exitBtn.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.queryByRole("button", { name: "全屏模式" })).toBeNull();
   });
 
-  it("再次点击退出全屏", async () => {
-    const { exit } = mockFullscreen();
+  it("再次点击退出全屏，恢复页头按钮", async () => {
     render(<DanmakuPage />);
     fireEvent.click(await screen.findByRole("button", { name: "全屏模式" }));
     fireEvent.click(await screen.findByRole("button", { name: "退出全屏" }));
-    expect(exit).toHaveBeenCalledTimes(1);
     expect(await screen.findByRole("button", { name: "全屏模式" })).toBeTruthy();
+    expect(document.querySelector(".fixed.inset-0.z-50")).toBeNull();
   });
 
-  it("全屏时分栏容器使用占满整屏的布局类", async () => {
-    mockFullscreen();
-    const { container } = render(<DanmakuPage />);
+  it("全屏后分栏数据仍正常渲染", async () => {
+    render(<DanmakuPage />);
     fireEvent.click(await screen.findByRole("button", { name: "全屏模式" }));
-    await act(async () => {});
-    const fullscreenBox = container.querySelector(".overflow-hidden") as HTMLElement;
-    expect(fullscreenBox).not.toBeNull();
-    const danmakuFeed = await screen.findByText("弹幕一");
-    expect(danmakuFeed).toBeTruthy();
+    expect(await screen.findByText("弹幕一")).toBeTruthy();
   });
 });

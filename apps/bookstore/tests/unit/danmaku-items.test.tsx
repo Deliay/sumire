@@ -141,6 +141,14 @@ describe("SuperChatItem", () => {
     expect(root.className).not.toContain("select-none");
     fireEvent.doubleClick(root); // 不应抛错
   });
+
+  it("isNew=true 渲染「New」标记，isNew 缺省/为 false 不渲染", () => {
+    render(<SuperChatItem event={sc} isNew />);
+    expect(screen.getByText("New")).toBeTruthy();
+    cleanup();
+    render(<SuperChatItem event={sc} />);
+    expect(screen.queryByText("New")).toBeNull();
+  });
 });
 
 describe("GiftItem", () => {
@@ -268,5 +276,13 @@ describe("GuardItem", () => {
     expect(container.firstElementChild?.className).toContain("opacity-60");
     fireEvent.doubleClick(container.firstElementChild as Element);
     expect(onToggleRead).toHaveBeenCalledTimes(1);
+  });
+
+  it("isNew=true 渲染「New」标记，isNew 缺省/为 false 不渲染", () => {
+    render(<GuardItem event={guard} isNew />);
+    expect(screen.getByText("New")).toBeTruthy();
+    cleanup();
+    render(<GuardItem event={guard} />);
+    expect(screen.queryByText("New")).toBeNull();
   });
 });

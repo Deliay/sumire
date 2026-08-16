@@ -38,6 +38,8 @@ interface FeedColumnProps {
   sections: FeedSectionData[];
   canManage: boolean;
   onToggleRead?: (event: LiveEvent) => void;
+  /** 实时流到达的 SC/上船 eventId → type 映射，用于「New」标记。 */
+  newIds?: ReadonlyMap<string, LiveEventType>;
   /** 本栏包含的「全部已读」管理类型（super_chat / guard_buy），仅 canManage 时渲染按钮。 */
   readAllTypes?: ReadAllType[];
   onReadAll?: (type: ReadAllType) => void;
@@ -57,6 +59,7 @@ export default function FeedColumn({
   sections,
   canManage,
   onToggleRead,
+  newIds = new Map(),
   readAllTypes = [],
   onReadAll,
   headerExtra,
@@ -115,6 +118,7 @@ export default function FeedColumn({
             events={section.events}
             canManage={canManage}
             onToggleRead={onToggleRead}
+            newIds={newIds}
             loading={section.loading}
             error={section.error}
             onRetry={section.onRetry}

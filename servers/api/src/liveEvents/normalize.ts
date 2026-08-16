@@ -208,8 +208,8 @@ function normalizeGuardBuy(payload: Record<string, unknown>, occurredAt: string)
 }
 
 /**
- * 上游信封 → LiveEvent。信封 type 必须属于四类事件；payload 结构不符合映射规则、
- * 或 eventId 无法派生时返回 null 并 console.warn（由调用方过滤，不中断流）。
+ * 上游信封 → LiveEvent。信封 type 必须属于四类事件且 occurredAt 为合法时间字符串；
+ * payload 结构不符合映射规则、或 eventId 无法派生时返回 null 并 console.warn（由调用方过滤，不中断流）。
  */
 export function toLiveEvent(envelope: unknown): LiveEvent | null {
   try {
@@ -217,7 +217,11 @@ export function toLiveEvent(envelope: unknown): LiveEvent | null {
     if (!rec) throw new Error("信封不是对象");
     const type = asString(rec.type);
     if (!type || !EVENT_TYPES.includes(type)) throw new Error(`未知事件类型: ${String(rec.type)}`);
-    const occurredAt = asString(rec.occurredAt) ?? new Date().toISOString();
+    // occurredAt 缺失/非法不回退为「现在」：避免缺字段事件以当前时间参与水位线比较
+    const occurredAt = asString(rec.occurredAt);
+    if (!occurredAt || Number.isNaN(new Date(occurredAt).getTime())) {
+      throw new Error("信封 occurredAt 缺失或非法");
+    }
     const payload = asRecord(rec.payload);
     if (!payload) throw new Error("payload 不是对象");
 

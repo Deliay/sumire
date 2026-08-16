@@ -192,4 +192,20 @@ describe("toLiveEvent 解析失败 → null + console.warn（不抛断流）", (
     expect(toLiveEvent("x")).toBeNull();
     expect(toLiveEvent(42)).toBeNull();
   });
+
+  it("信封 occurredAt 缺失 → null（不回退为「现在」参与水位线比较）", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fixture = clone(superChatFixture) as Record<string, unknown>;
+    delete fixture.occurredAt;
+    expect(toLiveEvent(fixture)).toBeNull();
+    expect(warn).toHaveBeenCalled();
+  });
+
+  it("信封 occurredAt 非法（非时间字符串）→ null", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fixture = clone(superChatFixture) as Record<string, unknown>;
+    fixture.occurredAt = "not-a-date";
+    expect(toLiveEvent(fixture)).toBeNull();
+    expect(warn).toHaveBeenCalled();
+  });
 });

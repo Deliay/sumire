@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { requireRole } from "../rbac/requireRole";
 import { toLiveEvent, type LiveEvent, type LiveEventType } from "../liveEvents/normalize";
 import type { LiveEventsUpstream, UpstreamEnvelope } from "../liveEvents/upstream";
-import { markRead, markUnread, markAllRead, resolveReadState } from "../db/liveEventReads";
+import { markRead, markUnread, markAllRead, resolveReadState, typeFromEventId } from "../db/liveEventReads";
 
 export const LIVE_EVENT_TYPES: readonly LiveEventType[] = ["danmaku", "super_chat", "gift", "guard_buy"];
 /** 「全部已读」仅支持需要已读管理的类型（契约口径）。 */
@@ -137,13 +137,20 @@ export function createLiveEventsRouter(deps: LiveEventsRouterDeps): Router {
     try {
       let backoff = backoffInitialMs;
       while (!controller.signal.aborted) {
+        // 收到事件即视为连接成功：重连成功后退避重置回起步值（提案 K2「1s 起步」）
+        let received = false;
+        const trackedSend = async (envelope: UpstreamEnvelope): Promise<void> => {
+          received = true;
+          await send(envelope);
+        };
         try {
-          await deps.upstream.subscribe(types.types, send, controller.signal);
+          await deps.upstream.subscribe(types.types, trackedSend, controller.signal);
         } catch (err) {
           if (controller.signal.aborted) break;
           console.warn("[liveEvents] 上游订阅中断，退避重连:", err instanceof Error ? err.message : err);
         }
         if (controller.signal.aborted) break;
+        if (received) backoff = backoffInitialMs;
         await sleep(backoff);
         backoff = Math.min(backoff * 2, backoffMaxMs);
       }
@@ -160,6 +167,11 @@ export function createLiveEventsRouter(deps: LiveEventsRouterDeps): Router {
       res.status(400).json({ error: "eventId 不能为空" });
       return;
     }
+    // 前缀非法（如 watermark:super_chat）会静默摧毁水位线记录，直接拒绝
+    if (!typeFromEventId(eventId)) {
+      res.status(400).json({ error: "eventId 格式非法" });
+      return;
+    }
     await markRead(eventId, req.user?.username ?? "unknown");
     res.status(200).json({ ok: true });
   });
@@ -169,6 +181,10 @@ export function createLiveEventsRouter(deps: LiveEventsRouterDeps): Router {
     const eventId = (req.body as { eventId?: unknown } | undefined)?.eventId;
     if (typeof eventId !== "string" || eventId.trim().length === 0) {
       res.status(400).json({ error: "eventId 不能为空" });
+      return;
+    }
+    if (!typeFromEventId(eventId)) {
+      res.status(400).json({ error: "eventId 格式非法" });
       return;
     }
     await markUnread(eventId, req.user?.username ?? "unknown");

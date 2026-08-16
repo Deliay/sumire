@@ -302,6 +302,21 @@ describe("POST /api/live-events/read 与 /unread", () => {
     expect(rows[0].kind).toBe("read");
   });
 
+  it.each([
+    ["/api/live-events/read", "watermark:super_chat"],
+    ["/api/live-events/read", "watermark:guard_buy"],
+    ["/api/live-events/unread", "watermark:super_chat"],
+    ["/api/live-events/read", "bogus:1"],
+    ["/api/live-events/unread", ":noprefix"],
+  ])("%s eventId 前缀非法（%s）→ 400 且不写库", async (path, eventId) => {
+    const { app, store } = buildApp(stubUpstream(pageOf([])));
+    const cookie = await sessionCookie(store, "admin");
+    const r = await call(app, { method: "POST", path, body: { eventId }, cookie });
+    expect(r.status).toBe(400);
+    expect(typeof (r.body as { error?: unknown }).error).toBe("string");
+    expect(rows.find((row) => row.eventId === eventId)).toBeUndefined();
+  });
+
   it("kind 覆盖：read 后 unread，同一 eventId 最新为 unread", async () => {
     const { app, store } = buildApp(stubUpstream(pageOf([])));
     const cookie = await sessionCookie(store, "admin");
@@ -377,6 +392,16 @@ describe("POST /api/live-events/read-all（水位线）", () => {
     const r = await call(app, { method: "POST", path: "/api/live-events/read-all", body: { type: "guard_buy" }, cookie });
     expect(r.status).toBe(502);
     expect(r.body).toEqual({ error: "上游事件服务不可用" });
+  });
+
+  it("该类型无事件 → 200 marked=0 且不写水位线", async () => {
+    const upstream = stubUpstream(pageOf([]));
+    const { app, store } = buildApp(upstream);
+    const cookie = await sessionCookie(store, "admin");
+    const r = await call(app, { method: "POST", path: "/api/live-events/read-all", body: { type: "guard_buy" }, cookie });
+    expect(r.status).toBe(200);
+    expect(r.body).toEqual({ ok: true, marked: 0 });
+    expect(rows.find((row) => row.eventId === "watermark:guard_buy")).toBeUndefined();
   });
 });
 
@@ -512,6 +537,40 @@ describe("GET /api/live-events/stream（SSE 透传）", () => {
         const text = await readUntil(res.body!, (t) => t.includes("dm:6923001122334455"));
         expect(text).toContain("dm:6923001122334455");
         expect(calls).toBeGreaterThanOrEqual(2);
+      } finally {
+        controller.abort();
+      }
+    });
+  });
+
+  it("重连成功（收到事件）后退避重置回起步值，而非沿用上次的倍增结果", async () => {
+    const store = memSessionStore();
+    const cookie = await sessionCookie(store, "member");
+    const callTimes: number[] = [];
+    const upstream = {
+      fetchRange: vi.fn(),
+      subscribe: vi.fn().mockImplementation(async (_t: string[], onEvent: (e: UpstreamEnvelope) => Promise<void>, signal: AbortSignal) => {
+        callTimes.push(Date.now());
+        if (callTimes.length <= 2) {
+          // 每次连接都先收到事件再断流：退避应重置回起步值
+          await onEvent(clone(danmakuFixture));
+          return;
+        }
+        await hangUntilAbort(signal);
+      }),
+    };
+    // 起步 40ms、上限 2000ms：若不重置，第三次调用前将等待 80ms
+    await withServer(sseTestApp(store, upstream, { backoffInitialMs: 40, backoffMaxMs: 2000 }), async (port) => {
+      const controller = new AbortController();
+      try {
+        const res = await fetch(`http://127.0.0.1:${port}/api/live-events/stream`, {
+          headers: { cookie },
+          signal: controller.signal,
+        });
+        await readUntil(res.body!, () => callTimes.length >= 3);
+        expect(callTimes.length).toBeGreaterThanOrEqual(3);
+        const secondGap = callTimes[2] - callTimes[1];
+        expect(secondGap).toBeLessThan(70);
       } finally {
         controller.abort();
       }

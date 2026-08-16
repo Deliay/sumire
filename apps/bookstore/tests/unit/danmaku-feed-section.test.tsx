@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import FeedSection from "@/features/danmaku/components/FeedSection";
 import type { LiveEvent } from "@/features/danmaku/types";
 
-const SENDER: LiveEvent["sender"] = { uid: 1, name: "观众A", face: null, medal: null, guardLevel: null };
+const SENDER: LiveEvent["sender"] = { uid: 1, name: "观众A", nameRomaji: null, face: null, medal: null, guardLevel: null };
 
 function makeEvent(partial: Partial<LiveEvent> & Pick<LiveEvent, "eventId" | "type">): LiveEvent {
   return { occurredAt: "2026-08-16T12:00:00.000Z", sender: SENDER, read: false, ...partial };
@@ -124,5 +124,42 @@ describe("FeedSection 弹幕折叠", () => {
     await act(async () => {});
     expect(onLoadMore).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "加载更多" })).toBeTruthy();
+  });
+});
+
+describe("FeedSection New 标记（实时流 SC/上船）", () => {
+  beforeEach(() => {
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(600);
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(600);
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(360);
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(2000);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("newIds 命中 SC/上船 eventId 时渲染「New」标记", () => {
+    const sc = makeEvent({ eventId: "sc:1", type: "super_chat", content: "醒目留言", price: 30 });
+    const guard = makeEvent({ eventId: "guard:1", type: "guard_buy", price: 138, guard: { level: 3, name: "舰长", count: 1 } });
+    render(
+      <FeedSection
+        label="SC+上船"
+        events={[sc, guard]}
+        canManage={false}
+        newIds={new Map([
+          ["sc:1", "super_chat"],
+          ["guard:1", "guard_buy"],
+        ])}
+      />,
+    );
+    expect(screen.getAllByText("New")).toHaveLength(2);
+  });
+
+  it("newIds 未命中（历史事件）不渲染「New」标记", () => {
+    const sc = makeEvent({ eventId: "sc:1", type: "super_chat", content: "醒目留言", price: 30 });
+    render(<FeedSection label="SC" events={[sc]} canManage={false} newIds={new Map()} />);
+    expect(screen.queryByText("New")).toBeNull();
   });
 });

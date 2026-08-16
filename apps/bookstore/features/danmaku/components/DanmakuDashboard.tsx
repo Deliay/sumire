@@ -31,6 +31,9 @@ import FeedColumn from "./FeedColumn";
 /** 「全部已读」仅支持需要已读管理的类型（契约口径）。 */
 const READ_ALL_TYPES: readonly ReadAllType[] = ["super_chat", "guard_buy"];
 
+/** 实时流到达即打「New」标记的事件类型（仅 SC / 上船）。 */
+const NEW_MARK_TYPES: readonly LiveEventType[] = ["super_chat", "guard_buy"];
+
 /** 历史检索每页条数（后端 pageSize 上限 100）。 */
 const PAGE_SIZE = 100;
 
@@ -74,6 +77,8 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
   const [pagesBySection, setPagesBySection] = useState<Record<string, number>>({});
   const [totalsBySection, setTotalsBySection] = useState<Record<string, number>>({});
   const [loadingMoreBySection, setLoadingMoreBySection] = useState<Record<string, boolean>>({});
+  // 实时流到达的 SC/上船事件 eventId → type 集合（读后清除，用于「New」标记）
+  const [newIds, setNewIds] = useState<ReadonlyMap<string, LiveEventType>>(new Map());
 
   // 检索代际：columns 变化时递增，旧代检索结果作废，避免竞态覆盖新栏位数据
   const generationRef = useRef(0);
@@ -181,6 +186,15 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
         }
         return next;
       });
+      // 实时流到达的 SC/上船标记为 New（读后清除）
+      if ((NEW_MARK_TYPES as readonly string[]).includes(event.type)) {
+        setNewIds((prev) => {
+          if (prev.has(event.eventId)) return prev;
+          const next = new Map(prev);
+          next.set(event.eventId, event.type);
+          return next;
+        });
+      }
     },
     [columns],
   );
@@ -202,6 +216,15 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
     async (event: LiveEvent) => {
       const nextRead = !event.read;
       updateEvent(event.eventId, (e) => ({ ...e, read: nextRead }));
+      // 标记已读时清除「New」
+      if (nextRead) {
+        setNewIds((prev) => {
+          if (!prev.has(event.eventId)) return prev;
+          const next = new Map(prev);
+          next.delete(event.eventId);
+          return next;
+        });
+      }
       const { status } = nextRead
         ? await markLiveEventRead(event.eventId)
         : await markLiveEventUnread(event.eventId);
@@ -220,6 +243,14 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
         const next: Record<string, LiveEvent[]> = {};
         for (const [id, list] of Object.entries(prev)) {
           next[id] = list.map((e) => (e.type === type ? { ...e, read: true } : e));
+        }
+        return next;
+      });
+      // 该类型全部已读 → 清除其 New 标记
+      setNewIds((prev) => {
+        const next = new Map(prev);
+        for (const [id, t] of prev) {
+          if (t === type) next.delete(id);
         }
         return next;
       });
@@ -285,6 +316,7 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
               sections={sections}
               canManage={canManage}
               onToggleRead={toggleRead}
+              newIds={newIds}
               readAllTypes={col.types.filter((t): t is ReadAllType =>
                 (READ_ALL_TYPES as readonly string[]).includes(t),
               )}

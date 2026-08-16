@@ -81,6 +81,19 @@ describe("DanmakuItem", () => {
     expect(img.className).toContain("max-h-8");
     expect(img.className).not.toContain("max-h-16");
   });
+
+  it("折叠弹幕最右侧展示重复计数（count>1 → ×N）", () => {
+    render(<DanmakuItem event={makeEvent({ eventId: "dm:5", type: "danmaku", content: "妈妈" })} count={3} />);
+    expect(screen.getByText("×3")).toBeTruthy();
+  });
+
+  it("count 缺省或为 1 时不渲染计数", () => {
+    render(<DanmakuItem event={makeEvent({ eventId: "dm:6", type: "danmaku", content: "妈妈" })} />);
+    expect(screen.queryByText(/×/)).toBeNull();
+    cleanup();
+    render(<DanmakuItem event={makeEvent({ eventId: "dm:7", type: "danmaku", content: "妈妈" })} count={1} />);
+    expect(screen.queryByText(/×/)).toBeNull();
+  });
 });
 
 describe("SuperChatItem", () => {

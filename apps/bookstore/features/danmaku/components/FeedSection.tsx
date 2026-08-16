@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { LiveEvent } from "../types";
+import { mergeDanmaku, type MergedDanmaku } from "../merge";
 import { useAnchoredFeed } from "../useAnchoredFeed";
 import DanmakuItem from "./DanmakuItem";
 import SuperChatItem from "./SuperChatItem";
@@ -45,12 +46,17 @@ export default function FeedSection({
 }: FeedSectionProps) {
   const { containerRef, showBackToTop, handleScroll, scrollToTop } = useAnchoredFeed();
 
+  // 相邻重复弹幕折叠为一行（展示计数）；非弹幕原样透传。
+  const rows = useMemo<MergedDanmaku[]>(() => mergeDanmaku(events), [events]);
+  // 折叠使可视行减少（rows.length < events.length）
+  const folded = rows.length < events.length;
+
   const virtualizer = useVirtualizer({
-    count: events.length,
+    count: rows.length,
     getScrollElement: () => containerRef.current,
     estimateSize: () => 72,
     overscan: 8,
-    getItemKey: (index) => events[index]?.eventId ?? index,
+    getItemKey: (index) => rows[index]?.event.eventId ?? index,
     initialRect: { width: 360, height: 600 },
   });
 
@@ -58,26 +64,32 @@ export default function FeedSection({
   // 仅当容器可滚动（scrollHeight > clientHeight）且贴近底部时自动加载：
   // 短列表（未铺满）不自动加载，避免多类型栏位中小节数量少而 hasMore 由整栏驱动导致的无限加载，
   // 短列表改用尾部「加载更多」按钮手动加载。
+  // 例外：弹幕折叠使可视行减少（folded）且列表未铺满时，向下加载一条填充视口。
   const maybeLoadMore = useCallback(() => {
     if (!onLoadMore || loadingMore) return;
     const el = containerRef.current;
     if (!el || !hasMore || events.length === 0) return;
+    if (folded && el.scrollHeight <= el.clientHeight) {
+      onLoadMore();
+      return;
+    }
     if (el.scrollHeight <= el.clientHeight) return;
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - LOAD_MORE_OFFSET_PX) {
       onLoadMore();
     }
-  }, [onLoadMore, loadingMore, hasMore, events.length, containerRef]);
+  }, [onLoadMore, loadingMore, hasMore, events.length, containerRef, folded]);
 
   // 加载更多后容器可能仍未铺满，继续探测；事件数量变化（SSE prepend / 分页 append）时重新评估
   useEffect(() => {
     maybeLoadMore();
   }, [maybeLoadMore, events.length]);
 
-  function renderItem(event: LiveEvent) {
+  function renderItem(row: MergedDanmaku) {
+    const event = row.event;
     const toggleRead = canManage ? onToggleRead : undefined;
     switch (event.type) {
       case "danmaku":
-        return <DanmakuItem event={event} />;
+        return <DanmakuItem event={event} count={row.count} />;
       case "super_chat":
         return <SuperChatItem event={event} onToggleRead={toggleRead} />;
       case "gift":
@@ -110,8 +122,8 @@ export default function FeedSection({
           ) : (
             <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
               {virtualizer.getVirtualItems().map((virtualItem) => {
-                const event = events[virtualItem.index];
-                if (!event) return null;
+                const row = rows[virtualItem.index];
+                if (!row) return null;
                 return (
                   <div
                     key={virtualItem.key}
@@ -120,7 +132,7 @@ export default function FeedSection({
                     className="absolute top-0 left-0 w-full border-b border-vine/30"
                     style={{ transform: `translateY(${virtualItem.start}px)` }}
                   >
-                    {renderItem(event)}
+                    {renderItem(row)}
                   </div>
                 );
               })}

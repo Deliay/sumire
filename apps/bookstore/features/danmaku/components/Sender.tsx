@@ -58,10 +58,10 @@ export default function Sender({ sender, compact = false }: SenderProps) {
       </a>
       {sender.medal && (
         <span
-          className={`shrink-0 rounded border px-1 py-px leading-4 ${
+          className={`shrink-0 rounded px-1 py-px leading-4 ${
             compact ? "text-[10px] opacity-70" : "text-xs"
           }`}
-          style={{ color: sender.medal.color, borderColor: sender.medal.color }}
+          style={{ color: "#ffffff", backgroundColor: sender.medal.color }}
         >
           {sender.medal.name} {sender.medal.level}
         </span>

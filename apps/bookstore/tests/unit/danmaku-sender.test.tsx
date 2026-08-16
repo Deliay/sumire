@@ -25,7 +25,8 @@ describe("Sender 公共组件", () => {
     expect(screen.getByText("测试观众")).toBeTruthy();
     const medal = screen.getByText(/堇粉丝/);
     expect(medal.textContent).toContain("21");
-    expect(medal.getAttribute("style")).toContain("rgb(139, 95, 214)");
+    expect(medal.getAttribute("style")).toContain("rgb(139, 95, 214)"); // 背景色为牌子色
+    expect(medal.getAttribute("style")).toContain("rgb(255, 255, 255)"); // 文字白色
   });
 
   it("缺头像（face=null）时渲染兜底首字，不渲染 img", () => {

@@ -128,7 +128,7 @@ describe("resolveReadState（单条记录 + 水位线批量合并）", () => {
     expect(out.map((e) => e.read)).toEqual([true, false, true, false, false]);
     expect(findSpy).toHaveBeenCalled();
     // 查询条件：单条记录按 eventId $in，水位线按 kind + type $in
-    const filters = findSpy.mock.calls.map((c) => c[0] as Record<string, unknown>);
+    const filters = (findSpy.mock.calls as unknown[][]).map((c) => c[0]);
     expect(JSON.stringify(filters)).toContain("watermark");
   });
 

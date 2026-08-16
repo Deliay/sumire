@@ -10,6 +10,8 @@ export type LiveEventType = "danmaku" | "super_chat" | "gift" | "guard_buy";
 export interface LiveEventSender {
   uid: number;
   name: string;
+  /** 昵称罗马音标注：归一化阶段恒为 null，出口由路由层经 romaji 标注填充 */
+  nameRomaji: string | null;
   face: string | null;
   medal: { name: string; level: number; color: string } | null;
   /** 上船等级（3=舰长，2=提督，1=总督）；无上船为 null。仅身份标识。 */
@@ -139,7 +141,7 @@ function normalizeDanmaku(payload: Record<string, unknown>, occurredAt: string):
     eventId: `dm:${idStr}`,
     type: "danmaku",
     occurredAt,
-    sender: { uid, name, face, medal, guardLevel },
+    sender: { uid, name, nameRomaji: null, face, medal, guardLevel },
     ...(content !== undefined ? { content } : {}),
     ...(emote ? { emote } : {}),
     read: false,
@@ -172,7 +174,7 @@ function normalizeSuperChat(payload: Record<string, unknown>, occurredAt: string
     eventId: `sc:${id}`,
     type: "super_chat",
     occurredAt,
-    sender: { uid, name, face, medal: medalFromMedalInfo(data.medal_info), guardLevel: null },
+    sender: { uid, name, nameRomaji: null, face, medal: medalFromMedalInfo(data.medal_info), guardLevel: null },
     ...(content !== undefined ? { content } : {}),
     ...(price !== undefined ? { price } : {}),
     ...(bgStart && bgEnd && fontColor
@@ -206,7 +208,7 @@ function normalizeGift(payload: Record<string, unknown>, occurredAt: string): Li
     eventId: `gift:${id}`,
     type: "gift",
     occurredAt,
-    sender: { uid, name, face: asString(data.face) ?? null, medal: medalFromMedalInfo(data.medal_info), guardLevel: null },
+    sender: { uid, name, nameRomaji: null, face: asString(data.face) ?? null, medal: medalFromMedalInfo(data.medal_info), guardLevel: null },
     price,
     gift: { name: giftName, count },
     read: false,
@@ -228,7 +230,7 @@ function normalizeGuardBuy(payload: Record<string, unknown>, occurredAt: string)
     type: "guard_buy",
     occurredAt,
     // 上游事实：GUARD_BUY 无头像、无粉丝团牌子
-    sender: { uid, name, face: null, medal: null, guardLevel: asNumber(data.guard_level) ?? null },
+    sender: { uid, name, nameRomaji: null, face: null, medal: null, guardLevel: asNumber(data.guard_level) ?? null },
     ...(price !== undefined ? { price: price / 1000 } : {}),
     guard: {
       level: asNumber(data.guard_level) ?? 0,

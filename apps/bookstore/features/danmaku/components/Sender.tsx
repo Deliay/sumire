@@ -53,6 +53,7 @@ export default function Sender({ sender, compact = false }: SenderProps) {
           }`}
         >
           {sender.name}
+          {sender.nameRomaji ? <span className="text-ink-dim"> ({sender.nameRomaji})</span> : null}
         </span>
       </a>
       {sender.medal && (

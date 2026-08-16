@@ -30,7 +30,7 @@ vi.mock("@/features/backdoor/session", () => ({
 
 import DanmakuDashboard from "@/features/danmaku/components/DanmakuDashboard";
 
-const SENDER: LiveEvent["sender"] = { uid: 1, name: "观众A", face: null, medal: null, guardLevel: null };
+const SENDER: LiveEvent["sender"] = { uid: 1, name: "观众A", nameRomaji: null, face: null, medal: null, guardLevel: null };
 
 function makeEvent(partial: Partial<LiveEvent> & Pick<LiveEvent, "eventId" | "type">): LiveEvent {
   return { occurredAt: "2026-08-16T12:00:00.000Z", sender: SENDER, read: false, ...partial };

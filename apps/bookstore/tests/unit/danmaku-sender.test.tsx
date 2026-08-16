@@ -7,6 +7,7 @@ import type { LiveEvent } from "@/features/danmaku/types";
 const BASE_SENDER: LiveEvent["sender"] = {
   uid: 672353429,
   name: "测试观众",
+  nameRomaji: null,
   face: "https://i0.hdslb.com/face.jpg",
   medal: { name: "堇粉丝", level: 21, color: "#8b5fd6" },
   guardLevel: null,
@@ -37,6 +38,17 @@ describe("Sender 公共组件", () => {
     render(<Sender sender={{ ...BASE_SENDER, medal: null }} />);
     expect(screen.getByText("测试观众")).toBeTruthy();
     expect(screen.queryByText(/堇粉丝/)).toBeNull();
+  });
+
+  it("有 nameRomaji 时展示 `名字 (罗马音)`，无则只展示名字", () => {
+    render(<Sender sender={{ ...BASE_SENDER, nameRomaji: "hakkatō" }} />);
+    expect(screen.getByText(/测试观众/).textContent).toContain("(hakkatō)");
+  });
+
+  it("nameRomaji 为 null 时仅展示名字，不渲染罗马音", () => {
+    render(<Sender sender={{ ...BASE_SENDER, nameRomaji: null }} />);
+    expect(screen.getByText("测试观众")).toBeTruthy();
+    expect(screen.queryByText(/\(/)).toBeNull();
   });
 
   it("guardLevel 为 null 时不渲染船员标识", () => {

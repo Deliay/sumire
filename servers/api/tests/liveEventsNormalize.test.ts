@@ -24,6 +24,7 @@ describe("toLiveEvent 四类事件映射（实测样本夹具）", () => {
       sender: {
         uid: 248197,
         name: "紫罗兰的信",
+        nameRomaji: null,
         face: "https://i0.hdslb.com/bfs/face/member/248197.jpg",
         medal: { name: "堇色信笺", level: 12, color: "#6680ff" },
         guardLevel: null,
@@ -43,6 +44,7 @@ describe("toLiveEvent 四类事件映射（实测样本夹具）", () => {
       sender: {
         uid: 322892,
         name: "薄荷糖",
+        nameRomaji: null,
         face: "https://i1.hdslb.com/bfs/face/member/322892.jpg",
         medal: { name: "堇色信笺", level: 18, color: "#c79eff" },
         guardLevel: null,
@@ -64,6 +66,7 @@ describe("toLiveEvent 四类事件映射（实测样本夹具）", () => {
       sender: {
         uid: 21568305,
         name: "浅眠风",
+        nameRomaji: null,
         face: "https://i2.hdslb.com/bfs/face/member/21568305.jpg",
         medal: { name: "堇色信笺", level: 9, color: "#00d1f9" },
         guardLevel: null,
@@ -81,7 +84,7 @@ describe("toLiveEvent 四类事件映射（实测样本夹具）", () => {
       eventId: "guard:437917:1755338730",
       type: "guard_buy",
       occurredAt: "2026-08-16T13:25:30.000Z",
-      sender: { uid: 437917, name: "夜航星", face: null, medal: null, guardLevel: 3 },
+      sender: { uid: 437917, name: "夜航星", nameRomaji: null, face: null, medal: null, guardLevel: 3 },
       price: 138,
       guard: { level: 3, name: "舰长", count: 1 },
       read: false,

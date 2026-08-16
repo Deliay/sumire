@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { requireRole } from "../rbac/requireRole";
 import { toLiveEvent, type LiveEvent, type LiveEventType } from "../liveEvents/normalize";
+import { toNameRomaji } from "../liveEvents/romaji";
 import type { LiveEventsUpstream, UpstreamEnvelope } from "../liveEvents/upstream";
 import { markRead, markUnread, markAllRead, resolveReadState, typeFromEventId } from "../db/liveEventReads";
 
@@ -15,6 +16,8 @@ const READ_ALL_PAGE_SIZE = 100;
 
 export interface LiveEventsRouterDeps {
   upstream: LiveEventsUpstream;
+  /** 昵称 → 罗马音标注（缺省用 kuroshiro 实现；单测可注入恒 null 或以 name 取巧）。 */
+  toNameRomajiFn?: (name: string) => Promise<string | null>;
   /** SSE 心跳间隔（缺省 30s，单测可调小）。 */
   heartbeatMs?: number;
   /** 上游断流重连退避：起步 1s，倍增至 30s 上限（单测可调小）。 */
@@ -54,8 +57,22 @@ function normalizeAll(items: UpstreamEnvelope[]): LiveEvent[] {
   return items.map(toLiveEvent).filter((e): e is LiveEvent => e !== null);
 }
 
+/** 为事件 sender 填充昵称罗马音标注（sender.nameRomaji）。 */
+async function annotateSenderRomaji(
+  events: LiveEvent[],
+  toNameRomajiFn: (name: string) => Promise<string | null>,
+): Promise<LiveEvent[]> {
+  return Promise.all(
+    events.map(async (e) => {
+      const nameRomaji = await toNameRomajiFn(e.sender.name);
+      return { ...e, sender: { ...e.sender, nameRomaji } };
+    }),
+  );
+}
+
 export function createLiveEventsRouter(deps: LiveEventsRouterDeps): Router {
   const router = Router();
+  const toNameRomajiFn = deps.toNameRomajiFn ?? toNameRomaji;
   const heartbeatMs = deps.heartbeatMs ?? HEARTBEAT_MS;
   const backoffInitialMs = deps.backoffInitialMs ?? BACKOFF_INITIAL_MS;
   const backoffMaxMs = deps.backoffMaxMs ?? BACKOFF_MAX_MS;
@@ -85,7 +102,7 @@ export function createLiveEventsRouter(deps: LiveEventsRouterDeps): Router {
       total: upstreamPage.total,
       page: upstreamPage.page,
       pageSize: upstreamPage.pageSize,
-      items,
+      items: await annotateSenderRomaji(items, toNameRomajiFn),
     });
   });
 
@@ -118,7 +135,9 @@ export function createLiveEventsRouter(deps: LiveEventsRouterDeps): Router {
       if (!event) return;
       const [merged] = await resolveReadState([event]);
       if (controller.signal.aborted || res.writableEnded) return;
-      res.write(`data: ${JSON.stringify(merged ?? event)}\n\n`);
+      const [annotated] = await annotateSenderRomaji(merged ? [merged] : [event], toNameRomajiFn);
+      if (controller.signal.aborted || res.writableEnded) return;
+      res.write(`data: ${JSON.stringify(annotated)}\n\n`);
     };
 
     const sleep = (ms: number): Promise<void> =>

@@ -14,6 +14,7 @@ interface MockLiveEvent {
   sender: {
     uid: number;
     name: string;
+    nameRomaji: string | null;
     face: string | null;
     medal: { name: string; level: number; color: string } | null;
     guardLevel: number | null;
@@ -30,7 +31,7 @@ let uidSeq = 100000;
 
 function senderOf(name: string): MockLiveEvent["sender"] {
   // face 一律 null：走缺头像兜底渲染，避免 e2e 发起外网图片请求
-  return { uid: uidSeq++, name, face: null, medal: { name: "枝枝", level: 21, color: "#b4a6bf" }, guardLevel: null };
+  return { uid: uidSeq++, name, nameRomaji: null, face: null, medal: { name: "枝枝", level: 21, color: "#b4a6bf" }, guardLevel: null };
 }
 
 function danmakuEvent(eventId: string, content: string, guardLevel: number | null = null): MockLiveEvent {

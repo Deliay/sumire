@@ -160,7 +160,26 @@ async function call(
 
 function buildApp(upstream: ReturnType<typeof stubUpstream>) {
   const store = memSessionStore();
-  const app = createApp({ sessionStore: store, rateLimiter: unlimited, liveEventsUpstream: upstream as never });
+  const app = createApp({
+    sessionStore: store,
+    rateLimiter: unlimited,
+    liveEventsUpstream: upstream as never,
+    toNameRomajiFn: async () => null,
+  });
+  return { app, store };
+}
+
+function createAppWithRomaji(
+  upstream: ReturnType<typeof stubUpstream>,
+  mapping: Record<string, string | null>,
+) {
+  const store = memSessionStore();
+  const app = createApp({
+    sessionStore: store,
+    rateLimiter: unlimited,
+    liveEventsUpstream: upstream as never,
+    toNameRomajiFn: async (name) => mapping[name] ?? null,
+  });
   return { app, store };
 }
 
@@ -235,6 +254,20 @@ describe("GET /api/live-events（检索代理 + 归一化 + 已读合并）", ()
     expect(body.items).toHaveLength(1);
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+
+  it("sender.nameRomaji 由路由层经 toNameRomajiFn 填充（含汉字填充、无汉字置 null）", async () => {
+    const upstream = stubUpstream(pageOf([clone(superChatFixture)]));
+    const { app, store } = createAppWithRomaji(upstream, {
+      "薄荷糖": "hakkatō",
+      "测试观众": null,
+    });
+    const cookie = await sessionCookie(store, "member");
+    const r = await call(app, { method: "GET", path: "/api/live-events", cookie });
+    expect(r.status).toBe(200);
+    const body = r.body as { items: Array<{ sender: { name: string; nameRomaji: string | null } }> };
+    expect(body.items[0].sender.name).toBe("薄荷糖");
+    expect(body.items[0].sender.nameRomaji).toBe("hakkatō");
   });
 
   it("缺省参数：全部类型 + page=1&pageSize=50", async () => {
@@ -413,7 +446,7 @@ function sseTestApp(store: SessionStore, upstream: unknown, overrides?: { heartb
   app.use(sessionMiddleware(store));
   app.use(
     "/api/live-events",
-    createLiveEventsRouter({ upstream: upstream as never, heartbeatMs: 30_000, ...overrides }),
+    createLiveEventsRouter({ upstream: upstream as never, toNameRomajiFn: async () => null, heartbeatMs: 30_000, ...overrides }),
   );
   return app;
 }

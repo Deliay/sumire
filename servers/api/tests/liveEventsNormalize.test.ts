@@ -90,12 +90,21 @@ describe("toLiveEvent 四类事件映射（实测样本夹具）", () => {
 });
 
 describe("toLiveEvent danmaku 上船等级 guardLevel", () => {
-  it("danmaku：经典数组 info[2] 第 8 位 guard_level>0 时映射到 sender.guardLevel（舰长=3）", () => {
+  it("danmaku：dm_v2 user.medal.guard_level>0 映射到 sender.guardLevel（舰长=3）", () => {
     const fixture = clone(danmakuFixture);
-    (fixture.payload.info[2] as unknown[])[7] = 3;
+    const v2 = (fixture.payload.info[0] as unknown[])[15] as { user: Record<string, unknown> };
+    (v2.user.medal as Record<string, unknown>).guard_level = 3;
     const e = toLiveEvent(fixture);
     expect(e).not.toBeNull();
     expect(e?.sender.guardLevel).toBe(3);
+  });
+
+  it("danmaku：经典数组 info[2] 第 8 位 guard_level>0 时映射到 sender.guardLevel（提督=2）", () => {
+    const fixture = clone(danmakuFixture);
+    (fixture.payload.info[2] as unknown[])[7] = 2;
+    const e = toLiveEvent(fixture);
+    expect(e).not.toBeNull();
+    expect(e?.sender.guardLevel).toBe(2);
   });
 
   it("danmaku：guard_level 为 0 或缺位时 sender.guardLevel 为 null", () => {
@@ -107,6 +116,14 @@ describe("toLiveEvent danmaku 上船等级 guardLevel", () => {
     expect(toLiveEvent(fixture)?.sender.guardLevel).toBeNull();
     (fixture.payload.info[2] as unknown[]) = [];
     expect(toLiveEvent(fixture)?.sender.guardLevel).toBeNull();
+  });
+
+  it("danmaku：medal 有 guard_level 时优先于经典数组", () => {
+    const fixture = clone(danmakuFixture);
+    const v2 = (fixture.payload.info[0] as unknown[])[15] as { user: Record<string, unknown> };
+    (v2.user.medal as Record<string, unknown>).guard_level = 1;
+    (fixture.payload.info[2] as unknown[])[7] = 3;
+    expect(toLiveEvent(fixture)?.sender.guardLevel).toBe(1);
   });
 });
 

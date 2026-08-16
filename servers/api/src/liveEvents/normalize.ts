@@ -94,13 +94,16 @@ function normalizeDanmaku(payload: Record<string, unknown>, occurredAt: string):
   if (uid === undefined || !name) return null;
   const face = asString(v2Base?.face) ?? null;
 
-  // 上船等级：经典数组 info[2] 第 8 位（索引 7）为 guard_level（0=无上船）；dm_v2 无单独字段时回退该值
+  // 上船等级：实测 dm_v2 的用户牌子对象 user.medal 内带 guard_level；回退经典数组 info[2] 第 8 位（索引 7）。
+  // 0/缺位视为无上船。
+  const v2Medal = asRecord(v2User?.medal);
+  const v2GuardLevel = asNumber(v2Medal?.guard_level);
   const classicGuardLevel = asNumber(classicUser?.[7]);
-  const guardLevel = classicGuardLevel !== undefined && classicGuardLevel > 0 ? classicGuardLevel : null;
+  const rawGuardLevel = v2GuardLevel ?? classicGuardLevel;
+  const guardLevel = rawGuardLevel !== undefined && rawGuardLevel > 0 ? rawGuardLevel : null;
 
   // 牌子：优先 dm_v2 user.medal，回退经典数组 info[3]（[0]=等级，[1]=牌名，[6]=颜色整数）
   let medal: LiveEventSender["medal"] = null;
-  const v2Medal = asRecord(v2User?.medal);
   const v2MedalName = asString(v2Medal?.name);
   if (v2Medal && v2MedalName) {
     medal = { name: v2MedalName, level: asNumber(v2Medal.level) ?? 0, color: asString(v2Medal.color) ?? "#ffffff" };

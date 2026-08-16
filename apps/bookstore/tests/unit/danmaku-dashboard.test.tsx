@@ -132,4 +132,44 @@ describe("DanmakuDashboard", () => {
     await waitFor(() => expect(markAllLiveEventsRead).toHaveBeenCalledWith("super_chat"));
     await waitFor(() => expect(row.className).toContain("opacity-60"));
   });
+
+  it("历史检索失败（非 200）时该栏显示错误态与重试按钮，其它栏不受影响", async () => {
+    listLiveEvents.mockImplementationOnce(async (types: string[]) => {
+      if (types.includes("danmaku")) {
+        return { status: 502, data: { error: "上游事件服务不可用" } };
+      }
+      return { status: 200, data: { total: 0, page: 1, pageSize: 50, items: [] } };
+    });
+    render(<DanmakuDashboard />);
+
+    // 弹幕栏进入错误态：显示错误提示 + 重试按钮，不落入「暂无事件」
+    expect(await screen.findByText("检索失败")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "重试" })).toBeTruthy();
+    // 其余栏正常渲染（SC 与礼物栏）
+    expect(screen.getByText("醒目留言一")).toBeTruthy();
+    expect(screen.getByText(/辣条/)).toBeTruthy();
+  });
+
+  it("历史检索失败后点击重试，重新检索并恢复该栏", async () => {
+    listLiveEvents.mockImplementationOnce(async () => {
+      return { status: 502, data: { error: "上游事件服务不可用" } };
+    });
+    render(<DanmakuDashboard />);
+    const retry = await screen.findByRole("button", { name: "重试" });
+
+    // 重试成功（回落到默认 mock 成功实现）
+    fireEvent.click(retry);
+    expect(await screen.findByText("弹幕一")).toBeTruthy();
+    await waitFor(() => expect(screen.queryByText("检索失败")).toBeNull());
+  });
+
+  it("历史检索网络异常（reject）同样进入错误态并可重试", async () => {
+    listLiveEvents.mockImplementationOnce(async () => {
+      throw new Error("network down");
+    });
+    render(<DanmakuDashboard />);
+    expect(await screen.findByText("检索失败")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    expect(await screen.findByText("弹幕一")).toBeTruthy();
+  });
 });

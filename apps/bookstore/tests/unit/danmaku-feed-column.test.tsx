@@ -76,4 +76,12 @@ describe("FeedColumn", () => {
     render(<FeedColumn title="SC" events={EVENTS} canManage={false} onReadAll={vi.fn()} readAllTypes={["super_chat"]} />);
     expect(screen.queryByRole("button", { name: /全部已读/ })).toBeNull();
   });
+
+  it("error 时显示错误提示与重试按钮，点击触发 onRetry", () => {
+    const onRetry = vi.fn();
+    render(<FeedColumn title="弹幕" events={[]} canManage={false} error="检索失败" onRetry={onRetry} />);
+    expect(screen.getByText("检索失败")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
 });

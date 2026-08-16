@@ -27,6 +27,10 @@ interface FeedColumnProps {
   /** 本栏包含的「全部已读」管理类型（super_chat / guard_buy），仅 canManage 时渲染按钮。 */
   readAllTypes?: ReadAllType[];
   onReadAll?: (type: ReadAllType) => void;
+  /** 历史检索错误提示（非空时展示错误态替代空态/列表）。 */
+  error?: string | null;
+  /** 错误态重试回调（重新发起本栏检索）。 */
+  onRetry?: () => void;
   /** 栏头附加操作区（栏位配置按钮）。 */
   headerExtra?: ReactNode;
   /** 栏位配置面板（展开时渲染于栏头下方）。 */
@@ -45,6 +49,8 @@ export default function FeedColumn({
   onToggleRead,
   readAllTypes = [],
   onReadAll,
+  error = null,
+  onRetry,
   headerExtra,
   configPanel,
 }: FeedColumnProps) {
@@ -128,6 +134,19 @@ export default function FeedColumn({
         >
           {loading && events.length === 0 ? (
             <div className="m-3 min-h-32 animate-pulse rounded-md border border-vine/50 bg-soft" aria-busy="true" />
+          ) : error ? (
+            <div className="m-3 flex min-h-32 flex-col items-center justify-center gap-2 rounded-md border border-flower/60 bg-soft px-3 py-6 text-center">
+              <p className="text-sm text-ink-dim">{error}</p>
+              {onRetry && (
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  className="rounded-md border border-vine/50 px-2 py-1 text-xs text-ink-dim transition-colors duration-150 hover:border-flower hover:text-ink"
+                >
+                  重试
+                </button>
+              )}
+            </div>
           ) : events.length === 0 ? (
             <p className="px-3 py-6 text-center text-sm text-ink-dim">暂无事件</p>
           ) : (

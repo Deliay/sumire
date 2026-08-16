@@ -1,13 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useSession } from "@/features/backdoor/session";
 import { atLeast } from "@/features/backdoor/roleAccess";
+import type { ApiError } from "@/features/backdoor/api";
 import {
   listLiveEvents,
   markAllLiveEventsRead,
   markLiveEventRead,
   markLiveEventUnread,
+  type LiveEventsPage,
   type ReadAllType,
 } from "../api";
 import {
@@ -18,7 +20,12 @@ import {
 } from "../columns";
 import { labelForType } from "../format";
 import { useLiveEventStream } from "../useLiveEventStream";
-import { LiveEventTypeSchema, type LiveEvent, type LiveEventType } from "../types";
+import {
+  LiveEventTypeSchema,
+  type ColumnConfig,
+  type LiveEvent,
+  type LiveEventType,
+} from "../types";
 import FeedColumn from "./FeedColumn";
 
 /** 「全部已读」仅支持需要已读管理的类型（契约口径）。 */
@@ -46,26 +53,54 @@ export default function DanmakuDashboard() {
   const columns = useSyncExternalStore(subscribeColumns, getColumnsSnapshot, getColumnsServerSnapshot);
   const [eventsByColumn, setEventsByColumn] = useState<Record<string, LiveEvent[]>>({});
   const [loadedColumns, setLoadedColumns] = useState<ReadonlySet<string>>(new Set());
+  const [columnErrors, setColumnErrors] = useState<Record<string, string>>({});
   const [configOpenId, setConfigOpenId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
 
-  // 历史首屏：栏位变化时按栏检索（loading 由「未加载完成」派生，无需同步 setState）
+  // 检索代际：columns 变化时递增，旧代检索结果作废，避免竞态覆盖新栏位数据
+  const generationRef = useRef(0);
+
+  // 单栏历史检索：进入 loading（移出已加载），失败记错误态，成功写入去重后条目。
+  // 重试与首屏共用此函数。
+  const loadColumn = useCallback(async (col: ColumnConfig, generation: number) => {
+    setLoadedColumns((prev) => {
+      const next = new Set(prev);
+      next.delete(col.id);
+      return next;
+    });
+    setColumnErrors((prev) => {
+      const next = { ...prev };
+      delete next[col.id];
+      return next;
+    });
+    let status = 0;
+    let data: LiveEventsPage | ApiError | null = null;
+    try {
+      const res = await listLiveEvents(col.types);
+      status = res.status;
+      data = res.data;
+    } catch {
+      // 网络错误/请求异常：与上游非 200 同口径进入错误态，暴露重试入口
+      status = 0;
+      data = null;
+    }
+    if (generationRef.current !== generation) return;
+    if (status === 200 && data && "items" in data) {
+      setEventsByColumn((prev) => ({ ...prev, [col.id]: dedupeById(data.items) }));
+    } else {
+      setColumnErrors((prev) => ({ ...prev, [col.id]: "检索失败" }));
+    }
+    setLoadedColumns((prev) => new Set(prev).add(col.id));
+  }, []);
+
+  // 历史首屏：栏位变化时按栏检索
   useEffect(() => {
-    let active = true;
-    void Promise.all(
-      columns.map(async (col) => {
-        const { status, data } = await listLiveEvents(col.types);
-        if (!active) return;
-        if (status === 200 && "items" in data) {
-          setEventsByColumn((prev) => ({ ...prev, [col.id]: dedupeById(data.items) }));
-        }
-        setLoadedColumns((prev) => new Set(prev).add(col.id));
-      }),
-    );
-    return () => {
-      active = false;
-    };
-  }, [columns]);
+    generationRef.current += 1;
+    const generation = generationRef.current;
+    for (const col of columns) {
+      void loadColumn(col, generation);
+    }
+  }, [columns, loadColumn]);
 
   // 实时流：类型为各栏并集，事件分发进所有包含该类型的栏（prepend + eventId 去重）
   const streamTypes = useMemo(
@@ -174,6 +209,8 @@ export default function DanmakuDashboard() {
               title={title}
               events={eventsByColumn[col.id] ?? []}
               loading={!loadedColumns.has(col.id)}
+              error={columnErrors[col.id] ?? null}
+              onRetry={() => void loadColumn(col, generationRef.current)}
               canManage={canManage}
               onToggleRead={toggleRead}
               readAllTypes={col.types.filter((t): t is ReadAllType =>

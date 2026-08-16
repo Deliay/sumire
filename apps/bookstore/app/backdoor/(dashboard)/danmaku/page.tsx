@@ -34,8 +34,8 @@ export default function DanmakuPage() {
         </div>
       )}
       {isFullscreen && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-bg">
-          <div className="flex items-center justify-between border-b border-vine/50 px-3 py-2">
+        <div className="fixed inset-0 z-50 flex h-svh flex-col overflow-hidden bg-bg">
+          <div className="flex shrink-0 items-center justify-between border-b border-vine/50 px-3 py-2">
             <h1 className="font-serif text-xl font-semibold text-ink">弹幕后台</h1>
             <button
               type="button"

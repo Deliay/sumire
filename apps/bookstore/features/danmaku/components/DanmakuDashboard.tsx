@@ -49,7 +49,12 @@ function dedupeById(events: LiveEvent[]): LiveEvent[] {
  * 栏位类型组合可配置并持久化 localStorage（useSyncExternalStore 快照，SSR 回退默认）。
  * `<1024px` 纵向堆叠为纯 CSS（flex-col → lg:flex-row）。
  */
-export default function DanmakuDashboard() {
+interface DanmakuDashboardProps {
+  /** 全屏模式：分栏区占满整个屏幕（由弹幕后台页传入）。 */
+  isFullscreen?: boolean;
+}
+
+export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashboardProps) {
   const { session } = useSession();
   const canManage = session.status === "authenticated" && atLeast(session.me.role, "admin");
 
@@ -231,7 +236,7 @@ export default function DanmakuDashboard() {
   }, []);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className={isFullscreen ? "flex flex-1 flex-col gap-4" : "flex flex-col gap-4"}>
       {streamStatus === "connecting" && (
         <p className="text-sm text-ink-dim" role="status">
           实时事件连接中…
@@ -242,7 +247,13 @@ export default function DanmakuDashboard() {
           实时连接已断开
         </p>
       )}
-      <div className="flex h-[calc(100svh-16rem)] flex-col gap-4 lg:flex-row">
+      <div
+        className={
+          isFullscreen
+            ? "flex min-h-0 flex-1 flex-col gap-4 lg:flex-row"
+            : "flex h-[calc(100svh-16rem)] flex-col gap-4 lg:flex-row"
+        }
+      >
         {columns.map((col) => {
           const title = col.types.map(labelForType).join(" + ");
           const columnEvents = eventsByColumn[col.id] ?? [];

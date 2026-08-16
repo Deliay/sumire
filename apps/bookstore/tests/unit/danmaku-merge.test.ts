@@ -42,7 +42,7 @@ describe("danmakuMergeKey", () => {
 });
 
 describe("mergeDanmaku 弹幕折叠", () => {
-  it("相邻重复表情折叠并计数", () => {
+  it("相邻重复表情折叠并计数（代表行停在末次出现的原位）", () => {
     const rows = mergeDanmaku([
       dm("a", "[比心]", { url: "http://u/1.png" }),
       dm("b", "[比心]", { url: "http://u/1.png" }),
@@ -50,7 +50,7 @@ describe("mergeDanmaku 弹幕折叠", () => {
     ]);
     expect(rows).toHaveLength(1);
     expect(rows[0].count).toBe(3);
-    expect(rows[0].event.eventId).toBe("a");
+    expect(rows[0].event.eventId).toBe("c");
   });
 
   it("相邻重复文字折叠（4.2：妈妈妈妈妈/妈妈妈/妈妈）", () => {
@@ -66,14 +66,25 @@ describe("mergeDanmaku 弹幕折叠", () => {
     expect(rows[1].count).toBe(1);
   });
 
-  it("跨其他事件（非连续）的重复同样折叠，保留首次出现位置并累计计数", () => {
+  it("跨其他事件（非连续）的重复同样折叠，保留末次出现位置并累计计数", () => {
     const gift: LiveEvent = { ...dm("mid", "x"), type: "gift", gift: { name: "情书", count: 1 }, price: 1 };
     const rows = mergeDanmaku([dm("a", "妈妈"), gift, dm("b", "妈妈"), dm("c", "你好")]);
     expect(rows).toHaveLength(3);
-    expect(rows[0].event.eventId).toBe("a");
-    expect(rows[0].count).toBe(2);
-    expect(rows[1].event.type).toBe("gift");
+    expect(rows[0].event.type).toBe("gift");
+    expect(rows[1].event.eventId).toBe("b");
+    expect(rows[1].count).toBe(2);
     expect(rows[2].event.eventId).toBe("c");
+  });
+
+  it("SSE 新到的重复弹幕折叠到已展示的末次出现处，不跳到顶部（倒序列表场景）", () => {
+    const rows = mergeDanmaku([
+      dm("new", "妈妈"), // SSE 刚 prepend 到顶部的新重复
+      dm("w", "欢迎欢迎"),
+      dm("old", "妈妈"), // 用户正在浏览的旧出现
+    ]);
+    expect(rows.map((r) => r.event.eventId)).toEqual(["w", "old"]);
+    const folded = rows[1];
+    expect(folded.count).toBe(2);
   });
 
   it("非弹幕原样透传（count=1）", () => {

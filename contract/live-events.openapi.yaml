@@ -42,6 +42,12 @@ paths:
                   items:
                     type: array
                     items: { $ref: "#/components/schemas/LiveEvent" }
+        "400":
+          description: type 含非法值，或分页参数非法（page/pageSize 非正整数或 pageSize 超上限 100）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: "type 参数非法" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "502":
           description: 上游事件服务不可用（不可达 / 超时 / 返回非法）
@@ -70,6 +76,12 @@ paths:
               schema:
                 type: string
                 description: 每条 data 帧负载为单个 LiveEvent JSON
+        "400":
+          description: type 含非法值（在建立 SSE 流、flushHeaders 之前返回）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: "type 参数非法" }
         "401": { $ref: "#/components/responses/Unauthorized" }
   /api/live-events/read:
     post:
@@ -89,7 +101,7 @@ paths:
           description: 已标记（幂等）
           content: { application/json: { schema: { $ref: "#/components/schemas/Ok" } } }
         "400":
-          description: eventId 缺失或为空
+          description: eventId 缺失、为空或格式非法（前缀须为 dm/sc/gift/guard 之一）
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -114,7 +126,7 @@ paths:
           description: 已取消已读（幂等）
           content: { application/json: { schema: { $ref: "#/components/schemas/Ok" } } }
         "400":
-          description: eventId 缺失或为空
+          description: eventId 缺失、为空或格式非法（前缀须为 dm/sc/gift/guard 之一）
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -139,7 +151,7 @@ paths:
                   description: 仅支持需要已读管理的类型
       responses:
         "200":
-          description: 水位线已写入
+          description: 水位线已写入。该类型当前无事件时返回 marked=0 且不写水位线；marked 仅统计上游首页（≤100 条）口径。
           content:
             application/json:
               schema:
@@ -147,12 +159,21 @@ paths:
                 required: [ok, marked]
                 properties:
                   ok: { type: boolean, const: true }
-                  marked: { type: integer, description: 本次被水位线覆盖为已读的事件数 }
+                  marked: { type: integer, description: 本次被水位线覆盖为已读的事件数（仅统计上游首页 ≤100 条） }
         "400":
-          description: type 缺失或非法
-          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+          description: type 缺失或非法（仅支持 super_chat / guard_buy）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: "type 参数非法" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
+        "502":
+          description: 上游事件服务不可用（不可达 / 超时 / 返回非法）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: "上游事件服务不可用" }
 components:
   schemas:
     LiveEventType:

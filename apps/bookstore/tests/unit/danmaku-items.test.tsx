@@ -65,6 +65,22 @@ describe("DanmakuItem", () => {
     expect(img.className).toContain("max-h-16");
     expect(img.className).toContain("w-auto");
   });
+
+  it("小表情（emoji 风格，源图 ≤32px）缩小渲染上限为 32px（max-h-8）", () => {
+    render(
+      <DanmakuItem
+        event={makeEvent({
+          eventId: "dm:4",
+          type: "danmaku",
+          content: "[比心]",
+          emote: { url: "http://i0.hdslb.com/bfs/live/x.png", name: "[比心]", width: 20, height: 20 },
+        })}
+      />,
+    );
+    const img = screen.getByAltText("[比心]") as HTMLImageElement;
+    expect(img.className).toContain("max-h-8");
+    expect(img.className).not.toContain("max-h-16");
+  });
 });
 
 describe("SuperChatItem", () => {

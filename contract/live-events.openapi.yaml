@@ -212,6 +212,13 @@ components:
         content:
           type: string
           description: 弹幕文本 / SC 留言（仅 danmaku、super_chat）
+        emote:
+          type: object
+          required: [url]
+          description: 弹幕表情图片（仅 danmaku；上游经典 info[0][13] 的 emoticon 对象，存在时前端渲染为图片而非纯文本）
+          properties:
+            url: { type: string, description: 表情图片 URL }
+            name: { type: string, description: 表情名（可作 alt/兜底文案） }
         price:
           type: number
           description: 金额（元）：SC 为 data.price；礼物=金瓜子 combo_total_coin/1000（银瓜子=0）；上船=price/1000

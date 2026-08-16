@@ -30,6 +30,22 @@ describe("DanmakuItem", () => {
     render(<DanmakuItem event={makeEvent({ eventId: "dm:1", type: "danmaku", content: "来了来了" })} />);
     expect(screen.getByText("来了来了")).toBeTruthy();
   });
+
+  it("表情弹幕渲染表情图片（含 alt/title），不渲染纯文本", () => {
+    render(
+      <DanmakuItem
+        event={makeEvent({
+          eventId: "dm:2",
+          type: "danmaku",
+          content: "少女祈祷",
+          emote: { url: "http://i0.hdslb.com/bfs/live/x.png", name: "少女祈祷" },
+        })}
+      />,
+    );
+    const img = screen.getByAltText("少女祈祷") as HTMLImageElement;
+    expect(img.src).toContain("/x.png");
+    expect(screen.queryByText("少女祈祷")).toBeNull();
+  });
 });
 
 describe("SuperChatItem", () => {

@@ -20,6 +20,8 @@ export interface LiveEvent {
   occurredAt: string;
   sender: LiveEventSender;
   content?: string;
+  /** 弹幕表情图片（仅 danmaku）：上游 info[0][13] emoticon 对象存在时携带，前端渲染为图片。 */
+  emote?: { url: string; name?: string };
   price?: number;
   scColors?: { backgroundStart: string; backgroundEnd: string; fontColor: string };
   gift?: { name: string; count: number };
@@ -105,12 +107,20 @@ function normalizeDanmaku(payload: Record<string, unknown>, occurredAt: string):
 
   const content = asString(info[1]) ?? asString(extra?.content);
 
+  // 表情弹幕：上游 info[0][13] 为 emoticon 对象（含 url）时视为表情，前端渲染图片而非纯文本
+  const classicEmote = asRecord(asArray(info[0])?.[13]);
+  const emoteUrl = asString(classicEmote?.url);
+  const emote = emoteUrl
+    ? { url: emoteUrl, ...(content ? { name: content } : {}) }
+    : undefined;
+
   return {
     eventId: `dm:${idStr}`,
     type: "danmaku",
     occurredAt,
     sender: { uid, name, face, medal },
     ...(content !== undefined ? { content } : {}),
+    ...(emote ? { emote } : {}),
     read: false,
   };
 }

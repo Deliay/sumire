@@ -36,6 +36,8 @@ export const LiveEventSchema = z.object({
   occurredAt: z.string(),
   sender: SenderSchema,
   content: z.string().optional(),
+  /** 弹幕表情图片（仅 danmaku）；存在时前端渲染为图片而非纯文本 */
+  emote: z.object({ url: z.string(), name: z.string().optional() }).optional(),
   /** 金额（元）：SC 直接为元；礼物=金瓜子 combo_total_coin/1000；上船=price/1000 */
   price: z.number().optional(),
   scColors: ScColorsSchema.optional(),

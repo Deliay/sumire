@@ -142,6 +142,38 @@ describe("toLiveEvent 缺字段容错", () => {
     expect(e?.content).toBe("堇宝今天唱什么呀");
   });
 
+  it("danmaku：表情弹幕（info[0][13] 为 emoticon 对象）提取 emote.url 与 emote.name，仍保留 content", () => {
+    const fixture = clone(danmakuFixture);
+    const i0 = fixture.payload.info[0] as unknown[];
+    i0[12] = 1;
+    i0[13] = {
+      bulge_display: 1,
+      emoticon_unique: "room_1727076670_118056",
+      height: 162,
+      in_player_area: 1,
+      is_dynamic: 0,
+      url: "http://i0.hdslb.com/bfs/live/c6f3177115ef915da729d1b25708b69651ac5481.png",
+      width: 162,
+    };
+    const e = toLiveEvent(fixture);
+    expect(e).not.toBeNull();
+    expect(e?.emote).toEqual({
+      url: "http://i0.hdslb.com/bfs/live/c6f3177115ef915da729d1b25708b69651ac5481.png",
+      name: "堇宝今天唱什么呀",
+    });
+    expect(e?.content).toBe("堇宝今天唱什么呀");
+  });
+
+  it("danmaku：info[0][13] 为字符串（非表情）时不带 emote 字段", () => {
+    const fixture = clone(danmakuFixture);
+    const i0 = fixture.payload.info[0] as unknown[];
+    i0[12] = 0;
+    i0[13] = "{}";
+    const e = toLiveEvent(fixture);
+    expect(e).not.toBeNull();
+    expect(e?.emote).toBeUndefined();
+  });
+
   it("super_chat：缺 data.uinfo 时回退 data.user_info", () => {
     const fixture = clone(superChatFixture);
     const data = fixture.payload.data as unknown as Record<string, unknown>;

@@ -197,10 +197,10 @@ export default function DanmakuDashboard() {
       )}
       {streamStatus === "closed" && (
         <p className="text-sm text-flower" role="status">
-          实时连接已断开，正在尝试重连…
+          实时连接已断开
         </p>
       )}
-      <div className="flex flex-col gap-4 lg:h-[calc(100svh-16rem)] lg:flex-row">
+      <div className="flex h-[calc(100svh-16rem)] flex-col gap-4 lg:flex-row">
         {columns.map((col) => {
           const title = col.types.map(labelForType).join(" + ");
           return (

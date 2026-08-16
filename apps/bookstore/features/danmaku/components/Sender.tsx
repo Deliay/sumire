@@ -17,6 +17,8 @@ export default function Sender({ sender }: SenderProps) {
         href={`https://space.bilibili.com/${sender.uid}`}
         target="_blank"
         rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
         className="flex min-w-0 items-center gap-2 transition-colors duration-150 hover:text-primary"
       >
         {sender.face ? (

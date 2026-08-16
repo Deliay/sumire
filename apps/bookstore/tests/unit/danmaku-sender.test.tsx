@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import Sender from "@/features/danmaku/components/Sender";
 import type { LiveEvent } from "@/features/danmaku/types";
 
@@ -44,5 +44,20 @@ describe("Sender 公共组件", () => {
     expect(link?.getAttribute("href")).toBe("https://space.bilibili.com/672353429");
     expect(link?.getAttribute("target")).toBe("_blank");
     expect(link?.getAttribute("rel")).toContain("noopener");
+  });
+
+  it("点击/双击头像昵称链接不冒泡到父级（避免误触已读切换）", () => {
+    const onParentClick = vi.fn();
+    const onParentDoubleClick = vi.fn();
+    const { container } = render(
+      <div onClick={onParentClick} onDoubleClick={onParentDoubleClick}>
+        <Sender sender={BASE_SENDER} />
+      </div>,
+    );
+    const link = container.querySelector("a") as HTMLAnchorElement;
+    fireEvent.click(link);
+    fireEvent.doubleClick(link);
+    expect(onParentClick).not.toHaveBeenCalled();
+    expect(onParentDoubleClick).not.toHaveBeenCalled();
   });
 });

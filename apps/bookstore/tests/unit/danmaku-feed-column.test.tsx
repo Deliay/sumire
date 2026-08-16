@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, act } from "@testing-library/react"
 import FeedColumn from "@/features/danmaku/components/FeedColumn";
 import type { LiveEvent } from "@/features/danmaku/types";
 
-const SENDER: LiveEvent["sender"] = { uid: 1, name: "观众A", face: null, medal: null };
+const SENDER: LiveEvent["sender"] = { uid: 1, name: "观众A", face: null, medal: null, guardLevel: null };
 
 function makeEvent(partial: Partial<LiveEvent> & Pick<LiveEvent, "eventId" | "type">): LiveEvent {
   return { occurredAt: "2026-08-16T12:00:00.000Z", sender: SENDER, read: false, ...partial };
@@ -111,9 +111,18 @@ describe("FeedColumn", () => {
     expect(screen.queryByRole("button", { name: /全部已读/ })).toBeNull();
   });
 
-  it("error 时显示错误提示与重试按钮，点击触发 onRetry", () => {
+  it("小节 error 时显示错误提示与重试按钮，点击触发 onRetry", () => {
     const onRetry = vi.fn();
-    render(<FeedColumn title="弹幕 + 礼物" sections={[]} canManage={false} error="检索失败" onRetry={onRetry} />);
+    render(
+      <FeedColumn
+        title="弹幕 + 礼物"
+        canManage={false}
+        sections={[
+          { type: "danmaku", label: "弹幕", events: [], error: "检索失败", onRetry },
+          { type: "gift", label: "礼物", events: [], error: null },
+        ]}
+      />,
+    );
     expect(screen.getByText("检索失败")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "重试" }));
     expect(onRetry).toHaveBeenCalledTimes(1);

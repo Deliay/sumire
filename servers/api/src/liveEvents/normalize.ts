@@ -12,6 +12,8 @@ export interface LiveEventSender {
   name: string;
   face: string | null;
   medal: { name: string; level: number; color: string } | null;
+  /** 上船等级（3=舰长，2=提督，1=总督）；无上船为 null。仅身份标识。 */
+  guardLevel: number | null;
 }
 
 export interface LiveEvent {
@@ -92,9 +94,16 @@ function normalizeDanmaku(payload: Record<string, unknown>, occurredAt: string):
   if (uid === undefined || !name) return null;
   const face = asString(v2Base?.face) ?? null;
 
+  // 上船等级：实测 dm_v2 的用户牌子对象 user.medal 内带 guard_level；回退经典数组 info[2] 第 8 位（索引 7）。
+  // 0/缺位视为无上船。
+  const v2Medal = asRecord(v2User?.medal);
+  const v2GuardLevel = asNumber(v2Medal?.guard_level);
+  const classicGuardLevel = asNumber(classicUser?.[7]);
+  const rawGuardLevel = v2GuardLevel ?? classicGuardLevel;
+  const guardLevel = rawGuardLevel !== undefined && rawGuardLevel > 0 ? rawGuardLevel : null;
+
   // 牌子：优先 dm_v2 user.medal，回退经典数组 info[3]（[0]=等级，[1]=牌名，[6]=颜色整数）
   let medal: LiveEventSender["medal"] = null;
-  const v2Medal = asRecord(v2User?.medal);
   const v2MedalName = asString(v2Medal?.name);
   if (v2Medal && v2MedalName) {
     medal = { name: v2MedalName, level: asNumber(v2Medal.level) ?? 0, color: asString(v2Medal.color) ?? "#ffffff" };
@@ -130,7 +139,7 @@ function normalizeDanmaku(payload: Record<string, unknown>, occurredAt: string):
     eventId: `dm:${idStr}`,
     type: "danmaku",
     occurredAt,
-    sender: { uid, name, face, medal },
+    sender: { uid, name, face, medal, guardLevel },
     ...(content !== undefined ? { content } : {}),
     ...(emote ? { emote } : {}),
     read: false,
@@ -163,7 +172,7 @@ function normalizeSuperChat(payload: Record<string, unknown>, occurredAt: string
     eventId: `sc:${id}`,
     type: "super_chat",
     occurredAt,
-    sender: { uid, name, face, medal: medalFromMedalInfo(data.medal_info) },
+    sender: { uid, name, face, medal: medalFromMedalInfo(data.medal_info), guardLevel: null },
     ...(content !== undefined ? { content } : {}),
     ...(price !== undefined ? { price } : {}),
     ...(bgStart && bgEnd && fontColor
@@ -197,7 +206,7 @@ function normalizeGift(payload: Record<string, unknown>, occurredAt: string): Li
     eventId: `gift:${id}`,
     type: "gift",
     occurredAt,
-    sender: { uid, name, face: asString(data.face) ?? null, medal: medalFromMedalInfo(data.medal_info) },
+    sender: { uid, name, face: asString(data.face) ?? null, medal: medalFromMedalInfo(data.medal_info), guardLevel: null },
     price,
     gift: { name: giftName, count },
     read: false,
@@ -219,7 +228,7 @@ function normalizeGuardBuy(payload: Record<string, unknown>, occurredAt: string)
     type: "guard_buy",
     occurredAt,
     // 上游事实：GUARD_BUY 无头像、无粉丝团牌子
-    sender: { uid, name, face: null, medal: null },
+    sender: { uid, name, face: null, medal: null, guardLevel: asNumber(data.guard_level) ?? null },
     ...(price !== undefined ? { price: price / 1000 } : {}),
     guard: {
       level: asNumber(data.guard_level) ?? 0,

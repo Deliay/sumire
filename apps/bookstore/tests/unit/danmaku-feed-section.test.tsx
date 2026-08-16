@@ -93,4 +93,36 @@ describe("FeedSection 弹幕折叠", () => {
     expect(screen.getByText("×3")).toBeTruthy();
     expect(screen.queryByText("×1")).toBeNull();
   });
+
+  it("非连续重复弹幕同样折叠（跨其他事件）", () => {
+    const events: LiveEvent[] = [
+      makeEvent({ eventId: "dm:1", type: "danmaku", content: "妈妈" }),
+      makeEvent({ eventId: "dm:2", type: "danmaku", content: "欢迎欢迎" }),
+      makeEvent({ eventId: "dm:3", type: "danmaku", content: "妈妈" }),
+    ];
+    render(<FeedSection label="弹幕" events={events} canManage={false} />);
+    expect(screen.getByText("×2")).toBeTruthy();
+  });
+
+  it("折叠使短列表未铺满时自动向下加载一条填充（hasMore）", async () => {
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(300);
+    const onLoadMore = vi.fn();
+    const dupes: LiveEvent[] = [
+      makeEvent({ eventId: "dm:1", type: "danmaku", content: "妈妈" }),
+      makeEvent({ eventId: "dm:2", type: "danmaku", content: "妈妈" }),
+    ];
+    render(<FeedSection label="弹幕" events={dupes} canManage={false} onLoadMore={onLoadMore} hasMore />);
+    await act(async () => {});
+    expect(onLoadMore).toHaveBeenCalled();
+  });
+
+  it("未折叠的短列表不自动加载（保留防无限加载回归）", async () => {
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(300);
+    const onLoadMore = vi.fn();
+    const few = EVENTS.slice(0, 2);
+    render(<FeedSection label="弹幕" events={few} canManage={false} onLoadMore={onLoadMore} hasMore />);
+    await act(async () => {});
+    expect(onLoadMore).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "加载更多" })).toBeTruthy();
+  });
 });

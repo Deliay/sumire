@@ -3,12 +3,13 @@ import type { LiveEvent } from "./types";
 /**
  * 弹幕重复折叠纯函数。仅作用于 danmaku 类型；其余类型原样透传（count=1）。
  *
- * 折叠规则（对相邻重复的弹幕）：
- * - 表情弹幕：以 emote url 为键，直接重复（4.1 表情）折叠；
+ * 折叠规则（对可视列表内的重复弹幕，不区分是否相邻）：
+ * - 表情弹幕：以 emote url 为键，重复（4.1 表情）折叠；
  * - 文字弹幕：以「最长非重复子串」为键，「妈妈妈妈妈」「妈妈妈」「妈妈」均取「妈」而折叠（4.2）；
  *   完全相同的文字也因最长非重复子串相同而折叠（4.1 文字）。
  *
- * 仅折叠相邻（consecutive）重复项，避免跨其他事件误折叠。
+ * 全列表内按折叠键去重：同一键的重复弹幕折叠到首次出现位置并累计计数，可跨其他事件。
+ * 折叠后可视行数减少，由调用方（FeedSection）向下加载一条填充。
  */
 
 /** 求字符串的最长无重复字符子串（返回该子串本身）。 */
@@ -47,14 +48,21 @@ export interface MergedDanmaku {
   count: number;
 }
 
-/** 将事件列表中的相邻重复弹幕折叠为一行。 */
+/** 将事件列表中的重复弹幕折叠为一行（按折叠键全列表去重，保留首次出现位置）。 */
 export function mergeDanmaku(events: LiveEvent[]): MergedDanmaku[] {
   const rows: MergedDanmaku[] = [];
+  const byKey = new Map<string, MergedDanmaku>();
   for (const event of events) {
     const key = danmakuMergeKey(event);
-    const last = rows[rows.length - 1];
-    if (key !== null && last && danmakuMergeKey(last.event) === key) {
-      last.count += 1;
+    if (key !== null) {
+      const existing = byKey.get(key);
+      if (existing) {
+        existing.count += 1;
+        continue;
+      }
+      const row: MergedDanmaku = { event, count: 1 };
+      byKey.set(key, row);
+      rows.push(row);
     } else {
       rows.push({ event, count: 1 });
     }

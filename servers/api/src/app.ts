@@ -19,8 +19,8 @@ export interface AppDeps {
   liveHistoryCache?: LiveHistoryCache;
   /** 直播事件上游客户端（可注入 stub 便于测试，缺省按 config.liveEventsUpstreamUrl 创建）。 */
   liveEventsUpstream?: LiveEventsUpstream;
-  /** 文本罗马音标注（缺省 hepburn 纯假名转写；单测可注入恒 null 避免加载依赖）。 */
-  toRomajiFn?: (text: string) => string | null | Promise<string | null>;
+  /** 文本罗马音标注（缺省 kuroshiro 全文转换；单测可注入恒 null 避免加载字典）。 */
+  toRomajiFn?: (text: string) => Promise<string | null>;
 }
 
 export function createApp(deps: AppDeps): Application {

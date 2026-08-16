@@ -1,23 +1,16 @@
 import { describe, it, expect } from "vitest";
 import { toRomaji } from "../src/liveEvents/romaji";
 
-describe("toRomaji 假名罗马音标注", () => {
-  it("含平假名：生成 Hepburn 罗马音", async () => {
-    expect(await toRomaji("ありがとう")).toBe("arigatou");
-    expect(await toRomaji("たけし")).toBe("takeshi");
-    expect(await toRomaji("まほうしょうじょ")).toBe("mahoushoujo");
-  });
-
-  it("含片假名：生成 Hepburn 罗马音（长音 ー 转 macron）", async () => {
+describe("toRomaji 罗马音标注（含假名全文转换）", () => {
+  it("含假名：全文生成 Hepburn 罗马音（按小节分开）", async () => {
+    expect(await toRomaji("ありがとう")).toBe("arigatō");
+    expect(await toRomaji("こんにちは")).toBe("konnichiwa");
     expect(await toRomaji("テスト")).toBe("tesuto");
-    expect(await toRomaji("コーヒー")).toBe("kōhī");
+    expect(await toRomaji("かわいい")).toBe("kawaii");
   });
 
-  it("拗音 / 促音 / 拨音：きょう→kyou、がっこう→gakkou、しんぶん→shinbun", async () => {
-    expect(await toRomaji("きょう")).toBe("kyou");
-    expect(await toRomaji("がっこう")).toBe("gakkou");
-    expect(await toRomaji("しんぶん")).toBe("shinbun");
-    expect(await toRomaji("せんぱい")).toBe("senpai");
+  it("汉字与假名混合：全文转换（汉字读音 + 假名）", async () => {
+    expect(await toRomaji("魔法少女さん")).toBe("mahō shōjo san");
   });
 
   it("无假名（纯汉字 / 英文 / 数字）返回 null", async () => {
@@ -32,8 +25,9 @@ describe("toRomaji 假名罗马音标注", () => {
     expect(await toRomaji("")).toBeNull();
   });
 
-  it("中日混合：仅转写假名部分，汉字原样保留", async () => {
-    expect(await toRomaji("魔法少女さん")).toBe("魔法少女san");
-    expect(await toRomaji("かな漢字")).toBe("kana漢字");
+  it("含不可解析汉字残留时返回 null，不抛错", async () => {
+    // 枝堇 为非常用词，全文转换后仍残留汉字 → null
+    expect(await toRomaji("ありがとう枝堇")).toBeNull();
+    expect(await toRomaji("枝堇Sumire")).toBeNull();
   });
 });

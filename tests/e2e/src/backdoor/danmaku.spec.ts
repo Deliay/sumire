@@ -16,6 +16,7 @@ interface MockLiveEvent {
     name: string;
     face: string | null;
     medal: { name: string; level: number; color: string } | null;
+    guardLevel: number | null;
   };
   content?: string;
   price?: number;
@@ -29,15 +30,15 @@ let uidSeq = 100000;
 
 function senderOf(name: string): MockLiveEvent["sender"] {
   // face 一律 null：走缺头像兜底渲染，避免 e2e 发起外网图片请求
-  return { uid: uidSeq++, name, face: null, medal: { name: "枝枝", level: 21, color: "#b4a6bf" } };
+  return { uid: uidSeq++, name, face: null, medal: { name: "枝枝", level: 21, color: "#b4a6bf" }, guardLevel: null };
 }
 
-function danmakuEvent(eventId: string, content: string): MockLiveEvent {
+function danmakuEvent(eventId: string, content: string, guardLevel: number | null = null): MockLiveEvent {
   return {
     eventId,
     type: "danmaku",
     occurredAt: new Date(Date.now() - 60_000).toISOString(),
-    sender: senderOf(`弹幕用户${eventId}`),
+    sender: { ...senderOf(`弹幕用户${eventId}`), guardLevel },
     content,
     read: false,
   };
@@ -243,6 +244,7 @@ test.describe("backdoor danmaku 弹幕后台", () => {
   }) => {
     const events = [
       danmakuEvent("dm:1", "第一条历史弹幕"),
+      danmakuEvent("dm:guard", "舰长发的弹幕", 3),
       scEvent("sc:1", "第一条醒目留言"),
       giftEvent("gift:1", "小花花"),
       guardEvent("guard:1"),
@@ -268,6 +270,10 @@ test.describe("backdoor danmaku 弹幕后台", () => {
     await expect(page.locator('[data-event-id="sc:1"]')).toBeVisible();
     await expect(page.locator('[data-event-id="gift:1"]')).toBeVisible();
     await expect(page.locator('[data-event-id="guard:1"]')).toBeVisible();
+
+    // 船员（guardLevel=3）的弹幕附带「舰长」标识
+    await expect(page.locator('[data-event-id="dm:guard"]').getByText("舰长")).toBeVisible();
+    await expect(page.locator('[data-event-id="dm:1"]').getByText(/舰长|提督|总督/)).toHaveCount(0);
 
     // SSE 实时事件 prepend 进对应栏
     await stub.push(danmakuEvent("dm:live", "实时弹幕到达"));

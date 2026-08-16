@@ -26,6 +26,7 @@ describe("toLiveEvent 四类事件映射（实测样本夹具）", () => {
         name: "紫罗兰的信",
         face: "https://i0.hdslb.com/bfs/face/member/248197.jpg",
         medal: { name: "堇色信笺", level: 12, color: "#6680ff" },
+        guardLevel: null,
       },
       content: "堇宝今天唱什么呀",
       read: false,
@@ -44,6 +45,7 @@ describe("toLiveEvent 四类事件映射（实测样本夹具）", () => {
         name: "薄荷糖",
         face: "https://i1.hdslb.com/bfs/face/member/322892.jpg",
         medal: { name: "堇色信笺", level: 18, color: "#c79eff" },
+        guardLevel: null,
       },
       content: "堇宝辛苦了！今晚也超好听",
       price: 30,
@@ -64,6 +66,7 @@ describe("toLiveEvent 四类事件映射（实测样本夹具）", () => {
         name: "浅眠风",
         face: "https://i2.hdslb.com/bfs/face/member/21568305.jpg",
         medal: { name: "堇色信笺", level: 9, color: "#00d1f9" },
+        guardLevel: null,
       },
       price: 9,
       gift: { name: "打call", count: 3 },
@@ -78,11 +81,49 @@ describe("toLiveEvent 四类事件映射（实测样本夹具）", () => {
       eventId: "guard:437917:1755338730",
       type: "guard_buy",
       occurredAt: "2026-08-16T13:25:30.000Z",
-      sender: { uid: 437917, name: "夜航星", face: null, medal: null },
+      sender: { uid: 437917, name: "夜航星", face: null, medal: null, guardLevel: 3 },
       price: 138,
       guard: { level: 3, name: "舰长", count: 1 },
       read: false,
     });
+  });
+});
+
+describe("toLiveEvent danmaku 上船等级 guardLevel", () => {
+  it("danmaku：dm_v2 user.medal.guard_level>0 映射到 sender.guardLevel（舰长=3）", () => {
+    const fixture = clone(danmakuFixture);
+    const v2 = (fixture.payload.info[0] as unknown[])[15] as { user: Record<string, unknown> };
+    (v2.user.medal as Record<string, unknown>).guard_level = 3;
+    const e = toLiveEvent(fixture);
+    expect(e).not.toBeNull();
+    expect(e?.sender.guardLevel).toBe(3);
+  });
+
+  it("danmaku：经典数组 info[2] 第 8 位 guard_level>0 时映射到 sender.guardLevel（提督=2）", () => {
+    const fixture = clone(danmakuFixture);
+    (fixture.payload.info[2] as unknown[])[7] = 2;
+    const e = toLiveEvent(fixture);
+    expect(e).not.toBeNull();
+    expect(e?.sender.guardLevel).toBe(2);
+  });
+
+  it("danmaku：guard_level 为 0 或缺位时 sender.guardLevel 为 null", () => {
+    const fixture = clone(danmakuFixture);
+    const info2 = fixture.payload.info[2] as unknown[];
+    info2[7] = 0;
+    expect(toLiveEvent(fixture)?.sender.guardLevel).toBeNull();
+    info2[7] = "";
+    expect(toLiveEvent(fixture)?.sender.guardLevel).toBeNull();
+    (fixture.payload.info[2] as unknown[]) = [];
+    expect(toLiveEvent(fixture)?.sender.guardLevel).toBeNull();
+  });
+
+  it("danmaku：medal 有 guard_level 时优先于经典数组", () => {
+    const fixture = clone(danmakuFixture);
+    const v2 = (fixture.payload.info[0] as unknown[])[15] as { user: Record<string, unknown> };
+    (v2.user.medal as Record<string, unknown>).guard_level = 1;
+    (fixture.payload.info[2] as unknown[])[7] = 3;
+    expect(toLiveEvent(fixture)?.sender.guardLevel).toBe(1);
   });
 });
 

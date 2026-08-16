@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { longestNonRepeatSubstring, mergeDanmaku, danmakuMergeKey } from "@/features/danmaku/merge";
 import type { LiveEvent } from "@/features/danmaku/types";
 
-const SENDER: LiveEvent["sender"] = { uid: 1, name: "观众A", face: null, medal: null };
+const SENDER: LiveEvent["sender"] = { uid: 1, name: "观众A", face: null, medal: null, guardLevel: null };
 
 function dm(id: string, content: string, emote?: { url: string; name?: string }): LiveEvent {
   return { eventId: id, type: "danmaku", occurredAt: "2026-08-16T12:00:00.000Z", sender: SENDER, read: false, content, emote };

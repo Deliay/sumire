@@ -209,6 +209,9 @@ components:
                 name: { type: string, description: 牌子名 }
                 level: { type: integer, description: 牌子等级 }
                 color: { type: string, description: 牌子颜色（CSS 颜色值） }
+            guardLevel:
+              type: [integer, "null"]
+              description: 发送者的上船等级（3=舰长，2=提督，1=总督）；弹幕/礼物/SC 携带、无上船为 null。仅作身份标识，不参与 guard_buy 事件。
         content:
           type: string
           description: 弹幕文本 / SC 留言（仅 danmaku、super_chat）

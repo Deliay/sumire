@@ -10,6 +10,7 @@ import type { LiveEvent } from "@/features/danmaku/types";
 const SENDER: LiveEvent["sender"] = {
   uid: 1,
   name: "观众A",
+  nameRomaji: null,
   face: null,
   medal: null,
 };

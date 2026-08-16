@@ -38,7 +38,10 @@ export default function Sender({ sender }: SenderProps) {
             {sender.name.slice(0, 1)}
           </span>
         )}
-        <span className="truncate text-sm font-medium text-ink">{sender.name}</span>
+        <span className="truncate text-sm font-medium text-ink">
+          {sender.name}
+          {sender.nameRomaji ? <span className="text-ink-dim"> ({sender.nameRomaji})</span> : null}
+        </span>
       </a>
       {sender.medal && (
         <span

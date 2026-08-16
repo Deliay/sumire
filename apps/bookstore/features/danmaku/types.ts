@@ -18,6 +18,8 @@ export const MedalSchema = z.object({
 export const SenderSchema = z.object({
   uid: z.number().int(),
   name: z.string(),
+  /** 昵称罗马音标注；无可读汉字或解析失败为 null，前端有则展示、无则不展示 */
+  nameRomaji: z.string().nullable(),
   /** 头像 URL；guard_buy 上游无头像，为 null，前端兜底渲染 */
   face: z.string().nullable(),
   /** 粉丝团牌子；无牌子为 null */

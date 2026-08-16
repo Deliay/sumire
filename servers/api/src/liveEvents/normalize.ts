@@ -10,6 +10,8 @@ export type LiveEventType = "danmaku" | "super_chat" | "gift" | "guard_buy";
 export interface LiveEventSender {
   uid: number;
   name: string;
+  /** 昵称罗马音标注：归一化阶段恒为 null，出口由路由层经 romaji 标注填充 */
+  nameRomaji: string | null;
   face: string | null;
   medal: { name: string; level: number; color: string } | null;
 }
@@ -108,7 +110,7 @@ function normalizeDanmaku(payload: Record<string, unknown>, occurredAt: string):
     eventId: `dm:${idStr}`,
     type: "danmaku",
     occurredAt,
-    sender: { uid, name, face, medal },
+    sender: { uid, name, nameRomaji: null, face, medal },
     ...(content !== undefined ? { content } : {}),
     read: false,
   };
@@ -140,7 +142,7 @@ function normalizeSuperChat(payload: Record<string, unknown>, occurredAt: string
     eventId: `sc:${id}`,
     type: "super_chat",
     occurredAt,
-    sender: { uid, name, face, medal: medalFromMedalInfo(data.medal_info) },
+    sender: { uid, name, nameRomaji: null, face, medal: medalFromMedalInfo(data.medal_info) },
     ...(content !== undefined ? { content } : {}),
     ...(price !== undefined ? { price } : {}),
     ...(bgStart && bgEnd && fontColor
@@ -174,7 +176,7 @@ function normalizeGift(payload: Record<string, unknown>, occurredAt: string): Li
     eventId: `gift:${id}`,
     type: "gift",
     occurredAt,
-    sender: { uid, name, face: asString(data.face) ?? null, medal: medalFromMedalInfo(data.medal_info) },
+    sender: { uid, name, nameRomaji: null, face: asString(data.face) ?? null, medal: medalFromMedalInfo(data.medal_info) },
     price,
     gift: { name: giftName, count },
     read: false,
@@ -196,7 +198,7 @@ function normalizeGuardBuy(payload: Record<string, unknown>, occurredAt: string)
     type: "guard_buy",
     occurredAt,
     // 上游事实：GUARD_BUY 无头像、无粉丝团牌子
-    sender: { uid, name, face: null, medal: null },
+    sender: { uid, name, nameRomaji: null, face: null, medal: null },
     ...(price !== undefined ? { price: price / 1000 } : {}),
     guard: {
       level: asNumber(data.guard_level) ?? 0,

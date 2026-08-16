@@ -198,6 +198,9 @@ components:
           properties:
             uid: { type: integer, description: 发送者 B 站 uid }
             name: { type: string, description: 发送者昵称 }
+            nameRomaji:
+              type: [string, "null"]
+              description: 昵称罗马音标注（服务端对含可解析汉字的部分生成）；无可读汉字或解析失败为 null，前端有则展示、无则不展示
             face:
               type: [string, "null"]
               description: 头像 URL；guard_buy 上游无头像，为 null，前端兜底渲染

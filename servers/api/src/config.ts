@@ -29,6 +29,11 @@ export const config = {
     "LIVE_HISTORY_UPSTREAM_URL",
     "http://vtuber.internal.fffdan.com/api/b/live/1727076670/history",
   ),
+  // 直播事件上游 base URL：端点路径由 liveEvents/upstream.ts 拼接（内置缺省值，不得抛错）
+  liveEventsUpstreamUrl: getEnv(
+    "LIVE_EVENTS_UPSTREAM_URL",
+    "http://vtuber.internal.fffdan.com",
+  ),
 };
 
 export const COOKIE_NAME = "sumire_sid";

@@ -49,73 +49,89 @@ function dedupeById(events: LiveEvent[]): LiveEvent[] {
  * 栏位类型组合可配置并持久化 localStorage（useSyncExternalStore 快照，SSR 回退默认）。
  * `<1024px` 纵向堆叠为纯 CSS（flex-col → lg:flex-row）。
  */
-export default function DanmakuDashboard() {
+interface DanmakuDashboardProps {
+  /** 全屏模式：分栏区占满整个屏幕（由弹幕后台页传入）。 */
+  isFullscreen?: boolean;
+}
+
+/** 单栏检索：进入 loading（移出已加载），失败记错误态，成功写入去重后条目。
+ * 按「栏 + 类型」分别加载（一个分栏勾选的每种事件类型各自独立请求）。 */
+function sectionKey(colId: string, type: LiveEventType): string {
+  return `${colId}:${type}`;
+}
+
+export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashboardProps) {
   const { session } = useSession();
   const canManage = session.status === "authenticated" && atLeast(session.me.role, "admin");
 
   const columns = useSyncExternalStore(subscribeColumns, getColumnsSnapshot, getColumnsServerSnapshot);
-  const [eventsByColumn, setEventsByColumn] = useState<Record<string, LiveEvent[]>>({});
-  const [loadedColumns, setLoadedColumns] = useState<ReadonlySet<string>>(new Set());
-  const [columnErrors, setColumnErrors] = useState<Record<string, string>>({});
+  // 分节检索状态：key = `${colId}:${type}`，每种事件类型独立加载/分页/错误
+  const [eventsBySection, setEventsBySection] = useState<Record<string, LiveEvent[]>>({});
+  const [loadedSections, setLoadedSections] = useState<ReadonlySet<string>>(new Set());
+  const [sectionErrors, setSectionErrors] = useState<Record<string, string>>({});
   const [configOpenId, setConfigOpenId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
-  // 分页滚动加载：每栏已加载页数与服务端 total（决定是否有更多）
-  const [pagesByColumn, setPagesByColumn] = useState<Record<string, number>>({});
-  const [totalsByColumn, setTotalsByColumn] = useState<Record<string, number>>({});
-  const [loadingMoreByColumn, setLoadingMoreByColumn] = useState<Record<string, boolean>>({});
+  const [pagesBySection, setPagesBySection] = useState<Record<string, number>>({});
+  const [totalsBySection, setTotalsBySection] = useState<Record<string, number>>({});
+  const [loadingMoreBySection, setLoadingMoreBySection] = useState<Record<string, boolean>>({});
 
   // 检索代际：columns 变化时递增，旧代检索结果作废，避免竞态覆盖新栏位数据
   const generationRef = useRef(0);
 
-  // 单栏历史检索：进入 loading（移出已加载），失败记错误态，成功写入去重后条目。
+  // 单节历史检索：进入 loading（移出已加载），失败记错误态，成功写入去重后条目。
   // 重试与首屏共用此函数（page=1 覆盖式）。
-  const loadColumn = useCallback(async (col: ColumnConfig, generation: number) => {
-    setLoadedColumns((prev) => {
-      const next = new Set(prev);
-      next.delete(col.id);
-      return next;
-    });
-    setColumnErrors((prev) => {
-      const next = { ...prev };
-      delete next[col.id];
-      return next;
-    });
-    let status = 0;
-    let data: LiveEventsPage | ApiError | null = null;
-    try {
-      const res = await listLiveEvents(col.types, 1, PAGE_SIZE);
-      status = res.status;
-      data = res.data;
-    } catch {
-      // 网络错误/请求异常：与上游非 200 同口径进入错误态，暴露重试入口
-      status = 0;
-      data = null;
-    }
-    if (generationRef.current !== generation) return;
-    if (status === 200 && data && "items" in data) {
-      setEventsByColumn((prev) => ({ ...prev, [col.id]: dedupeById(data!.items) }));
-      setTotalsByColumn((prev) => ({ ...prev, [col.id]: data!.total }));
-      setPagesByColumn((prev) => ({ ...prev, [col.id]: 1 }));
-    } else {
-      setColumnErrors((prev) => ({ ...prev, [col.id]: "检索失败" }));
-    }
-    setLoadedColumns((prev) => new Set(prev).add(col.id));
-  }, []);
-
-  // 滚动加载下一页历史：append 去重，更新页数与 total。
-  const loadMoreColumn = useCallback(
-    async (col: ColumnConfig) => {
-      if (loadingMoreByColumn[col.id]) return;
-      const currentPage = pagesByColumn[col.id] ?? 1;
-      const total = totalsByColumn[col.id];
-      const currentCount = eventsByColumn[col.id]?.length ?? 0;
-      // 已加载条数不低于服务端 total 视为没有更多
-      if (total !== undefined && currentCount >= total) return;
-      setLoadingMoreByColumn((prev) => ({ ...prev, [col.id]: true }));
+  const loadSection = useCallback(
+    async (col: ColumnConfig, type: LiveEventType, generation: number) => {
+      const key = sectionKey(col.id, type);
+      setLoadedSections((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+      setSectionErrors((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
       let status = 0;
       let data: LiveEventsPage | ApiError | null = null;
       try {
-        const res = await listLiveEvents(col.types, currentPage + 1, PAGE_SIZE);
+        const res = await listLiveEvents([type], 1, PAGE_SIZE);
+        status = res.status;
+        data = res.data;
+      } catch {
+        // 网络错误/请求异常：与上游非 200 同口径进入错误态，暴露重试入口
+        status = 0;
+        data = null;
+      }
+      if (generationRef.current !== generation) return;
+      if (status === 200 && data && "items" in data) {
+        setEventsBySection((prev) => ({ ...prev, [key]: dedupeById(data!.items) }));
+        setTotalsBySection((prev) => ({ ...prev, [key]: data!.total }));
+        setPagesBySection((prev) => ({ ...prev, [key]: 1 }));
+      } else {
+        setSectionErrors((prev) => ({ ...prev, [key]: "检索失败" }));
+      }
+      setLoadedSections((prev) => new Set(prev).add(key));
+    },
+    [],
+  );
+
+  // 滚动加载下一页历史：append 去重，更新页数与 total。
+  const loadMoreSection = useCallback(
+    async (col: ColumnConfig, type: LiveEventType) => {
+      const key = sectionKey(col.id, type);
+      if (loadingMoreBySection[key]) return;
+      const currentPage = pagesBySection[key] ?? 1;
+      const total = totalsBySection[key];
+      const currentCount = eventsBySection[key]?.length ?? 0;
+      // 已加载条数不低于服务端 total 视为没有更多
+      if (total !== undefined && currentCount >= total) return;
+      setLoadingMoreBySection((prev) => ({ ...prev, [key]: true }));
+      let status = 0;
+      let data: LiveEventsPage | ApiError | null = null;
+      try {
+        const res = await listLiveEvents([type], currentPage + 1, PAGE_SIZE);
         status = res.status;
         data = res.data;
       } catch {
@@ -123,26 +139,28 @@ export default function DanmakuDashboard() {
         data = null;
       }
       if (status === 200 && data && "items" in data) {
-        setEventsByColumn((prev) => ({
+        setEventsBySection((prev) => ({
           ...prev,
-          [col.id]: dedupeById([...(prev[col.id] ?? []), ...data!.items]),
+          [key]: dedupeById([...(prev[key] ?? []), ...data!.items]),
         }));
-        setTotalsByColumn((prev) => ({ ...prev, [col.id]: data!.total }));
-        setPagesByColumn((prev) => ({ ...prev, [col.id]: currentPage + 1 }));
+        setTotalsBySection((prev) => ({ ...prev, [key]: data!.total }));
+        setPagesBySection((prev) => ({ ...prev, [key]: currentPage + 1 }));
       }
-      setLoadingMoreByColumn((prev) => ({ ...prev, [col.id]: false }));
+      setLoadingMoreBySection((prev) => ({ ...prev, [key]: false }));
     },
-    [loadingMoreByColumn, pagesByColumn, totalsByColumn, eventsByColumn],
+    [loadingMoreBySection, pagesBySection, totalsBySection, eventsBySection],
   );
 
-  // 历史首屏：栏位变化时按栏检索
+  // 历史首屏：栏位/类型变化时逐节检索
   useEffect(() => {
     generationRef.current += 1;
     const generation = generationRef.current;
     for (const col of columns) {
-      void loadColumn(col, generation);
+      for (const type of col.types) {
+        void loadSection(col, type, generation);
+      }
     }
-  }, [columns, loadColumn]);
+  }, [columns, loadSection]);
 
   // 实时流：类型为各栏并集，事件分发进所有包含该类型的栏（prepend + eventId 去重）
   const streamTypes = useMemo(
@@ -152,13 +170,14 @@ export default function DanmakuDashboard() {
 
   const handleStreamEvent = useCallback(
     (event: LiveEvent) => {
-      setEventsByColumn((prev) => {
+      setEventsBySection((prev) => {
         const next = { ...prev };
         for (const col of columns) {
           if (!col.types.includes(event.type)) continue;
-          const list = next[col.id] ?? [];
+          const key = sectionKey(col.id, event.type);
+          const list = next[key] ?? [];
           if (list.some((e) => e.eventId === event.eventId)) continue;
-          next[col.id] = [event, ...list];
+          next[key] = [event, ...list];
         }
         return next;
       });
@@ -169,7 +188,7 @@ export default function DanmakuDashboard() {
   const streamStatus = useLiveEventStream(streamTypes, handleStreamEvent);
 
   const updateEvent = useCallback((eventId: string, fn: (e: LiveEvent) => LiveEvent) => {
-    setEventsByColumn((prev) => {
+    setEventsBySection((prev) => {
       const next: Record<string, LiveEvent[]> = {};
       for (const [id, list] of Object.entries(prev)) {
         next[id] = list.map((e) => (e.eventId === eventId ? fn(e) : e));
@@ -197,7 +216,7 @@ export default function DanmakuDashboard() {
   const handleReadAll = useCallback(async (type: ReadAllType) => {
     const { status } = await markAllLiveEventsRead(type);
     if (status === 200) {
-      setEventsByColumn((prev) => {
+      setEventsBySection((prev) => {
         const next: Record<string, LiveEvent[]> = {};
         for (const [id, list] of Object.entries(prev)) {
           next[id] = list.map((e) => (e.type === type ? { ...e, read: true } : e));
@@ -222,16 +241,10 @@ export default function DanmakuDashboard() {
     });
     if (next === current) return;
     saveColumns(next);
-    // 类型变更的栏触发重新检索：移出已加载集合
-    setLoadedColumns((prev) => {
-      const s = new Set(prev);
-      s.delete(columnId);
-      return s;
-    });
   }, []);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className={isFullscreen ? "flex h-full flex-1 flex-col gap-4" : "flex flex-col gap-4"}>
       {streamStatus === "connecting" && (
         <p className="text-sm text-ink-dim" role="status">
           实时事件连接中…
@@ -242,26 +255,34 @@ export default function DanmakuDashboard() {
           实时连接已断开
         </p>
       )}
-      <div className="flex h-[calc(100svh-16rem)] flex-col gap-4 lg:flex-row">
+      <div
+        className={
+          isFullscreen
+            ? "flex min-h-0 flex-1 flex-col gap-4 lg:flex-row"
+            : "flex h-[calc(100svh-16rem)] flex-col gap-4 lg:flex-row"
+        }
+      >
         {columns.map((col) => {
           const title = col.types.map(labelForType).join(" + ");
-          const columnEvents = eventsByColumn[col.id] ?? [];
-          const sections = col.types.map((type) => ({
-            type,
-            label: labelForType(type),
-            events: columnEvents.filter((e) => e.type === type),
-          }));
+          const sections = col.types.map((type) => {
+            const key = sectionKey(col.id, type);
+            return {
+              type,
+              label: labelForType(type),
+              events: eventsBySection[key] ?? [],
+              loading: !loadedSections.has(key),
+              error: sectionErrors[key] ?? null,
+              onRetry: () => void loadSection(col, type, generationRef.current),
+              onLoadMore: () => void loadMoreSection(col, type),
+              hasMore: (totalsBySection[key] ?? 0) > (eventsBySection[key]?.length ?? 0),
+              loadingMore: loadingMoreBySection[key],
+            };
+          });
           return (
             <FeedColumn
               key={col.id}
               title={title}
               sections={sections}
-              loading={!loadedColumns.has(col.id)}
-              error={columnErrors[col.id] ?? null}
-              onRetry={() => void loadColumn(col, generationRef.current)}
-              onLoadMore={() => void loadMoreColumn(col)}
-              hasMore={(totalsByColumn[col.id] ?? 0) > (eventsByColumn[col.id]?.length ?? 0)}
-              loadingMore={loadingMoreByColumn[col.id]}
               canManage={canManage}
               onToggleRead={toggleRead}
               readAllTypes={col.types.filter((t): t is ReadAllType =>

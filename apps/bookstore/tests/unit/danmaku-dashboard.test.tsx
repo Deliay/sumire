@@ -74,9 +74,10 @@ describe("DanmakuDashboard", () => {
     expect(await screen.findByText("弹幕一")).toBeTruthy();
     expect(screen.getByText("醒目留言一")).toBeTruthy();
     expect(screen.getByText(/辣条/)).toBeTruthy();
-    // 三栏各自的检索请求（礼物+上船 | SC | 弹幕）
+    // 每节（栏 + 类型）独立检索请求：礼物+上船 | SC | 弹幕
     const calledTypes = listLiveEvents.mock.calls.map((c) => c[0]);
-    expect(calledTypes).toContainEqual(["gift", "guard_buy"]);
+    expect(calledTypes).toContainEqual(["gift"]);
+    expect(calledTypes).toContainEqual(["guard_buy"]);
     expect(calledTypes).toContainEqual(["super_chat"]);
     expect(calledTypes).toContainEqual(["danmaku"]);
   });

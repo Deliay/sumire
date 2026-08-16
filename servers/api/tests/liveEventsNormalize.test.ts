@@ -154,12 +154,13 @@ describe("toLiveEvent 缺字段容错", () => {
       is_dynamic: 0,
       url: "http://i0.hdslb.com/bfs/live/c6f3177115ef915da729d1b25708b69651ac5481.png",
       width: 162,
-    };
-    const e = toLiveEvent(fixture);
+    };    const e = toLiveEvent(fixture);
     expect(e).not.toBeNull();
     expect(e?.emote).toEqual({
       url: "http://i0.hdslb.com/bfs/live/c6f3177115ef915da729d1b25708b69651ac5481.png",
       name: "堇宝今天唱什么呀",
+      width: 162,
+      height: 162,
     });
     expect(e?.content).toBe("堇宝今天唱什么呀");
   });

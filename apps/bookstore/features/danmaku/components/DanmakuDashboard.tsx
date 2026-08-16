@@ -56,12 +56,16 @@ export default function DanmakuDashboard() {
   const [columnErrors, setColumnErrors] = useState<Record<string, string>>({});
   const [configOpenId, setConfigOpenId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
+  // 分页滚动加载：每栏已加载页数与服务端 total（决定是否有更多）
+  const [pagesByColumn, setPagesByColumn] = useState<Record<string, number>>({});
+  const [totalsByColumn, setTotalsByColumn] = useState<Record<string, number>>({});
+  const [loadingMoreByColumn, setLoadingMoreByColumn] = useState<Record<string, boolean>>({});
 
   // 检索代际：columns 变化时递增，旧代检索结果作废，避免竞态覆盖新栏位数据
   const generationRef = useRef(0);
 
   // 单栏历史检索：进入 loading（移出已加载），失败记错误态，成功写入去重后条目。
-  // 重试与首屏共用此函数。
+  // 重试与首屏共用此函数（page=1 覆盖式）。
   const loadColumn = useCallback(async (col: ColumnConfig, generation: number) => {
     setLoadedColumns((prev) => {
       const next = new Set(prev);
@@ -76,7 +80,7 @@ export default function DanmakuDashboard() {
     let status = 0;
     let data: LiveEventsPage | ApiError | null = null;
     try {
-      const res = await listLiveEvents(col.types);
+      const res = await listLiveEvents(col.types, 1);
       status = res.status;
       data = res.data;
     } catch {
@@ -86,12 +90,47 @@ export default function DanmakuDashboard() {
     }
     if (generationRef.current !== generation) return;
     if (status === 200 && data && "items" in data) {
-      setEventsByColumn((prev) => ({ ...prev, [col.id]: dedupeById(data.items) }));
+      setEventsByColumn((prev) => ({ ...prev, [col.id]: dedupeById(data!.items) }));
+      setTotalsByColumn((prev) => ({ ...prev, [col.id]: data!.total }));
+      setPagesByColumn((prev) => ({ ...prev, [col.id]: 1 }));
     } else {
       setColumnErrors((prev) => ({ ...prev, [col.id]: "检索失败" }));
     }
     setLoadedColumns((prev) => new Set(prev).add(col.id));
   }, []);
+
+  // 滚动加载下一页历史：append 去重，更新页数与 total。
+  const loadMoreColumn = useCallback(
+    async (col: ColumnConfig) => {
+      if (loadingMoreByColumn[col.id]) return;
+      const currentPage = pagesByColumn[col.id] ?? 1;
+      const total = totalsByColumn[col.id];
+      const currentCount = eventsByColumn[col.id]?.length ?? 0;
+      // 已加载条数不低于服务端 total 视为没有更多
+      if (total !== undefined && currentCount >= total) return;
+      setLoadingMoreByColumn((prev) => ({ ...prev, [col.id]: true }));
+      let status = 0;
+      let data: LiveEventsPage | ApiError | null = null;
+      try {
+        const res = await listLiveEvents(col.types, currentPage + 1);
+        status = res.status;
+        data = res.data;
+      } catch {
+        status = 0;
+        data = null;
+      }
+      if (status === 200 && data && "items" in data) {
+        setEventsByColumn((prev) => ({
+          ...prev,
+          [col.id]: dedupeById([...(prev[col.id] ?? []), ...data!.items]),
+        }));
+        setTotalsByColumn((prev) => ({ ...prev, [col.id]: data!.total }));
+        setPagesByColumn((prev) => ({ ...prev, [col.id]: currentPage + 1 }));
+      }
+      setLoadingMoreByColumn((prev) => ({ ...prev, [col.id]: false }));
+    },
+    [loadingMoreByColumn, pagesByColumn, totalsByColumn, eventsByColumn],
+  );
 
   // 历史首屏：栏位变化时按栏检索
   useEffect(() => {
@@ -217,6 +256,9 @@ export default function DanmakuDashboard() {
               loading={!loadedColumns.has(col.id)}
               error={columnErrors[col.id] ?? null}
               onRetry={() => void loadColumn(col, generationRef.current)}
+              onLoadMore={() => void loadMoreColumn(col)}
+              hasMore={(totalsByColumn[col.id] ?? 0) > (eventsByColumn[col.id]?.length ?? 0)}
+              loadingMore={loadingMoreByColumn[col.id]}
               canManage={canManage}
               onToggleRead={toggleRead}
               readAllTypes={col.types.filter((t): t is ReadAllType =>

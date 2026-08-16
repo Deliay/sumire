@@ -34,6 +34,12 @@ interface FeedColumnProps {
   error?: string | null;
   /** 错误态重试回调（重新发起本栏检索）。 */
   onRetry?: () => void;
+  /** 滚动接近栏位尾部时触发（加载下一页历史）。 */
+  onLoadMore?: () => void;
+  /** 栏位是否还有更多历史可加载。 */
+  hasMore?: boolean;
+  /** 加载更多中。 */
+  loadingMore?: boolean;
   /** 栏头附加操作区（栏位配置按钮）。 */
   headerExtra?: ReactNode;
   /** 栏位配置面板（展开时渲染于栏头下方）。 */
@@ -55,6 +61,9 @@ export default function FeedColumn({
   onReadAll,
   error = null,
   onRetry,
+  onLoadMore,
+  hasMore = false,
+  loadingMore = false,
   headerExtra,
   configPanel,
 }: FeedColumnProps) {
@@ -130,6 +139,9 @@ export default function FeedColumn({
               events={section.events}
               canManage={canManage}
               onToggleRead={onToggleRead}
+              onLoadMore={onLoadMore}
+              hasMore={hasMore}
+              loadingMore={loadingMore}
             />
           ))}
         </div>

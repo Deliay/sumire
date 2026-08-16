@@ -18,7 +18,9 @@ export default function DanmakuItem({ event }: DanmakuItemProps) {
           src={event.emote.url}
           alt={event.emote.name ?? "弹幕表情"}
           title={event.emote.name}
-          className="h-16 w-auto rounded border border-vine/30"
+          width={event.emote.width}
+          height={event.emote.height}
+          className="max-h-40 w-auto rounded border border-vine/30 object-contain"
           loading="lazy"
           referrerPolicy="no-referrer"
         />

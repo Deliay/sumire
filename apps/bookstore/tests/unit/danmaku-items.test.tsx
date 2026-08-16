@@ -46,6 +46,23 @@ describe("DanmakuItem", () => {
     expect(img.src).toContain("/x.png");
     expect(screen.queryByText("少女祈祷")).toBeNull();
   });
+
+  it("表情按原图宽高渲染（width/height 属性），并限制最大高度", () => {
+    render(
+      <DanmakuItem
+        event={makeEvent({
+          eventId: "dm:3",
+          type: "danmaku",
+          content: "少女祈祷",
+          emote: { url: "http://i0.hdslb.com/bfs/live/x.png", name: "少女祈祷", width: 162, height: 162 },
+        })}
+      />,
+    );
+    const img = screen.getByAltText("少女祈祷") as HTMLImageElement;
+    expect(img.width).toBe(162);
+    expect(img.height).toBe(162);
+    expect(img.className).toContain("object-contain");
+  });
 });
 
 describe("SuperChatItem", () => {

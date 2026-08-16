@@ -16,8 +16,8 @@ const READ_ALL_PAGE_SIZE = 100;
 
 export interface LiveEventsRouterDeps {
   upstream: LiveEventsUpstream;
-  /** 文本 → 罗马音标注（缺省用 hepburn 纯假名转写；单测可注入恒 null 或以 text 取巧）。 */
-  toRomajiFn?: (text: string) => string | null | Promise<string | null>;
+  /** 文本 → 罗马音标注（缺省用 kuroshiro 全文转换；单测可注入恒 null 或以 text 取巧）。 */
+  toRomajiFn?: (text: string) => Promise<string | null>;
   /** SSE 心跳间隔（缺省 30s，单测可调小）。 */
   heartbeatMs?: number;
   /** 上游断流重连退避：起步 1s，倍增至 30s 上限（单测可调小）。 */
@@ -60,7 +60,7 @@ function normalizeAll(items: UpstreamEnvelope[]): LiveEvent[] {
 /** 为事件填充罗马音标注：昵称（sender.nameRomaji）与 SC 留言（contentRomaji）。 */
 async function annotateRomaji(
   events: LiveEvent[],
-  toRomajiFn: (text: string) => string | null | Promise<string | null>,
+  toRomajiFn: (text: string) => Promise<string | null>,
 ): Promise<LiveEvent[]> {
   return Promise.all(
     events.map(async (e) => {

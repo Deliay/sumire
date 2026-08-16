@@ -146,7 +146,7 @@ function filterByTypes(types: string[]): StubEnvelope[] {
   return filtered.sort((a, b) => (a.occurredAt < b.occurredAt ? 1 : -1));
 }
 
-type RangeMode = "ok" | "error";
+type RangeMode = "ok" | "error" | "empty";
 let rangeMode: RangeMode = "ok";
 let lastRangeSearch = "";
 let lastSubscribeTypes: string[] = [];
@@ -159,6 +159,11 @@ function startStub(): Server {
       if (rangeMode === "error") {
         res.writeHead(500, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "stub upstream broken" }));
+        return;
+      }
+      if (rangeMode === "empty") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ total: 0, page: 1, pageSize: 50, items: [] }));
         return;
       }
       const types = url.searchParams.getAll("type");
@@ -378,6 +383,20 @@ describe("GET /api/live-events（检索代理）", () => {
       rangeMode = "ok";
     }
   });
+
+  it("live-events-400-type: type 含非法值 → 400 且返回 { error }", async () => {
+    const res = await request("/api/live-events?type=entry_effect", { jar: memberJar });
+    expect(res.status).toBe(400);
+    expect(typeof (res.body as { error?: unknown })?.error).toBe("string");
+  });
+
+  it("live-events-400-pagination: 分页参数非法 → 400 且返回 { error }", async () => {
+    for (const query of ["?page=0", "?pageSize=101", "?page=abc"]) {
+      const res = await request(`/api/live-events${query}`, { jar: memberJar });
+      expect(res.status).toBe(400);
+      expect(typeof (res.body as { error?: unknown })?.error).toBe("string");
+    }
+  });
 });
 
 describe("live-events 已读状态", () => {
@@ -475,7 +494,75 @@ describe("live-events 已读状态", () => {
     }
   });
 
+  it("live-events-eventId-400: read/unread 前缀非法（如 watermark:super_chat）→ 400 中文错误", async () => {
+    for (const path of ["/api/live-events/read", "/api/live-events/unread"]) {
+      const res = await request(path, {
+        method: "POST",
+        body: { eventId: "watermark:super_chat" },
+        jar: adminJar,
+      });
+      expect(res.status).toBe(400);
+      expect(typeof (res.body as { error?: unknown })?.error).toBe("string");
+    }
+  });
+
+  it("live-events-read-all-guard: guard_buy 全部已读水位线生效", async () => {
+    const res = await request("/api/live-events/read-all", {
+      method: "POST",
+      body: { type: "guard_buy" },
+      jar: adminJar,
+    });
+    expect(res.status).toBe(200);
+    const body = res.body as { ok?: unknown; marked?: unknown };
+    expect(body.ok).toBe(true);
+    expect(typeof body.marked).toBe("number");
+
+    const page = await fetchEvents("?type=guard_buy&pageSize=100", memberJar);
+    expect(page.items.length).toBeGreaterThan(0);
+    for (const ev of page.items) {
+      expect(ev.read).toBe(true);
+    }
+  });
+
+  it("live-events-read-all-empty: 该类型无事件 → 200 marked=0", async () => {
+    rangeMode = "empty";
+    try {
+      const res = await request("/api/live-events/read-all", {
+        method: "POST",
+        body: { type: "super_chat" },
+        jar: adminJar,
+      });
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ ok: true, marked: 0 });
+    } finally {
+      rangeMode = "ok";
+    }
+  });
+
+  it("live-events-read-all-502: 上游 5xx → 502 中文错误", async () => {
+    rangeMode = "error";
+    try {
+      const res = await request("/api/live-events/read-all", {
+        method: "POST",
+        body: { type: "guard_buy" },
+        jar: adminJar,
+      });
+      expect(res.status).toBe(502);
+      expect(res.body).toEqual({ error: "上游事件服务不可用" });
+    } finally {
+      rangeMode = "ok";
+    }
+  });
+
   it("live-events-unread-after-read-all: unread 单条撤销水位线覆盖", async () => {
+    // 自建前置水位线（幂等、只前进不后退），不依赖前序用例，可单跑
+    const markAll = await request("/api/live-events/read-all", {
+      method: "POST",
+      body: { type: "super_chat" },
+      jar: adminJar,
+    });
+    expect(markAll.status).toBe(200);
+
     const page = await fetchEvents("?type=super_chat&pageSize=100", memberJar);
     // 取最旧一条（水位线语义下必然被覆盖为已读）
     const target = page.items[page.items.length - 1];
@@ -509,6 +596,13 @@ describe("live-events 已读状态", () => {
 });
 
 describe("GET /api/live-events/stream（SSE）", () => {
+  it("live-events-sse-400: type 含非法值 → 400（不建立 SSE 流）", async () => {
+    const res = await openStream("?type=entry_effect", memberJar);
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error?: unknown };
+    expect(typeof body.error).toBe("string");
+  });
+
   it("live-events-sse-events: member 连接收到归一化事件帧，type 过滤透传上游", async () => {
     const res = await openStream("?type=super_chat", memberJar);
     expect(res.status).toBe(200);
@@ -522,6 +616,24 @@ describe("GET /api/live-events/stream（SSE）", () => {
       expect(ev.type).toBe("super_chat");
     }
     expect(lastSubscribeTypes).toEqual(["super_chat"]);
+  });
+
+  it("live-events-sse-read-merged: SSE 帧合并已读状态（单条已读 read=true，其余 false）", async () => {
+    // 用 gift 类型避免水位线干扰（read-all 仅支持 super_chat/guard_buy）；
+    // stub 订阅首两帧按 occurredAt 倒序为 gift:batch-stub-5 / gift:batch-stub-4
+    const mark = await request("/api/live-events/read", {
+      method: "POST",
+      body: { eventId: "gift:batch-stub-5" },
+      jar: adminJar,
+    });
+    expect(mark.status).toBe(200);
+
+    const res = await openStream("?type=gift", memberJar);
+    expect(res.status).toBe(200);
+    const text = await collectSse(res, (t) => parseSseFrames(t).length >= 2, 10_000);
+    const byId = new Map(parseSseFrames(text).map((f) => [f.eventId, f]));
+    expect(byId.get("gift:batch-stub-5")?.read).toBe(true);
+    expect(byId.get("gift:batch-stub-4")?.read).toBe(false);
   });
 
   it(

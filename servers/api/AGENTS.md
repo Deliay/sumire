@@ -2,7 +2,7 @@
 
 枝堇Sumire 后台系统 V1 后端——Express 5 + TypeScript（strict）纯 API 服务，不托管任何页面。
 
-开发前加载 `docs/engineering/backend-rules.md` 与 API 契约 `contract/backdoor-auth.openapi.yaml`、`contract/stream-plans.openapi.yaml`、`contract/live-history.openapi.yaml`（均为单一事实源）。
+开发前加载 `docs/engineering/backend-rules.md` 与 API 契约 `contract/backdoor-auth.openapi.yaml`、`contract/stream-plans.openapi.yaml`、`contract/live-history.openapi.yaml`、`contract/live-events.openapi.yaml`（均为单一事实源）。
 
 ## 技术栈
 
@@ -33,8 +33,9 @@ pnpm lint       # tsc --noEmit 类型检查
 | `src/auth/` | 登录/登出/改密/会话/限速 |
 | `src/rbac/` | 角色与权限中间件 |
 | `src/session/` | Redis 会话与 Cookie |
-| `src/db/` | MongoDB 连接与 users、stream_plans 模型 |
-| `src/routes/` | /api/auth/*、/api/users、/api/stream-plans、/api/live-history |
+| `src/db/` | MongoDB 连接与 users、stream_plans、live_event_reads 模型 |
+| `src/liveEvents/` | 直播事件上游客户端（`upstream.ts`）与 B 站 payload 归一化（`normalize.ts`） |
+| `src/routes/` | /api/auth/*、/api/users、/api/stream-plans、/api/live-history、/api/live-events |
 | `src/infra/` | 历史直播 Redis 缓存抽象（`LiveHistoryCache`）与实现 |
 | `tests/` | 单元测试 |
 
@@ -47,5 +48,6 @@ pnpm lint       # tsc --noEmit 类型检查
 - 登录限速 5 次/分钟/IP（Redis）；
 - `/api/stream-plans`：GET 公开读（无需登录，`from`/`to` 显式日期校验后走 `$gte`/`$lte`，拒绝对象注入）；POST/PUT/DELETE 走 `requireRole("admin")`（superadmin/admin 可写，member 403）。字段：`date` 为 `YYYY-MM-DD` 真实日期、`startTime` 为 `HH:mm` 真实时间（`isValidTime`）、`title` trim 后 1–50 字符；判重键 `(date, startTime, title)`（PUT 编辑排除自身 409）；PUT/DELETE `:id` 先校验 ObjectId 形态否则 400、不存在 404，PUT 写 `updatedAt`；`stream_plans` 集合由 mongoose 自动创建；
 - `/api/live-history`：GET 公开读代理。上游地址 `config.liveHistoryUpstreamUrl`（读 `LIVE_HISTORY_UPSTREAM_URL`，**未配置时回退 PRD 内网地址 `http://vtuber.internal.fffdan.com/api/b/live/1727076670/history`**，内置缺省值、不得因缺变量抛错）；处理链：读 Redis 缓存（key `live-history:latest`，TTL 300s）→ 未命中 `fetch` 上游（5s 超时，`buildUpstreamUrl` 追加 `page=1&pageSize=100`）→ 解析分页信封 `{ total, page, pageSize, items }` 的 `items`（`extractItems`，兼容裸数组）→ 裁剪为 `title`/`startDate`/`stopDate` 三字段（缺 `title`/`startDate` 丢弃）→ 按 `startDate` 倒序取 100 条 → 写缓存返回 `{ ok: true, records }`；上游失败（超时/网络错误/非法 JSON/既非数组也非信封）→ stale-if-error 重读缓存，仍无则返回 `{ ok: false, records: [] }`（HTTP 200，不用 5xx）；缓存经 `AppDeps.liveHistoryCache` 注入（生产用 Redis 实现，缺省内存实现），上游 fetch 可注入便于单测。
+- `/api/live-events`（契约 `contract/live-events.openapi.yaml`）：检索 `GET /` 与 SSE `GET /stream` 走 `requireRole("member")`，三个已读写接口（`POST /read` `/unread` `/read-all`）走 `requireRole("admin")`（member 403）；未登录一律 401。上游 base URL `config.liveEventsUpstreamUrl`（读 `LIVE_EVENTS_UPSTREAM_URL`，缺省回退 `http://vtuber.internal.fffdan.com`，端点路径由 `liveEvents/upstream.ts` 拼接 `/api/b/live/1727076670/event/range|subscribe`，不得因缺变量抛错）；上游客户端经 `AppDeps.liveEventsUpstream` 注入（缺省按 config 创建）。归一化集中在 `liveEvents/normalize.ts`（四类 cmd → LiveEvent，eventId 派生 `dm:{id_str}` / `sc:{id}` / `gift:{batch_combo_id ?? combo_id}` / `guard:{uid}:{start_time}`，解析失败返回 null + console.warn 不中断；实测样本夹具在 `tests/fixtures/live-events/`）。已读状态在 `db/liveEventReads.ts`（`live_event_reads` 集合，`eventId` 唯一索引 + `{ type, kind }` 索引）：单条 read/unread 幂等 upsert 互相覆盖；read-all 写 `watermark:{type}` 水位线（`$max` 只前进不后退）；出口统一 `resolveReadState` 合并（单条记录优先于水位线，无单条时 `occurredAt <= readBefore` 即已读）。检索上游失败 → 502 `{ error: "上游事件服务不可用" }`；SSE 按连接透传、`flushHeaders()` 先下 200 + 头、30s `: ping` 心跳、`req.on("close")` 中止上游、断流指数退避重连（1s→30s，心跳/退避参数可经路由 deps 覆盖供单测）；写接口缺参 400 中文错误。
 
 提交前 `pnpm lint && pnpm test` 全绿。相关文档：[[../../docs/engineering/backend-rules.md]]

@@ -85,6 +85,8 @@ interface LiveEventStub {
   writes: string[];
   /** 经 mock EventSource 向页面推一条实时事件（SSE data 帧）。 */
   push: (event: MockLiveEvent) => Promise<void>;
+  /** 令匹配类型的检索接口返回 502（模拟上游不可用）；传 null 恢复 200。 */
+  setRangeDown: (types: LiveEventType[] | null) => void;
 }
 
 /**
@@ -97,6 +99,7 @@ interface LiveEventStub {
 async function stubLiveEvents(page: Page, events: MockLiveEvent[]): Promise<LiveEventStub> {
   const readState = new Map<string, boolean>();
   const writes: string[] = [];
+  let rangeDownTypes: LiveEventType[] | null = null;
 
   await page.addInitScript(() => {
     interface FakeES {
@@ -152,6 +155,9 @@ async function stubLiveEvents(page: Page, events: MockLiveEvent[]): Promise<Live
 
     if (req.method() === "GET" && url.pathname === "/api/live-events") {
       const types = url.searchParams.getAll("type");
+      if (rangeDownTypes && types.some((t) => (rangeDownTypes as string[]).includes(t))) {
+        return fulfillJson(502, { error: "上游事件服务不可用" });
+      }
       const items = events
         .filter((e) => types.length === 0 || types.includes(e.type))
         .map((e) => ({ ...e, read: readState.get(e.eventId) ?? e.read }));
@@ -186,6 +192,9 @@ async function stubLiveEvents(page: Page, events: MockLiveEvent[]): Promise<Live
 
   return {
     writes,
+    setRangeDown: (types) => {
+      rangeDownTypes = types;
+    },
     push: (event) =>
       page.evaluate(
         (e) => (window as unknown as { __pushLiveEvent: (ev: unknown) => void }).__pushLiveEvent(e),
@@ -290,9 +299,10 @@ test.describe("backdoor danmaku 弹幕后台", () => {
     const before = await topVisibleItem(feed);
     expect(before, "滚动后应有视口顶部条目").not.toBeNull();
 
-    // 滚动中注入新事件：prepend 导致 scrollHeight 增长，锚定补偿后原条目视口位置不跳
+    // 滚动中注入新事件：prepend 导致 scrollHeight 增长，锚定补偿后原条目视口位置不跳。
+    // 滚动态下新条目为 index 0，位于虚拟化渲染窗口之外（overscan=8、行高约 65px），
+    // 其 DOM 存在性依赖像素级行高，故不在此断言；存在性由下方回到顶部后的 toBeVisible 覆盖。
     await stub.push(danmakuEvent("dm:live-anchor", "滚动中插入的实时弹幕"));
-    await expect(page.locator('[data-event-id="dm:live-anchor"]')).toHaveCount(1);
     await expect.poll(() => feed.evaluate((el) => el.scrollTop)).toBeGreaterThan(600);
     await expect
       .poll(async () => {
@@ -306,6 +316,24 @@ test.describe("backdoor danmaku 弹幕后台", () => {
     await expect.poll(() => feed.evaluate((el) => el.scrollTop)).toBe(0);
     await expect(page.locator('[data-event-id="dm:live-anchor"]')).toBeVisible();
     await expect(backToTop).toHaveCount(0);
+  });
+
+  test("danmaku-retry: 历史检索失败显示错误提示，重试后恢复", async ({ page }) => {
+    const events = [danmakuEvent("dm:500", "重试后出现的历史弹幕")];
+    const stub = await stubLiveEvents(page, events);
+    stub.setRangeDown(["danmaku"]);
+    await gotoDanmaku(page, getAccounts().admin);
+
+    // 弹幕栏进入错误态：错误提示 + 重试按钮，不落入「暂无事件」
+    await expect(page.getByText("检索失败")).toBeVisible();
+    const retry = page.getByRole("button", { name: "重试" });
+    await expect(retry).toBeVisible();
+
+    // 恢复上游并重试：弹幕栏重新检索成功，错误态消除
+    stub.setRangeDown(null);
+    await retry.click();
+    await expect(page.locator('[data-event-id="dm:500"]')).toBeVisible();
+    await expect(page.getByText("检索失败")).toHaveCount(0);
   });
 
   test("danmaku-toggle-read: 双击 SC 置灰且刷新后保持，再次双击取消已读", async ({ page }) => {

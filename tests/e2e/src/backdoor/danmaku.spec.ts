@@ -20,6 +20,7 @@ interface MockLiveEvent {
     guardLevel: number | null;
   };
   content?: string;
+  contentRomaji?: string;
   price?: number;
   scColors?: { backgroundStart: string; backgroundEnd: string; fontColor: string };
   gift?: { name: string; count: number };

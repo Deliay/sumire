@@ -1,27 +1,39 @@
 import { describe, it, expect } from "vitest";
-import { toNameRomaji } from "../src/liveEvents/romaji";
+import { toRomaji } from "../src/liveEvents/romaji";
 
-describe("toNameRomaji 昵称罗马音标注", () => {
-  it("含可解析汉字：生成 Hepburn 罗马音", async () => {
-    expect(await toNameRomaji("魔法少女")).toBe("mahō shōjo");
+describe("toRomaji 假名罗马音标注", () => {
+  it("含平假名：生成 Hepburn 罗马音", async () => {
+    expect(await toRomaji("ありがとう")).toBe("arigatou");
+    expect(await toRomaji("たけし")).toBe("takeshi");
+    expect(await toRomaji("まほうしょうじょ")).toBe("mahoushoujo");
   });
 
-  it("含不可解析汉字（非常用词）返回 null，不抛错", async () => {
-    expect(await toNameRomaji("枝堇")).toBeNull();
+  it("含片假名：生成 Hepburn 罗马音（长音 ー 转 macron）", async () => {
+    expect(await toRomaji("テスト")).toBe("tesuto");
+    expect(await toRomaji("コーヒー")).toBe("kōhī");
   });
 
-  it("无汉字（纯中文/英文/数字）返回 null", async () => {
-    expect(await toNameRomaji("abc")).toBeNull();
-    expect(await toNameRomaji("kkk123")).toBeNull();
-    expect(await toNameRomaji("测试观众")).toBeNull();
+  it("拗音 / 促音 / 拨音：きょう→kyou、がっこう→gakkou、しんぶん→shinbun", async () => {
+    expect(await toRomaji("きょう")).toBe("kyou");
+    expect(await toRomaji("がっこう")).toBe("gakkou");
+    expect(await toRomaji("しんぶん")).toBe("shinbun");
+    expect(await toRomaji("せんぱい")).toBe("senpai");
+  });
+
+  it("无假名（纯汉字 / 英文 / 数字）返回 null", async () => {
+    expect(await toRomaji("魔法少女")).toBeNull();
+    expect(await toRomaji("枝堇")).toBeNull();
+    expect(await toRomaji("abc")).toBeNull();
+    expect(await toRomaji("kkk123")).toBeNull();
+    expect(await toRomaji("测试观众")).toBeNull();
   });
 
   it("空串返回 null", async () => {
-    expect(await toNameRomaji("")).toBeNull();
+    expect(await toRomaji("")).toBeNull();
   });
 
-  it("中日混合：仅解析可解析部分并返回整体罗马音", async () => {
-    // 枝堇Sumire 中 枝堇 不可解析 → 整体残留汉字 → null
-    expect(await toNameRomaji("枝堇Sumire")).toBeNull();
+  it("中日混合：仅转写假名部分，汉字原样保留", async () => {
+    expect(await toRomaji("魔法少女さん")).toBe("魔法少女san");
+    expect(await toRomaji("かな漢字")).toBe("kana漢字");
   });
 });

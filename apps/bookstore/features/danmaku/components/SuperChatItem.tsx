@@ -55,6 +55,9 @@ export default function SuperChatItem({ event, isNew = false, onToggleRead }: Su
             }
           >
             {event.content}
+            {event.contentRomaji && (
+              <span className="block text-xs opacity-75">{event.contentRomaji}</span>
+            )}
           </p>
         )}
       </div>

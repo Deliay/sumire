@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type { LiveEvent } from "../types";
+import type { LiveEvent, LiveEventType } from "../types";
 import { mergeDanmaku, type MergedDanmaku } from "../merge";
 import { useAnchoredFeed } from "../useAnchoredFeed";
 import DanmakuItem from "./DanmakuItem";

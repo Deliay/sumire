@@ -1,0 +1,148 @@
+import { describe, it, expect, vi } from "vitest";
+import { createLiveEventsUpstream, buildRangeUrl, buildSubscribeUrl } from "../src/liveEvents/upstream";
+
+const BASE = "http://vtuber.internal.fffdan.com";
+
+function jsonResponse(value: unknown, ok = true, status = 200) {
+  return { ok, status, json: async () => value } as unknown as Response;
+}
+
+function sseResponse(chunks: string[], ok = true, status = 200) {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) controller.enqueue(encoder.encode(chunk));
+      controller.close();
+    },
+  });
+  return { ok, status, body: stream } as unknown as Response;
+}
+
+describe("buildRangeUrl / buildSubscribeUrl", () => {
+  it("base URL 拼接 /api/b/live/1727076670/event/range，多 type 重复参数 + 分页", () => {
+    expect(buildRangeUrl(BASE, ["danmaku", "super_chat"], 2, 30)).toBe(
+      `${BASE}/api/b/live/1727076670/event/range?type=danmaku&type=super_chat&page=2&pageSize=30`,
+    );
+  });
+
+  it("无 type 时不追加 type 参数（全部类型）", () => {
+    expect(buildRangeUrl(BASE, [], 1, 50)).toBe(
+      `${BASE}/api/b/live/1727076670/event/range?page=1&pageSize=50`,
+    );
+  });
+
+  it("subscribe 拼接 /event/subscribe 与多 type", () => {
+    expect(buildSubscribeUrl(BASE, ["gift", "guard_buy"])).toBe(
+      `${BASE}/api/b/live/1727076670/event/subscribe?type=gift&type=guard_buy`,
+    );
+  });
+
+  it("base 带尾斜杠不双斜杠", () => {
+    expect(buildRangeUrl(`${BASE}/`, ["danmaku"], 1, 50)).toBe(
+      `${BASE}/api/b/live/1727076670/event/range?type=danmaku&page=1&pageSize=50`,
+    );
+  });
+});
+
+describe("upstream.fetchRange", () => {
+  it("返回分页信封 { total, page, pageSize, items }", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(
+      jsonResponse({ total: 276, page: 1, pageSize: 50, items: [{ type: "super_chat" }] }),
+    );
+    const upstream = createLiveEventsUpstream(BASE, fetchFn as never);
+    const page = await upstream.fetchRange(["super_chat"], 1, 50);
+    expect(page.total).toBe(276);
+    expect(page.items).toHaveLength(1);
+    expect(fetchFn).toHaveBeenCalledWith(
+      `${BASE}/api/b/live/1727076670/event/range?type=super_chat&page=1&pageSize=50`,
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it("上游 5xx → 抛错", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse({}, false, 502));
+    const upstream = createLiveEventsUpstream(BASE, fetchFn as never);
+    await expect(upstream.fetchRange([], 1, 50)).rejects.toThrow();
+  });
+
+  it("响应非法（既非信封）→ 抛错", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse({ records: "nope" }));
+    const upstream = createLiveEventsUpstream(BASE, fetchFn as never);
+    await expect(upstream.fetchRange([], 1, 50)).rejects.toThrow();
+  });
+
+  it("网络错误 → 抛错（由路由层兜 502）", async () => {
+    const fetchFn = vi.fn().mockRejectedValue(new Error("ECONNREFUSED"));
+    const upstream = createLiveEventsUpstream(BASE, fetchFn as never);
+    await expect(upstream.fetchRange([], 1, 50)).rejects.toThrow("ECONNREFUSED");
+  });
+});
+
+describe("upstream.subscribe（SSE 逐行解析）", () => {
+  it("逐行解析 data: 帧并回调 JSON，跳过注释与空行", async () => {
+    const events = [
+      { type: "danmaku", occurredAt: "t1", payload: {} },
+      { type: "gift", occurredAt: "t2", payload: {} },
+    ];
+    const body =
+      `: ping\n\ndata: ${JSON.stringify(events[0])}\n\ndata: ${JSON.stringify(events[1])}\n\n`;
+    const fetchFn = vi.fn().mockResolvedValue(sseResponse([body]));
+    const upstream = createLiveEventsUpstream(BASE, fetchFn as never);
+    const got: unknown[] = [];
+    await upstream.subscribe([], (e) => void got.push(e), new AbortController().signal);
+    expect(got).toEqual(events);
+    expect(fetchFn).toHaveBeenCalledWith(
+      `${BASE}/api/b/live/1727076670/event/subscribe`,
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it("data 帧跨 chunk 边界也能完整解析", async () => {
+    const line = `data: ${JSON.stringify({ type: "super_chat", payload: { id: 1 } })}\n\n`;
+    const fetchFn = vi.fn().mockResolvedValue(sseResponse([line.slice(0, 10), line.slice(10)]));
+    const upstream = createLiveEventsUpstream(BASE, fetchFn as never);
+    const got: unknown[] = [];
+    await upstream.subscribe([], (e) => void got.push(e), new AbortController().signal);
+    expect(got).toEqual([{ type: "super_chat", payload: { id: 1 } }]);
+  });
+
+  it("非法 JSON 的 data 帧跳过并 warn，不中断", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const body = `data: {broken\n\ndata: {"type":"gift","payload":{}}\n\n`;
+    const fetchFn = vi.fn().mockResolvedValue(sseResponse([body]));
+    const upstream = createLiveEventsUpstream(BASE, fetchFn as never);
+    const got: unknown[] = [];
+    await upstream.subscribe([], (e) => void got.push(e), new AbortController().signal);
+    expect(got).toEqual([{ type: "gift", payload: {} }]);
+    expect(warn).toHaveBeenCalled();
+  });
+
+  it("上游非 200 → 抛错（路由层退避重连）", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(sseResponse([], false, 503));
+    const upstream = createLiveEventsUpstream(BASE, fetchFn as never);
+    await expect(
+      upstream.subscribe([], () => {}, new AbortController().signal),
+    ).rejects.toThrow();
+  });
+
+  it("AbortController 中止 → 停止读取（AbortError 安静退出）", async () => {
+    const controller = new AbortController();
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(new TextEncoder().encode(`data: {"type":"gift","payload":{}}\n\n`));
+      },
+    });
+    const fetchFn = vi.fn().mockImplementation(async (_url: string, init?: { signal?: AbortSignal }) => {
+      init?.signal?.addEventListener("abort", () => controller.abort());
+      return { ok: true, status: 200, body: stream } as unknown as Response;
+    });
+    const upstream = createLiveEventsUpstream(BASE, fetchFn as never);
+    const got: unknown[] = [];
+    const p = upstream.subscribe([], (e) => void got.push(e), controller.signal);
+    // 等首帧被消费后再中止（read 与 abort 的竞态：先到的帧应已回调）
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    controller.abort();
+    await expect(p).resolves.toBeUndefined();
+    expect(got).toEqual([{ type: "gift", payload: {} }]);
+  });
+});

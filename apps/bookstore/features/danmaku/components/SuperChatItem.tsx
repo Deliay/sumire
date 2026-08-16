@@ -1,0 +1,51 @@
+"use client";
+
+import type { LiveEvent } from "../types";
+import { formatPrice } from "../format";
+import Sender from "./Sender";
+
+interface SuperChatItemProps {
+  event: LiveEvent;
+  /** 双击切换已读（admin 及以上传入；member 不渲染已读交互，与后端 403 口径一致）。 */
+  onToggleRead?: (event: LiveEvent) => void;
+}
+
+/**
+ * SC 条目（提案 K6）：两行——Sender + 金额；留言气泡按 scColors 渐变底色与文字色渲染。
+ * 已读置灰；可交互时双击切换已读。
+ */
+export default function SuperChatItem({ event, onToggleRead }: SuperChatItemProps) {
+  const colors = event.scColors;
+  return (
+    <div
+      data-event-id={event.eventId}
+      onDoubleClick={onToggleRead ? () => onToggleRead(event) : undefined}
+      title={onToggleRead ? "双击切换已读" : undefined}
+      className={`flex flex-col gap-1 px-3 py-2 transition-opacity duration-150 ${
+        event.read ? "opacity-60" : ""
+      } ${onToggleRead ? "cursor-pointer select-none" : ""}`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <Sender sender={event.sender} />
+        {event.price !== undefined && (
+          <span className="shrink-0 text-sm font-semibold text-flower">{formatPrice(event.price)}</span>
+        )}
+      </div>
+      {event.content !== undefined && (
+        <p
+          className="rounded-md px-2 py-1.5 text-sm break-words"
+          style={
+            colors
+              ? {
+                  background: `linear-gradient(135deg, ${colors.backgroundStart}, ${colors.backgroundEnd})`,
+                  color: colors.fontColor,
+                }
+              : undefined
+          }
+        >
+          {event.content}
+        </p>
+      )}
+    </div>
+  );
+}

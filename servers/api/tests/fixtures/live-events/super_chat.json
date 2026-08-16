@@ -1,0 +1,30 @@
+{
+  "roomId": 1727076670,
+  "type": "super_chat",
+  "occurredAt": "2026-08-16T13:22:40.101Z",
+  "liveSessionId": "20260816-live-1",
+  "payload": {
+    "cmd": "SUPER_CHAT_MESSAGE",
+    "data": {
+      "id": 7788123,
+      "uid": 322892,
+      "price": 30,
+      "message": "堇宝辛苦了！今晚也超好听",
+      "uinfo": {
+        "base": { "name": "薄荷糖", "face": "https://i1.hdslb.com/bfs/face/member/322892.jpg" }
+      },
+      "medal_info": {
+        "medal_name": "堇色信笺",
+        "medal_level": 18,
+        "medal_color": "#c79eff",
+        "anchor_uname": "枝堇Sumire",
+        "anchor_roomid": 1727076670
+      },
+      "background_color_start": "#EDF5FF",
+      "background_color_end": "#A2C3EA",
+      "message_font_color": "#7497CD",
+      "start_time": 1755338560,
+      "end_time": 1755340360
+    }
+  }
+}

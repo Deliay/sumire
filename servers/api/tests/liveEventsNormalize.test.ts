@@ -196,6 +196,59 @@ describe("toLiveEvent 缺字段容错", () => {
     expect(e?.emote).toBeUndefined();
   });
 
+  it("danmaku：小表情（emoji 风格）经 extra.emots 按文本键解析——info[0][13] 无 emoticon 也能取到 emote", () => {
+    const fixture = clone(danmakuFixture);
+    const i0 = fixture.payload.info[0] as unknown[];
+    i0[12] = 0;
+    i0[13] = "{}";
+    (fixture.payload.info as unknown[])[1] = "[比心]";
+    const v2 = i0[15] as { extra: string };
+    v2.extra = JSON.stringify({
+      id_str: "6923001122334455",
+      content: "[比心]",
+      mode: 0,
+      emots: {
+        "[比心]": {
+          count: 1,
+          descript: "[比心]",
+          emoji: "[比心]",
+          emoticon_id: 217,
+          emoticon_unique: "emoji_217",
+          height: 20,
+          url: "http://i0.hdslb.com/bfs/live/4e029593562283f00d39b99e0557878c4199c71d.png",
+          width: 20,
+        },
+      },
+    });
+    const e = toLiveEvent(fixture);
+    expect(e).not.toBeNull();
+    expect(e?.content).toBe("[比心]");
+    expect(e?.emote).toEqual({
+      url: "http://i0.hdslb.com/bfs/live/4e029593562283f00d39b99e0557878c4199c71d.png",
+      name: "[比心]",
+      width: 20,
+      height: 20,
+    });
+  });
+
+  it("danmaku：emots 有映射但 content 无匹配键时不取 emote（保留纯文本）", () => {
+    const fixture = clone(danmakuFixture);
+    const i0 = fixture.payload.info[0] as unknown[];
+    i0[12] = 0;
+    i0[13] = "{}";
+    (fixture.payload.info as unknown[])[1] = "测试测试";
+    const v2 = i0[15] as { extra: string };
+    v2.extra = JSON.stringify({
+      id_str: "6923001122334455",
+      content: "测试测试",
+      mode: 0,
+      emots: { "[比心]": { url: "http://i0.hdslb.com/bfs/live/x.png", width: 20, height: 20 } },
+    });
+    const e = toLiveEvent(fixture);
+    expect(e?.content).toBe("测试测试");
+    expect(e?.emote).toBeUndefined();
+  });
+
   it("super_chat：缺 data.uinfo 时回退 data.user_info", () => {
     const fixture = clone(superChatFixture);
     const data = fixture.payload.data as unknown as Record<string, unknown>;

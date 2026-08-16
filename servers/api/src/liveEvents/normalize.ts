@@ -108,19 +108,21 @@ function normalizeDanmaku(payload: Record<string, unknown>, occurredAt: string):
 
   const content = asString(info[1]) ?? asString(extra?.content);
 
-  // 表情弹幕：上游 info[0][13] 为 emoticon 对象（含 url/width/height）时视为表情，前端渲染图片而非纯文本
+  // 表情弹幕：
+  // 1) 房间表情：上游 info[0][13] 为 emoticon 对象（含 url/width/height）；
+  // 2) 小表情（emoji 风格）：上游 extra.emots 为按文本键控的映射（如 {"[比心]": {url,width,height,...}}），
+  //    以 content 为键取出（如「[比心]」）。两处任一生效即视为表情，前端渲染图片而非纯文本。
   const classicEmote = asRecord(asArray(info[0])?.[13]);
-  const emoteUrl = asString(classicEmote?.url);
+  const emots = asRecord(extra?.emots);
+  const emotsEntry = content ? asRecord(emots?.[content]) : undefined;
+  const emoteSource = emotsEntry && asString(emotsEntry.url) ? emotsEntry : classicEmote;
+  const emoteUrl = asString(emoteSource?.url);
   const emote = emoteUrl
     ? {
         url: emoteUrl,
         ...(content ? { name: content } : {}),
-        ...(asNumber(classicEmote?.width) !== undefined
-          ? { width: asNumber(classicEmote?.width) }
-          : {}),
-        ...(asNumber(classicEmote?.height) !== undefined
-          ? { height: asNumber(classicEmote?.height) }
-          : {}),
+        ...(asNumber(emoteSource?.width) !== undefined ? { width: asNumber(emoteSource?.width) } : {}),
+        ...(asNumber(emoteSource?.height) !== undefined ? { height: asNumber(emoteSource?.height) } : {}),
       }
     : undefined;
 

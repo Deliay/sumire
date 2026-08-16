@@ -39,6 +39,17 @@ describe("FeedSection 滚动加载", () => {
     expect(screen.queryByRole("button", { name: "加载更多" })).toBeNull();
   });
 
+  it("回归：短列表（scrollHeight <= clientHeight，未铺满）即使 hasMore 也不自动触发 onLoadMore（防无限加载）", async () => {
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(300);
+    const onLoadMore = vi.fn();
+    const few = EVENTS.slice(0, 2);
+    render(<FeedSection label="弹幕" events={few} canManage={false} onLoadMore={onLoadMore} hasMore />);
+    await act(async () => {});
+    expect(onLoadMore).not.toHaveBeenCalled();
+    // 短列表仍渲染手动「加载更多」按钮
+    expect(screen.getByRole("button", { name: "加载更多" })).toBeTruthy();
+  });
+
   it("滚动接近底部触发 onLoadMore", async () => {
     const onLoadMore = vi.fn();
     render(<FeedSection label="弹幕" events={EVENTS} canManage={false} onLoadMore={onLoadMore} hasMore />);

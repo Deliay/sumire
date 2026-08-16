@@ -91,7 +91,7 @@ flowchart LR
 
 | 模块 | 职责 | 关键技术点 |
 |------|------|-----------|
-| `servers/api/src/routes/liveEvents.ts` | 检索/已读读写/SSE 三个端点 | 工厂函数、sessionMiddleware + requireRole |
+| `servers/api/src/routes/liveEvents.ts` | 检索/已读读写/SSE 四个端点 | 工厂函数、sessionMiddleware + requireRole |
 | `servers/api/src/liveEvents/upstream.ts` | 内网服务 HTTP/SSE 客户端 | fetch 分页、SSE 解析、错误兜底 |
 | `servers/api/src/liveEvents/normalize.ts` | payload → `LiveEvent` 归一化、事件 ID 派生 | 各 cmd 字段映射、防御式解析 |
 | `servers/api/src/db/liveEventReads.ts` | 已读状态 Mongoose 模型 | 唯一索引、幂等 upsert |
@@ -120,6 +120,11 @@ flowchart LR
 
 - Body：`{ eventId: string }`；200：`{ ok: true }`（幂等 upsert）；403：member；400：`{ error: "eventId 不能为空" }`
 
+**`POST /api/live-events/unread`** — 单条取消已读（admin 及以上）
+
+- Body：`{ eventId: string }`；200：`{ ok: true }`（幂等）；403：member
+- 语义：撤销单条已读标记；对因「全部已读」水位线而置灰的条目，写入一条显式未读覆盖记录（优先级高于水位线）
+
 **`POST /api/live-events/read-all`** — 按类型全部已读（admin 及以上）
 
 - Body：`{ type: "super_chat" | "guard_buy" }`；200：`{ ok: true, marked: number }`
@@ -130,7 +135,7 @@ flowchart LR
 - `upstream.fetchRange(types, page, pageSize): Promise<UpstreamPage>`；
 - `upstream.subscribe(types, onEvent, signal): void`（内部逐行解析 SSE）；
 - `normalize.toLiveEvent(envelope): LiveEvent | null`（无法识别的事件返回 null 并记日志，不中断流）；
-- `reads.markRead(eventId, user)` / `reads.markAllRead(type, user)` / `reads.resolveReadState(events)`（批量合并已读标记）。
+- `reads.markRead(eventId, user)` / `reads.markUnread(eventId, user)` / `reads.markAllRead(type, user)` / `reads.resolveReadState(events)`（批量合并已读标记）。
 
 ## 4. 数据模型
 
@@ -142,12 +147,14 @@ flowchart LR
 |------|------|------|
 | `eventId` | string | 事件唯一 ID（见 4.2 派生规则）；水位线记录用 `watermark:{type}` |
 | `type` | string | `super_chat` / `guard_buy` |
-| `kind` | string | `single` / `watermark` |
+| `kind` | string | `read`（单条已读）/ `unread`（单条显式未读，用于撤销水位线覆盖）/ `watermark` |
 | `readBefore` | Date? | 水位线：该时间及之前事件均视为已读 |
 | `readBy` | string | 操作人用户名 |
 | `readAt` | Date | 标记时间 |
 
-索引：`{ eventId: 1 }` 唯一；`{ type: 1, kind: 1 }`。
+索引：`{ eventId: 1 }` 唯一；`{ type: 1, kind: 1 }`。同一 `eventId` 至多一条单条记录，`kind` 在 `read` / `unread` 间随最新操作覆盖。
+
+已读判定规则（检索与推送出口统一）：单条记录存在时以 `kind === "read"` 为准（`unread` 显式覆盖水位线）；无单条记录时 `occurredAt <= readBefore` 即已读。
 
 事件数据本身**不落库**。Redis 无新增用途（会话/限速沿用）。
 
@@ -237,8 +244,8 @@ sequenceDiagram
 
 **K3 已读状态合并与水位线**
 
-- 描述：检索与推送出口统一经 `resolveReadState` 合并已读标记；全部已读用水位线避免全量写入。
-- 技术细节：单次查询同时取该类型 `single` 记录（eventId 集合）与最新 `watermark`；`read = single.has(eventId) || occurredAt <= readBefore`；`markAllRead` 取当前检索第一页最新 `occurredAt` 写水位线（upsert，只前进不后退）。
+- 描述：检索与推送出口统一经 `resolveReadState` 合并已读标记；全部已读用水位线避免全量写入；单条取消已读可撤销水位线覆盖。
+- 技术细节：单次查询取该类型单条记录（eventId → kind 映射）与最新 `watermark`；`read = 单条记录 ? kind === "read" : occurredAt <= readBefore`；`markAllRead` 取当前检索第一页最新 `occurredAt` 写水位线（upsert，只前进不后退）；`read` / `unread` 均为同一 eventId 上的幂等 upsert（覆盖 kind）。
 - 风险点：水位线时刻之后到达的历史乱序事件会被判未读——上游按时间倒序分页，乱序概率低，可接受；单条标记可补。
 
 **K4 虚拟化信息流与滚动锚定（前端）**
@@ -255,8 +262,8 @@ sequenceDiagram
 
 **K6 已读交互（前端）**
 
-- 描述：SC / 上船条目双击标记已读（置灰层），栏头「标记全部已读」按钮；member 角色不渲染交互。
-- 技术细节：双击处理用 `onDoubleClick`（单击穿透 B 站空间链接不冲突：链接在头像/昵称上，空白区双击触发已读）；乐观更新本地置灰，失败回滚并提示；「全部已读」确认后调用 read-all 并整体置灰。
+- 描述：SC / 上船条目双击切换已读状态（未读→已读置灰，已读→取消已读去除置灰），栏头「标记全部已读」按钮；member 角色不渲染交互。
+- 技术细节：双击处理用 `onDoubleClick`（单击穿透 B 站空间链接不冲突：链接在头像/昵称上，空白区双击触发已读切换）；按当前 `read` 状态分别调用 `read` / `unread` 接口；乐观更新本地状态，失败回滚并提示；「全部已读」确认后调用 read-all 并整体置灰，此后单条双击仍可通过 unread 单独取消。
 - 风险点：误触——双击阈值天然防误触；全部已读加二次确认。
 
 **K7 分栏布局配置（前端）**
@@ -342,7 +349,7 @@ tests/e2e/                                   # 新增 danmaku-backdoor e2e 关�
 
 | 类型 | 内容 |
 |------|------|
-| 后端单测/集成 | 未认证 401 矩阵（三端点）；member 写操作 403；归一化四类事件映射正确性；eventId 稳定性；read 幂等；read-all 水位线只前进；SSE 帧格式与心跳；上游 5xx → 502 中文错误；非 /api 404 回归 |
+| 后端单测/集成 | 未认证 401 矩阵（四端点）；member 写操作 403；归一化四类事件映射正确性；eventId 稳定性；read/unread 幂等与 kind 覆盖；unread 显式撤销水位线覆盖；read-all 水位线只前进；SSE 帧格式与心跳；上游 5xx → 502 中文错误；非 /api 404 回归 |
 | 前端单测 | `columns.ts` Zod 校验回退；`useAnchoredFeed` 锚定偏移计算；船型/金额换算；Sender 缺牌子/缺头像渲染 |
 | e2e | 登录 → 进入弹幕后台 → 三栏渲染；滚动中注入新事件位置不跳 + 回到顶部；双击 SC 置灰且刷新后保持；member 不见已读交互 |
 
@@ -363,10 +370,10 @@ tests/e2e/                                   # 新增 danmaku-backdoor e2e 关�
 ## 10. 验收标准
 
 - [ ] 契约 `contract/live-events.openapi.yaml` 经 PR 审批合并回 feat 分支；
-- [ ] 三端点鉴权矩阵符合 3.1（401/403）；
+- [ ] 四端点鉴权矩阵符合 3.1（401/403）；
 - [ ] 四类事件归一化输出与 4.2 模型一致，eventId 稳定；
 - [ ] SSE 单连接多 type 组合推送，断线可恢复；
-- [ ] 单条/全部已读持久化，刷新后保持，已读置灰；
+- [ ] 单条已读/取消已读/全部已读持久化，刷新后保持，已读置灰、取消已读去除置灰；
 - [ ] 默认 3 栏布局，栏位配置刷新后保留，窄屏堆叠；
 - [ ] 滚动中新事件插入位置不跳，回到顶部可用；
 - [ ] 全部信息流虚拟化；

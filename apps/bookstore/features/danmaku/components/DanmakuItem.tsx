@@ -12,12 +12,12 @@ export default function DanmakuItem({ event }: DanmakuItemProps) {
   return (
     <div data-event-id={event.eventId} className="flex gap-2.5 px-3 py-2">
       <span aria-hidden className="w-1 shrink-0 self-stretch rounded-full bg-vine/70" />
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <div className="flex items-center justify-between gap-2">
-          <Sender sender={event.sender} />
           <span className="shrink-0 rounded-sm bg-vine/20 px-1.5 py-px text-[10px] leading-4 text-paper-dim">
             弹幕
           </span>
+          <Sender sender={event.sender} />
         </div>
         {event.emote?.url ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -33,7 +33,7 @@ export default function DanmakuItem({ event }: DanmakuItemProps) {
           />
         ) : (
           event.content !== undefined && (
-            <p className="text-sm break-words text-ink">{event.content}</p>
+            <p className="text-[15px] leading-snug font-semibold break-words text-ink">{event.content}</p>
           )
         )}
       </div>

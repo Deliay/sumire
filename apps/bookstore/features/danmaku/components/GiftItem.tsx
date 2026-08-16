@@ -16,7 +16,7 @@ export default function GiftItem({ event }: GiftItemProps) {
       <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex items-center gap-2">
-            <span className="shrink-0 rounded-sm bg-primary/20 px-1.5 py-px text-[10px] leading-4 text-ink-on-paper">
+            <span className="shrink-0 rounded-sm bg-primary/25 px-1.5 py-px text-[10px] leading-4 font-medium text-ink">
               礼物
             </span>
             {event.gift && (

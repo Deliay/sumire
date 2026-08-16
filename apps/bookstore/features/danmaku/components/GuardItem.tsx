@@ -31,7 +31,7 @@ export default function GuardItem({ event, onToggleRead }: GuardItemProps) {
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex items-center gap-2">
             {shipName && (
-              <span className="shrink-0 rounded-sm bg-flower/20 px-1.5 py-px text-[10px] leading-4 font-medium text-ink-on-paper">
+              <span className="shrink-0 rounded-sm bg-flower/30 px-1.5 py-px text-[10px] leading-4 font-medium text-ink">
                 上船 · {shipName}
               </span>
             )}

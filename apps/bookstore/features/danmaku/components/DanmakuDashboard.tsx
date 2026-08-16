@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { useSession } from "@/features/backdoor/session";
 import { atLeast } from "@/features/backdoor/roleAccess";
 import type { ApiError } from "@/features/backdoor/api";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 import {
   listLiveEvents,
   markAllLiveEventsRead,
@@ -13,10 +14,13 @@ import {
   type ReadAllType,
 } from "../api";
 import {
+  COLUMN_PRESETS,
   getColumnsServerSnapshot,
   getColumnsSnapshot,
+  resolveColumns,
   saveColumns,
   subscribeColumns,
+  type ViewportTier,
 } from "../columns";
 import { labelForType } from "../format";
 import { useLiveEventStream } from "../useLiveEventStream";
@@ -50,7 +54,8 @@ function dedupeById(events: LiveEvent[]): LiveEvent[] {
  * 弹幕后台分栏面板（提案 K5/K6/K7）：默认 3 栏（弹幕+礼物 | SC | 上船），
  * 历史首屏逐栏检索 + SSE 实时 prepend（按 eventId 去重），已读双击切换乐观更新失败回滚，
  * 栏位类型组合可配置并持久化 localStorage（useSyncExternalStore 快照，SSR 回退默认）。
- * `<1024px` 纵向堆叠为纯 CSS（flex-col → lg:flex-row）。
+ * 移动端优化（F10）：按视口自适应栏数——<640px 折叠为单栏全类型、640-1023px 可选 1/2 栏
+ * 默认 1 栏、>=1024px 可选 2/3 栏默认 3 栏，经「视图栏」选择器调整（纯视图层折叠，不写回存储）。
  */
 interface DanmakuDashboardProps {
   /** 全屏模式：分栏区占满整个屏幕（由弹幕后台页传入）。 */
@@ -67,7 +72,13 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
   const { session } = useSession();
   const canManage = session.status === "authenticated" && atLeast(session.me.role, "admin");
 
-  const columns = useSyncExternalStore(subscribeColumns, getColumnsSnapshot, getColumnsServerSnapshot);
+  const storedColumns = useSyncExternalStore(subscribeColumns, getColumnsSnapshot, getColumnsServerSnapshot);
+  // 视口档位：narrow(<640) / medium(640-1023) / wide(>=1024)；SSR 快照恒 false → medium
+  const isNarrow = useMediaQuery("(max-width: 639px)");
+  const isWide = useMediaQuery("(min-width: 1024px)");
+  const tier: ViewportTier = isNarrow ? "narrow" : isWide ? "wide" : "medium";
+  // 有效栏位：按视口夹取已存配置（越界用预设覆盖，界内保留自定义），不写回存储
+  const columns = useMemo(() => resolveColumns(storedColumns, tier), [storedColumns, tier]);
   // 分节检索状态：key = `${colId}:${type}`，每种事件类型独立加载/分页/错误
   const [eventsBySection, setEventsBySection] = useState<Record<string, LiveEvent[]>>({});
   const [loadedSections, setLoadedSections] = useState<ReadonlySet<string>>(new Set());
@@ -259,20 +270,25 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
     }
   }, []);
 
-  // 栏位配置：勾选/取消事件类型，至少保留一种；写回 localStorage（订阅者自动收到新快照）
-  const toggleColumnType = useCallback((columnId: string, type: LiveEventType) => {
-    const current = getColumnsSnapshot();
-    const next = current.map((col) => {
-      if (col.id !== columnId) return col;
-      const types = col.types.includes(type)
-        ? col.types.filter((t) => t !== type)
-        : [...col.types, type];
-      if (types.length === 0) return col;
-      return { ...col, types };
-    });
-    if (next === current) return;
-    saveColumns(next);
-  }, []);
+  // 栏位配置：勾选/取消事件类型，至少保留一种；写回 localStorage（订阅者自动收到新快照）。
+  // 作用于当前有效栏（用户所见），跨视口夹取场景下写入为自定义栏数配置。
+  const toggleColumnType = useCallback(
+    (columnId: string, type: LiveEventType) => {
+      const next = columns.map((col) => {
+        if (col.id !== columnId) return col;
+        const types = col.types.includes(type)
+          ? col.types.filter((t) => t !== type)
+          : [...col.types, type];
+        if (types.length === 0) return col;
+        return { ...col, types };
+      });
+      saveColumns(next);
+    },
+    [columns],
+  );
+
+  // 视图栏选择器：按视口约束切换栏数（narrow 隐藏，medium 1/2 栏，wide 2/3 栏）
+  const columnCountOptions = tier === "narrow" ? [] : tier === "medium" ? [1, 2] : [2, 3];
 
   return (
     <div className={isFullscreen ? "flex h-full flex-1 flex-col gap-4" : "flex flex-col gap-4"}>
@@ -286,11 +302,31 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
           实时连接已断开
         </p>
       )}
+      {columnCountOptions.length > 0 && (
+        <div className="flex items-center justify-end gap-2">
+          <label htmlFor="danmaku-column-count" className="text-xs text-ink-dim">
+            视图栏
+          </label>
+          <select
+            id="danmaku-column-count"
+            value={columns.length}
+            onChange={(e) => saveColumns(COLUMN_PRESETS[Number(e.target.value) as 1 | 2 | 3])}
+            aria-label="视图栏"
+            className="rounded-md border border-vine/50 bg-raised px-2 py-1 text-xs text-ink transition-colors duration-150 hover:border-flower"
+          >
+            {columnCountOptions.map((n) => (
+              <option key={n} value={n}>
+                {n} 栏
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <div
         className={
           isFullscreen
-            ? "flex min-h-0 flex-1 flex-col gap-4 lg:flex-row"
-            : "flex h-[calc(100svh-16rem)] flex-col gap-4 lg:flex-row"
+            ? `flex min-h-0 flex-1 gap-4 ${columns.length > 1 ? "flex-row" : "flex-col"}`
+            : `flex h-[calc(100svh-16rem)] gap-4 ${columns.length > 1 ? "flex-row" : "flex-col"}`
         }
       >
         {columns.map((col) => {

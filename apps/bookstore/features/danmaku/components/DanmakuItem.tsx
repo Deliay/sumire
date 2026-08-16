@@ -17,7 +17,7 @@ export default function DanmakuItem({ event }: DanmakuItemProps) {
           <span className="shrink-0 rounded-sm bg-vine/20 px-1.5 py-px text-[10px] leading-4 text-paper-dim">
             弹幕
           </span>
-          <Sender sender={event.sender} />
+          <Sender sender={event.sender} compact />
         </div>
         {event.emote?.url ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -33,7 +33,7 @@ export default function DanmakuItem({ event }: DanmakuItemProps) {
           />
         ) : (
           event.content !== undefined && (
-            <p className="text-[15px] leading-snug font-semibold break-words text-ink">{event.content}</p>
+            <p className="text-base leading-snug font-semibold break-words text-ink">{event.content}</p>
           )
         )}
       </div>

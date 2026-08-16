@@ -76,8 +76,9 @@ function medalFromMedalInfo(medalInfo: unknown): LiveEventSender["medal"] {
 function normalizeDanmaku(payload: Record<string, unknown>, occurredAt: string): LiveEvent | null {
   const info = asArray(payload.info);
   if (!info) return null;
-  // dm_v2 结构化字段（info[15]）：eventId 与头像的首选来源；真实 payload 中 extra 可能是 JSON 字符串或已是对象
-  const v2 = asRecord(info[15]);
+  // dm_v2 结构化字段（实测在 info[0][15]，部分样本在顶层 info[15]）：eventId 与头像的首选来源；
+  // 真实 payload 中 extra 可能是 JSON 字符串或已是对象
+  const v2 = asRecord(asArray(info[0])?.[15]) ?? asRecord(info[15]);
   const extra = asRecord(parseJson(v2?.extra)) ?? asRecord(v2?.extra);
   // eventId：优先 dm_v2 extra.id_str，回退经典数组 info[0][7]（每消息唯一的 dm hash 字符串）
   const idStr = asString(extra?.id_str) ?? asString(asArray(info[0])?.[7]);

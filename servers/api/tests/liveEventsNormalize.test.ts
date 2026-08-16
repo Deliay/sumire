@@ -89,7 +89,8 @@ describe("toLiveEvent 四类事件映射（实测样本夹具）", () => {
 describe("toLiveEvent 缺字段容错", () => {
   it("danmaku：dm_v2 无 medal 时回退经典数组 info[3]（[0] 等级 [1] 牌名 [6] 颜色整数转 hex）", () => {
     const fixture = clone(danmakuFixture);
-    delete (fixture.payload.info[15] as { user: Record<string, unknown> }).user.medal;
+    const v2 = (fixture.payload.info[0] as unknown[])[15] as { user: Record<string, unknown> };
+    delete v2.user.medal;
     const e = toLiveEvent(fixture);
     expect(e).not.toBeNull();
     expect(e?.sender.medal).toEqual({
@@ -101,7 +102,8 @@ describe("toLiveEvent 缺字段容错", () => {
 
   it("danmaku：经典数组牌子名为空 → medal 为 null", () => {
     const fixture = clone(danmakuFixture);
-    delete (fixture.payload.info[15] as { user: Record<string, unknown> }).user.medal;
+    const v2 = (fixture.payload.info[0] as unknown[])[15] as { user: Record<string, unknown> };
+    delete v2.user.medal;
     (fixture.payload.info[3] as unknown[])[1] = "";
     const e = toLiveEvent(fixture);
     expect(e?.sender.medal).toBeNull();
@@ -109,7 +111,7 @@ describe("toLiveEvent 缺字段容错", () => {
 
   it("danmaku：dm_v2 缺 user.base.face → face 为 null", () => {
     const fixture = clone(danmakuFixture);
-    const v2 = fixture.payload.info[15] as { user: { base: Record<string, unknown> } };
+    const v2 = (fixture.payload.info[0] as unknown[])[15] as { user: { base: Record<string, unknown> } };
     delete v2.user.base.face;
     const e = toLiveEvent(fixture);
     expect(e?.sender.face).toBeNull();
@@ -117,7 +119,7 @@ describe("toLiveEvent 缺字段容错", () => {
 
   it("danmaku：extra 已是对象（非 JSON 字符串）也能解析出 eventId 与内容", () => {
     const fixture = clone(danmakuFixture);
-    const v2 = fixture.payload.info[15] as { extra: string };
+    const v2 = (fixture.payload.info[0] as unknown[])[15] as { extra: string };
     v2.extra = { id_str: "6923001122334455", content: "堇宝今天唱什么呀" } as unknown as string;
     const e = toLiveEvent(fixture);
     expect(e).not.toBeNull();
@@ -125,9 +127,27 @@ describe("toLiveEvent 缺字段容错", () => {
     expect(e?.content).toBe("堇宝今天唱什么呀");
   });
 
-  it("danmaku：无 dm_v2（info[15] 缺失）时回退经典字段——eventId 用 info[0][7]、uid/name 用 info[2]、medal 用 info[3]", () => {
+  it("danmaku：回归——同一用户多条消息必须得到不同 eventId（v2 在 info[0][15]，extra.id_str 唯一）", () => {
     const fixture = clone(danmakuFixture);
-    fixture.payload.info = fixture.payload.info.slice(0, 4);
+    const info = fixture.payload.info as unknown[];
+    const i0 = info[0] as unknown[];
+    const v2 = i0[15] as { extra: string };
+    // 克隆第二份：同用户（info[2] 相同）、不同 id_str
+    v2.extra = JSON.stringify({ id_str: "AAAA0000", content: "第一条", mode: 0 });
+    const e1 = toLiveEvent(fixture);
+    v2.extra = JSON.stringify({ id_str: "BBBB1111", content: "第二条", mode: 0 });
+    const e2 = toLiveEvent(fixture);
+    expect(e1).not.toBeNull();
+    expect(e2).not.toBeNull();
+    expect(e1?.eventId).toBe("dm:AAAA0000");
+    expect(e2?.eventId).toBe("dm:BBBB1111");
+    expect(e1?.eventId).not.toBe(e2?.eventId);
+    expect(e1?.sender.uid).toBe(e2?.sender.uid);
+  });
+
+  it("danmaku：无 dm_v2（info[0][15] 缺失）时回退经典字段——eventId 用 info[0][7]、uid/name 用 info[2]、medal 用 info[3]", () => {
+    const fixture = clone(danmakuFixture);
+    (fixture.payload.info[0] as unknown[]).pop();
     const e = toLiveEvent(fixture);
     expect(e).not.toBeNull();
     expect(e?.eventId).toBe("dm:9f3c2a1d");
@@ -154,7 +174,8 @@ describe("toLiveEvent 缺字段容错", () => {
       is_dynamic: 0,
       url: "http://i0.hdslb.com/bfs/live/c6f3177115ef915da729d1b25708b69651ac5481.png",
       width: 162,
-    };    const e = toLiveEvent(fixture);
+    };
+    const e = toLiveEvent(fixture);
     expect(e).not.toBeNull();
     expect(e?.emote).toEqual({
       url: "http://i0.hdslb.com/bfs/live/c6f3177115ef915da729d1b25708b69651ac5481.png",

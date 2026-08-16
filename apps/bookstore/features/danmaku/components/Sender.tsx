@@ -1,6 +1,7 @@
 "use client";
 
 import type { LiveEvent } from "../types";
+import { guardLevelName, guardLevelTone } from "../format";
 
 interface SenderProps {
   sender: LiveEvent["sender"];
@@ -62,6 +63,15 @@ export default function Sender({ sender, compact = false }: SenderProps) {
           style={{ color: sender.medal.color, borderColor: sender.medal.color }}
         >
           {sender.medal.name} {sender.medal.level}
+        </span>
+      )}
+      {sender.guardLevel != null && guardLevelName(sender.guardLevel) && (
+        <span
+          className={`shrink-0 rounded px-1 py-px font-medium leading-4 ${
+            compact ? "text-[10px]" : "text-xs"
+          } ${guardLevelTone(sender.guardLevel).chip} ${guardLevelTone(sender.guardLevel).text}`}
+        >
+          {guardLevelName(sender.guardLevel)}
         </span>
       )}
     </span>

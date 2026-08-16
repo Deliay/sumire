@@ -9,6 +9,7 @@ const BASE_SENDER: LiveEvent["sender"] = {
   name: "测试观众",
   face: "https://i0.hdslb.com/face.jpg",
   medal: { name: "堇粉丝", level: 21, color: "#8b5fd6" },
+  guardLevel: null,
 };
 
 describe("Sender 公共组件", () => {
@@ -36,6 +37,20 @@ describe("Sender 公共组件", () => {
     render(<Sender sender={{ ...BASE_SENDER, medal: null }} />);
     expect(screen.getByText("测试观众")).toBeTruthy();
     expect(screen.queryByText(/堇粉丝/)).toBeNull();
+  });
+
+  it("guardLevel 为 null 时不渲染船员标识", () => {
+    render(<Sender sender={BASE_SENDER} />);
+    expect(screen.queryByText(/舰长|提督|总督/)).toBeNull();
+  });
+
+  it("guardLevel=3 渲染「舰长」标识，=2 渲染「提督」，=1 渲染「总督」", () => {
+    const { rerender } = render(<Sender sender={{ ...BASE_SENDER, guardLevel: 3 }} />);
+    expect(screen.getByText("舰长")).toBeTruthy();
+    rerender(<Sender sender={{ ...BASE_SENDER, guardLevel: 2 }} />);
+    expect(screen.getByText("提督")).toBeTruthy();
+    rerender(<Sender sender={{ ...BASE_SENDER, guardLevel: 1 }} />);
+    expect(screen.getByText("总督")).toBeTruthy();
   });
 
   it("点击新开 B 站空间 https://space.bilibili.com/{uid}", () => {

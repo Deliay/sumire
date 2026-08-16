@@ -12,6 +12,7 @@ const SENDER: LiveEvent["sender"] = {
   name: "观众A",
   face: null,
   medal: null,
+  guardLevel: null,
 };
 
 function makeEvent(partial: Partial<LiveEvent> & Pick<LiveEvent, "eventId" | "type">): LiveEvent {

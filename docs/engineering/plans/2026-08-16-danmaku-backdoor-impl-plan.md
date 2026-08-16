@@ -1,5 +1,5 @@
 ---
-description: 弹幕后台实现方案 v1.0——基于 PRD v1.1 与技术提案 v1.2 的实施计划（契约先行、后端 live-events 域四端点 + 归一化 + 已读水位线、前端 features/danmaku 分栏虚拟化信息流、Aspire 注入上游、API 集成与 e2e；分支策略、TDD 步骤、验证与验收）
+description: 弹幕后台实现方案 v1.1——基于 PRD v1.1 与技术提案 v1.2 的实施计划（单一开发分支 feat/danmaku-backdoor：契约先行，后端 live-events 域五端点 + 归一化 + 已读水位线，前端 features/danmaku 分栏虚拟化信息流，Aspire 注入上游，API 集成与 e2e；分支策略、TDD 步骤、验证与验收）
 type: Permanent
 ---
 
@@ -7,12 +7,11 @@ type: Permanent
 
 **关联 PRD**: [[../../product/requirements/draft/2026-08-16-danmaku-backdoor-prd.md]]（v1.1）
 **关联技术提案**: [[../proposals/2026-08-16-danmaku-backdoor-proposal.md]]（v1.2，字段映射已与 Mikibot WebsocketCrawler 交叉校验）
-**关联契约**: `contract/live-events.openapi.yaml`（本期新增，契约步骤产出）；`contract/backdoor-auth.openapi.yaml`（复用鉴权口径，不变）
+**关联契约**: `contract/live-events.openapi.yaml`（本期新增，在开发分支上先行产出）；`contract/backdoor-auth.openapi.yaml`（复用鉴权口径，不变）
 **关联设计**: [[../../design/03-backdoor-design.md]]
 **需求总分支**: `prd/danmaku-backdoor`
-**契约分支**: `contract/danmaku-backdoor`（自需求总分支切出，PR 回合）
-**开发分支**: `feat/danmaku-backdoor`（自契约合并后的需求总分支切出）
-**版本**: v1.0（2026-08-16）
+**开发分支**: `feat/danmaku-backdoor`（自需求总分支切出，**唯一开发分支**，契约与实现同在此分支）
+**版本**: v1.1（2026-08-16，按审核意见改为单一开发分支，不再单独建契约分支）
 **作者**: sumire workflow
 
 本方案将技术提案 v1.2 落实为可执行的实施计划。**前提事实**（已核对主线代码）：
@@ -23,7 +22,7 @@ type: Permanent
 - `apps/bookstore/app/backdoor/(dashboard)/layout.tsx` 已含会话守卫 + `SideNav`（`NAV_ITEMS` 按角色过滤）；`features/backdoor/api.ts` 导出 `API_BASE_URL`/`API_CONFIGURED`，请求统一 `credentials: "include"`；单元测试置于 `apps/bookstore/tests/unit/`；`@tanstack/react-virtual` **尚未引入**（本期唯一新增前端依赖，D5 已定）；
 - `tests/api` 已有 stub 上游范式（`live-history.test.ts`：测试进程内固定端口 HTTP stub + `LIVE_HISTORY_UPSTREAM_URL` 指向 stub）；`tests/e2e` 已有 `page.route` 拦截 API 返回 mock 体的范式（历史直播用例）。
 
-整体顺序：**契约分支产出契约（PR 回合需求总分支）→ 切开发分支 → 后端实现（TDD）→ 前端实现（TDD）→ 编排注入 → API 集成测试 → e2e → 收尾验收**。后端与前端为两个实现 subagent，因共享 `feat/danmaku-backdoor` 分支**串行执行**（后端先行，前端依赖契约与端点形态），避免同分支并发提交冲突。
+整体顺序：**切开发分支 → 契约产出（feat 分支首批提交）→ 后端实现（TDD）→ 前端实现（TDD）→ 编排注入 → API 集成测试 → e2e → 收尾验收**。后端与前端为两个实现 subagent，因共享 `feat/danmaku-backdoor` 分支**串行执行**（后端先行，前端依赖契约与端点形态），避免同分支并发提交冲突。按审核意见，本期只使用一个开发分支：契约不再单独建 `contract/danmaku-backdoor` 分支（提案 §3.1 与 §10 中契约分支的安排以本文档为准）。
 
 ## 1. 现状与差距（主线现状 → 本期目标）
 
@@ -41,38 +40,29 @@ type: Permanent
 ## 2. 分支与提交
 
 - 实现计划文档（本文档）直接提交到需求总分支 `prd/danmaku-backdoor`；
-- 契约在 `contract/danmaku-backdoor` 分支产出（自需求总分支切出），提 PR 回合需求总分支，等待 review 合并；
-- 实现工作在 `feat/danmaku-backdoor` 上进行（自契约合并后的需求总分支切出）；完成后提 PR 回合需求总分支，等待 review；
+- 开发工作（含契约、前后端实现、编排、测试）全部在**唯一开发分支** `feat/danmaku-backdoor` 上进行（自 `prd/danmaku-backdoor` 切出）；完成后提 PR 回合需求总分支，等待 review；
 - 按步骤小步提交，提交信息格式 `<type>: <描述>`；禁止 rebase/squash，只 merge；
 - 每个步骤完成后以该步骤的「验证」条目为准通过再进入下一步。
 
 ## 3. 实施步骤
 
-### 步骤 0：创建契约分支
+### 步骤 0：创建开发分支并同步基线
 
-- 自 `prd/danmaku-backdoor` 切出 `contract/danmaku-backdoor`（含 PRD v1.1、提案 v1.2 与本文档）。
+- 自 `prd/danmaku-backdoor` 切出 `feat/danmaku-backdoor`（含 PRD v1.1、提案 v1.2 与本文档），确认无冲突。
 
-**验证**：`git status` 干净，位于 `contract/danmaku-backdoor`。
+**验证**：`git status` 干净，位于 `feat/danmaku-backdoor`。
 
 ### 步骤 1：契约 `contract/live-events.openapi.yaml`（subagent，SKILL: z-coding 更新Contract）
 
-加载根 `AGENTS.md` 与既有契约（`contract/live-history.openapi.yaml` 为最近范式）。按提案 §3.1 编写：
+在 `feat/danmaku-backdoor` 上直接产出，作为该分支首批提交。加载根 `AGENTS.md` 与既有契约（`contract/live-history.openapi.yaml` 为最近范式）。按提案 §3.1 编写：
 
 - 五端点：`GET /api/live-events`（多 `type` + 分页，200 分页信封 / 401 / 502 `{ error: "上游事件服务不可用" }`）、`GET /api/live-events/stream`（SSE，`text/event-stream`，30s `: ping` 心跳）、`POST /api/live-events/read`、`POST /api/live-events/unread`（Body `{ eventId }`，幂等 200 / 400 / 403）、`POST /api/live-events/read-all`（Body `{ type }`，200 `{ ok, marked }`）；
 - `LiveEvent` schema 与提案 §4.2 逐字段一致（sender/medal/scColors/gift/guard/read），错误结构统一 `{ error: string }`；
 - 读端点标 member 及以上、写端点标 admin 及以上（描述中注明，与既有契约口径一致）。
 
-提 PR 至 `prd/danmaku-backdoor`，等待 review 合并。
-
 **验证**：YAML 语法合法；端点/字段/状态码与提案 §3.1 无出入。
 
-### 步骤 2：创建开发分支并同步基线
-
-- 契约合并后，自 `prd/danmaku-backdoor` 切出 `feat/danmaku-backdoor`，确认无冲突。
-
-**验证**：`git status` 干净，位于 `feat/danmaku-backdoor`；契约文件在位。
-
-### 步骤 3：后端实现（subagent，TDD）
+### 步骤 2：后端实现（subagent，TDD）
 
 加载 `servers/api/AGENTS.md`、`docs/engineering/backend-rules.md` 与契约。全程 TDD：先失败测试再实现。改动面（提案 §7）：
 
@@ -86,7 +76,7 @@ type: Permanent
 
 **验证**：`pnpm -C servers/api lint && pnpm -C servers/api test` 全绿。
 
-### 步骤 4：前端实现（subagent，TDD）
+### 步骤 3：前端实现（subagent，TDD）
 
 加载 `apps/bookstore/AGENTS.md`、`docs/engineering/frontend-rules.md`、`docs/design/03-backdoor-design.md` 与契约。注意 `apps/bookstore/AGENTS.md` 提示：动手前先读 `node_modules/next/dist/docs/` 对应指南。全程 TDD。改动面（提案 §7）：
 
@@ -104,13 +94,13 @@ type: Permanent
 
 **验证**：`pnpm -C apps/bookstore lint && pnpm -C apps/bookstore test && pnpm -C apps/bookstore build` 全绿。
 
-### 步骤 5：编排注入（随后端步骤一并完成或紧随其后）
+### 步骤 4：编排注入（随后端步骤一并完成或紧随其后）
 
 - `infra/aspire/apphost.cs`：api 资源追加 `.WithEnvironment("LIVE_EVENTS_UPSTREAM_URL", Environment.GetEnvironmentVariable("LIVE_EVENTS_UPSTREAM_URL") ?? "http://vtuber.internal.fffdan.com")`（照 `LIVE_HISTORY_UPSTREAM_URL` 既有口径，测试时可用环境变量指向 stub）。
 
 **验证**：`cd infra/aspire && aspire start` 后 `aspire describe api --output json` 可见该环境变量。
 
-### 步骤 6：API 集成测试（subagent，SKILL: z-test）
+### 步骤 5：API 集成测试（subagent，SKILL: z-test）
 
 加载 `tests/api/AGENTS.md` 与契约（用例只依据契约与 PRD，禁止对照实现）：
 
@@ -121,7 +111,7 @@ type: Permanent
 
 **验证**：Aspire 编排下 `tests/api` 全量通过（含既有用例回归）。
 
-### 步骤 7：e2e（subagent，SKILL: z-test）
+### 步骤 6：e2e（subagent，SKILL: z-test）
 
 加载 `tests/e2e/AGENTS.md`：
 
@@ -131,7 +121,7 @@ type: Permanent
 
 **验证**：Aspire 编排下配置/未配置两种形态 e2e 分别全绿。
 
-### 步骤 8：收尾与验收
+### 步骤 7：收尾与验收
 
 1. 更新 `servers/api/AGENTS.md`（live-events 域路由/模型/配置口径）、`apps/bookstore/AGENTS.md`（弹幕后台模块与 features/danmaku 约定）、根 `AGENTS.md`（contract 清单追加 `live-events.openapi.yaml`）；
 2. 核对提案 §10 验收标准与 PRD §1.3 成功标准逐条通过；
@@ -140,14 +130,14 @@ type: Permanent
 ## 4. 依赖与风险
 
 - **依赖**：内网事件服务持续可用（仅服务端可达）；既有鉴权体系（Session-Cookie + Redis + RBAC）、MongoDB、Aspire 编排全部复用不改造；新增前端依赖仅 `@tanstack/react-virtual`；
-- **并行协调**：契约先行（后端/前端/测试均依赖）；后端与前端 subagent 串行（共享 feat 分支）；编排注入随后端完成；API 集成测试依赖后端就绪，e2e 依赖前端就绪；
+- **并行协调**：单一开发分支 `feat/danmaku-backdoor`，契约先行（后端/前端/测试均依赖）；后端与前端 subagent 串行（共享 feat 分支）；编排注入随后端完成；API 集成测试依赖后端就绪，e2e 依赖前端就绪；
 - **风险**（对应提案 §5.2 K1–K7）：
-  - B 站 payload 结构漂移——归一化集中一处 + 实测样本夹具单测兜底（步骤 3.3）；
-  - 上游 SSE 无事件不刷响应头（实测）——服务端主动 `flushHeaders()` 先下 200 + 头，实现期验证（步骤 3.5）；
-  - prepend + 动态测高锚定误差——e2e「滚动中插入位置不跳」断言兜底（步骤 7.1）；
+  - B 站 payload 结构漂移——归一化集中一处 + 实测样本夹具单测兜底（步骤 2.3）；
+  - 上游 SSE 无事件不刷响应头（实测）——服务端主动 `flushHeaders()` 先下 200 + 头，实现期验证（步骤 2.5）；
+  - prepend + 动态测高锚定误差——e2e「滚动中插入位置不跳」断言兜底（步骤 6.1）；
   - 水位线之后乱序到达的历史事件判未读——上游按时间倒序分页，概率低，单条标记可补（提案 K3 已接受）；
-  - 跨域 SSE Cookie + CORS——沿用既有白名单 + credentials 口径，e2e 经 Aspire 验证（步骤 7）；
-  - stub 端口冲突——live-events 用 `9877`，与 live-history `9876` 隔离（步骤 6.1）。
+  - 跨域 SSE Cookie + CORS——沿用既有白名单 + credentials 口径，e2e 经 Aspire 验证（步骤 6）；
+  - stub 端口冲突——live-events 用 `9877`，与 live-history `9876` 隔离（步骤 5.1）。
 
 ## 5. 相关文档
 

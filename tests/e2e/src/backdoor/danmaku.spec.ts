@@ -425,22 +425,22 @@ test.describe("backdoor danmaku 弹幕后台", () => {
 
     await expect(page.locator('[data-event-id="dm:400"]')).toBeVisible();
 
-    // 弹幕+礼物栏追加「上船」类型 → 三类型上下分栏
-    await page.getByRole("button", { name: "配置「弹幕 + 礼物」栏" }).click();
-    await page.getByRole("checkbox", { name: "上船" }).check();
-    await expect(page.getByRole("heading", { name: "弹幕 + 礼物 + 上船", exact: true })).toBeVisible();
+    // 礼物+上船栏追加「弹幕」类型 → 三类型上下分栏
+    await page.getByRole("button", { name: "配置「礼物 + 上船」栏" }).click();
+    await page.getByRole("checkbox", { name: "弹幕" }).check();
+    await expect(page.getByRole("heading", { name: "礼物 + 上船 + 弹幕", exact: true })).toBeVisible();
 
     const stored = await page.evaluate(() => localStorage.getItem("danmaku-backdoor.columns"));
     expect(stored).not.toBeNull();
     expect(JSON.parse(stored!)).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: "danmaku_gift", types: ["danmaku", "gift", "guard_buy"] }),
+        expect.objectContaining({ id: "gift_guard", types: ["gift", "guard_buy", "danmaku"] }),
       ]),
     );
 
     // 刷新后栏位配置保留
     await page.reload();
-    await expect(page.getByRole("heading", { name: "弹幕 + 礼物 + 上船", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "礼物 + 上船 + 弹幕", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "SC", exact: true })).toBeVisible();
   });
 });

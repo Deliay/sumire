@@ -13,13 +13,13 @@ describe("danmaku columns 栏位配置", () => {
     window.localStorage.clear();
   });
 
-  it("无存储时回退默认 3 栏（弹幕+礼物 | SC | 上船）", () => {
+  it("无存储时回退默认 3 栏（礼物+上船 | SC | 弹幕）", () => {
     const columns = loadColumns();
     expect(columns).toEqual(DEFAULT_COLUMNS);
     expect(columns).toHaveLength(3);
-    expect(columns[0].types).toEqual(["danmaku", "gift"]);
+    expect(columns[0].types).toEqual(["gift", "guard_buy"]);
     expect(columns[1].types).toEqual(["super_chat"]);
-    expect(columns[2].types).toEqual(["guard_buy"]);
+    expect(columns[2].types).toEqual(["danmaku"]);
   });
 
   it("存储为非法 JSON 时回退默认", () => {

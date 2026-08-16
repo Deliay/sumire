@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { LiveEvent } from "../types";
+import { mergeDanmaku, type MergedDanmaku } from "../merge";
 import { useAnchoredFeed } from "../useAnchoredFeed";
 import DanmakuItem from "./DanmakuItem";
 import SuperChatItem from "./SuperChatItem";
@@ -45,12 +46,15 @@ export default function FeedSection({
 }: FeedSectionProps) {
   const { containerRef, showBackToTop, handleScroll, scrollToTop } = useAnchoredFeed();
 
+  // 相邻重复弹幕折叠为一行（展示计数）；非弹幕原样透传。
+  const rows = useMemo<MergedDanmaku[]>(() => mergeDanmaku(events), [events]);
+
   const virtualizer = useVirtualizer({
-    count: events.length,
+    count: rows.length,
     getScrollElement: () => containerRef.current,
     estimateSize: () => 72,
     overscan: 8,
-    getItemKey: (index) => events[index]?.eventId ?? index,
+    getItemKey: (index) => rows[index]?.event.eventId ?? index,
     initialRect: { width: 360, height: 600 },
   });
 
@@ -73,11 +77,12 @@ export default function FeedSection({
     maybeLoadMore();
   }, [maybeLoadMore, events.length]);
 
-  function renderItem(event: LiveEvent) {
+  function renderItem(row: MergedDanmaku) {
+    const event = row.event;
     const toggleRead = canManage ? onToggleRead : undefined;
     switch (event.type) {
       case "danmaku":
-        return <DanmakuItem event={event} />;
+        return <DanmakuItem event={event} count={row.count} />;
       case "super_chat":
         return <SuperChatItem event={event} onToggleRead={toggleRead} />;
       case "gift":
@@ -110,8 +115,8 @@ export default function FeedSection({
           ) : (
             <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
               {virtualizer.getVirtualItems().map((virtualItem) => {
-                const event = events[virtualItem.index];
-                if (!event) return null;
+                const row = rows[virtualItem.index];
+                if (!row) return null;
                 return (
                   <div
                     key={virtualItem.key}
@@ -120,7 +125,7 @@ export default function FeedSection({
                     className="absolute top-0 left-0 w-full border-b border-vine/30"
                     style={{ transform: `translateY(${virtualItem.start}px)` }}
                   >
-                    {renderItem(event)}
+                    {renderItem(row)}
                   </div>
                 );
               })}

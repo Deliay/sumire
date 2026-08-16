@@ -11,7 +11,7 @@ interface GiftItemProps {
 /** 礼物条目：Sender + 礼物名称 × 数量 + 价值（元）。 */
 export default function GiftItem({ event }: GiftItemProps) {
   return (
-    <div className="flex items-center justify-between gap-2 px-3 py-2">
+    <div data-event-id={event.eventId} className="flex items-center justify-between gap-2 px-3 py-2">
       <div className="flex min-w-0 flex-col gap-1">
         <Sender sender={event.sender} />
         {event.gift && (

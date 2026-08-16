@@ -48,6 +48,8 @@ export default function FeedSection({
 
   // 相邻重复弹幕折叠为一行（展示计数）；非弹幕原样透传。
   const rows = useMemo<MergedDanmaku[]>(() => mergeDanmaku(events), [events]);
+  // 折叠使可视行减少（rows.length < events.length）
+  const folded = rows.length < events.length;
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -62,15 +64,20 @@ export default function FeedSection({
   // 仅当容器可滚动（scrollHeight > clientHeight）且贴近底部时自动加载：
   // 短列表（未铺满）不自动加载，避免多类型栏位中小节数量少而 hasMore 由整栏驱动导致的无限加载，
   // 短列表改用尾部「加载更多」按钮手动加载。
+  // 例外：弹幕折叠使可视行减少（folded）且列表未铺满时，向下加载一条填充视口。
   const maybeLoadMore = useCallback(() => {
     if (!onLoadMore || loadingMore) return;
     const el = containerRef.current;
     if (!el || !hasMore || events.length === 0) return;
+    if (folded && el.scrollHeight <= el.clientHeight) {
+      onLoadMore();
+      return;
+    }
     if (el.scrollHeight <= el.clientHeight) return;
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - LOAD_MORE_OFFSET_PX) {
       onLoadMore();
     }
-  }, [onLoadMore, loadingMore, hasMore, events.length, containerRef]);
+  }, [onLoadMore, loadingMore, hasMore, events.length, containerRef, folded]);
 
   // 加载更多后容器可能仍未铺满，继续探测；事件数量变化（SSE prepend / 分页 append）时重新评估
   useEffect(() => {

@@ -66,11 +66,14 @@ describe("mergeDanmaku 弹幕折叠", () => {
     expect(rows[1].count).toBe(1);
   });
 
-  it("仅折叠相邻重复：被其他事件隔开不误折叠", () => {
+  it("跨其他事件（非连续）的重复同样折叠，保留首次出现位置并累计计数", () => {
     const gift: LiveEvent = { ...dm("mid", "x"), type: "gift", gift: { name: "情书", count: 1 }, price: 1 };
-    const rows = mergeDanmaku([dm("a", "妈妈"), gift, dm("b", "妈妈")]);
+    const rows = mergeDanmaku([dm("a", "妈妈"), gift, dm("b", "妈妈"), dm("c", "你好")]);
     expect(rows).toHaveLength(3);
-    expect(rows.map((r) => r.count)).toEqual([1, 1, 1]);
+    expect(rows[0].event.eventId).toBe("a");
+    expect(rows[0].count).toBe(2);
+    expect(rows[1].event.type).toBe("gift");
+    expect(rows[2].event.eventId).toBe("c");
   });
 
   it("非弹幕原样透传（count=1）", () => {

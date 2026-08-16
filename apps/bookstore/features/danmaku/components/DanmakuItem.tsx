@@ -5,6 +5,8 @@ import Sender from "./Sender";
 
 interface DanmakuItemProps {
   event: LiveEvent;
+  /** 折叠计数（>1 时最右侧展示「×N」）。 */
+  count?: number;
 }
 
 /**
@@ -16,8 +18,8 @@ function isSmallEmote(emote: NonNullable<LiveEvent["emote"]>): boolean {
   return max > 0 && max <= 32;
 }
 
-/** 弹幕条目：左侧 vine 竖条 + Sender；表情弹幕渲染表情图片。 */
-export default function DanmakuItem({ event }: DanmakuItemProps) {
+/** 弹幕条目：左侧 vine 竖条 + Sender；表情弹幕渲染表情图片；折叠弹幕最右侧展示计数。 */
+export default function DanmakuItem({ event, count }: DanmakuItemProps) {
   return (
     <div data-event-id={event.eventId} className="flex gap-2.5 px-3 py-2">
       <span aria-hidden className="w-1 shrink-0 self-stretch rounded-full bg-vine/70" />
@@ -43,6 +45,11 @@ export default function DanmakuItem({ event }: DanmakuItemProps) {
           )
         )}
       </div>
+      {count !== undefined && count > 1 && (
+        <span className="mt-4 shrink-0 self-start rounded-full bg-vine/20 px-1.5 py-px text-[10px] leading-4 font-medium text-ink-dim">
+          ×{count}
+        </span>
+      )}
     </div>
   );
 }

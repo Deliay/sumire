@@ -68,3 +68,29 @@ describe("FeedSection 滚动加载", () => {
     expect(screen.queryByRole("button", { name: "加载更多" })).toBeNull();
   });
 });
+
+describe("FeedSection 弹幕折叠", () => {
+  beforeEach(() => {
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(600);
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(600);
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(360);
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(2000);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("相邻重复弹幕折叠为一行并展示计数，而非重复弹幕各自展示", () => {
+    const dupes: LiveEvent[] = [
+      makeEvent({ eventId: "dm:a", type: "danmaku", content: "妈妈妈妈妈" }),
+      makeEvent({ eventId: "dm:b", type: "danmaku", content: "妈妈妈" }),
+      makeEvent({ eventId: "dm:c", type: "danmaku", content: "妈妈" }),
+      makeEvent({ eventId: "dm:d", type: "danmaku", content: "欢迎欢迎" }),
+    ];
+    render(<FeedSection label="弹幕" events={dupes} canManage={false} />);
+    expect(screen.getByText("×3")).toBeTruthy();
+    expect(screen.queryByText("×1")).toBeNull();
+  });
+});

@@ -18,28 +18,29 @@ export interface FeedSectionData {
   type: LiveEventType;
   label: string;
   events: LiveEvent[];
+  /** 本小节历史加载中（无事件时展示骨架）。 */
+  loading?: boolean;
+  /** 本小节历史检索错误提示。 */
+  error?: string | null;
+  /** 错误态重试回调。 */
+  onRetry?: () => void;
+  /** 滚动接近小节尾部时触发（加载下一页历史）。 */
+  onLoadMore?: () => void;
+  /** 本小节是否还有更多历史可加载。 */
+  hasMore?: boolean;
+  /** 本小节加载更多中。 */
+  loadingMore?: boolean;
 }
 
 interface FeedColumnProps {
   title: string;
   /** 栏内小节（按类型分组）：单类型整栏仅一个小节；多类型栏位上下分栏逐小节渲染。 */
   sections: FeedSectionData[];
-  loading?: boolean;
   canManage: boolean;
   onToggleRead?: (event: LiveEvent) => void;
   /** 本栏包含的「全部已读」管理类型（super_chat / guard_buy），仅 canManage 时渲染按钮。 */
   readAllTypes?: ReadAllType[];
   onReadAll?: (type: ReadAllType) => void;
-  /** 历史检索错误提示（非空时展示错误态替代空态/列表）。 */
-  error?: string | null;
-  /** 错误态重试回调（重新发起本栏检索）。 */
-  onRetry?: () => void;
-  /** 滚动接近栏位尾部时触发（加载下一页历史）。 */
-  onLoadMore?: () => void;
-  /** 栏位是否还有更多历史可加载。 */
-  hasMore?: boolean;
-  /** 加载更多中。 */
-  loadingMore?: boolean;
   /** 栏头附加操作区（栏位配置按钮）。 */
   headerExtra?: ReactNode;
   /** 栏位配置面板（展开时渲染于栏头下方）。 */
@@ -54,16 +55,10 @@ interface FeedColumnProps {
 export default function FeedColumn({
   title,
   sections,
-  loading = false,
   canManage,
   onToggleRead,
   readAllTypes = [],
   onReadAll,
-  error = null,
-  onRetry,
-  onLoadMore,
-  hasMore = false,
-  loadingMore = false,
   headerExtra,
   configPanel,
 }: FeedColumnProps) {
@@ -76,10 +71,7 @@ export default function FeedColumn({
     };
   }, []);
 
-  const totalEvents = sections.reduce((sum, s) => sum + s.events.length, 0);
-  const hasLabel = sections.length > 1;
-
-  function handleReadAllClick(type: ReadAllType) {
+  const hasLabel = sections.length > 1;  function handleReadAllClick(type: ReadAllType) {
     if (confirming === type) {
       if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
       setConfirming(null);
@@ -115,37 +107,23 @@ export default function FeedColumn({
         </div>
       </header>
       {configPanel}
-      {loading && totalEvents === 0 ? (
-        <div className="m-3 min-h-32 animate-pulse rounded-md border border-vine/50 bg-soft" aria-busy="true" />
-      ) : error ? (
-        <div className="m-3 flex min-h-32 flex-col items-center justify-center gap-2 rounded-md border border-flower/60 bg-soft px-3 py-6 text-center">
-          <p className="text-sm text-ink-dim">{error}</p>
-          {onRetry && (
-            <button
-              type="button"
-              onClick={onRetry}
-              className="rounded-md border border-vine/50 px-2 py-1 text-xs text-ink-dim transition-colors duration-150 hover:border-flower hover:text-ink"
-            >
-              重试
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="flex min-h-0 flex-1 flex-col">
-          {sections.map((section) => (
-            <FeedSection
-              key={section.type}
-              label={hasLabel ? section.label : undefined}
-              events={section.events}
-              canManage={canManage}
-              onToggleRead={onToggleRead}
-              onLoadMore={onLoadMore}
-              hasMore={hasMore}
-              loadingMore={loadingMore}
-            />
-          ))}
-        </div>
-      )}
+      <div className="flex min-h-0 flex-1 flex-col">
+        {sections.map((section) => (
+          <FeedSection
+            key={section.type}
+            label={hasLabel ? section.label : undefined}
+            events={section.events}
+            canManage={canManage}
+            onToggleRead={onToggleRead}
+            loading={section.loading}
+            error={section.error}
+            onRetry={section.onRetry}
+            onLoadMore={section.onLoadMore}
+            hasMore={section.hasMore}
+            loadingMore={section.loadingMore}
+          />
+        ))}
+      </div>
     </section>
   );
 }

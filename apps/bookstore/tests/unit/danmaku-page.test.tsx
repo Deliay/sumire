@@ -66,7 +66,7 @@ describe("DanmakuPage 全屏模式", () => {
   it("点击后以 fixed 遮罩占满网页窗口，出现「退出全屏」按钮", async () => {
     render(<DanmakuPage />);
     fireEvent.click(await screen.findByRole("button", { name: "全屏模式" }));
-    const overlay = document.querySelector(".fixed.inset-0.z-50") as HTMLElement;
+    const overlay = document.querySelector('[data-testid="danmaku-fullscreen"]') as HTMLElement;
     expect(overlay).not.toBeNull();
     const exitBtn = await screen.findByRole("button", { name: "退出全屏" });
     expect(exitBtn.getAttribute("aria-pressed")).toBe("true");
@@ -78,7 +78,7 @@ describe("DanmakuPage 全屏模式", () => {
     fireEvent.click(await screen.findByRole("button", { name: "全屏模式" }));
     fireEvent.click(await screen.findByRole("button", { name: "退出全屏" }));
     expect(await screen.findByRole("button", { name: "全屏模式" })).toBeTruthy();
-    expect(document.querySelector(".fixed.inset-0.z-50")).toBeNull();
+    expect(document.querySelector('[data-testid="danmaku-fullscreen"]')).toBeNull();
   });
 
   it("全屏后分栏数据仍正常渲染", async () => {

@@ -187,17 +187,19 @@ interface LiveEvent {
 - `gift`：`gift:{batch_combo_id ?? combo_id}`；
 - `guard_buy`：`guard:{uid}:{start_time}`。
 
-上游字段映射（基于 2026-08-16 实测样本，实现期以样本固化单测夹具）：
+上游字段映射（基于 2026-08-16 实测样本，并与 [Mikibot WebsocketCrawler](https://github.com/Deliay/Mikibot/tree/main/Mikibot.Crawler/WebsocketCrawler) 的解析逻辑交叉校验；实现期以样本固化单测夹具）：
 
 | 目标字段 | danmaku (DANMU_MSG) | super_chat | gift (SEND_GIFT) | guard_buy |
 |----------|--------------------|-----------|------------------|-----------|
-| uid / name / face | `info[15].user.base.{uid?→info[2][0], name, face}` | `data.uid` / `data.uinfo.base.{name,face}` | `data.{uid,uname,face}` | `data.uid` / `data.username` / 无 |
-| medal | `info[15].user.medal`（name/level/color） | `data.medal_info`（medal_name/medal_level/medal_color） | `data.medal_info` | 无 |
-| content | `extra.content`（或 `info[1]`） | `data.message` | — | — |
-| price | — | `data.price`（元） | `data.combo_total_coin/1000`（`coin_type==="gold"`，否则 0） | `data.price/1000` |
+| uid / name / face | uid/name 取经典数组 `info[2][0]` / `info[2][1]`（同 Mikibot `DanmuMsgJsonConverter`）；face 取 dm_v2 `info[15].user.base.face`（经典结构无头像） | `data.uid` / `data.uinfo.base.{name,face}`（备选 `data.user_info`，Mikibot 采用） | `data.{uid,uname,face}` | `data.uid` / `data.username` / 无（同 Mikibot `GuardBuy`） |
+| medal | 优先 dm_v2 `info[15].user.medal`（name/level/color）；回退经典数组 `info[3]`（[0]=等级，[1]=牌名，[2]=主播名，[12]=主播 uid，同 Mikibot） | `data.medal_info`（medal_name/medal_level/medal_color，同 Mikibot） | `data.medal_info` | 无 |
+| content | 经典 `info[1]`（同 Mikibot）；dm_v2 备选 `extra.content`。表情弹幕图片 URL 在 `info[0]` 嵌套对象 `url` / `extra.emots`（Mikibot 的 MemeUrl），本期统一以文本渲染 | `data.message` | — | — |
+| price | — | `data.price`（元） | `data.combo_total_coin/1000`（`coin_type==="gold"`，否则 0；备选 `data.discount_price/1000`，Mikibot 采用） | `data.price/1000` |
 | scColors | — | `data.{background_color_start, background_color_end, message_font_color}` | — | — |
-| gift | — | — | `data.{giftName, combo_send.combo_num}` | — |
+| gift | — | — | `data.{giftName, combo_send.combo_num}`；连击事件另以 `COMBO_SEND` cmd 下发（字段同构，Mikibot `ComboSend`），eventId 用 `batch_combo_id ?? combo_id` 天然去重 | — |
 | guard | — | — | — | `data.{guard_level, gift_name, num}` |
+
+说明：本期四类事件上游均以 JSON 信封下发（websocket 帧解码与 protobuf 反序列化已由上游服务完成），不涉及 pb 解析；Mikibot 中的 pb 命令（`INTERACT_WORD_V2`、`ONLINE_RANK_V3` 等）不在本期范围内，仅作后续扩展参考。
 
 ## 5. 技术实现方案
 
@@ -233,7 +235,7 @@ sequenceDiagram
 **K1 上游代理与归一化（服务端）**
 
 - 描述：`upstream.ts` 封装内网服务访问；`normalize.ts` 将四类 cmd 映射为 `LiveEvent`。
-- 技术细节：上游地址经配置注入（`LIVE_EVENTS_UPSTREAM_URL`，缺省回退内网地址，与 `liveHistory` 既有口径一致）；归一化对缺失字段防御式解析（可选链 + 默认值），解析失败返回 null 并 `console.warn`，不抛断流；样本 JSON 固化为 `servers/api/tests` 夹具驱动单测。
+- 技术细节：上游地址经配置注入（`LIVE_EVENTS_UPSTREAM_URL`，缺省回退内网地址，与 `liveHistory` 既有口径一致）；归一化对缺失字段防御式解析（可选链 + 默认值），解析失败返回 null 并 `console.warn`，不抛断流；样本 JSON 固化为 `servers/api/tests` 夹具驱动单测。字段映射参考 [Mikibot WebsocketCrawler](https://github.com/Deliay/Mikibot/tree/main/Mikibot.Crawler/WebsocketCrawler)（`DanmuMsgJsonConverter` / `SendGift` / `SuperChatMessage` / `GuardBuy` / `ComboSend`），优先 dm_v2 结构化字段、经典数组下标作回退；四类事件均为 JSON，无需 pb 解析（websocket 解码与 protobuf 反序列化由上游服务完成）。
 - 风险点：B 站 payload 结构漂移——归一化层集中一处，配合夹具测试兜底；上船无头像/牌子属上游事实，前端兜底渲染。
 
 **K2 SSE 组合转发（服务端）**
@@ -385,3 +387,4 @@ tests/e2e/                                   # 新增 danmaku-backdoor e2e 关�
 - 前端规范：`docs/engineering/frontend-rules.md`；后端规范：`docs/engineering/backend-rules.md`
 - 后台设计：`docs/design/03-backdoor-design.md`
 - 既有契约：`contract/backdoor-auth.openapi.yaml`、`contract/live-history.openapi.yaml`
+- 字段解析参考实现：[Mikibot WebsocketCrawler](https://github.com/Deliay/Mikibot/tree/main/Mikibot.Crawler/WebsocketCrawler)（B 站直播事件 cmd 解析，含经典数组下标与 pb 命令处理）

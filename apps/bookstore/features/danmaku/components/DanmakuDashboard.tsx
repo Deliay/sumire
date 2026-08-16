@@ -31,6 +31,9 @@ import FeedColumn from "./FeedColumn";
 /** 「全部已读」仅支持需要已读管理的类型（契约口径）。 */
 const READ_ALL_TYPES: readonly ReadAllType[] = ["super_chat", "guard_buy"];
 
+/** 历史检索每页条数（后端 pageSize 上限 100）。 */
+const PAGE_SIZE = 100;
+
 function dedupeById(events: LiveEvent[]): LiveEvent[] {
   const seen = new Set<string>();
   return events.filter((e) => {
@@ -80,7 +83,7 @@ export default function DanmakuDashboard() {
     let status = 0;
     let data: LiveEventsPage | ApiError | null = null;
     try {
-      const res = await listLiveEvents(col.types, 1);
+      const res = await listLiveEvents(col.types, 1, PAGE_SIZE);
       status = res.status;
       data = res.data;
     } catch {
@@ -112,7 +115,7 @@ export default function DanmakuDashboard() {
       let status = 0;
       let data: LiveEventsPage | ApiError | null = null;
       try {
-        const res = await listLiveEvents(col.types, currentPage + 1);
+        const res = await listLiveEvents(col.types, currentPage + 1, PAGE_SIZE);
         status = res.status;
         data = res.data;
       } catch {

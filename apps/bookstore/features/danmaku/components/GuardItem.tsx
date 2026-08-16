@@ -11,8 +11,8 @@ interface GuardItemProps {
 }
 
 /**
- * 上船条目：船型（guard_level 3/2/1 → 舰长/提督/总督，未知回退上游名称）+ 金额 + 数量（月数）。
- * 已读置灰；可交互时双击切换已读。
+ * 上船条目：左侧 flower 竖条 + 船型 chip（guard_level 3/2/1 → 舰长/提督/总督，未知回退上游名称）
+ * + Sender + 金额（flower 强调）与数量（月数）。已读置灰；可交互时双击切换已读。
  */
 export default function GuardItem({ event, onToggleRead }: GuardItemProps) {
   const guard = event.guard;
@@ -22,21 +22,31 @@ export default function GuardItem({ event, onToggleRead }: GuardItemProps) {
       data-event-id={event.eventId}
       onDoubleClick={onToggleRead ? () => onToggleRead(event) : undefined}
       title={onToggleRead ? "双击切换已读" : undefined}
-      className={`flex items-center justify-between gap-2 px-3 py-2 transition-opacity duration-150 ${
+      className={`flex gap-2.5 px-3 py-2 transition-opacity duration-150 ${
         event.read ? "opacity-60" : ""
       } ${onToggleRead ? "cursor-pointer select-none" : ""}`}
     >
-      <div className="flex min-w-0 flex-col gap-1">
-        <Sender sender={event.sender} />
-        {guard && (
-          <p className="text-sm text-ink">
-            开通 {shipName} <span className="text-ink-dim">× {guard.count} 个月</span>
-          </p>
+      <span aria-hidden className="w-1 shrink-0 self-stretch rounded-full bg-flower/70" />
+      <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-col gap-1">
+          <div className="flex items-center gap-2">
+            {shipName && (
+              <span className="shrink-0 rounded-sm bg-flower/20 px-1.5 py-px text-[10px] leading-4 font-medium text-ink-on-paper">
+                上船 · {shipName}
+              </span>
+            )}
+            {guard && (
+              <p className="truncate text-sm text-ink">
+                <span className="text-ink-dim">开通</span> {guard.count} 个月
+              </p>
+            )}
+          </div>
+          <Sender sender={event.sender} />
+        </div>
+        {event.price !== undefined && (
+          <span className="shrink-0 text-sm font-semibold text-flower">{formatPrice(event.price)}</span>
         )}
       </div>
-      {event.price !== undefined && (
-        <span className="shrink-0 text-sm font-semibold text-flower">{formatPrice(event.price)}</span>
-      )}
     </div>
   );
 }

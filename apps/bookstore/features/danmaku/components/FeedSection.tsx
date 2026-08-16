@@ -55,11 +55,14 @@ export default function FeedSection({
   });
 
   // 滚动接近容器底部时触发下一页历史加载；加载中/无更多/空列表时不触发。
+  // 仅当容器可滚动（scrollHeight > clientHeight）且贴近底部时自动加载：
+  // 短列表（未铺满）不自动加载，避免多类型栏位中小节数量少而 hasMore 由整栏驱动导致的无限加载，
+  // 短列表改用尾部「加载更多」按钮手动加载。
   const maybeLoadMore = useCallback(() => {
     if (!onLoadMore || loadingMore) return;
     const el = containerRef.current;
     if (!el || !hasMore || events.length === 0) return;
-    // 未铺满容器（scrollHeight <= clientHeight）也视为已达尾部，可继续加载
+    if (el.scrollHeight <= el.clientHeight) return;
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - LOAD_MORE_OFFSET_PX) {
       onLoadMore();
     }

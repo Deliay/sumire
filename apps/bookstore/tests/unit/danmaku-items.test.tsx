@@ -130,6 +130,22 @@ describe("GiftItem", () => {
     expect(screen.getByText(/×\s*3/)).toBeTruthy();
     expect(screen.getByText("¥19.8")).toBeTruthy();
   });
+
+  it("礼物类型标识：左竖条（primary）+ 「礼物」chip", () => {
+    const { container } = render(
+      <GiftItem
+        event={makeEvent({
+          eventId: "gift:2",
+          type: "gift",
+          price: 1,
+          gift: { name: "打call", count: 1 },
+        })}
+      />,
+    );
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.querySelector("span.bg-primary\\/70")).toBeTruthy();
+    expect(screen.getByText("礼物")).toBeTruthy();
+  });
 });
 
 describe("GuardItem", () => {
@@ -146,7 +162,7 @@ describe("GuardItem", () => {
     render(<GuardItem event={guard} />);
     expect(screen.getByText(/舰长/)).toBeTruthy();
     expect(screen.getByText("¥138")).toBeTruthy();
-    expect(screen.getByText(/×\s*1/)).toBeTruthy();
+    expect(screen.getByText(/1\s*个月/)).toBeTruthy();
   });
 
   it("guard_level 2/1 → 提督/总督；未知等级回退上游名称", () => {
@@ -164,6 +180,13 @@ describe("GuardItem", () => {
       <GuardItem event={{ ...guard, guard: { level: 0, name: "神秘船票", count: 1 } }} />,
     );
     expect(screen.getByText(/神秘船票/)).toBeTruthy();
+  });
+
+  it("上船类型标识：左竖条（flower）+ 「上船 · 舰长」chip", () => {
+    const { container } = render(<GuardItem event={guard} />);
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.querySelector("span.bg-flower\\/70")).toBeTruthy();
+    expect(screen.getByText("上船 · 舰长")).toBeTruthy();
   });
 
   it("已读置灰 + 双击切换", () => {

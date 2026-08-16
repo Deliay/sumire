@@ -26,7 +26,7 @@ vi.mock("@/features/backdoor/session", () => ({
 
 import DanmakuPage from "@/app/backdoor/(dashboard)/danmaku/page";
 
-const SENDER: LiveEvent["sender"] = { uid: 1, name: "观众A", face: null, medal: null, guardLevel: null };
+const SENDER: LiveEvent["sender"] = { uid: 1, name: "观众A", nameRomaji: null, face: null, medal: null, guardLevel: null };
 const DM_EVENT: LiveEvent = {
   eventId: "dm:1",
   type: "danmaku",

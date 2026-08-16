@@ -200,7 +200,7 @@ components:
             name: { type: string, description: 发送者昵称 }
             nameRomaji:
               type: [string, "null"]
-              description: 昵称罗马音标注（服务端对含可解析汉字的部分生成）；无可读汉字或解析失败为 null，前端有则展示、无则不展示
+              description: 昵称罗马音标注（服务端对含假名的昵称生成）；无假名或转写失败为 null，前端有则换行展示、无则不展示
             face:
               type: [string, "null"]
               description: 头像 URL；guard_buy 上游无头像，为 null，前端兜底渲染
@@ -218,6 +218,9 @@ components:
         content:
           type: string
           description: 弹幕文本 / SC 留言（仅 danmaku、super_chat）
+        contentRomaji:
+          type: string
+          description: SC 留言罗马音标注（仅 super_chat，服务端对含假名的留言生成）；无假名或转写失败则不含该字段，前端有则换行展示、无则不展示
         emote:
           type: object
           required: [url]

@@ -149,6 +149,12 @@ describe("SuperChatItem", () => {
     render(<SuperChatItem event={sc} />);
     expect(screen.queryByText("New")).toBeNull();
   });
+
+  it("SC 留言含 contentRomaji 时另起一行展示罗马音，无则仅展示留言", () => {
+    render(<SuperChatItem event={{ ...sc, contentRomaji: "shubi otsukaresama" }} />);
+    expect(screen.getByText("首播加油")).toBeTruthy();
+    expect(screen.getByText("shubi otsukaresama")).toBeTruthy();
+  });
 });
 
 describe("GiftItem", () => {

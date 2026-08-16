@@ -18,7 +18,7 @@ export const MedalSchema = z.object({
 export const SenderSchema = z.object({
   uid: z.number().int(),
   name: z.string(),
-  /** 昵称罗马音标注；无可读汉字或解析失败为 null，前端有则展示、无则不展示 */
+  /** 昵称罗马音标注；无假名或转写失败为 null，前端有则换行展示、无则不展示 */
   nameRomaji: z.string().nullable(),
   /** 头像 URL；guard_buy 上游无头像，为 null，前端兜底渲染 */
   face: z.string().nullable(),
@@ -40,6 +40,8 @@ export const LiveEventSchema = z.object({
   occurredAt: z.string(),
   sender: SenderSchema,
   content: z.string().optional(),
+  /** SC 留言罗马音标注（仅 super_chat）；无假名则不含该字段，前端有则换行展示、无则不展示 */
+  contentRomaji: z.string().optional(),
   /** 弹幕表情图片（仅 danmaku）；存在时前端渲染为图片而非纯文本 */
   emote: z
     .object({ url: z.string(), name: z.string().optional(), width: z.number().int().optional(), height: z.number().int().optional() })

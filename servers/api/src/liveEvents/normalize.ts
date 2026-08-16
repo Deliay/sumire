@@ -24,6 +24,8 @@ export interface LiveEvent {
   occurredAt: string;
   sender: LiveEventSender;
   content?: string;
+  /** SC 留言罗马音标注：归一化阶段恒为 undefined，出口由路由层经 romaji 标注填充（仅 super_chat 且含假名时存在）。 */
+  contentRomaji?: string;
   /** 弹幕表情图片（仅 danmaku）：上游 info[0][13] emoticon 对象存在时携带，前端渲染为图片。 */
   emote?: { url: string; name?: string; width?: number; height?: number };
   price?: number;

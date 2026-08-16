@@ -164,7 +164,7 @@ function buildApp(upstream: ReturnType<typeof stubUpstream>) {
     sessionStore: store,
     rateLimiter: unlimited,
     liveEventsUpstream: upstream as never,
-    toNameRomajiFn: async () => null,
+    toRomajiFn: async () => null,
   });
   return { app, store };
 }
@@ -178,7 +178,7 @@ function createAppWithRomaji(
     sessionStore: store,
     rateLimiter: unlimited,
     liveEventsUpstream: upstream as never,
-    toNameRomajiFn: async (name) => mapping[name] ?? null,
+    toRomajiFn: async (text) => mapping[text] ?? null,
   });
   return { app, store };
 }
@@ -256,18 +256,34 @@ describe("GET /api/live-events（检索代理 + 归一化 + 已读合并）", ()
     warn.mockRestore();
   });
 
-  it("sender.nameRomaji 由路由层经 toNameRomajiFn 填充（含汉字填充、无汉字置 null）", async () => {
+  it("sender.nameRomaji 与 SC contentRomaji 由路由层经 toRomajiFn 填充（含假名填充、无假名置空）", async () => {
     const upstream = stubUpstream(pageOf([clone(superChatFixture)]));
     const { app, store } = createAppWithRomaji(upstream, {
-      "薄荷糖": "hakkatō",
-      "测试观众": null,
+      "薄荷糖": "hakkatou",
+      "堇宝辛苦了！今晚也超好听": "sumire chan otsukaresama",
     });
     const cookie = await sessionCookie(store, "member");
     const r = await call(app, { method: "GET", path: "/api/live-events", cookie });
     expect(r.status).toBe(200);
-    const body = r.body as { items: Array<{ sender: { name: string; nameRomaji: string | null } }> };
+    const body = r.body as {
+      items: Array<{ sender: { name: string; nameRomaji: string | null }; contentRomaji?: string }>;
+    };
     expect(body.items[0].sender.name).toBe("薄荷糖");
-    expect(body.items[0].sender.nameRomaji).toBe("hakkatō");
+    expect(body.items[0].sender.nameRomaji).toBe("hakkatou");
+    expect(body.items[0].contentRomaji).toBe("sumire chan otsukaresama");
+  });
+
+  it("无假名时 contentRomaji 字段缺省（不含在响应中）", async () => {
+    const upstream = stubUpstream(pageOf([clone(superChatFixture)]));
+    const { app, store } = createAppWithRomaji(upstream, {
+      "薄荷糖": null,
+      "堇宝辛苦了！今晚也超好听": null,
+    });
+    const cookie = await sessionCookie(store, "member");
+    const r = await call(app, { method: "GET", path: "/api/live-events", cookie });
+    expect(r.status).toBe(200);
+    const body = r.body as { items: Array<{ contentRomaji?: string }> };
+    expect("contentRomaji" in body.items[0]).toBe(false);
   });
 
   it("缺省参数：全部类型 + page=1&pageSize=50", async () => {
@@ -446,7 +462,7 @@ function sseTestApp(store: SessionStore, upstream: unknown, overrides?: { heartb
   app.use(sessionMiddleware(store));
   app.use(
     "/api/live-events",
-    createLiveEventsRouter({ upstream: upstream as never, toNameRomajiFn: async () => null, heartbeatMs: 30_000, ...overrides }),
+    createLiveEventsRouter({ upstream: upstream as never, toRomajiFn: async () => null, heartbeatMs: 30_000, ...overrides }),
   );
   return app;
 }

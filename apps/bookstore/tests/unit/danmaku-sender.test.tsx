@@ -41,15 +41,16 @@ describe("Sender 公共组件", () => {
     expect(screen.queryByText(/堇粉丝/)).toBeNull();
   });
 
-  it("有 nameRomaji 时展示 `名字 (罗马音)`，无则只展示名字", () => {
-    render(<Sender sender={{ ...BASE_SENDER, nameRomaji: "hakkatō" }} />);
-    expect(screen.getByText(/测试观众/).textContent).toContain("(hakkatō)");
+  it("有 nameRomaji 时另起一行展示罗马音", () => {
+    render(<Sender sender={{ ...BASE_SENDER, nameRomaji: "hakkatou" }} />);
+    expect(screen.getByText("测试观众")).toBeTruthy();
+    expect(screen.getByText("hakkatou")).toBeTruthy();
   });
 
   it("nameRomaji 为 null 时仅展示名字，不渲染罗马音", () => {
     render(<Sender sender={{ ...BASE_SENDER, nameRomaji: null }} />);
     expect(screen.getByText("测试观众")).toBeTruthy();
-    expect(screen.queryByText(/\(/)).toBeNull();
+    expect(screen.queryByText("hakkatou")).toBeNull();
   });
 
   it("guardLevel 为 null 时不渲染船员标识", () => {

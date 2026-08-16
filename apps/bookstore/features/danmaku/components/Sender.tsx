@@ -47,13 +47,23 @@ export default function Sender({ sender, compact = false }: SenderProps) {
             {sender.name.slice(0, 1)}
           </span>
         )}
-        <span
-          className={`truncate ${
-            compact ? "text-xs text-ink-dim" : "text-sm font-medium text-ink"
-          }`}
-        >
-          {sender.name}
-          {sender.nameRomaji ? <span className="text-ink-dim"> ({sender.nameRomaji})</span> : null}
+        <span className="flex min-w-0 flex-col justify-center">
+          <span
+            className={`truncate ${
+              compact ? "text-xs text-ink-dim" : "text-sm font-medium text-ink"
+            }`}
+          >
+            {sender.name}
+          </span>
+          {sender.nameRomaji && (
+            <span
+              className={`truncate text-ink-dim ${
+                compact ? "text-[10px]" : "text-xs"
+              }`}
+            >
+              {sender.nameRomaji}
+            </span>
+          )}
         </span>
       </a>
       {sender.medal && (

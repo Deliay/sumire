@@ -34,9 +34,16 @@
 
 ## 文档结构
 
-- 产品文档：`docs/product/requirements/`（生命周期：`draft` → `reviewed` → `shipping` → `released`，以 `YYYY-MM-DD` 为前缀命名）
-- 技术方案：`docs/engineering/proposals/`（以 `YYYY-MM-DD` 为前缀命名）
+- 产品文档：`docs/product/requirements/`（PRD，时点文档；生命周期：`draft` → `reviewed` → `shipping` → `released`，以 `YYYY-MM-DD` 为前缀命名；规则见该目录 README）
+- 产品 Spec：`docs/product/spec/`（产品功能**现态**的单一事实源，按模块一文件）
+- 技术方案：`docs/engineering/proposals/`（时点决策文档，以 `YYYY-MM-DD` 为前缀命名；规则见该目录 README）
+- 技术 Spec：`docs/engineering/spec/`（技术架构与实现**现态**的单一事实源，按模块一文件）
 - 设计文档：`docs/design/`（视觉识别与页面设计细节）
+
+## 文档维护规范
+
+- **Spec 同步**：功能行为、架构、数据模型、端点、基础设施发生变更时，同一个 PR 内必须同步更新 `docs/product/spec/` 与/或 `docs/engineering/spec/` 中的对应文件；spec 只描述已上线的现态，不记录历史决策。
+- **归档机制**：PRD / proposal 是时点文档，功能上线且行为已被 spec 收录（或被废弃/取代）后，移动到对应目录的 `archived/` 子目录；归档只移动不修改，归档后只读，后续变更改 spec 不改原文档。流程详见 `docs/product/requirements/README.md` 与 `docs/engineering/proposals/README.md`。
 
 ## 开发约定
 

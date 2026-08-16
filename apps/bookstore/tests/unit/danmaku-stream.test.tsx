@@ -30,7 +30,7 @@ const SC_EVENT = {
   eventId: "sc:1",
   type: "super_chat",
   occurredAt: "2026-08-16T12:00:00.000Z",
-  sender: { uid: 100, name: "甲", face: null, medal: null, guardLevel: null },
+  sender: { uid: 100, name: "甲", nameRomaji: null, face: null, medal: null, guardLevel: null },
   content: "加油",
   price: 30,
   read: false,

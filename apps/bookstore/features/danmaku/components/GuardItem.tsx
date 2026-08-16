@@ -6,15 +6,18 @@ import Sender from "./Sender";
 
 interface GuardItemProps {
   event: LiveEvent;
+  /** 实时流到达的「New」标记。 */
+  isNew?: boolean;
   /** 双击切换已读（admin 及以上传入；member 不渲染已读交互，与后端 403 口径一致）。 */
   onToggleRead?: (event: LiveEvent) => void;
 }
 
 /**
  * 上船条目：左侧船型色竖条 + 船型 chip（3/2/1 → 舰长蓝/提督紫/总督红，未知回退上游名称）
- * + Sender + 金额与数量（月数）。已读置灰；可交互时双击切换已读。
+ * + Sender + 金额与数量（月数）。整条以船型色打底强调，文字按船型色强调。
+ * 已读置灰；可交互时双击切换已读。实时流到达的上船带「New」标记。
  */
-export default function GuardItem({ event, onToggleRead }: GuardItemProps) {
+export default function GuardItem({ event, isNew = false, onToggleRead }: GuardItemProps) {
   const guard = event.guard;
   const shipName = guard ? (guardLevelName(guard.level) ?? guard.name) : "";
   const tone = guard ? guardLevelTone(guard.level) : guardLevelTone(2);
@@ -23,7 +26,7 @@ export default function GuardItem({ event, onToggleRead }: GuardItemProps) {
       data-event-id={event.eventId}
       onDoubleClick={onToggleRead ? () => onToggleRead(event) : undefined}
       title={onToggleRead ? "双击切换已读" : undefined}
-      className={`flex gap-2.5 px-3 py-2 transition-opacity duration-150 ${
+      className={`flex gap-2.5 px-3 py-2 transition-opacity duration-150 ${tone.item} ${
         event.read ? "opacity-60" : ""
       } ${onToggleRead ? "cursor-pointer select-none" : ""}`}
     >
@@ -32,17 +35,22 @@ export default function GuardItem({ event, onToggleRead }: GuardItemProps) {
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex items-center gap-2">
             {shipName && (
-              <span className={`shrink-0 rounded-sm px-1.5 py-px text-[10px] leading-4 font-medium text-ink ${tone.chip}`}>
+              <span className={`shrink-0 rounded-sm px-1.5 py-px text-[10px] leading-4 font-semibold ${tone.chip} ${tone.text}`}>
                 上船 · {shipName}
               </span>
             )}
             {guard && (
-              <p className="truncate text-sm text-ink">
-                <span className="text-ink-dim">开通</span> {guard.count} 个月
+              <p className={`truncate text-sm font-medium ${tone.text}`}>
+                <span className={tone.text}>开通</span> {guard.count} 个月
               </p>
             )}
+            {isNew && (
+              <span className="shrink-0 rounded-sm bg-flower px-1.5 py-px text-[10px] leading-4 font-bold text-white">
+                New
+              </span>
+            )}
           </div>
-          <Sender sender={event.sender} />
+          <Sender sender={event.sender} guardLevel={guard ? guard.level : undefined} />
         </div>
         {event.price !== undefined && (
           <span className={`shrink-0 text-sm font-semibold ${tone.text}`}>{formatPrice(event.price)}</span>

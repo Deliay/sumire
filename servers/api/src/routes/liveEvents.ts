@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { requireRole } from "../rbac/requireRole";
 import { toLiveEvent, type LiveEvent, type LiveEventType } from "../liveEvents/normalize";
+import { toRomaji } from "../liveEvents/romaji";
 import type { LiveEventsUpstream, UpstreamEnvelope } from "../liveEvents/upstream";
 import { markRead, markUnread, markAllRead, resolveReadState, typeFromEventId } from "../db/liveEventReads";
 
@@ -15,6 +16,8 @@ const READ_ALL_PAGE_SIZE = 100;
 
 export interface LiveEventsRouterDeps {
   upstream: LiveEventsUpstream;
+  /** 文本 → 罗马音标注（缺省用 kuroshiro 全文转换；单测可注入恒 null 或以 text 取巧）。 */
+  toRomajiFn?: (text: string) => Promise<string | null>;
   /** SSE 心跳间隔（缺省 30s，单测可调小）。 */
   heartbeatMs?: number;
   /** 上游断流重连退避：起步 1s，倍增至 30s 上限（单测可调小）。 */
@@ -54,8 +57,28 @@ function normalizeAll(items: UpstreamEnvelope[]): LiveEvent[] {
   return items.map(toLiveEvent).filter((e): e is LiveEvent => e !== null);
 }
 
+/** 为事件填充罗马音标注：昵称（sender.nameRomaji）与 SC 留言（contentRomaji）。 */
+async function annotateRomaji(
+  events: LiveEvent[],
+  toRomajiFn: (text: string) => Promise<string | null>,
+): Promise<LiveEvent[]> {
+  return Promise.all(
+    events.map(async (e) => {
+      const nameRomaji = await toRomajiFn(e.sender.name);
+      const contentRomaji =
+        e.type === "super_chat" && e.content !== undefined ? await toRomajiFn(e.content) : null;
+      return {
+        ...e,
+        sender: { ...e.sender, nameRomaji },
+        ...(contentRomaji ? { contentRomaji } : {}),
+      };
+    }),
+  );
+}
+
 export function createLiveEventsRouter(deps: LiveEventsRouterDeps): Router {
   const router = Router();
+  const toRomajiFn = deps.toRomajiFn ?? toRomaji;
   const heartbeatMs = deps.heartbeatMs ?? HEARTBEAT_MS;
   const backoffInitialMs = deps.backoffInitialMs ?? BACKOFF_INITIAL_MS;
   const backoffMaxMs = deps.backoffMaxMs ?? BACKOFF_MAX_MS;
@@ -85,7 +108,7 @@ export function createLiveEventsRouter(deps: LiveEventsRouterDeps): Router {
       total: upstreamPage.total,
       page: upstreamPage.page,
       pageSize: upstreamPage.pageSize,
-      items,
+      items: await annotateRomaji(items, toRomajiFn),
     });
   });
 
@@ -118,7 +141,9 @@ export function createLiveEventsRouter(deps: LiveEventsRouterDeps): Router {
       if (!event) return;
       const [merged] = await resolveReadState([event]);
       if (controller.signal.aborted || res.writableEnded) return;
-      res.write(`data: ${JSON.stringify(merged ?? event)}\n\n`);
+      const [annotated] = await annotateRomaji(merged ? [merged] : [event], toRomajiFn);
+      if (controller.signal.aborted || res.writableEnded) return;
+      res.write(`data: ${JSON.stringify(annotated)}\n\n`);
     };
 
     const sleep = (ms: number): Promise<void> =>

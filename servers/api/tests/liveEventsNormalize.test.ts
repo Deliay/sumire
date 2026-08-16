@@ -24,6 +24,7 @@ describe("toLiveEvent 四类事件映射（实测样本夹具）", () => {
       sender: {
         uid: 248197,
         name: "紫罗兰的信",
+        nameRomaji: null,
         face: "https://i0.hdslb.com/bfs/face/member/248197.jpg",
         medal: { name: "堇色信笺", level: 12, color: "#6680ff" },
         guardLevel: null,
@@ -31,6 +32,14 @@ describe("toLiveEvent 四类事件映射（实测样本夹具）", () => {
       content: "堇宝今天唱什么呀",
       read: false,
     });
+  });
+
+  it("danmaku：dm_v2 user.medal.color 为十进制整数时转 CSS hex（B 站实测形态）", () => {
+    const fixture = clone(danmakuFixture) as Record<string, any>;
+    const info = (fixture.payload.info as any[])[0];
+    (info[15] as any).user.medal = { name: "堇色信笺", level: 34, color: 7996451 };
+    const e = toLiveEvent(fixture);
+    expect(e?.sender.medal).toEqual({ name: "堇色信笺", level: 34, color: "#7a0423" });
   });
 
   it("super_chat：uinfo.base 昵称头像、medal_info 牌子、price 直接用元、scColors 映射", () => {
@@ -43,6 +52,7 @@ describe("toLiveEvent 四类事件映射（实测样本夹具）", () => {
       sender: {
         uid: 322892,
         name: "薄荷糖",
+        nameRomaji: null,
         face: "https://i1.hdslb.com/bfs/face/member/322892.jpg",
         medal: { name: "堇色信笺", level: 18, color: "#c79eff" },
         guardLevel: null,
@@ -64,6 +74,7 @@ describe("toLiveEvent 四类事件映射（实测样本夹具）", () => {
       sender: {
         uid: 21568305,
         name: "浅眠风",
+        nameRomaji: null,
         face: "https://i2.hdslb.com/bfs/face/member/21568305.jpg",
         medal: { name: "堇色信笺", level: 9, color: "#00d1f9" },
         guardLevel: null,
@@ -81,7 +92,7 @@ describe("toLiveEvent 四类事件映射（实测样本夹具）", () => {
       eventId: "guard:437917:1755338730",
       type: "guard_buy",
       occurredAt: "2026-08-16T13:25:30.000Z",
-      sender: { uid: 437917, name: "夜航星", face: null, medal: null, guardLevel: 3 },
+      sender: { uid: 437917, name: "夜航星", nameRomaji: null, face: null, medal: null, guardLevel: 3 },
       price: 138,
       guard: { level: 3, name: "舰长", count: 1 },
       read: false,
@@ -124,6 +135,34 @@ describe("toLiveEvent danmaku 上船等级 guardLevel", () => {
     (v2.user.medal as Record<string, unknown>).guard_level = 1;
     (fixture.payload.info[2] as unknown[])[7] = 3;
     expect(toLiveEvent(fixture)?.sender.guardLevel).toBe(1);
+  });
+});
+
+describe("toLiveEvent SC/礼物 上船等级 guardLevel", () => {
+  it("super_chat：uinfo.medal.guard_level>0 映射到 sender.guardLevel（舰长=3）", () => {
+    const fixture = clone(superChatFixture);
+    const uinfo = (fixture.payload.data as Record<string, unknown>).uinfo as Record<string, unknown>;
+    uinfo.medal = { guard_level: 3 };
+    expect(toLiveEvent(fixture)?.sender.guardLevel).toBe(3);
+  });
+
+  it("super_chat：guard_level 为 0 或缺位时 sender.guardLevel 为 null", () => {
+    const fixture = clone(superChatFixture);
+    const uinfo = (fixture.payload.data as Record<string, unknown>).uinfo as Record<string, unknown>;
+    uinfo.medal = { guard_level: 0 };
+    expect(toLiveEvent(fixture)?.sender.guardLevel).toBeNull();
+    delete uinfo.medal;
+    expect(toLiveEvent(fixture)?.sender.guardLevel).toBeNull();
+  });
+
+  it("gift：uinfo.medal.guard_level>0 映射到 sender.guardLevel（提督=2）", () => {
+    const fixture = clone(giftFixture);
+    (fixture.payload.data as Record<string, unknown>).uinfo = { medal: { guard_level: 2 } };
+    expect(toLiveEvent(fixture)?.sender.guardLevel).toBe(2);
+  });
+
+  it("gift：缺 uinfo/guard_level 时 sender.guardLevel 为 null", () => {
+    expect(toLiveEvent(clone(giftFixture))?.sender.guardLevel).toBeNull();
   });
 });
 

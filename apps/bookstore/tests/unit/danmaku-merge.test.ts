@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { longestNonRepeatSubstring, mergeDanmaku, danmakuMergeKey } from "@/features/danmaku/merge";
+import { longestNonRepeatSubstring, mergeDanmaku, mergeEventsByTime, danmakuMergeKey } from "@/features/danmaku/merge";
 import type { LiveEvent } from "@/features/danmaku/types";
 
-const SENDER: LiveEvent["sender"] = { uid: 1, name: "观众A", face: null, medal: null, guardLevel: null };
+const SENDER: LiveEvent["sender"] = { uid: 1, name: "观众A", nameRomaji: null, face: null, medal: null, guardLevel: null };
 
 function dm(id: string, content: string, emote?: { url: string; name?: string }): LiveEvent {
   return { eventId: id, type: "danmaku", occurredAt: "2026-08-16T12:00:00.000Z", sender: SENDER, read: false, content, emote };
@@ -42,7 +42,7 @@ describe("danmakuMergeKey", () => {
 });
 
 describe("mergeDanmaku 弹幕折叠", () => {
-  it("相邻重复表情折叠并计数", () => {
+  it("相邻重复表情折叠并计数（代表行停在末次出现的原位）", () => {
     const rows = mergeDanmaku([
       dm("a", "[比心]", { url: "http://u/1.png" }),
       dm("b", "[比心]", { url: "http://u/1.png" }),
@@ -50,7 +50,7 @@ describe("mergeDanmaku 弹幕折叠", () => {
     ]);
     expect(rows).toHaveLength(1);
     expect(rows[0].count).toBe(3);
-    expect(rows[0].event.eventId).toBe("a");
+    expect(rows[0].event.eventId).toBe("c");
   });
 
   it("相邻重复文字折叠（4.2：妈妈妈妈妈/妈妈妈/妈妈）", () => {
@@ -66,14 +66,25 @@ describe("mergeDanmaku 弹幕折叠", () => {
     expect(rows[1].count).toBe(1);
   });
 
-  it("跨其他事件（非连续）的重复同样折叠，保留首次出现位置并累计计数", () => {
+  it("跨其他事件（非连续）的重复同样折叠，保留末次出现位置并累计计数", () => {
     const gift: LiveEvent = { ...dm("mid", "x"), type: "gift", gift: { name: "情书", count: 1 }, price: 1 };
     const rows = mergeDanmaku([dm("a", "妈妈"), gift, dm("b", "妈妈"), dm("c", "你好")]);
     expect(rows).toHaveLength(3);
-    expect(rows[0].event.eventId).toBe("a");
-    expect(rows[0].count).toBe(2);
-    expect(rows[1].event.type).toBe("gift");
+    expect(rows[0].event.type).toBe("gift");
+    expect(rows[1].event.eventId).toBe("b");
+    expect(rows[1].count).toBe(2);
     expect(rows[2].event.eventId).toBe("c");
+  });
+
+  it("SSE 新到的重复弹幕折叠到已展示的末次出现处，不跳到顶部（倒序列表场景）", () => {
+    const rows = mergeDanmaku([
+      dm("new", "妈妈"), // SSE 刚 prepend 到顶部的新重复
+      dm("w", "欢迎欢迎"),
+      dm("old", "妈妈"), // 用户正在浏览的旧出现
+    ]);
+    expect(rows.map((r) => r.event.eventId)).toEqual(["w", "old"]);
+    const folded = rows[1];
+    expect(folded.count).toBe(2);
   });
 
   it("非弹幕原样透传（count=1）", () => {
@@ -81,5 +92,36 @@ describe("mergeDanmaku 弹幕折叠", () => {
     const rows = mergeDanmaku([dm("a", "你好"), gift, dm("b", "再见")]);
     expect(rows.map((r) => r.count)).toEqual([1, 1, 1]);
     expect(rows.map((r) => r.event.type)).toEqual(["danmaku", "gift", "danmaku"]);
+  });
+});
+
+describe("mergeEventsByTime 混排合并", () => {
+  function at(id: string, time: string): LiveEvent {
+    return { ...dm(id, "x"), eventId: id, occurredAt: time };
+  }
+
+  it("多列表按时间倒序合并（最新在前）", () => {
+    const sc = [at("sc:1", "2026-08-16T12:00:00.000Z")];
+    const guard = [
+      at("guard:2", "2026-08-16T12:00:05.000Z"),
+      at("guard:1", "2026-08-16T11:59:00.000Z"),
+    ];
+    expect(mergeEventsByTime(sc, guard).map((e) => e.eventId)).toEqual([
+      "guard:2",
+      "sc:1",
+      "guard:1",
+    ]);
+  });
+
+  it("时间相同按 eventId 稳定排序", () => {
+    const a = at("a", "2026-08-16T12:00:00.000Z");
+    const b = at("b", "2026-08-16T12:00:00.000Z");
+    expect(mergeEventsByTime([a, b], []).map((e) => e.eventId)).toEqual(["a", "b"]);
+  });
+
+  it("空列表与单列表原样返回", () => {
+    expect(mergeEventsByTime()).toEqual([]);
+    const only = [at("x", "2026-08-16T12:00:00.000Z")];
+    expect(mergeEventsByTime(only)).toEqual(only);
   });
 });

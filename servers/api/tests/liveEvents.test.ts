@@ -160,7 +160,26 @@ async function call(
 
 function buildApp(upstream: ReturnType<typeof stubUpstream>) {
   const store = memSessionStore();
-  const app = createApp({ sessionStore: store, rateLimiter: unlimited, liveEventsUpstream: upstream as never });
+  const app = createApp({
+    sessionStore: store,
+    rateLimiter: unlimited,
+    liveEventsUpstream: upstream as never,
+    toRomajiFn: async () => null,
+  });
+  return { app, store };
+}
+
+function createAppWithRomaji(
+  upstream: ReturnType<typeof stubUpstream>,
+  mapping: Record<string, string | null>,
+) {
+  const store = memSessionStore();
+  const app = createApp({
+    sessionStore: store,
+    rateLimiter: unlimited,
+    liveEventsUpstream: upstream as never,
+    toRomajiFn: async (text) => mapping[text] ?? null,
+  });
   return { app, store };
 }
 
@@ -235,6 +254,36 @@ describe("GET /api/live-events（检索代理 + 归一化 + 已读合并）", ()
     expect(body.items).toHaveLength(1);
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+
+  it("sender.nameRomaji 与 SC contentRomaji 由路由层经 toRomajiFn 填充（含假名填充、无假名置空）", async () => {
+    const upstream = stubUpstream(pageOf([clone(superChatFixture)]));
+    const { app, store } = createAppWithRomaji(upstream, {
+      "薄荷糖": "hakkatou",
+      "堇宝辛苦了！今晚也超好听": "sumire chan otsukaresama",
+    });
+    const cookie = await sessionCookie(store, "member");
+    const r = await call(app, { method: "GET", path: "/api/live-events", cookie });
+    expect(r.status).toBe(200);
+    const body = r.body as {
+      items: Array<{ sender: { name: string; nameRomaji: string | null }; contentRomaji?: string }>;
+    };
+    expect(body.items[0].sender.name).toBe("薄荷糖");
+    expect(body.items[0].sender.nameRomaji).toBe("hakkatou");
+    expect(body.items[0].contentRomaji).toBe("sumire chan otsukaresama");
+  });
+
+  it("无假名时 contentRomaji 字段缺省（不含在响应中）", async () => {
+    const upstream = stubUpstream(pageOf([clone(superChatFixture)]));
+    const { app, store } = createAppWithRomaji(upstream, {
+      "薄荷糖": null,
+      "堇宝辛苦了！今晚也超好听": null,
+    });
+    const cookie = await sessionCookie(store, "member");
+    const r = await call(app, { method: "GET", path: "/api/live-events", cookie });
+    expect(r.status).toBe(200);
+    const body = r.body as { items: Array<{ contentRomaji?: string }> };
+    expect("contentRomaji" in body.items[0]).toBe(false);
   });
 
   it("缺省参数：全部类型 + page=1&pageSize=50", async () => {
@@ -413,7 +462,7 @@ function sseTestApp(store: SessionStore, upstream: unknown, overrides?: { heartb
   app.use(sessionMiddleware(store));
   app.use(
     "/api/live-events",
-    createLiveEventsRouter({ upstream: upstream as never, heartbeatMs: 30_000, ...overrides }),
+    createLiveEventsRouter({ upstream: upstream as never, toRomajiFn: async () => null, heartbeatMs: 30_000, ...overrides }),
   );
   return app;
 }

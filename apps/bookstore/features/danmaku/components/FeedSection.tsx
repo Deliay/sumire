@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type { LiveEvent } from "../types";
+import type { LiveEvent, LiveEventType } from "../types";
 import { mergeDanmaku, type MergedDanmaku } from "../merge";
 import { useAnchoredFeed } from "../useAnchoredFeed";
 import DanmakuItem from "./DanmakuItem";
@@ -19,6 +19,8 @@ interface FeedSectionProps {
   events: LiveEvent[];
   canManage: boolean;
   onToggleRead?: (event: LiveEvent) => void;
+  /** 实时流到达的 SC/上船 eventId → type 映射，用于「New」标记。 */
+  newIds?: ReadonlyMap<string, LiveEventType>;
   /** 空态文案（默认「暂无事件」）。 */
   emptyText?: string;
   /** 本小节历史加载中（无事件时展示骨架）。 */
@@ -45,6 +47,7 @@ export default function FeedSection({
   events,
   canManage,
   onToggleRead,
+  newIds = new Map(),
   emptyText = "暂无事件",
   loading = false,
   error = null,
@@ -96,15 +99,16 @@ export default function FeedSection({
   function renderItem(row: MergedDanmaku) {
     const event = row.event;
     const toggleRead = canManage ? onToggleRead : undefined;
+    const isNew = newIds.has(event.eventId);
     switch (event.type) {
       case "danmaku":
         return <DanmakuItem event={event} count={row.count} />;
       case "super_chat":
-        return <SuperChatItem event={event} onToggleRead={toggleRead} />;
+        return <SuperChatItem event={event} isNew={isNew} onToggleRead={toggleRead} />;
       case "gift":
         return <GiftItem event={event} />;
       case "guard_buy":
-        return <GuardItem event={event} onToggleRead={toggleRead} />;
+        return <GuardItem event={event} isNew={isNew} onToggleRead={toggleRead} />;
     }
   }
 

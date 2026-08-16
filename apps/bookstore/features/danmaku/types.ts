@@ -18,6 +18,8 @@ export const MedalSchema = z.object({
 export const SenderSchema = z.object({
   uid: z.number().int(),
   name: z.string(),
+  /** 昵称罗马音标注（全文转换，简体汉字先转日文汉字，仍失败兜底仅转写假名）；无假名为 null，前端有则换行展示、无则不展示 */
+  nameRomaji: z.string().nullable(),
   /** 头像 URL；guard_buy 上游无头像，为 null，前端兜底渲染 */
   face: z.string().nullable(),
   /** 粉丝团牌子；无牌子为 null */
@@ -38,6 +40,8 @@ export const LiveEventSchema = z.object({
   occurredAt: z.string(),
   sender: SenderSchema,
   content: z.string().optional(),
+  /** SC 留言罗马音标注（仅 super_chat，全文转换，简体汉字先转日文汉字，仍失败兜底仅转写假名）；无假名则不含该字段，前端有则换行展示、无则不展示 */
+  contentRomaji: z.string().optional(),
   /** 弹幕表情图片（仅 danmaku）；存在时前端渲染为图片而非纯文本 */
   emote: z
     .object({ url: z.string(), name: z.string().optional(), width: z.number().int().optional(), height: z.number().int().optional() })
@@ -59,9 +63,14 @@ export const LiveEventSchema = z.object({
 });
 export type LiveEvent = z.infer<typeof LiveEventSchema>;
 
-/** 栏位配置：一栏展示若干事件类型。 */
+/** 栏内布局：mixed=混排（勾选类型合并为一栏按时间混排）；split=分栏（每类型上下分栏，默认）。 */
+export const ColumnLayoutModeSchema = z.enum(["mixed", "split"]);
+export type ColumnLayoutMode = z.infer<typeof ColumnLayoutModeSchema>;
+
+/** 栏位配置：一栏展示若干事件类型，可选混排/分栏布局（缺省按分栏处理，兼容旧存储）。 */
 export const ColumnConfigSchema = z.object({
   id: z.string().min(1),
   types: z.array(LiveEventTypeSchema).min(1),
+  mode: ColumnLayoutModeSchema.optional(),
 });
 export type ColumnConfig = z.infer<typeof ColumnConfigSchema>;

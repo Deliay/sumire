@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { useSession } from "@/features/backdoor/session";
 import { atLeast } from "@/features/backdoor/roleAccess";
 import type { ApiError } from "@/features/backdoor/api";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 import {
   listLiveEvents,
   markAllLiveEventsRead,
@@ -15,14 +16,18 @@ import {
 import {
   getColumnsServerSnapshot,
   getColumnsSnapshot,
+  resolveColumns,
   saveColumns,
   subscribeColumns,
+  type ViewportTier,
 } from "../columns";
 import { labelForType } from "../format";
+import { mergeEventsByTime } from "../merge";
 import { useLiveEventStream } from "../useLiveEventStream";
 import {
   LiveEventTypeSchema,
   type ColumnConfig,
+  type ColumnLayoutMode,
   type LiveEvent,
   type LiveEventType,
 } from "../types";
@@ -30,6 +35,9 @@ import FeedColumn from "./FeedColumn";
 
 /** 「全部已读」仅支持需要已读管理的类型（契约口径）。 */
 const READ_ALL_TYPES: readonly ReadAllType[] = ["super_chat", "guard_buy"];
+
+/** 实时流到达即打「New」标记的事件类型（仅 SC / 上船）。 */
+const NEW_MARK_TYPES: readonly LiveEventType[] = ["super_chat", "guard_buy"];
 
 /** 历史检索每页条数（后端 pageSize 上限 100）。 */
 const PAGE_SIZE = 100;
@@ -44,10 +52,12 @@ function dedupeById(events: LiveEvent[]): LiveEvent[] {
 }
 
 /**
- * 弹幕后台分栏面板（提案 K5/K6/K7）：默认 3 栏（弹幕+礼物 | SC | 上船），
+ * 弹幕后台分栏面板（提案 K5/K6/K7）：默认 3 栏（礼物 | SC+上船 混排 | 弹幕），
  * 历史首屏逐栏检索 + SSE 实时 prepend（按 eventId 去重），已读双击切换乐观更新失败回滚，
- * 栏位类型组合可配置并持久化 localStorage（useSyncExternalStore 快照，SSR 回退默认）。
- * `<1024px` 纵向堆叠为纯 CSS（flex-col → lg:flex-row）。
+ * 栏位类型组合与混排/分栏布局可配置并持久化 localStorage（useSyncExternalStore 快照，SSR 回退默认）。
+ * 移动端优化（F10）：按视口自适应栏数——<640px 折叠为单栏全类型、640-1023px 可选 1/2 栏
+ * 默认 1 栏、>=1024px 可选 2/3 栏默认 3 栏（「视图栏」选择器由页头 ColumnCountSelector 提供，
+ * 经 localStorage 快照同步至此；折叠为纯视图层，不写回存储）。
  */
 interface DanmakuDashboardProps {
   /** 全屏模式：分栏区占满整个屏幕（由弹幕后台页传入）。 */
@@ -64,7 +74,21 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
   const { session } = useSession();
   const canManage = session.status === "authenticated" && atLeast(session.me.role, "admin");
 
-  const columns = useSyncExternalStore(subscribeColumns, getColumnsSnapshot, getColumnsServerSnapshot);
+  const storedColumns = useSyncExternalStore(subscribeColumns, getColumnsSnapshot, getColumnsServerSnapshot);
+  // 视口档位：narrow(<640) / medium(640-1023) / wide(>=1024)；SSR 快照恒 false → medium
+  const isNarrow = useMediaQuery("(max-width: 639px)");
+  const isWide = useMediaQuery("(min-width: 1024px)");
+  const tier: ViewportTier = isNarrow ? "narrow" : isWide ? "wide" : "medium";
+  // 有效栏位：按视口夹取已存配置（越界用预设覆盖，界内保留自定义），不写回存储；
+  // 缺省 mode 归一为 split（兼容旧存储无 mode 字段）
+  const columns = useMemo(
+    () =>
+      resolveColumns(storedColumns, tier).map((col) => ({
+        ...col,
+        mode: col.mode ?? "split",
+      })),
+    [storedColumns, tier],
+  );
   // 分节检索状态：key = `${colId}:${type}`，每种事件类型独立加载/分页/错误
   const [eventsBySection, setEventsBySection] = useState<Record<string, LiveEvent[]>>({});
   const [loadedSections, setLoadedSections] = useState<ReadonlySet<string>>(new Set());
@@ -74,6 +98,8 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
   const [pagesBySection, setPagesBySection] = useState<Record<string, number>>({});
   const [totalsBySection, setTotalsBySection] = useState<Record<string, number>>({});
   const [loadingMoreBySection, setLoadingMoreBySection] = useState<Record<string, boolean>>({});
+  // 实时流到达的 SC/上船事件 eventId → type 集合（读后清除，用于「New」标记）
+  const [newIds, setNewIds] = useState<ReadonlyMap<string, LiveEventType>>(new Map());
 
   // 检索代际：columns 变化时递增，旧代检索结果作废，避免竞态覆盖新栏位数据
   const generationRef = useRef(0);
@@ -181,6 +207,15 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
         }
         return next;
       });
+      // 实时流到达的 SC/上船标记为 New（读后清除）
+      if ((NEW_MARK_TYPES as readonly string[]).includes(event.type)) {
+        setNewIds((prev) => {
+          if (prev.has(event.eventId)) return prev;
+          const next = new Map(prev);
+          next.set(event.eventId, event.type);
+          return next;
+        });
+      }
     },
     [columns],
   );
@@ -202,6 +237,15 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
     async (event: LiveEvent) => {
       const nextRead = !event.read;
       updateEvent(event.eventId, (e) => ({ ...e, read: nextRead }));
+      // 标记已读时清除「New」
+      if (nextRead) {
+        setNewIds((prev) => {
+          if (!prev.has(event.eventId)) return prev;
+          const next = new Map(prev);
+          next.delete(event.eventId);
+          return next;
+        });
+      }
       const { status } = nextRead
         ? await markLiveEventRead(event.eventId)
         : await markLiveEventUnread(event.eventId);
@@ -223,25 +267,56 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
         }
         return next;
       });
+      // 该类型全部已读 → 清除其 New 标记
+      setNewIds((prev) => {
+        const next = new Map(prev);
+        for (const [id, t] of prev) {
+          if (t === type) next.delete(id);
+        }
+        return next;
+      });
     } else {
       setToast("操作失败，请重试");
     }
   }, []);
 
-  // 栏位配置：勾选/取消事件类型，至少保留一种；写回 localStorage（订阅者自动收到新快照）
-  const toggleColumnType = useCallback((columnId: string, type: LiveEventType) => {
-    const current = getColumnsSnapshot();
-    const next = current.map((col) => {
-      if (col.id !== columnId) return col;
-      const types = col.types.includes(type)
-        ? col.types.filter((t) => t !== type)
-        : [...col.types, type];
-      if (types.length === 0) return col;
-      return { ...col, types };
-    });
-    if (next === current) return;
-    saveColumns(next);
-  }, []);
+  // 栏位配置：勾选/取消事件类型，至少保留一种；写回 localStorage（订阅者自动收到新快照）。
+  // 作用于当前有效栏（用户所见），跨视口夹取场景下写入为自定义栏数配置。
+  const toggleColumnType = useCallback(
+    (columnId: string, type: LiveEventType) => {
+      const next = columns.map((col) => {
+        if (col.id !== columnId) return col;
+        const types = col.types.includes(type)
+          ? col.types.filter((t) => t !== type)
+          : [...col.types, type];
+        if (types.length === 0) return col;
+        return { ...col, types };
+      });
+      saveColumns(next);
+    },
+    [columns],
+  );
+
+  // 栏内布局：切换混排/分栏；写回 localStorage（订阅者自动收到新快照）。
+  const toggleColumnMode = useCallback(
+    (columnId: string, mode: ColumnLayoutMode) => {
+      const next = columns.map((col) => (col.id === columnId ? { ...col, mode } : col));
+      saveColumns(next);
+    },
+    [columns],
+  );
+
+  // 混排栏合并列表（按时间倒序）：仅 columns 或事件数据变化时重算，保证引用稳定
+  const mixedEventsByColumn = useMemo(() => {
+    const map: Record<string, LiveEvent[]> = {};
+    for (const col of columns) {
+      if (col.mode !== "mixed") continue;
+      map[col.id] = mergeEventsByTime(
+        ...col.types.map((type) => eventsBySection[sectionKey(col.id, type)] ?? []),
+      );
+    }
+    return map;
+  }, [columns, eventsBySection]);
 
   return (
     <div className={isFullscreen ? "flex h-full flex-1 flex-col gap-4" : "flex flex-col gap-4"}>
@@ -258,26 +333,49 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
       <div
         className={
           isFullscreen
-            ? "flex min-h-0 flex-1 flex-col gap-4 lg:flex-row"
-            : "flex h-[calc(100svh-16rem)] flex-col gap-4 lg:flex-row"
+            ? `flex min-h-0 flex-1 gap-4 ${columns.length > 1 ? "flex-row" : "flex-col"}`
+            : `flex h-[calc(100svh-16rem)] gap-4 ${columns.length > 1 ? "flex-row" : "flex-col"}`
         }
       >
         {columns.map((col) => {
           const title = col.types.map(labelForType).join(" + ");
-          const sections = col.types.map((type) => {
-            const key = sectionKey(col.id, type);
-            return {
-              type,
-              label: labelForType(type),
-              events: eventsBySection[key] ?? [],
-              loading: !loadedSections.has(key),
-              error: sectionErrors[key] ?? null,
-              onRetry: () => void loadSection(col, type, generationRef.current),
-              onLoadMore: () => void loadMoreSection(col, type),
-              hasMore: (totalsBySection[key] ?? 0) > (eventsBySection[key]?.length ?? 0),
-              loadingMore: loadingMoreBySection[key],
-            };
-          });
+          const keys = col.types.map((type) => sectionKey(col.id, type));
+          const sections =
+            col.mode === "mixed"
+              ? [
+                  {
+                    type: col.types[0],
+                    label: "",
+                    events: mixedEventsByColumn[col.id] ?? [],
+                    loading: keys.some((k) => !loadedSections.has(k)),
+                    error: keys.map((k) => sectionErrors[k]).find((e) => e != null) ?? null,
+                    onRetry: () =>
+                      col.types.forEach((type) => {
+                        if (sectionErrors[sectionKey(col.id, type)]) {
+                          void loadSection(col, type, generationRef.current);
+                        }
+                      }),
+                    onLoadMore: () => col.types.forEach((type) => void loadMoreSection(col, type)),
+                    hasMore: keys.some(
+                      (k) => (totalsBySection[k] ?? 0) > (eventsBySection[k]?.length ?? 0),
+                    ),
+                    loadingMore: keys.some((k) => loadingMoreBySection[k]),
+                  },
+                ]
+              : col.types.map((type) => {
+                  const key = sectionKey(col.id, type);
+                  return {
+                    type,
+                    label: labelForType(type),
+                    events: eventsBySection[key] ?? [],
+                    loading: !loadedSections.has(key),
+                    error: sectionErrors[key] ?? null,
+                    onRetry: () => void loadSection(col, type, generationRef.current),
+                    onLoadMore: () => void loadMoreSection(col, type),
+                    hasMore: (totalsBySection[key] ?? 0) > (eventsBySection[key]?.length ?? 0),
+                    loadingMore: loadingMoreBySection[key],
+                  };
+                });
           return (
             <FeedColumn
               key={col.id}
@@ -285,6 +383,7 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
               sections={sections}
               canManage={canManage}
               onToggleRead={toggleRead}
+              newIds={newIds}
               readAllTypes={col.types.filter((t): t is ReadAllType =>
                 (READ_ALL_TYPES as readonly string[]).includes(t),
               )}
@@ -302,18 +401,39 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
               }
               configPanel={
                 configOpenId === col.id ? (
-                  <div className="flex flex-wrap items-center gap-3 border-b border-vine/50 px-3 py-2">
-                    {LiveEventTypeSchema.options.map((type) => (
-                      <label key={type} className="flex items-center gap-1.5 text-sm text-ink">
-                        <input
-                          type="checkbox"
-                          checked={col.types.includes(type)}
-                          onChange={() => toggleColumnType(col.id, type)}
-                          className="accent-primary"
-                        />
-                        {labelForType(type)}
-                      </label>
-                    ))}
+                  <div className="flex flex-col gap-2 border-b border-vine/50 px-3 py-2">
+                    <div className="flex flex-wrap items-center gap-3">
+                      {LiveEventTypeSchema.options.map((type) => (
+                        <label key={type} className="flex items-center gap-1.5 text-sm text-ink">
+                          <input
+                            type="checkbox"
+                            checked={col.types.includes(type)}
+                            onChange={() => toggleColumnType(col.id, type)}
+                            className="accent-primary"
+                          />
+                          {labelForType(type)}
+                        </label>
+                      ))}
+                    </div>
+                    <div
+                      className="flex flex-wrap items-center gap-3"
+                      role="radiogroup"
+                      aria-label="栏内布局"
+                    >
+                      <span className="text-xs text-ink-dim">布局</span>
+                      {(["mixed", "split"] as const).map((mode) => (
+                        <label key={mode} className="flex items-center gap-1.5 text-sm text-ink">
+                          <input
+                            type="radio"
+                            name={`danmaku-layout-${col.id}`}
+                            checked={col.mode === mode}
+                            onChange={() => toggleColumnMode(col.id, mode)}
+                            className="accent-primary"
+                          />
+                          {mode === "mixed" ? "混排" : "分栏"}
+                        </label>
+                      ))}
+                    </div>
                   </div>
                 ) : null
               }

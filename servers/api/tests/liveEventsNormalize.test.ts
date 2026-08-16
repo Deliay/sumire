@@ -115,6 +115,33 @@ describe("toLiveEvent 缺字段容错", () => {
     expect(e?.sender.face).toBeNull();
   });
 
+  it("danmaku：extra 已是对象（非 JSON 字符串）也能解析出 eventId 与内容", () => {
+    const fixture = clone(danmakuFixture);
+    const v2 = fixture.payload.info[15] as { extra: string };
+    v2.extra = { id_str: "6923001122334455", content: "堇宝今天唱什么呀" } as unknown as string;
+    const e = toLiveEvent(fixture);
+    expect(e).not.toBeNull();
+    expect(e?.eventId).toBe("dm:6923001122334455");
+    expect(e?.content).toBe("堇宝今天唱什么呀");
+  });
+
+  it("danmaku：无 dm_v2（info[15] 缺失）时回退经典字段——eventId 用 info[0][7]、uid/name 用 info[2]、medal 用 info[3]", () => {
+    const fixture = clone(danmakuFixture);
+    fixture.payload.info = fixture.payload.info.slice(0, 4);
+    const e = toLiveEvent(fixture);
+    expect(e).not.toBeNull();
+    expect(e?.eventId).toBe("dm:9f3c2a1d");
+    expect(e?.sender.uid).toBe(248197);
+    expect(e?.sender.name).toBe("紫罗兰的信");
+    expect(e?.sender.face).toBeNull();
+    expect(e?.sender.medal).toEqual({
+      name: "堇色信笺",
+      level: 12,
+      color: `#${(12632257).toString(16).padStart(6, "0")}`,
+    });
+    expect(e?.content).toBe("堇宝今天唱什么呀");
+  });
+
   it("super_chat：缺 data.uinfo 时回退 data.user_info", () => {
     const fixture = clone(superChatFixture);
     const data = fixture.payload.data as unknown as Record<string, unknown>;

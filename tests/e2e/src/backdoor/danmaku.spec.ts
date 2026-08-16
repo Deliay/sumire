@@ -262,10 +262,10 @@ test.describe("backdoor danmaku 弹幕后台", () => {
     await expect(page).toHaveURL(/\/backdoor\/danmaku$/);
     await expect(page.getByRole("heading", { name: "弹幕后台" })).toBeVisible();
 
-    // 默认三栏：弹幕+礼物 | SC | 上船
-    await expect(page.getByRole("heading", { name: "弹幕 + 礼物", exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "SC", exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "上船", exact: true })).toBeVisible();
+    // 默认三栏：礼物 | SC+上船 | 弹幕
+    await expect(page.getByRole("heading", { name: "礼物", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "SC + 上船", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "弹幕", exact: true })).toBeVisible();
 
     // 历史事件按栏渲染
     await expect(page.locator('[data-event-id="dm:1"]')).toBeVisible();
@@ -293,7 +293,7 @@ test.describe("backdoor danmaku 弹幕后台", () => {
     const stub = await stubLiveEvents(page, events);
     await gotoDanmaku(page, getAccounts().admin);
 
-    const feed = page.getByLabel("弹幕信息流");
+    const feed = page.locator(".overflow-y-auto").filter({ has: page.locator('[data-event-id="dm:1"]') });
     await expect(page.locator('[data-event-id="dm:1"]')).toBeVisible();
 
     // 滚动离开顶部 → 出现「回到顶部」
@@ -424,31 +424,35 @@ test.describe("backdoor danmaku 弹幕后台", () => {
     await expect(sc).not.toHaveClass(/opacity-60/);
   });
 
-  test("danmaku-column-config: 栏位配置调整后刷新保留（localStorage 持久化）", async ({
+  test("danmaku-column-config: 混排/分栏切换后刷新保留（localStorage 持久化）", async ({
     page,
   }) => {
-    const events = [danmakuEvent("dm:400", "栏位配置页弹幕"), scEvent("sc:400", "栏位配置页SC")];
+    const events = [scEvent("sc:400", "栏位配置页SC"), guardEvent("guard:400")];
     await stubLiveEvents(page, events);
     await gotoDanmaku(page, getAccounts().admin);
 
-    await expect(page.locator('[data-event-id="dm:400"]')).toBeVisible();
+    // 默认 SC+上船 栏为混排：SC 与上船同栏渲染
+    await expect(page.locator('[data-event-id="sc:400"]')).toBeVisible();
+    await expect(page.locator('[data-event-id="guard:400"]')).toBeVisible();
 
-    // 礼物+上船栏追加「弹幕」类型 → 三类型上下分栏
-    await page.getByRole("button", { name: "配置「礼物 + 上船」栏" }).click();
-    await page.getByRole("checkbox", { name: "弹幕" }).check();
-    await expect(page.getByRole("heading", { name: "礼物 + 上船 + 弹幕", exact: true })).toBeVisible();
+    // 打开 SC+上船 栏配置，默认「混排」选中
+    await page.getByRole("button", { name: "配置「SC + 上船」栏" }).click();
+    await expect(page.getByRole("radio", { name: "混排" })).toBeChecked();
+
+    // 切到「分栏」：SC / 上船 上下分栏（出现两小节标签）
+    await page.getByRole("radio", { name: "分栏" }).check();
+    await expect(page.locator(".text-xs.font-medium.text-ink-dim")).toHaveText(["SC", "上船"]);
 
     const stored = await page.evaluate(() => localStorage.getItem("danmaku-backdoor.columns"));
     expect(stored).not.toBeNull();
     expect(JSON.parse(stored!)).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: "gift_guard", types: ["gift", "guard_buy", "danmaku"] }),
+        expect.objectContaining({ id: "sc_guard", types: ["super_chat", "guard_buy"], mode: "split" }),
       ]),
     );
 
-    // 刷新后栏位配置保留
+    // 刷新后仍分栏
     await page.reload();
-    await expect(page.getByRole("heading", { name: "礼物 + 上船 + 弹幕", exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "SC", exact: true })).toBeVisible();
+    await expect(page.locator(".text-xs.font-medium.text-ink-dim")).toHaveText(["SC", "上船"]);
   });
 });

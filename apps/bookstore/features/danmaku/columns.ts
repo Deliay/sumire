@@ -10,17 +10,17 @@ import { ColumnConfigSchema, type ColumnConfig } from "./types";
 export const COLUMNS_STORAGE_KEY = "danmaku-backdoor.columns";
 
 export const DEFAULT_COLUMNS: ColumnConfig[] = [
-  { id: "gift_guard", types: ["gift", "guard_buy"] },
-  { id: "super_chat", types: ["super_chat"] },
-  { id: "danmaku", types: ["danmaku"] },
+  { id: "gift", types: ["gift"], mode: "split" },
+  { id: "sc_guard", types: ["super_chat", "guard_buy"], mode: "mixed" },
+  { id: "danmaku", types: ["danmaku"], mode: "split" },
 ];
 
 /** 栏数预设：视图栏选择器按栏数切换的默认类型分布（PRD F10）。 */
 export const COLUMN_PRESETS: Readonly<Record<1 | 2 | 3, ColumnConfig[]>> = {
-  1: [{ id: "all", types: ["danmaku", "super_chat", "gift", "guard_buy"] }],
+  1: [{ id: "all", types: ["super_chat", "guard_buy", "gift", "danmaku"], mode: "mixed" }],
   2: [
-    { id: "sc_guard", types: ["guard_buy", "super_chat"] },
-    { id: "gift_danmaku", types: ["gift", "danmaku"] },
+    { id: "sc_guard", types: ["super_chat", "guard_buy"], mode: "mixed" },
+    { id: "danmaku_gift", types: ["danmaku", "gift"], mode: "mixed" },
   ],
   3: DEFAULT_COLUMNS,
 };

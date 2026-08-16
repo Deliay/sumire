@@ -86,6 +86,16 @@ function medalFromMedalInfo(medalInfo: unknown): LiveEventSender["medal"] {
   return { name, level: asNumber(mi.medal_level) ?? 0, color: medalColor(mi.medal_color) };
 }
 
+/**
+ * 从 v2 uinfo 提取发送者上船等级：`uinfo.medal.guard_level`（SC/礼物实测在 uinfo 结构内，
+ * 与弹幕 dm_v2 user.medal 同源）。0/缺位视为无上船。
+ */
+function guardLevelFromUinfo(uinfo: unknown): number | null {
+  const medal = asRecord(asRecord(uinfo)?.medal);
+  const raw = asNumber(medal?.guard_level);
+  return raw !== undefined && raw > 0 ? raw : null;
+}
+
 function normalizeDanmaku(payload: Record<string, unknown>, occurredAt: string): LiveEvent | null {
   const info = asArray(payload.info);
   if (!info) return null;
@@ -183,7 +193,7 @@ function normalizeSuperChat(payload: Record<string, unknown>, occurredAt: string
     eventId: `sc:${id}`,
     type: "super_chat",
     occurredAt,
-    sender: { uid, name, nameRomaji: null, face, medal: medalFromMedalInfo(data.medal_info), guardLevel: null },
+    sender: { uid, name, nameRomaji: null, face, medal: medalFromMedalInfo(data.medal_info), guardLevel: guardLevelFromUinfo(data.uinfo) },
     ...(content !== undefined ? { content } : {}),
     ...(price !== undefined ? { price } : {}),
     ...(bgStart && bgEnd && fontColor
@@ -217,7 +227,7 @@ function normalizeGift(payload: Record<string, unknown>, occurredAt: string): Li
     eventId: `gift:${id}`,
     type: "gift",
     occurredAt,
-    sender: { uid, name, nameRomaji: null, face: asString(data.face) ?? null, medal: medalFromMedalInfo(data.medal_info), guardLevel: null },
+    sender: { uid, name, nameRomaji: null, face: asString(data.face) ?? null, medal: medalFromMedalInfo(data.medal_info), guardLevel: guardLevelFromUinfo(data.uinfo) },
     price,
     gift: { name: giftName, count },
     read: false,

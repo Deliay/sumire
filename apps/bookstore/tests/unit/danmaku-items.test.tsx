@@ -235,20 +235,39 @@ describe("GuardItem", () => {
     expect(screen.getByText(/1\s*个月/)).toBeTruthy();
   });
 
-  it("船型着色：3 舰长蓝（eye）/2 提督紫（flower）/1 总督红（crimson）", () => {
+  it("上船事件头像按所购船型渲染挂件（sender.guardLevel 缺省时回退 event.guard.level）", () => {
+    // SENDER.guardLevel=null，仅 event.guard.level=3 携带船型 → 头像应渲染舰长挂件
+    const { container } = render(<GuardItem event={guard} />);
+    expect(container.querySelector('[src*="guard-badge-captain"]')).toBeTruthy();
+    cleanup();
+    const { container: c2 } = render(
+      <GuardItem event={{ ...guard, guard: { level: 2, name: "提督", count: 2 } }} />,
+    );
+    expect(c2.querySelector('[src*="guard-badge-admiral"]')).toBeTruthy();
+    cleanup();
+    const { container: c1 } = render(
+      <GuardItem event={{ ...guard, guard: { level: 1, name: "总督", count: 1 } }} />,
+    );
+    expect(c1.querySelector('[src*="guard-badge-governor"]')).toBeTruthy();
+  });
+
+  it("船型着色：3 舰长蓝（eye）/2 提督紫（flower）/1 总督红（crimson），整条打底", () => {
     const { container: c3 } = render(<GuardItem event={guard} />);
     expect(c3.querySelector("span.bg-eye\\/70")).toBeTruthy();
     expect(c3.querySelector("span.text-eye")).toBeTruthy();
+    expect(c3.firstElementChild?.className).toContain("bg-eye/10");
     cleanup();
 
     const { container: c2 } = render(<GuardItem event={{ ...guard, guard: { level: 2, name: "提督", count: 2 } }} />);
     expect(c2.querySelector("span.bg-flower\\/70")).toBeTruthy();
     expect(c2.querySelector("span.text-flower")).toBeTruthy();
+    expect(c2.firstElementChild?.className).toContain("bg-flower/10");
     cleanup();
 
     const { container: c1 } = render(<GuardItem event={{ ...guard, guard: { level: 1, name: "总督", count: 1 } }} />);
     expect(c1.querySelector("span.bg-crimson\\/70")).toBeTruthy();
     expect(c1.querySelector("span.text-crimson")).toBeTruthy();
+    expect(c1.firstElementChild?.className).toContain("bg-crimson/10");
   });
 
   it("guard_level 2/1 → 提督/总督；未知等级回退上游名称", () => {

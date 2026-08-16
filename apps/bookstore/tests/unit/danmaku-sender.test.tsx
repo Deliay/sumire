@@ -53,9 +53,10 @@ describe("Sender 公共组件", () => {
     expect(screen.queryByText("hakkatou")).toBeNull();
   });
 
-  it("guardLevel 为 null 时不渲染船员标识", () => {
+  it("guardLevel 为 null 时不渲染船员标识，也无挂件图", () => {
     render(<Sender sender={BASE_SENDER} />);
     expect(screen.queryByText(/舰长|提督|总督/)).toBeNull();
+    expect(document.querySelector('[src*="guard-badge"]')).toBeNull();
   });
 
   it("guardLevel=3 渲染「舰长」标识，=2 渲染「提督」，=1 渲染「总督」", () => {
@@ -65,6 +66,26 @@ describe("Sender 公共组件", () => {
     expect(screen.getByText("提督")).toBeTruthy();
     rerender(<Sender sender={{ ...BASE_SENDER, guardLevel: 1 }} />);
     expect(screen.getByText("总督")).toBeTruthy();
+  });
+
+  it("头像右下角渲染船型挂件：3/2/1 → 舰长/提督/总督素材", () => {
+    const { rerender } = render(<Sender sender={{ ...BASE_SENDER, guardLevel: 3 }} />);
+    expect(document.querySelector('[src*="guard-badge-captain"]')).toBeTruthy();
+    rerender(<Sender sender={{ ...BASE_SENDER, guardLevel: 2 }} />);
+    expect(document.querySelector('[src*="guard-badge-admiral"]')).toBeTruthy();
+    rerender(<Sender sender={{ ...BASE_SENDER, guardLevel: 1 }} />);
+    expect(document.querySelector('[src*="guard-badge-governor"]')).toBeTruthy();
+  });
+
+  it("缺头像（face=null）兜底首字时仍渲染挂件", () => {
+    render(<Sender sender={{ ...BASE_SENDER, face: null, guardLevel: 3 }} />);
+    expect(screen.getByText("测")).toBeTruthy();
+    expect(document.querySelector('[src*="guard-badge-captain"]')).toBeTruthy();
+  });
+
+  it("guardLevel 覆盖：sender.guardLevel=null 时按传入等级渲染挂件", () => {
+    render(<Sender sender={BASE_SENDER} guardLevel={3} />);
+    expect(document.querySelector('[src*="guard-badge-captain"]')).toBeTruthy();
   });
 
   it("点击新开 B 站空间 https://space.bilibili.com/{uid}", () => {

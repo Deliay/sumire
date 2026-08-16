@@ -14,7 +14,6 @@ import {
   type ReadAllType,
 } from "../api";
 import {
-  COLUMN_PRESETS,
   getColumnsServerSnapshot,
   getColumnsSnapshot,
   resolveColumns,
@@ -23,10 +22,12 @@ import {
   type ViewportTier,
 } from "../columns";
 import { labelForType } from "../format";
+import { mergeEventsByTime } from "../merge";
 import { useLiveEventStream } from "../useLiveEventStream";
 import {
   LiveEventTypeSchema,
   type ColumnConfig,
+  type ColumnLayoutMode,
   type LiveEvent,
   type LiveEventType,
 } from "../types";
@@ -51,11 +52,12 @@ function dedupeById(events: LiveEvent[]): LiveEvent[] {
 }
 
 /**
- * 弹幕后台分栏面板（提案 K5/K6/K7）：默认 3 栏（弹幕+礼物 | SC | 上船），
+ * 弹幕后台分栏面板（提案 K5/K6/K7）：默认 3 栏（礼物 | SC+上船 混排 | 弹幕），
  * 历史首屏逐栏检索 + SSE 实时 prepend（按 eventId 去重），已读双击切换乐观更新失败回滚，
- * 栏位类型组合可配置并持久化 localStorage（useSyncExternalStore 快照，SSR 回退默认）。
+ * 栏位类型组合与混排/分栏布局可配置并持久化 localStorage（useSyncExternalStore 快照，SSR 回退默认）。
  * 移动端优化（F10）：按视口自适应栏数——<640px 折叠为单栏全类型、640-1023px 可选 1/2 栏
- * 默认 1 栏、>=1024px 可选 2/3 栏默认 3 栏，经「视图栏」选择器调整（纯视图层折叠，不写回存储）。
+ * 默认 1 栏、>=1024px 可选 2/3 栏默认 3 栏（「视图栏」选择器由页头 ColumnCountSelector 提供，
+ * 经 localStorage 快照同步至此；折叠为纯视图层，不写回存储）。
  */
 interface DanmakuDashboardProps {
   /** 全屏模式：分栏区占满整个屏幕（由弹幕后台页传入）。 */
@@ -77,8 +79,16 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
   const isNarrow = useMediaQuery("(max-width: 639px)");
   const isWide = useMediaQuery("(min-width: 1024px)");
   const tier: ViewportTier = isNarrow ? "narrow" : isWide ? "wide" : "medium";
-  // 有效栏位：按视口夹取已存配置（越界用预设覆盖，界内保留自定义），不写回存储
-  const columns = useMemo(() => resolveColumns(storedColumns, tier), [storedColumns, tier]);
+  // 有效栏位：按视口夹取已存配置（越界用预设覆盖，界内保留自定义），不写回存储；
+  // 缺省 mode 归一为 split（兼容旧存储无 mode 字段）
+  const columns = useMemo(
+    () =>
+      resolveColumns(storedColumns, tier).map((col) => ({
+        ...col,
+        mode: col.mode ?? "split",
+      })),
+    [storedColumns, tier],
+  );
   // 分节检索状态：key = `${colId}:${type}`，每种事件类型独立加载/分页/错误
   const [eventsBySection, setEventsBySection] = useState<Record<string, LiveEvent[]>>({});
   const [loadedSections, setLoadedSections] = useState<ReadonlySet<string>>(new Set());
@@ -287,8 +297,26 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
     [columns],
   );
 
-  // 视图栏选择器：按视口约束切换栏数（narrow 隐藏，medium 1/2 栏，wide 2/3 栏）
-  const columnCountOptions = tier === "narrow" ? [] : tier === "medium" ? [1, 2] : [2, 3];
+  // 栏内布局：切换混排/分栏；写回 localStorage（订阅者自动收到新快照）。
+  const toggleColumnMode = useCallback(
+    (columnId: string, mode: ColumnLayoutMode) => {
+      const next = columns.map((col) => (col.id === columnId ? { ...col, mode } : col));
+      saveColumns(next);
+    },
+    [columns],
+  );
+
+  // 混排栏合并列表（按时间倒序）：仅 columns 或事件数据变化时重算，保证引用稳定
+  const mixedEventsByColumn = useMemo(() => {
+    const map: Record<string, LiveEvent[]> = {};
+    for (const col of columns) {
+      if (col.mode !== "mixed") continue;
+      map[col.id] = mergeEventsByTime(
+        ...col.types.map((type) => eventsBySection[sectionKey(col.id, type)] ?? []),
+      );
+    }
+    return map;
+  }, [columns, eventsBySection]);
 
   return (
     <div className={isFullscreen ? "flex h-full flex-1 flex-col gap-4" : "flex flex-col gap-4"}>
@@ -302,26 +330,6 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
           实时连接已断开
         </p>
       )}
-      {columnCountOptions.length > 0 && (
-        <div className="flex items-center justify-end gap-2">
-          <label htmlFor="danmaku-column-count" className="text-xs text-ink-dim">
-            视图栏
-          </label>
-          <select
-            id="danmaku-column-count"
-            value={columns.length}
-            onChange={(e) => saveColumns(COLUMN_PRESETS[Number(e.target.value) as 1 | 2 | 3])}
-            aria-label="视图栏"
-            className="rounded-md border border-vine/50 bg-raised px-2 py-1 text-xs text-ink transition-colors duration-150 hover:border-flower"
-          >
-            {columnCountOptions.map((n) => (
-              <option key={n} value={n}>
-                {n} 栏
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
       <div
         className={
           isFullscreen
@@ -331,20 +339,43 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
       >
         {columns.map((col) => {
           const title = col.types.map(labelForType).join(" + ");
-          const sections = col.types.map((type) => {
-            const key = sectionKey(col.id, type);
-            return {
-              type,
-              label: labelForType(type),
-              events: eventsBySection[key] ?? [],
-              loading: !loadedSections.has(key),
-              error: sectionErrors[key] ?? null,
-              onRetry: () => void loadSection(col, type, generationRef.current),
-              onLoadMore: () => void loadMoreSection(col, type),
-              hasMore: (totalsBySection[key] ?? 0) > (eventsBySection[key]?.length ?? 0),
-              loadingMore: loadingMoreBySection[key],
-            };
-          });
+          const keys = col.types.map((type) => sectionKey(col.id, type));
+          const sections =
+            col.mode === "mixed"
+              ? [
+                  {
+                    type: col.types[0],
+                    label: "",
+                    events: mixedEventsByColumn[col.id] ?? [],
+                    loading: keys.some((k) => !loadedSections.has(k)),
+                    error: keys.map((k) => sectionErrors[k]).find((e) => e != null) ?? null,
+                    onRetry: () =>
+                      col.types.forEach((type) => {
+                        if (sectionErrors[sectionKey(col.id, type)]) {
+                          void loadSection(col, type, generationRef.current);
+                        }
+                      }),
+                    onLoadMore: () => col.types.forEach((type) => void loadMoreSection(col, type)),
+                    hasMore: keys.some(
+                      (k) => (totalsBySection[k] ?? 0) > (eventsBySection[k]?.length ?? 0),
+                    ),
+                    loadingMore: keys.some((k) => loadingMoreBySection[k]),
+                  },
+                ]
+              : col.types.map((type) => {
+                  const key = sectionKey(col.id, type);
+                  return {
+                    type,
+                    label: labelForType(type),
+                    events: eventsBySection[key] ?? [],
+                    loading: !loadedSections.has(key),
+                    error: sectionErrors[key] ?? null,
+                    onRetry: () => void loadSection(col, type, generationRef.current),
+                    onLoadMore: () => void loadMoreSection(col, type),
+                    hasMore: (totalsBySection[key] ?? 0) > (eventsBySection[key]?.length ?? 0),
+                    loadingMore: loadingMoreBySection[key],
+                  };
+                });
           return (
             <FeedColumn
               key={col.id}
@@ -370,18 +401,39 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
               }
               configPanel={
                 configOpenId === col.id ? (
-                  <div className="flex flex-wrap items-center gap-3 border-b border-vine/50 px-3 py-2">
-                    {LiveEventTypeSchema.options.map((type) => (
-                      <label key={type} className="flex items-center gap-1.5 text-sm text-ink">
-                        <input
-                          type="checkbox"
-                          checked={col.types.includes(type)}
-                          onChange={() => toggleColumnType(col.id, type)}
-                          className="accent-primary"
-                        />
-                        {labelForType(type)}
-                      </label>
-                    ))}
+                  <div className="flex flex-col gap-2 border-b border-vine/50 px-3 py-2">
+                    <div className="flex flex-wrap items-center gap-3">
+                      {LiveEventTypeSchema.options.map((type) => (
+                        <label key={type} className="flex items-center gap-1.5 text-sm text-ink">
+                          <input
+                            type="checkbox"
+                            checked={col.types.includes(type)}
+                            onChange={() => toggleColumnType(col.id, type)}
+                            className="accent-primary"
+                          />
+                          {labelForType(type)}
+                        </label>
+                      ))}
+                    </div>
+                    <div
+                      className="flex flex-wrap items-center gap-3"
+                      role="radiogroup"
+                      aria-label="栏内布局"
+                    >
+                      <span className="text-xs text-ink-dim">布局</span>
+                      {(["mixed", "split"] as const).map((mode) => (
+                        <label key={mode} className="flex items-center gap-1.5 text-sm text-ink">
+                          <input
+                            type="radio"
+                            name={`danmaku-layout-${col.id}`}
+                            checked={col.mode === mode}
+                            onChange={() => toggleColumnMode(col.id, mode)}
+                            className="accent-primary"
+                          />
+                          {mode === "mixed" ? "混排" : "分栏"}
+                        </label>
+                      ))}
+                    </div>
                   </div>
                 ) : null
               }

@@ -29,19 +29,33 @@ export function formatPrice(price: number): string {
 }
 
 /**
- * 上船船型强调色（左竖条 / chip / 金额共用）：
+ * 上船船型强调色（左竖条 / chip / 金额共用 / 条目打底）：
  * 3=舰长 → 蓝（eye）；2=提督 → 紫（flower）；1=总督 → 红（crimson）。
  * 未知等级回退紫色。返回 Tailwind token 类名。
  */
-export function guardLevelTone(level: number): { bar: string; chip: string; text: string } {
+export function guardLevelTone(level: number): { bar: string; chip: string; text: string; item: string } {
   switch (level) {
     case 3:
-      return { bar: "bg-eye/70", chip: "bg-eye/25", text: "text-eye" };
+      return { bar: "bg-eye/70", chip: "bg-eye/25", text: "text-eye", item: "bg-eye/10" };
     case 1:
-      return { bar: "bg-crimson/70", chip: "bg-crimson/25", text: "text-crimson" };
+      return { bar: "bg-crimson/70", chip: "bg-crimson/25", text: "text-crimson", item: "bg-crimson/10" };
     case 2:
     default:
-      return { bar: "bg-flower/70", chip: "bg-flower/30", text: "text-flower" };
+      return { bar: "bg-flower/70", chip: "bg-flower/30", text: "text-flower", item: "bg-flower/10" };
+  }
+}
+
+/** 头像上船挂件（本地素材）：3=舰长 / 2=提督 / 1=总督；未知等级返回 null（不渲染）。 */
+export function guardBadgeAsset(level: number): string | null {
+  switch (level) {
+    case 3:
+      return "/assets/original/guard-badge-captain.png";
+    case 2:
+      return "/assets/original/guard-badge-admiral.png";
+    case 1:
+      return "/assets/original/guard-badge-governor.png";
+    default:
+      return null;
   }
 }
 

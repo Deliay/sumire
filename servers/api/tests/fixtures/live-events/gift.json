@@ -1,0 +1,25 @@
+{
+  "roomId": 1727076670,
+  "type": "gift",
+  "occurredAt": "2026-08-16T13:24:05.777Z",
+  "liveSessionId": "20260816-live-1",
+  "payload": {
+    "cmd": "SEND_GIFT",
+    "data": {
+      "uid": 21568305,
+      "uname": "浅眠风",
+      "face": "https://i2.hdslb.com/bfs/face/member/21568305.jpg",
+      "giftId": 30607,
+      "giftName": "打call",
+      "coin_type": "gold",
+      "total_coin": 3000,
+      "combo_total_coin": 9000,
+      "num": 1,
+      "combo_send": { "uid": 21568305, "uname": "浅眠风", "combo_num": 3, "gift_name": "打call" },
+      "combo_id": "gift:combo:21568305:30607:1755338640",
+      "batch_combo_id": "gift:batch:21568305:30607:1755338640",
+      "medal_info": { "medal_name": "堇色信笺", "medal_level": 9, "medal_color": "#00d1f9" },
+      "timestamp": 1755338645
+    }
+  }
+}

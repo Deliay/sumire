@@ -7,10 +7,6 @@ import { LiveEventSchema, type LiveEvent, type LiveEventType } from "./types";
 /** SSE 连接状态：idle=未建立（未配置/无类型），connecting=连接中或断线重连中，open=已连接，closed=已关闭。 */
 export type LiveStreamStatus = "idle" | "connecting" | "open" | "closed";
 
-export interface LiveEventStream {
-  status: LiveStreamStatus;
-}
-
 /**
  * 实时事件流（提案 K5）：EventSource 订阅 `/api/live-events/stream`，
  * 事件按 eventId 在内存 Set 去重（历史首屏 + SSE 重叠、重连重推）后分发；
@@ -19,24 +15,28 @@ export interface LiveEventStream {
 export function useLiveEventStream(
   types: LiveEventType[],
   onEvent: (event: LiveEvent) => void,
-): LiveEventStream {
-  const [status, setStatus] = useState<LiveStreamStatus>("idle");
+): LiveStreamStatus {
+  const enabled = API_CONFIGURED && types.length > 0;
+  const typesKey = types.join(",");
+  const [status, setStatus] = useState<LiveStreamStatus>(enabled ? "connecting" : "idle");
   const seenRef = useRef<Set<string>>(new Set());
   const onEventRef = useRef(onEvent);
-  onEventRef.current = onEvent;
-  const typesKey = types.join(",");
-  const typesRef = useRef(types);
-  typesRef.current = types;
+
+  // 类型组合变更时在渲染期重置状态（React 推荐的 derive-state 模式），由 effect 重建连接
+  const [prevTypesKey, setPrevTypesKey] = useState(typesKey);
+  if (prevTypesKey !== typesKey) {
+    setPrevTypesKey(typesKey);
+    setStatus(enabled ? "connecting" : "idle");
+  }
 
   useEffect(() => {
-    const currentTypes = typesRef.current;
-    if (!API_CONFIGURED || currentTypes.length === 0) {
-      setStatus("idle");
-      return;
-    }
-    setStatus("connecting");
+    onEventRef.current = onEvent;
+  });
+
+  useEffect(() => {
+    if (!enabled) return;
     const params = new URLSearchParams();
-    for (const type of currentTypes) params.append("type", type);
+    for (const type of typesKey.split(",")) params.append("type", type);
     const es = new EventSource(`${API_BASE_URL}/api/live-events/stream?${params.toString()}`, {
       withCredentials: true,
     });
@@ -54,12 +54,9 @@ export function useLiveEventStream(
         // 非法帧静默忽略，不中断流
       }
     };
-    return () => {
-      es.close();
-      setStatus("closed");
-    };
-    // typesKey 变化（类型组合变更）才重建连接；types 本体经 ref 读取
-  }, [typesKey]);
+    return () => es.close();
+    // typesKey 变化（类型组合变更）才重建连接
+  }, [typesKey, enabled]);
 
-  return { status };
+  return status;
 }

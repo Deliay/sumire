@@ -58,7 +58,7 @@ describe("useLiveEventStream", () => {
     const { useLiveEventStream } = await loadHook();
     const { result } = renderHook(() => useLiveEventStream(["danmaku"], vi.fn()));
     expect(MockEventSource.instances).toHaveLength(0);
-    expect(result.current.status).toBe("idle");
+    expect(result.current).toBe("idle");
   });
 
   it("以重复 type 参数 + withCredentials 连接 /api/live-events/stream", async () => {
@@ -79,11 +79,11 @@ describe("useLiveEventStream", () => {
     vi.stubGlobal("EventSource", MockEventSource);
     const { useLiveEventStream } = await loadHook();
     const { result, unmount } = renderHook(() => useLiveEventStream(["danmaku"], vi.fn()));
-    expect(result.current.status).toBe("connecting");
+    expect(result.current).toBe("connecting");
     act(() => {
       MockEventSource.instances[0].onopen?.();
     });
-    expect(result.current.status).toBe("open");
+    expect(result.current).toBe("open");
     unmount();
     expect(MockEventSource.instances[0].closed).toBe(true);
   });

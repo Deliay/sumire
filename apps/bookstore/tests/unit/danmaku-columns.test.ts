@@ -6,6 +6,7 @@ import {
   loadColumns,
   saveColumns,
 } from "@/features/danmaku/columns";
+import type { ColumnConfig } from "@/features/danmaku/types";
 
 describe("danmaku columns 栏位配置", () => {
   beforeEach(() => {
@@ -46,7 +47,7 @@ describe("danmaku columns 栏位配置", () => {
   });
 
   it("合法配置原样返回", () => {
-    const custom = [
+    const custom: ColumnConfig[] = [
       { id: "all", types: ["danmaku", "super_chat", "gift", "guard_buy"] },
       { id: "sc", types: ["super_chat"] },
     ];
@@ -55,7 +56,7 @@ describe("danmaku columns 栏位配置", () => {
   });
 
   it("saveColumns 写入后可读回", () => {
-    const custom = [
+    const custom: ColumnConfig[] = [
       { id: "dm", types: ["danmaku"] },
       { id: "guard", types: ["guard_buy"] },
       { id: "gift", types: ["gift"] },

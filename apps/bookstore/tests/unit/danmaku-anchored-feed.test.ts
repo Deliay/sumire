@@ -24,12 +24,14 @@ describe("computeAnchorScrollTop prepend 锚定补偿", () => {
   });
 });
 
-function makeScrollable(scrollTop: number, scrollHeight: number) {
+type FakeScroller = HTMLDivElement & { scrollTop: number; scrollHeight: number };
+
+function makeScrollable(scrollTop: number, scrollHeight: number): FakeScroller {
   const el = document.createElement("div");
   Object.defineProperty(el, "scrollTop", { value: scrollTop, writable: true });
   Object.defineProperty(el, "scrollHeight", { value: scrollHeight, writable: true });
   el.scrollTo = vi.fn();
-  return el;
+  return el as FakeScroller;
 }
 
 describe("useAnchoredFeed", () => {

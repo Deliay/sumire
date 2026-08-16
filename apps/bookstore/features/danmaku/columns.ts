@@ -15,6 +15,35 @@ export const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: "danmaku", types: ["danmaku"] },
 ];
 
+/** 栏数预设：视图栏选择器按栏数切换的默认类型分布（PRD F10）。 */
+export const COLUMN_PRESETS: Readonly<Record<1 | 2 | 3, ColumnConfig[]>> = {
+  1: [{ id: "all", types: ["danmaku", "super_chat", "gift", "guard_buy"] }],
+  2: [
+    { id: "sc_guard", types: ["guard_buy", "super_chat"] },
+    { id: "gift_danmaku", types: ["gift", "danmaku"] },
+  ],
+  3: DEFAULT_COLUMNS,
+};
+
+/** 视口档位：narrow(<640) / medium(640-1023) / wide(>=1024)。 */
+export type ViewportTier = "narrow" | "medium" | "wide";
+
+/**
+ * 视口自适应栏位：把已存栏位配置夹取到当前视口允许的栏数（纯视图层，不写回存储）。
+ * 界内原样保留（不丢用户自定义类型分布）；越界用对应预设覆盖——narrow 恒单栏全类型、
+ * medium 超出 2 栏折叠为单栏、wide 单栏升为 2 栏。
+ */
+export function resolveColumns(columns: ColumnConfig[], tier: ViewportTier): ColumnConfig[] {
+  switch (tier) {
+    case "narrow":
+      return columns.length === 1 ? columns : COLUMN_PRESETS[1];
+    case "medium":
+      return columns.length <= 2 ? columns : COLUMN_PRESETS[1];
+    case "wide":
+      return columns.length >= 2 ? columns : COLUMN_PRESETS[2];
+  }
+}
+
 const ColumnsSchema = z.array(ColumnConfigSchema).min(1);
 
 function getStorage(): Storage | null {

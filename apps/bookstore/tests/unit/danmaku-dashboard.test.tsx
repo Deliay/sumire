@@ -3,6 +3,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { LiveEvent } from "@/features/danmaku/types";
 import type { Role } from "@/features/backdoor/api";
+import { COLUMN_PRESETS, COLUMNS_STORAGE_KEY } from "@/features/danmaku/columns";
 
 const listLiveEvents = vi.fn();
 const markLiveEventRead = vi.fn();
@@ -47,10 +48,21 @@ function mockListLiveEvents() {
   });
 }
 
+/** 按查询字符串返回对应 matches 的 matchMedia 桩（供 useMediaQuery 视口档位测试）。 */
+function stubMatchMedia(matchesMap: Record<string, boolean>) {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: matchesMap[query] ?? false,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+}
+
 describe("DanmakuDashboard", () => {
   beforeEach(() => {
     window.localStorage.clear();
     currentRole = "admin";
+    // 默认桌面视口（wide：>=1024）
+    stubMatchMedia({ "(max-width: 639px)": false, "(min-width: 1024px)": true });
     // jsdom 无布局：virtualizer 经 offsetWidth/offsetHeight 实测视口，stub 固定尺寸
     vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(600);
     vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(600);
@@ -67,6 +79,7 @@ describe("DanmakuDashboard", () => {
     cleanup();
     vi.clearAllMocks();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("默认三栏渲染并按类型分栏加载历史事件", async () => {
@@ -228,5 +241,89 @@ describe("DanmakuDashboard", () => {
     await waitFor(() =>
       expect(listLiveEvents.mock.calls.some((c) => c[1] === 2)).toBe(true),
     );
+  });
+
+  it("narrow(<640) 折叠为单栏全类型，无视图栏选择器，配置面板全部勾选", async () => {
+    stubMatchMedia({ "(max-width: 639px)": true, "(min-width: 1024px)": false });
+    render(<DanmakuDashboard />);
+
+    // 单栏渲染全部四类事件
+    expect(await screen.findByText("弹幕一")).toBeTruthy();
+    expect(screen.getByText("醒目留言一")).toBeTruthy();
+    expect(screen.getByText(/辣条/)).toBeTruthy();
+
+    // 无视图栏选择器
+    expect(screen.queryByRole("combobox", { name: "视图栏" })).toBeNull();
+
+    // 打开配置面板：全部四类勾选
+    fireEvent.click(screen.getByRole("button", { name: /配置「弹幕/ }));
+    const checkboxes = screen.getAllByRole("checkbox");
+    expect(checkboxes).toHaveLength(4);
+    for (const cb of checkboxes) expect((cb as HTMLInputElement).checked).toBe(true);
+  });
+
+  it("medium(640-1023) 视图栏选择器仅 1/2 栏，默认 1 栏（单栏全类型）", async () => {
+    stubMatchMedia({ "(max-width: 639px)": false, "(min-width: 1024px)": false });
+    render(<DanmakuDashboard />);
+
+    const select = (await screen.findByRole("combobox", { name: "视图栏" })) as HTMLSelectElement;
+    const options = Array.from(select.querySelectorAll("option")).map((o) => o.textContent);
+    expect(options).toEqual(["1 栏", "2 栏"]);
+    expect(select.value).toBe("1");
+
+    // 默认单栏渲染全部四类
+    expect(await screen.findByText("弹幕一")).toBeTruthy();
+    expect(screen.getByText("醒目留言一")).toBeTruthy();
+  });
+
+  it("medium 选择 2 栏后按预设分组（上船+SC | 礼物+弹幕）并持久化", async () => {
+    stubMatchMedia({ "(max-width: 639px)": false, "(min-width: 1024px)": false });
+    render(<DanmakuDashboard />);
+
+    const select = (await screen.findByRole("combobox", { name: "视图栏" })) as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: "2" } });
+
+    expect(await screen.findByText("上船 + SC")).toBeTruthy();
+    expect(screen.getByText("礼物 + 弹幕")).toBeTruthy();
+
+    const stored = JSON.parse(window.localStorage.getItem(COLUMNS_STORAGE_KEY) ?? "null");
+    expect(stored).toEqual(COLUMN_PRESETS[2]);
+  });
+
+  it("wide(>=1024) 视图栏选择器仅 2/3 栏，默认 3 栏", async () => {
+    render(<DanmakuDashboard />);
+
+    const select = (await screen.findByRole("combobox", { name: "视图栏" })) as HTMLSelectElement;
+    const options = Array.from(select.querySelectorAll("option")).map((o) => o.textContent);
+    expect(options).toEqual(["2 栏", "3 栏"]);
+    expect(select.value).toBe("3");
+  });
+
+  it("wide 选择 2 栏后切换为 2 栏预设并持久化", async () => {
+    render(<DanmakuDashboard />);
+    expect(await screen.findByText("弹幕一")).toBeTruthy();
+
+    const select = (await screen.findByRole("combobox", { name: "视图栏" })) as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: "2" } });
+
+    expect(await screen.findByText("上船 + SC")).toBeTruthy();
+    const stored = JSON.parse(window.localStorage.getItem(COLUMNS_STORAGE_KEY) ?? "null");
+    expect(stored).toEqual(COLUMN_PRESETS[2]);
+  });
+
+  it("跨视口自适应不覆盖已存配置：桌面 3 栏在窄屏折叠为单栏", async () => {
+    render(<DanmakuDashboard />);
+    expect(await screen.findByText("弹幕一")).toBeTruthy();
+    // 桌面未显式写入时 localStorage 为空，折叠为纯视图层
+    expect(window.localStorage.getItem(COLUMNS_STORAGE_KEY)).toBeNull();
+
+    stubMatchMedia({ "(max-width: 639px)": true, "(min-width: 1024px)": false });
+    // 重新渲染以触发新视口档位
+    cleanup();
+    render(<DanmakuDashboard />);
+    expect(await screen.findByText("弹幕一")).toBeTruthy();
+    expect(screen.getByText("醒目留言一")).toBeTruthy();
+    // 仍为纯视图层折叠：localStorage 未被写入
+    expect(window.localStorage.getItem(COLUMNS_STORAGE_KEY)).toBeNull();
   });
 });

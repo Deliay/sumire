@@ -20,7 +20,7 @@ export default function DanmakuItem({ event }: DanmakuItemProps) {
           title={event.emote.name}
           width={event.emote.width}
           height={event.emote.height}
-          className="max-h-40 w-auto rounded border border-vine/30 object-contain"
+          className="h-auto w-auto max-h-16 max-w-full rounded border border-vine/30 object-contain"
           loading="lazy"
           referrerPolicy="no-referrer"
         />

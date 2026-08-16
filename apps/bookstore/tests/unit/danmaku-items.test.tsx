@@ -62,6 +62,8 @@ describe("DanmakuItem", () => {
     expect(img.width).toBe(162);
     expect(img.height).toBe(162);
     expect(img.className).toContain("object-contain");
+    expect(img.className).toContain("max-h-16");
+    expect(img.className).toContain("w-auto");
   });
 });
 

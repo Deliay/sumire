@@ -1,14 +1,14 @@
 "use client";
 
 import type { LiveEvent } from "../types";
-import { formatPrice } from "../format";
+import { formatPrice, giftPriceTone } from "../format";
 import Sender from "./Sender";
 
 interface GiftItemProps {
   event: LiveEvent;
 }
 
-/** 礼物条目：左侧 primary 竖条 + 「礼物」chip + Sender；礼物名 × 数量 + 价值（元）强调。 */
+/** 礼物条目：左侧 primary 竖条 + 「礼物」chip + Sender；礼物名 × 数量 + 价值（元）按金额分级着色。 */
 export default function GiftItem({ event }: GiftItemProps) {
   return (
     <div data-event-id={event.eventId} className="flex gap-2.5 px-3 py-2">
@@ -29,7 +29,7 @@ export default function GiftItem({ event }: GiftItemProps) {
           <Sender sender={event.sender} />
         </div>
         {event.price !== undefined && event.price > 0 && (
-          <span className="shrink-0 text-sm font-semibold text-ink-on-paper">{formatPrice(event.price)}</span>
+          <span className={`shrink-0 text-sm font-semibold ${giftPriceTone(event.price)}`}>{formatPrice(event.price)}</span>
         )}
       </div>
     </div>

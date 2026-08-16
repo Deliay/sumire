@@ -162,6 +162,31 @@ describe("GiftItem", () => {
     expect(root.querySelector("span.bg-primary\\/70")).toBeTruthy();
     expect(screen.getByText("礼物")).toBeTruthy();
   });
+
+  it("价值分级着色：<10 灰（ink-dim）/10-99 蓝（eye）/100-500 金（gold）/>500 红（crimson）", () => {
+    const { container: cLow } = render(
+      <GiftItem event={makeEvent({ eventId: "gift:g1", type: "gift", price: 1, gift: { name: "a", count: 1 } })} />,
+    );
+    expect(cLow.querySelector("span.text-ink-dim")).toBeTruthy();
+    cleanup();
+
+    const { container: cBlue } = render(
+      <GiftItem event={makeEvent({ eventId: "gift:g2", type: "gift", price: 50, gift: { name: "a", count: 1 } })} />,
+    );
+    expect(cBlue.querySelector("span.text-eye")).toBeTruthy();
+    cleanup();
+
+    const { container: cGold } = render(
+      <GiftItem event={makeEvent({ eventId: "gift:g3", type: "gift", price: 100, gift: { name: "a", count: 1 } })} />,
+    );
+    expect(cGold.querySelector("span.text-gold")).toBeTruthy();
+    cleanup();
+
+    const { container: cRed } = render(
+      <GiftItem event={makeEvent({ eventId: "gift:g4", type: "gift", price: 520, gift: { name: "a", count: 1 } })} />,
+    );
+    expect(cRed.querySelector("span.text-crimson")).toBeTruthy();
+  });
 });
 
 describe("GuardItem", () => {
@@ -181,6 +206,22 @@ describe("GuardItem", () => {
     expect(screen.getByText(/1\s*个月/)).toBeTruthy();
   });
 
+  it("船型着色：3 舰长蓝（eye）/2 提督紫（flower）/1 总督红（crimson）", () => {
+    const { container: c3 } = render(<GuardItem event={guard} />);
+    expect(c3.querySelector("span.bg-eye\\/70")).toBeTruthy();
+    expect(c3.querySelector("span.text-eye")).toBeTruthy();
+    cleanup();
+
+    const { container: c2 } = render(<GuardItem event={{ ...guard, guard: { level: 2, name: "提督", count: 2 } }} />);
+    expect(c2.querySelector("span.bg-flower\\/70")).toBeTruthy();
+    expect(c2.querySelector("span.text-flower")).toBeTruthy();
+    cleanup();
+
+    const { container: c1 } = render(<GuardItem event={{ ...guard, guard: { level: 1, name: "总督", count: 1 } }} />);
+    expect(c1.querySelector("span.bg-crimson\\/70")).toBeTruthy();
+    expect(c1.querySelector("span.text-crimson")).toBeTruthy();
+  });
+
   it("guard_level 2/1 → 提督/总督；未知等级回退上游名称", () => {
     render(
       <GuardItem event={{ ...guard, guard: { level: 2, name: "提督", count: 2 } }} />,
@@ -198,10 +239,9 @@ describe("GuardItem", () => {
     expect(screen.getByText(/神秘船票/)).toBeTruthy();
   });
 
-  it("上船类型标识：左竖条（flower）+ 「上船 · 舰长」chip", () => {
+  it("上船类型标识：左竖条 + 「上船 · 舰长」chip", () => {
     const { container } = render(<GuardItem event={guard} />);
-    const root = container.firstElementChild as HTMLElement;
-    expect(root.querySelector("span.bg-flower\\/70")).toBeTruthy();
+    expect(container.firstElementChild?.querySelector("span")).toBeTruthy();
     expect(screen.getByText("上船 · 舰长")).toBeTruthy();
   });
 

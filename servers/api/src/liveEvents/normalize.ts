@@ -14,6 +14,8 @@ export interface LiveEventSender {
   nameRomaji: string | null;
   face: string | null;
   medal: { name: string; level: number; color: string } | null;
+  /** 上船等级（3=舰长，2=提督，1=总督）；无上船为 null。仅身份标识。 */
+  guardLevel: number | null;
 }
 
 export interface LiveEvent {
@@ -22,6 +24,8 @@ export interface LiveEvent {
   occurredAt: string;
   sender: LiveEventSender;
   content?: string;
+  /** 弹幕表情图片（仅 danmaku）：上游 info[0][13] emoticon 对象存在时携带，前端渲染为图片。 */
+  emote?: { url: string; name?: string; width?: number; height?: number };
   price?: number;
   scColors?: { backgroundStart: string; backgroundEnd: string; fontColor: string };
   gift?: { name: string; count: number };
@@ -76,10 +80,12 @@ function medalFromMedalInfo(medalInfo: unknown): LiveEventSender["medal"] {
 function normalizeDanmaku(payload: Record<string, unknown>, occurredAt: string): LiveEvent | null {
   const info = asArray(payload.info);
   if (!info) return null;
-  // dm_v2 结构化字段（info[15]）：eventId 与头像的唯一来源
-  const v2 = asRecord(info[15]);
-  const extra = asRecord(parseJson(v2?.extra));
-  const idStr = asString(extra?.id_str);
+  // dm_v2 结构化字段（实测在 info[0][15]，部分样本在顶层 info[15]）：eventId 与头像的首选来源；
+  // 真实 payload 中 extra 可能是 JSON 字符串或已是对象
+  const v2 = asRecord(asArray(info[0])?.[15]) ?? asRecord(info[15]);
+  const extra = asRecord(parseJson(v2?.extra)) ?? asRecord(v2?.extra);
+  // eventId：优先 dm_v2 extra.id_str，回退经典数组 info[0][7]（每消息唯一的 dm hash 字符串）
+  const idStr = asString(extra?.id_str) ?? asString(asArray(info[0])?.[7]);
   if (!idStr) return null;
 
   const classicUser = asArray(info[2]);
@@ -90,9 +96,16 @@ function normalizeDanmaku(payload: Record<string, unknown>, occurredAt: string):
   if (uid === undefined || !name) return null;
   const face = asString(v2Base?.face) ?? null;
 
+  // 上船等级：实测 dm_v2 的用户牌子对象 user.medal 内带 guard_level；回退经典数组 info[2] 第 8 位（索引 7）。
+  // 0/缺位视为无上船。
+  const v2Medal = asRecord(v2User?.medal);
+  const v2GuardLevel = asNumber(v2Medal?.guard_level);
+  const classicGuardLevel = asNumber(classicUser?.[7]);
+  const rawGuardLevel = v2GuardLevel ?? classicGuardLevel;
+  const guardLevel = rawGuardLevel !== undefined && rawGuardLevel > 0 ? rawGuardLevel : null;
+
   // 牌子：优先 dm_v2 user.medal，回退经典数组 info[3]（[0]=等级，[1]=牌名，[6]=颜色整数）
   let medal: LiveEventSender["medal"] = null;
-  const v2Medal = asRecord(v2User?.medal);
   const v2MedalName = asString(v2Medal?.name);
   if (v2Medal && v2MedalName) {
     medal = { name: v2MedalName, level: asNumber(v2Medal.level) ?? 0, color: asString(v2Medal.color) ?? "#ffffff" };
@@ -106,12 +119,31 @@ function normalizeDanmaku(payload: Record<string, unknown>, occurredAt: string):
 
   const content = asString(info[1]) ?? asString(extra?.content);
 
+  // 表情弹幕：
+  // 1) 房间表情：上游 info[0][13] 为 emoticon 对象（含 url/width/height）；
+  // 2) 小表情（emoji 风格）：上游 extra.emots 为按文本键控的映射（如 {"[比心]": {url,width,height,...}}），
+  //    以 content 为键取出（如「[比心]」）。两处任一生效即视为表情，前端渲染图片而非纯文本。
+  const classicEmote = asRecord(asArray(info[0])?.[13]);
+  const emots = asRecord(extra?.emots);
+  const emotsEntry = content ? asRecord(emots?.[content]) : undefined;
+  const emoteSource = emotsEntry && asString(emotsEntry.url) ? emotsEntry : classicEmote;
+  const emoteUrl = asString(emoteSource?.url);
+  const emote = emoteUrl
+    ? {
+        url: emoteUrl,
+        ...(content ? { name: content } : {}),
+        ...(asNumber(emoteSource?.width) !== undefined ? { width: asNumber(emoteSource?.width) } : {}),
+        ...(asNumber(emoteSource?.height) !== undefined ? { height: asNumber(emoteSource?.height) } : {}),
+      }
+    : undefined;
+
   return {
     eventId: `dm:${idStr}`,
     type: "danmaku",
     occurredAt,
-    sender: { uid, name, nameRomaji: null, face, medal },
+    sender: { uid, name, nameRomaji: null, face, medal, guardLevel },
     ...(content !== undefined ? { content } : {}),
+    ...(emote ? { emote } : {}),
     read: false,
   };
 }
@@ -142,7 +174,7 @@ function normalizeSuperChat(payload: Record<string, unknown>, occurredAt: string
     eventId: `sc:${id}`,
     type: "super_chat",
     occurredAt,
-    sender: { uid, name, nameRomaji: null, face, medal: medalFromMedalInfo(data.medal_info) },
+    sender: { uid, name, nameRomaji: null, face, medal: medalFromMedalInfo(data.medal_info), guardLevel: null },
     ...(content !== undefined ? { content } : {}),
     ...(price !== undefined ? { price } : {}),
     ...(bgStart && bgEnd && fontColor
@@ -176,7 +208,7 @@ function normalizeGift(payload: Record<string, unknown>, occurredAt: string): Li
     eventId: `gift:${id}`,
     type: "gift",
     occurredAt,
-    sender: { uid, name, nameRomaji: null, face: asString(data.face) ?? null, medal: medalFromMedalInfo(data.medal_info) },
+    sender: { uid, name, nameRomaji: null, face: asString(data.face) ?? null, medal: medalFromMedalInfo(data.medal_info), guardLevel: null },
     price,
     gift: { name: giftName, count },
     read: false,
@@ -198,7 +230,7 @@ function normalizeGuardBuy(payload: Record<string, unknown>, occurredAt: string)
     type: "guard_buy",
     occurredAt,
     // 上游事实：GUARD_BUY 无头像、无粉丝团牌子
-    sender: { uid, name, nameRomaji: null, face: null, medal: null },
+    sender: { uid, name, nameRomaji: null, face: null, medal: null, guardLevel: asNumber(data.guard_level) ?? null },
     ...(price !== undefined ? { price: price / 1000 } : {}),
     guard: {
       level: asNumber(data.guard_level) ?? 0,

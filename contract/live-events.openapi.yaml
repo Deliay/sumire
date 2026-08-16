@@ -212,9 +212,21 @@ components:
                 name: { type: string, description: 牌子名 }
                 level: { type: integer, description: 牌子等级 }
                 color: { type: string, description: 牌子颜色（CSS 颜色值） }
+            guardLevel:
+              type: [integer, "null"]
+              description: 发送者的上船等级（3=舰长，2=提督，1=总督）；弹幕/礼物/SC 携带、无上船为 null。仅作身份标识，不参与 guard_buy 事件。
         content:
           type: string
           description: 弹幕文本 / SC 留言（仅 danmaku、super_chat）
+        emote:
+          type: object
+          required: [url]
+          description: 弹幕表情图片（仅 danmaku；上游经典 info[0][13] 的 emoticon 对象，存在时前端渲染为图片而非纯文本）
+          properties:
+            url: { type: string, description: 表情图片 URL }
+            name: { type: string, description: 表情名（可作 alt/兜底文案） }
+            width: { type: integer, description: 原图宽（px） }
+            height: { type: integer, description: 原图高（px） }
         price:
           type: number
           description: 金额（元）：SC 为 data.price；礼物=金瓜子 combo_total_coin/1000（银瓜子=0）；上船=price/1000

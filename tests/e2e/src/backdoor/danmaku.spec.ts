@@ -17,6 +17,7 @@ interface MockLiveEvent {
     nameRomaji: string | null;
     face: string | null;
     medal: { name: string; level: number; color: string } | null;
+    guardLevel: number | null;
   };
   content?: string;
   price?: number;
@@ -30,15 +31,15 @@ let uidSeq = 100000;
 
 function senderOf(name: string): MockLiveEvent["sender"] {
   // face 一律 null：走缺头像兜底渲染，避免 e2e 发起外网图片请求
-  return { uid: uidSeq++, name, nameRomaji: null, face: null, medal: { name: "枝枝", level: 21, color: "#b4a6bf" } };
+  return { uid: uidSeq++, name, nameRomaji: null, face: null, medal: { name: "枝枝", level: 21, color: "#b4a6bf" }, guardLevel: null };
 }
 
-function danmakuEvent(eventId: string, content: string): MockLiveEvent {
+function danmakuEvent(eventId: string, content: string, guardLevel: number | null = null): MockLiveEvent {
   return {
     eventId,
     type: "danmaku",
     occurredAt: new Date(Date.now() - 60_000).toISOString(),
-    sender: senderOf(`弹幕用户${eventId}`),
+    sender: { ...senderOf(`弹幕用户${eventId}`), guardLevel },
     content,
     read: false,
   };
@@ -244,6 +245,7 @@ test.describe("backdoor danmaku 弹幕后台", () => {
   }) => {
     const events = [
       danmakuEvent("dm:1", "第一条历史弹幕"),
+      danmakuEvent("dm:guard", "舰长发的弹幕", 3),
       scEvent("sc:1", "第一条醒目留言"),
       giftEvent("gift:1", "小花花"),
       guardEvent("guard:1"),
@@ -259,16 +261,20 @@ test.describe("backdoor danmaku 弹幕后台", () => {
     await expect(page).toHaveURL(/\/backdoor\/danmaku$/);
     await expect(page.getByRole("heading", { name: "弹幕后台" })).toBeVisible();
 
-    // 默认三栏：弹幕 | SC | 礼物 + 上船
-    await expect(page.getByRole("heading", { name: "弹幕", exact: true })).toBeVisible();
+    // 默认三栏：弹幕+礼物 | SC | 上船
+    await expect(page.getByRole("heading", { name: "弹幕 + 礼物", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "SC", exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "礼物 + 上船", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "上船", exact: true })).toBeVisible();
 
     // 历史事件按栏渲染
     await expect(page.locator('[data-event-id="dm:1"]')).toBeVisible();
     await expect(page.locator('[data-event-id="sc:1"]')).toBeVisible();
     await expect(page.locator('[data-event-id="gift:1"]')).toBeVisible();
     await expect(page.locator('[data-event-id="guard:1"]')).toBeVisible();
+
+    // 船员（guardLevel=3）的弹幕附带「舰长」标识
+    await expect(page.locator('[data-event-id="dm:guard"]').getByText("舰长")).toBeVisible();
+    await expect(page.locator('[data-event-id="dm:1"]').getByText(/舰长|提督|总督/)).toHaveCount(0);
 
     // SSE 实时事件 prepend 进对应栏
     await stub.push(danmakuEvent("dm:live", "实时弹幕到达"));
@@ -420,28 +426,28 @@ test.describe("backdoor danmaku 弹幕后台", () => {
   test("danmaku-column-config: 栏位配置调整后刷新保留（localStorage 持久化）", async ({
     page,
   }) => {
-    const events = [danmakuEvent("dm:400", "栏位配置页弹幕"), giftEvent("gift:400", "打call")];
+    const events = [danmakuEvent("dm:400", "栏位配置页弹幕"), scEvent("sc:400", "栏位配置页SC")];
     await stubLiveEvents(page, events);
     await gotoDanmaku(page, getAccounts().admin);
 
     await expect(page.locator('[data-event-id="dm:400"]')).toBeVisible();
 
-    // 弹幕栏追加「礼物」类型
-    await page.getByRole("button", { name: "配置「弹幕」栏" }).click();
-    await page.getByRole("checkbox", { name: "礼物" }).check();
-    await expect(page.getByRole("heading", { name: "弹幕 + 礼物", exact: true })).toBeVisible();
-    await expect(page.locator('[data-event-id="gift:400"]')).toHaveCount(2); // 弹幕栏与礼物+上船栏均含
+    // 礼物+上船栏追加「弹幕」类型 → 三类型上下分栏
+    await page.getByRole("button", { name: "配置「礼物 + 上船」栏" }).click();
+    await page.getByRole("checkbox", { name: "弹幕" }).check();
+    await expect(page.getByRole("heading", { name: "礼物 + 上船 + 弹幕", exact: true })).toBeVisible();
 
     const stored = await page.evaluate(() => localStorage.getItem("danmaku-backdoor.columns"));
     expect(stored).not.toBeNull();
     expect(JSON.parse(stored!)).toEqual(
-      expect.arrayContaining([expect.objectContaining({ id: "danmaku", types: ["danmaku", "gift"] })]),
+      expect.arrayContaining([
+        expect.objectContaining({ id: "gift_guard", types: ["gift", "guard_buy", "danmaku"] }),
+      ]),
     );
 
     // 刷新后栏位配置保留
     await page.reload();
-    await expect(page.getByRole("heading", { name: "弹幕 + 礼物", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "礼物 + 上船 + 弹幕", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "SC", exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "礼物 + 上船", exact: true })).toBeVisible();
   });
 });

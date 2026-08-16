@@ -193,7 +193,7 @@ interface LiveEvent {
 |----------|--------------------|-----------|------------------|-----------|
 | uid / name / face | uid/name 取经典数组 `info[2][0]` / `info[2][1]`（同 Mikibot `DanmuMsgJsonConverter`）；face 取 dm_v2 `info[15].user.base.face`（经典结构无头像） | `data.uid` / `data.uinfo.base.{name,face}`（备选 `data.user_info`，Mikibot 采用） | `data.{uid,uname,face}` | `data.uid` / `data.username` / 无（同 Mikibot `GuardBuy`） |
 | medal | 优先 dm_v2 `info[15].user.medal`（name/level/color）；回退经典数组 `info[3]`（[0]=等级，[1]=牌名，[2]=主播名，[12]=主播 uid，同 Mikibot） | `data.medal_info`（medal_name/medal_level/medal_color，同 Mikibot） | `data.medal_info` | 无 |
-| content | 经典 `info[1]`（同 Mikibot）；dm_v2 备选 `extra.content`。表情弹幕图片 URL 在 `info[0]` 嵌套对象 `url` / `extra.emots`（Mikibot 的 MemeUrl），本期统一以文本渲染 | `data.message` | — | — |
+| content | 经典 `info[1]`（同 Mikibot）；dm_v2 备选 `extra.content`。表情弹幕图片 URL 在经典 `info[0][13]` emoticon 对象 `url`（`info[0][12]===1` 时）或 `extra.emots`（Mikibot 的 MemeUrl）；本期归一化为 `emote.url`，前端渲染表情图片（非纯文本） | `data.message` | — | — |
 | price | — | `data.price`（元） | `data.combo_total_coin/1000`（`coin_type==="gold"`，否则 0；备选 `data.discount_price/1000`，Mikibot 采用） | `data.price/1000` |
 | scColors | — | `data.{background_color_start, background_color_end, message_font_color}` | — | — |
 | gift | — | — | `data.{giftName, combo_send.combo_num}`；连击事件另以 `COMBO_SEND` cmd 下发（字段同构，Mikibot `ComboSend`），eventId 用 `batch_combo_id ?? combo_id` 天然去重 | — |
@@ -270,7 +270,7 @@ sequenceDiagram
 
 **K7 分栏布局配置（前端）**
 
-- 描述：默认 3 栏（弹幕 | SC | 礼物+上船），每栏事件类型组合可配置，配置存 localStorage。
+- 描述：默认 3 栏（弹幕+礼物上下分栏 | SC | 上船），每栏事件类型组合可配置，配置存 localStorage。
 - 技术细节：配置模型 `ColumnConfig[] = { id, types: LiveEventType[] }[]`，key `danmaku-backdoor.columns`；<1024px 纵向堆叠（Tailwind 响应式，纯 CSS 无需 JS）。
 - 风险点：配置损坏（手改 localStorage）——读取时 Zod 校验，非法回退默认。
 

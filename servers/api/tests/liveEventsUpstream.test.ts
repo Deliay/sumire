@@ -139,6 +139,8 @@ describe("upstream.subscribe（SSE 逐行解析）", () => {
     const upstream = createLiveEventsUpstream(BASE, fetchFn as never);
     const got: unknown[] = [];
     const p = upstream.subscribe([], (e) => void got.push(e), controller.signal);
+    // 等首帧被消费后再中止（read 与 abort 的竞态：先到的帧应已回调）
+    await new Promise((resolve) => setTimeout(resolve, 20));
     controller.abort();
     await expect(p).resolves.toBeUndefined();
     expect(got).toEqual([{ type: "gift", payload: {} }]);

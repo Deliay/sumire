@@ -41,7 +41,7 @@ function dedupeById(events: LiveEvent[]): LiveEvent[] {
 }
 
 /**
- * 弹幕后台分栏面板（提案 K5/K6/K7）：默认 3 栏（弹幕 | SC | 礼物+上船），
+ * 弹幕后台分栏面板（提案 K5/K6/K7）：默认 3 栏（弹幕+礼物 | SC | 上船），
  * 历史首屏逐栏检索 + SSE 实时 prepend（按 eventId 去重），已读双击切换乐观更新失败回滚，
  * 栏位类型组合可配置并持久化 localStorage（useSyncExternalStore 快照，SSR 回退默认）。
  * `<1024px` 纵向堆叠为纯 CSS（flex-col → lg:flex-row）。
@@ -203,11 +203,17 @@ export default function DanmakuDashboard() {
       <div className="flex h-[calc(100svh-16rem)] flex-col gap-4 lg:flex-row">
         {columns.map((col) => {
           const title = col.types.map(labelForType).join(" + ");
+          const columnEvents = eventsByColumn[col.id] ?? [];
+          const sections = col.types.map((type) => ({
+            type,
+            label: labelForType(type),
+            events: columnEvents.filter((e) => e.type === type),
+          }));
           return (
             <FeedColumn
               key={col.id}
               title={title}
-              events={eventsByColumn[col.id] ?? []}
+              sections={sections}
               loading={!loadedColumns.has(col.id)}
               error={columnErrors[col.id] ?? null}
               onRetry={() => void loadColumn(col, generationRef.current)}

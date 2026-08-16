@@ -71,11 +71,11 @@ describe("DanmakuDashboard", () => {
     expect(await screen.findByText("弹幕一")).toBeTruthy();
     expect(screen.getByText("醒目留言一")).toBeTruthy();
     expect(screen.getByText(/辣条/)).toBeTruthy();
-    // 三栏各自的检索请求（弹幕 | SC | 礼物+上船）
+    // 三栏各自的检索请求（弹幕+礼物 | SC | 上船）
     const calledTypes = listLiveEvents.mock.calls.map((c) => c[0]);
-    expect(calledTypes).toContainEqual(["danmaku"]);
+    expect(calledTypes).toContainEqual(["danmaku", "gift"]);
     expect(calledTypes).toContainEqual(["super_chat"]);
-    expect(calledTypes).toContainEqual(["gift", "guard_buy"]);
+    expect(calledTypes).toContainEqual(["guard_buy"]);
   });
 
   it("admin 双击 SC：乐观置灰并调用 read 接口", async () => {
@@ -142,12 +142,11 @@ describe("DanmakuDashboard", () => {
     });
     render(<DanmakuDashboard />);
 
-    // 弹幕栏进入错误态：显示错误提示 + 重试按钮，不落入「暂无事件」
+    // 弹幕+礼物栏进入错误态：显示错误提示 + 重试按钮，不落入「暂无事件」
     expect(await screen.findByText("检索失败")).toBeTruthy();
     expect(screen.getByRole("button", { name: "重试" })).toBeTruthy();
-    // 其余栏正常渲染（SC 与礼物栏）
+    // 其余栏正常渲染（SC 栏独立不受影响）
     expect(screen.getByText("醒目留言一")).toBeTruthy();
-    expect(screen.getByText(/辣条/)).toBeTruthy();
   });
 
   it("历史检索失败后点击重试，重新检索并恢复该栏", async () => {

@@ -270,7 +270,7 @@ sequenceDiagram
 
 **K7 分栏布局配置（前端）**
 
-- 描述：默认 3 栏（弹幕 | SC | 礼物+上船），每栏事件类型组合可配置，配置存 localStorage。
+- 描述：默认 3 栏（弹幕+礼物上下分栏 | SC | 上船），每栏事件类型组合可配置，配置存 localStorage。
 - 技术细节：配置模型 `ColumnConfig[] = { id, types: LiveEventType[] }[]`，key `danmaku-backdoor.columns`；<1024px 纵向堆叠（Tailwind 响应式，纯 CSS 无需 JS）。
 - 风险点：配置损坏（手改 localStorage）——读取时 Zod 校验，非法回退默认。
 

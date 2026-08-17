@@ -122,7 +122,7 @@ export default function SchedulePage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex h-full min-h-0 flex-col gap-6">
       <div className="flex items-end justify-between">
         <div>
           <h1 className="font-serif text-2xl font-semibold text-ink">直播计划</h1>
@@ -145,13 +145,15 @@ export default function SchedulePage() {
           )}
         </div>
       </div>
-      {error ? (
-        <p className="text-sm text-flower">{error}</p>
-      ) : loading ? (
-        <div className="min-h-64 animate-pulse rounded-md border border-vine/50 bg-raised" aria-busy="true" />
-      ) : (
-        <CalendarView entries={entries} onRangeChange={handleRangeChange} onSelectDay={setSelectedDay} />
-      )}
+      <div className="flex-1 min-h-0 min-h-[480px]">
+        {error ? (
+          <p className="text-sm text-flower">{error}</p>
+        ) : loading ? (
+          <div className="h-full min-h-64 animate-pulse rounded-md border border-vine/50 bg-raised" aria-busy="true" />
+        ) : (
+          <CalendarView entries={entries} onRangeChange={handleRangeChange} onSelectDay={setSelectedDay} />
+        )}
+      </div>
 
       <DayDetailDialog
         key={selectedDay ?? "none"}

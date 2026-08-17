@@ -29,6 +29,7 @@ async function ensureFont(): Promise<void> {
 /**
  * 将一周的绘制指令渲染到素材底图上，导出 PNG dataURL。
  * 底图与字体并行预加载，就绪后绘制（画布固定 1665×1080 内部分辨率）。
+ * 使用 2× 超采样 + imageSmoothingQuality: "high" 实现文字抗锯齿。
  */
 export async function renderWeekImage(
   baseImageUrl: string,
@@ -36,19 +37,33 @@ export async function renderWeekImage(
 ): Promise<string> {
   const [img] = await Promise.all([loadImage(baseImageUrl), ensureFont()]);
 
+  // 离屏 canvas 2× 分辨率
+  const offscreen = document.createElement("canvas");
+  offscreen.width = CANVAS_WIDTH * 2;
+  offscreen.height = CANVAS_HEIGHT * 2;
+  const offCtx = offscreen.getContext("2d");
+  if (!offCtx) throw new Error("无法获取 2D 绘图上下文");
+
+  offCtx.scale(2, 2);
+  offCtx.drawImage(img, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+  offCtx.fillStyle = TEXT_COLOR;
+  offCtx.textBaseline = "middle";
+  for (const ins of instructions) {
+    offCtx.font = `600 ${ins.fontSize}px ${FONT_STACK}`;
+    const centerY = ins.y + ins.height / 2;
+    offCtx.fillText(ins.text, ins.x, centerY);
+  }
+
+  // 目标 canvas 1× 分辨率，使用高质量平滑缩回
   const canvas = document.createElement("canvas");
   canvas.width = CANVAS_WIDTH;
   canvas.height = CANVAS_HEIGHT;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("无法获取 2D 绘图上下文");
 
-  ctx.drawImage(img, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-  ctx.fillStyle = TEXT_COLOR;
-  ctx.textBaseline = "middle";
-  for (const ins of instructions) {
-    ctx.font = `600 ${ins.fontSize}px ${FONT_STACK}`;
-    const centerY = ins.y + ins.height / 2;
-    ctx.fillText(ins.text, ins.x, centerY);
-  }
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(offscreen, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
   return canvas.toDataURL("image/png");
 }

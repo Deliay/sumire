@@ -27,6 +27,12 @@ describe("DatePicker", () => {
     expect(onChange).toHaveBeenCalledWith("2026-08-15");
   });
 
+  it("日期输入框 autocomplete 属性为 off", () => {
+    render(<DatePicker value="" onChange={vi.fn()} />);
+    const input = screen.getByLabelText("日期");
+    expect(input.getAttribute("autocomplete")).toBe("off");
+  });
+
   it("非法键入回退并提示", () => {
     const onChange = vi.fn();
     render(<DatePicker value="" onChange={onChange} />);
@@ -46,6 +52,12 @@ describe("TimePicker", () => {
     fireEvent.focus(screen.getByLabelText("开始时间"));
     fireEvent.click(screen.getByText("20:00"));
     expect(onChange).toHaveBeenCalledWith("20:00");
+  });
+
+  it("开始时间输入框 autocomplete 属性为 off", () => {
+    render(<TimePicker value="" onChange={vi.fn()} />);
+    const input = screen.getByLabelText("开始时间");
+    expect(input.getAttribute("autocomplete")).toBe("off");
   });
 
   it("容错键入 9:5 → 09:05", () => {

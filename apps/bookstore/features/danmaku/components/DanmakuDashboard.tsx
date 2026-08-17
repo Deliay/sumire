@@ -52,7 +52,7 @@ function dedupeById(events: LiveEvent[]): LiveEvent[] {
 }
 
 /**
- * 弹幕后台分栏面板（提案 K5/K6/K7）：默认 3 栏（礼物 | SC+上船 混排 | 弹幕），
+ * 弹幕看板分栏面板（提案 K5/K6/K7）：默认 3 栏（礼物 | 上船+SC 分节 | 弹幕），
  * 历史首屏逐栏检索 + SSE 实时 prepend（按 eventId 去重），已读双击切换乐观更新失败回滚，
  * 栏位类型组合与混排/分栏布局可配置并持久化 localStorage（useSyncExternalStore 快照，SSR 回退默认）。
  * 移动端优化（F10）：按视口自适应栏数——<640px 折叠为单栏全类型、640-1023px 可选 1/2 栏
@@ -60,7 +60,7 @@ function dedupeById(events: LiveEvent[]): LiveEvent[] {
  * 经 localStorage 快照同步至此；折叠为纯视图层，不写回存储）。
  */
 interface DanmakuDashboardProps {
-  /** 全屏模式：分栏区占满整个屏幕（由弹幕后台页传入）。 */
+  /** 全屏模式：分栏区占满整个屏幕（由弹幕看板页传入）。 */
   isFullscreen?: boolean;
 }
 

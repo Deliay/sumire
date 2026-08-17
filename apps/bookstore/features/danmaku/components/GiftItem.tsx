@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { LiveEvent } from "../types";
 import { formatPrice, giftPriceTone } from "../format";
 import Sender from "./Sender";
@@ -8,8 +9,10 @@ interface GiftItemProps {
   event: LiveEvent;
 }
 
-/** 礼物条目：左侧 primary 竖条 + 「礼物」chip + Sender；礼物名 × 数量 + 价值（元）按金额分级着色。 */
+/** 礼物条目：左侧 primary 竖条 + 「礼物」chip + 图标/名称；价值按金额分级着色。 */
 export default function GiftItem({ event }: GiftItemProps) {
+  const [iconVisible, setIconVisible] = useState(true);
+  const iconUrl = event.gift?.iconUrl;
   return (
     <div data-event-id={event.eventId} className="flex gap-2.5 px-3 py-2">
       <span aria-hidden className="w-1 shrink-0 self-stretch rounded-full bg-primary/70" />
@@ -20,10 +23,21 @@ export default function GiftItem({ event }: GiftItemProps) {
               礼物
             </span>
             {event.gift && (
-              <p className="truncate text-sm font-medium text-ink">
-                {event.gift.name}
-                <span className="text-ink-dim"> × {event.gift.count}</span>
-              </p>
+              <div className="flex min-w-0 items-center gap-1.5">
+                {iconUrl && iconVisible && (
+                  <img
+                    src={iconUrl}
+                    alt=""
+                    loading="lazy"
+                    onError={() => setIconVisible(false)}
+                    className="h-5 w-5 shrink-0 rounded-sm object-contain"
+                  />
+                )}
+                <p className="truncate text-sm font-medium text-ink">
+                  {event.gift.name}
+                  <span className="text-ink-dim"> × {event.gift.count}</span>
+                </p>
+              </div>
             )}
           </div>
           <Sender sender={event.sender} />

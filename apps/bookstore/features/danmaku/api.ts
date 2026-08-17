@@ -52,3 +52,19 @@ export async function markAllLiveEventsRead(
 ): Promise<{ status: number; data: { ok: true; marked: number } | ApiError }> {
   return request("/api/live-events/read-all", { method: "POST", body: { type } });
 }
+
+export interface BiliCover {
+  id: string;
+  title: string;
+  author: string;
+  image: string;
+  url: string;
+  type: string;
+}
+
+/** 获取 B 站视频封面信息（通过后端代理内网服务）。 */
+export async function fetchBiliCover(
+  bvId: string,
+): Promise<{ status: number; data: BiliCover | ApiError }> {
+  return request(`/api/bilibili/cover/${encodeURIComponent(bvId)}`);
+}

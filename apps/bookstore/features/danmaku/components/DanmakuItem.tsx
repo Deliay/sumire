@@ -1,6 +1,8 @@
 "use client";
 
 import type { LiveEvent } from "../types";
+import { hasBiliLink } from "../biliVideo";
+import BiliVideoLink from "./BiliVideoLink";
 import Sender from "./Sender";
 
 interface DanmakuItemProps {
@@ -41,7 +43,13 @@ export default function DanmakuItem({ event, count }: DanmakuItemProps) {
           />
         ) : (
           event.content !== undefined && (
-            <p className="text-base leading-snug font-semibold break-words text-ink">{event.content}</p>
+            hasBiliLink(event.content) ? (
+              <p className="text-base leading-snug font-semibold break-words text-ink">
+                <BiliVideoLink text={event.content} />
+              </p>
+            ) : (
+              <p className="text-base leading-snug font-semibold break-words text-ink">{event.content}</p>
+            )
           )
         )}
       </div>

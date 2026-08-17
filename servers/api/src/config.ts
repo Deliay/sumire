@@ -34,6 +34,11 @@ export const config = {
     "LIVE_EVENTS_UPSTREAM_URL",
     "http://vtuber.internal.fffdan.com",
   ),
+  // B 站视频封面上游地址（内置缺省值，不得抛错）
+  biliCoverUpstreamUrl: getEnv(
+    "BILI_COVER_UPSTREAM_URL",
+    "http://ayelet-tools.internal.fffdan.com/api/v1/bilibili/cover",
+  ),
 };
 
 export const COOKIE_NAME = "sumire_sid";

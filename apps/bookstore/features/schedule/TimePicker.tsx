@@ -75,6 +75,7 @@ export default function TimePicker({ id, value, onChange, invalid }: TimePickerP
         }`}
         placeholder="20:00"
         aria-label="开始时间"
+        autoComplete="off"
       />
       {hint && <p className="text-xs text-flower">{hint}</p>}
       {open && (

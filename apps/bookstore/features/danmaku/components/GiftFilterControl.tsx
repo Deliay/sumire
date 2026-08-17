@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { clampMinPrice } from "../giftMinPrice";
 
 /**
@@ -21,14 +22,17 @@ export default function GiftFilterControl({ value, onChange }: GiftFilterControl
   const [draft, setDraft] = useState(String(value));
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [popPos, setPopPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  // 点击外部关闭
+  // 点击外部关闭（按钮 + portal 弹层均不算外部）
   useEffect(() => {
     if (!open) return;
     const handleClick = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      if (containerRef.current?.contains(target)) return;
+      if (popoverRef.current?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
@@ -65,11 +69,21 @@ export default function GiftFilterControl({ value, onChange }: GiftFilterControl
     [draft, commit],
   );
 
+  const handleToggle = useCallback(() => {
+    setOpen((prev) => {
+      if (!prev && containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setPopPos({ x: rect.left, y: rect.bottom + 4 });
+      }
+      return !prev;
+    });
+  }, []);
+
   return (
     <div ref={containerRef} className="relative inline-block">
       <button
         type="button"
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={handleToggle}
         aria-expanded={open}
         aria-label="礼物筛选"
         className={`rounded-md border px-2 py-1 text-xs transition-colors duration-150 ${
@@ -80,36 +94,42 @@ export default function GiftFilterControl({ value, onChange }: GiftFilterControl
       >
         礼物筛选
       </button>
-      {open && (
-        <div className="absolute left-0 z-20 mt-1 w-56 rounded-md border border-vine/50 bg-raised p-3 shadow-lg">
-          <label htmlFor="gift-min-price" className="mb-2 block text-xs text-ink-dim">
-            最低礼物价值（元）
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={0.1}
-              value={Number.isFinite(Number(draft)) ? Number(draft) : 0}
-              onChange={(e) => handleDraftChange(e.target.value)}
-              className="accent-primary flex-1"
-            />
-            <input
-              id="gift-min-price"
-              type="number"
-              min={0}
-              max={100}
-              step={0.1}
-              value={draft}
-              onChange={(e) => handleDraftChange(e.target.value)}
-              onBlur={() => commit(draft)}
-              onKeyDown={handleKeyDown}
-              className="w-16 rounded border border-vine/50 bg-soft px-1 py-0.5 text-right text-sm text-ink"
-            />
-          </div>
-        </div>
-      )}
+      {open &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            className="fixed z-50 w-56 rounded-md border border-vine/50 bg-raised p-3 shadow-lg"
+            style={{ left: popPos.x, top: popPos.y }}
+          >
+            <label htmlFor="gift-min-price" className="mb-2 block text-xs text-ink-dim">
+              最低礼物价值（元）
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={0.1}
+                value={Number.isFinite(Number(draft)) ? Number(draft) : 0}
+                onChange={(e) => handleDraftChange(e.target.value)}
+                className="accent-primary flex-1"
+              />
+              <input
+                id="gift-min-price"
+                type="number"
+                min={0}
+                max={100}
+                step={0.1}
+                value={draft}
+                onChange={(e) => handleDraftChange(e.target.value)}
+                onBlur={() => commit(draft)}
+                onKeyDown={handleKeyDown}
+                className="w-16 rounded border border-vine/50 bg-soft px-1 py-0.5 text-right text-sm text-ink"
+              />
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

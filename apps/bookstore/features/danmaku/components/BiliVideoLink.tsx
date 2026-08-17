@@ -5,26 +5,52 @@ import { createPortal } from "react-dom";
 import { parseBiliLinks, type BiliLinkToken } from "../biliVideo";
 import { fetchBiliCover } from "../api";
 
+type BiliCoverData = Awaited<ReturnType<typeof fetchBiliCover>>["data"];
+
+/** 全局 bvId → 封面数据缓存（组件间共享，避免重复请求）。 */
+const coverCache = new Map<string, BiliCoverData>();
+const titleCache = new Map<string, string>();
+const inflight = new Map<string, Promise<void>>();
+
+function preloadBiliCover(bvId: string): void {
+  if (coverCache.has(bvId) || inflight.has(bvId)) return;
+  const p = fetchBiliCover(bvId)
+    .then((res) => {
+      if (res.status === 200 && "id" in res.data) {
+        coverCache.set(bvId, res.data);
+        titleCache.set(bvId, res.data.title);
+      }
+    })
+    .catch(() => {})
+    .finally(() => {
+      inflight.delete(bvId);
+    });
+  inflight.set(bvId, p);
+}
+
 interface VideoPreviewCardProps {
   bvId: string;
 }
 
 function VideoPreviewCard({ bvId }: VideoPreviewCardProps) {
-  const [data, setData] = useState<Awaited<ReturnType<typeof fetchBiliCover>>["data"] | null>(null);
-  const [loading, setLoading] = useState(true);
+  const cachedCover = coverCache.get(bvId);
+  const [data, setData] = useState<BiliCoverData | null>(cachedCover ?? null);
+  const [loading, setLoading] = useState(!cachedCover);
 
   useEffect(() => {
+    if (cachedCover) return;
     let cancelled = false;
     fetchBiliCover(bvId).then((res) => {
       if (cancelled) return;
       if (res.status === 200 && "id" in res.data) {
+        coverCache.set(bvId, res.data);
         setData(res.data);
       }
     }).catch(() => {}).finally(() => {
       if (!cancelled) setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [bvId]);
+  }, [bvId, cachedCover]);
 
   if (loading) {
     return (
@@ -70,6 +96,26 @@ interface BiliLinkSegmentProps {
 
 function BiliLinkSegment({ bvId, url, onEnter, onLeave }: BiliLinkSegmentProps) {
   const ref = useRef<HTMLAnchorElement>(null);
+  const [title, setTitle] = useState(() => titleCache.get(bvId));
+
+  useEffect(() => {
+    if (title) return;
+    preloadBiliCover(bvId);
+    // 等待预加载完成后读取缓存（单次轮询，最多 3s）
+    let attempts = 0;
+    let cancelled = false;
+    const poll = setInterval(() => {
+      const t = titleCache.get(bvId);
+      if (t && !cancelled) {
+        setTitle(t);
+        clearInterval(poll);
+      } else if (++attempts > 15) {
+        clearInterval(poll);
+      }
+    }, 200);
+    return () => { cancelled = true; clearInterval(poll); };
+  }, [bvId, title]);
+
   return (
     <a
       ref={ref}
@@ -80,12 +126,12 @@ function BiliLinkSegment({ bvId, url, onEnter, onLeave }: BiliLinkSegmentProps) 
       onDoubleClick={(e) => e.stopPropagation()}
       onMouseEnter={() => ref.current && onEnter(bvId, ref.current)}
       onMouseLeave={onLeave}
-      className="inline-flex items-center gap-0.5 text-eye underline decoration-eye/40 transition-colors duration-150 hover:text-flower hover:decoration-flower/60"
+      className="inline-flex items-center gap-0.5 rounded border border-current/60 px-0.5 transition-colors duration-150 hover:bg-current/10"
     >
       <svg aria-hidden viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 shrink-0">
         <path d="M4 2.5v11l9-5.5z" />
       </svg>
-      {bvId}
+      {title ? `${bvId} - ${title}` : bvId}
     </a>
   );
 }
@@ -98,7 +144,7 @@ interface BiliVideoLinkProps {
 
 /**
  * 解析文本中的 BV 号并渲染为可点击链接，鼠标悬浮显示视频预览卡片。
- * 非 BV 部分保持纯文本。
+ * 识别到链接后静默加载标题，成功后显示「BV - {标题}」。
  */
 export default function BiliVideoLink({ text, className }: BiliVideoLinkProps) {
   const [hoveredBv, setHoveredBv] = useState<string | null>(null);

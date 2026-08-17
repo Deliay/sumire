@@ -2,6 +2,8 @@
 
 import type { LiveEvent } from "../types";
 import { formatPrice } from "../format";
+import { hasBiliLink } from "../biliVideo";
+import BiliVideoLink from "./BiliVideoLink";
 import Sender from "./Sender";
 
 interface SuperChatItemProps {
@@ -54,7 +56,11 @@ export default function SuperChatItem({ event, isNew = false, onToggleRead }: Su
                 : undefined
             }
           >
-            {event.content}
+            {hasBiliLink(event.content) ? (
+              <BiliVideoLink text={event.content} className={colors ? "text-[inherit]" : undefined} />
+            ) : (
+              event.content
+            )}
             {event.contentRomaji && (
               <span className="block text-xs opacity-75">{event.contentRomaji}</span>
             )}

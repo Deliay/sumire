@@ -361,19 +361,6 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
 
   return (
     <div className={isFullscreen ? "flex h-full flex-1 flex-col gap-4" : "flex flex-col gap-4"}>
-      <div className="flex items-center gap-3">
-        {streamStatus === "connecting" && (
-          <p className="text-sm text-ink-dim" role="status">
-            实时事件连接中…
-          </p>
-        )}
-        {streamStatus === "closed" && (
-          <p className="text-sm text-flower" role="status">
-            实时连接已断开
-          </p>
-        )}
-        <GiftFilterControl value={minPrice} onChange={handleMinPriceChange} />
-      </div>
       <div
         className={
           isFullscreen
@@ -433,15 +420,30 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
               )}
               onReadAll={handleReadAll}
               headerExtra={
-                <button
-                  type="button"
-                  onClick={() => setConfigOpenId((id) => (id === col.id ? null : col.id))}
-                  aria-expanded={configOpenId === col.id}
-                  aria-label={`配置「${title}」栏`}
-                  className="rounded-md border border-vine/50 px-2 py-1 text-xs text-ink-dim transition-colors duration-150 hover:border-flower hover:text-ink"
-                >
-                  配置栏位
-                </button>
+                <div className="flex items-center gap-2">
+                  {streamStatus === "connecting" && (
+                    <p className="text-sm text-ink-dim" role="status">
+                      实时事件连接中…
+                    </p>
+                  )}
+                  {streamStatus === "closed" && (
+                    <p className="text-sm text-flower" role="status">
+                      实时连接已断开
+                    </p>
+                  )}
+                  {col.types.includes("gift") && (
+                    <GiftFilterControl value={minPrice} onChange={handleMinPriceChange} />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setConfigOpenId((id) => (id === col.id ? null : col.id))}
+                    aria-expanded={configOpenId === col.id}
+                    aria-label={`配置「${title}」栏`}
+                    className="rounded-md border border-vine/50 px-2 py-1 text-xs text-ink-dim transition-colors duration-150 hover:border-flower hover:text-ink"
+                  >
+                    配置栏位
+                  </button>
+                </div>
               }
               configPanel={
                 configOpenId === col.id ? (

@@ -3,12 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { parseBiliLinks, type BiliLinkToken } from "../biliVideo";
-import { fetchBiliCover } from "../api";
-
-type BiliCoverData = Awaited<ReturnType<typeof fetchBiliCover>>["data"];
+import { fetchBiliCover, type BiliCover } from "../api";
 
 /** 全局 bvId → 封面数据缓存（组件间共享，避免重复请求）。 */
-const coverCache = new Map<string, BiliCoverData>();
+const coverCache = new Map<string, BiliCover>();
 const titleCache = new Map<string, string>();
 const inflight = new Map<string, Promise<void>>();
 
@@ -34,7 +32,7 @@ interface VideoPreviewCardProps {
 
 function VideoPreviewCard({ bvId }: VideoPreviewCardProps) {
   const cachedCover = coverCache.get(bvId);
-  const [data, setData] = useState<BiliCoverData | null>(cachedCover ?? null);
+  const [data, setData] = useState<BiliCover | null>(cachedCover ?? null);
   const [loading, setLoading] = useState(!cachedCover);
 
   useEffect(() => {

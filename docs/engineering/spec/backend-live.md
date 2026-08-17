@@ -44,7 +44,7 @@ kuroshiro+kuromoji（懒加载字典）→ 失败则 OpenCC 简→日汉字重�
 
 | 方法+路径 | 鉴权 | 要点 |
 |---|---|---|
-| GET `/api/live-events` | member+ | `type` 可重复（四类枚举，非法 400）；`page`≥1 默认 1、`pageSize` 1–100 默认 50；上游失败 502；items 已归一化 + read 合并 + 罗马音 |
+| GET `/api/live-events` | member+ | `type` 可重复（四类枚举，非法 400）；`page`≥1 默认 1、`pageSize` 1–100 默认 50；`minPrice` 可选（number 0–100，0 或不传不筛选，非法 400）；上游失败 502；items 已归一化 + read 合并 + 罗马音 |
 | GET `/api/live-events/stream` | member+ | SSE，见下 |
 | POST `/api/live-events/read` | admin+ | body `{eventId}`；前缀须 dm/sc/gift/guard 否则 400（防摧毁水位线）；幂等 upsert |
 | POST `/api/live-events/unread` | admin+ | 同上，写显式 unread 覆盖水位线 |

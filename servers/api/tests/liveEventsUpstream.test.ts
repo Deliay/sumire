@@ -42,6 +42,24 @@ describe("buildRangeUrl / buildSubscribeUrl", () => {
       `${BASE}/api/b/live/1727076670/event/range?type=danmaku&page=1&pageSize=50`,
     );
   });
+
+  it("minPrice=5 时追加 minPrice=5", () => {
+    expect(buildRangeUrl(BASE, ["gift"], 1, 50, 5)).toBe(
+      `${BASE}/api/b/live/1727076670/event/range?type=gift&page=1&pageSize=50&minPrice=5`,
+    );
+  });
+
+  it("minPrice=0 时不追加 minPrice 参数", () => {
+    expect(buildRangeUrl(BASE, ["gift"], 1, 50, 0)).toBe(
+      `${BASE}/api/b/live/1727076670/event/range?type=gift&page=1&pageSize=50`,
+    );
+  });
+
+  it("minPrice=undefined 时不追加 minPrice 参数", () => {
+    expect(buildRangeUrl(BASE, ["gift"], 1, 50)).toBe(
+      `${BASE}/api/b/live/1727076670/event/range?type=gift&page=1&pageSize=50`,
+    );
+  });
 });
 
 describe("upstream.fetchRange", () => {

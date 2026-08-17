@@ -13,6 +13,7 @@ import {
   type LiveEventsPage,
   type ReadAllType,
 } from "../api";
+import { loadGiftMinPrice, saveGiftMinPrice } from "../giftMinPrice";
 import {
   getColumnsServerSnapshot,
   getColumnsSnapshot,
@@ -32,6 +33,7 @@ import {
   type LiveEventType,
 } from "../types";
 import FeedColumn from "./FeedColumn";
+import GiftFilterControl from "./GiftFilterControl";
 
 /** 「全部已读」仅支持需要已读管理的类型（契约口径）。 */
 const READ_ALL_TYPES: readonly ReadAllType[] = ["super_chat", "guard_buy"];
@@ -101,6 +103,13 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
   // 实时流到达的 SC/上船事件 eventId → type 集合（读后清除，用于「New」标记）
   const [newIds, setNewIds] = useState<ReadonlyMap<string, LiveEventType>>(new Map());
 
+  // 礼物最低金额筛选
+  const [minPrice, setMinPrice] = useState(() => loadGiftMinPrice());
+  const minPriceRef = useRef(minPrice);
+  useEffect(() => {
+    minPriceRef.current = minPrice;
+  }, [minPrice]);
+
   // 检索代际：columns 变化时递增，旧代检索结果作废，避免竞态覆盖新栏位数据
   const generationRef = useRef(0);
 
@@ -121,8 +130,12 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
       });
       let status = 0;
       let data: LiveEventsPage | ApiError | null = null;
+      // 礼物请求捕获阈值，响应比对丢弃
+      const capturedMinPrice = type === "gift" ? minPriceRef.current : undefined;
       try {
-        const res = await listLiveEvents([type], 1, PAGE_SIZE);
+        const res = type === "gift"
+          ? await listLiveEvents([type], 1, PAGE_SIZE, capturedMinPrice)
+          : await listLiveEvents([type], 1, PAGE_SIZE);
         status = res.status;
         data = res.data;
       } catch {
@@ -131,6 +144,8 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
         data = null;
       }
       if (generationRef.current !== generation) return;
+      // 礼物响应：阈值变化则丢弃
+      if (type === "gift" && capturedMinPrice !== minPriceRef.current) return;
       if (status === 200 && data && "items" in data) {
         setEventsBySection((prev) => ({ ...prev, [key]: dedupeById(data!.items) }));
         setTotalsBySection((prev) => ({ ...prev, [key]: data!.total }));
@@ -156,13 +171,22 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
       setLoadingMoreBySection((prev) => ({ ...prev, [key]: true }));
       let status = 0;
       let data: LiveEventsPage | ApiError | null = null;
+      // 礼物请求捕获阈值
+      const capturedMinPrice = type === "gift" ? minPriceRef.current : undefined;
       try {
-        const res = await listLiveEvents([type], currentPage + 1, PAGE_SIZE);
+        const res = type === "gift"
+          ? await listLiveEvents([type], currentPage + 1, PAGE_SIZE, capturedMinPrice)
+          : await listLiveEvents([type], currentPage + 1, PAGE_SIZE);
         status = res.status;
         data = res.data;
       } catch {
         status = 0;
         data = null;
+      }
+      // 礼物响应：阈值变化则丢弃
+      if (type === "gift" && capturedMinPrice !== minPriceRef.current) {
+        setLoadingMoreBySection((prev) => ({ ...prev, [key]: false }));
+        return;
       }
       if (status === 200 && data && "items" in data) {
         setEventsBySection((prev) => ({
@@ -196,6 +220,8 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
 
   const handleStreamEvent = useCallback(
     (event: LiveEvent) => {
+      // SSE 低价礼物丢弃
+      if (event.type === "gift" && (event.price ?? 0) < minPriceRef.current) return;
       setEventsBySection((prev) => {
         const next = { ...prev };
         for (const col of columns) {
@@ -318,18 +344,36 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
     return map;
   }, [columns, eventsBySection]);
 
+  // 礼物最低金额筛选变更：保存 + 同步 ref + 仅重载礼物分节
+  const handleMinPriceChange = useCallback(
+    (newPrice: number) => {
+      saveGiftMinPrice(newPrice);
+      minPriceRef.current = newPrice;
+      setMinPrice(newPrice);
+      // 仅对礼物分节触发 loadSection（页码重置为 1）
+      for (const col of columns) {
+        if (!col.types.includes("gift")) continue;
+        void loadSection(col, "gift", generationRef.current);
+      }
+    },
+    [columns, loadSection],
+  );
+
   return (
     <div className={isFullscreen ? "flex h-full flex-1 flex-col gap-4" : "flex flex-col gap-4"}>
-      {streamStatus === "connecting" && (
-        <p className="text-sm text-ink-dim" role="status">
-          实时事件连接中…
-        </p>
-      )}
-      {streamStatus === "closed" && (
-        <p className="text-sm text-flower" role="status">
-          实时连接已断开
-        </p>
-      )}
+      <div className="flex items-center gap-3">
+        {streamStatus === "connecting" && (
+          <p className="text-sm text-ink-dim" role="status">
+            实时事件连接中…
+          </p>
+        )}
+        {streamStatus === "closed" && (
+          <p className="text-sm text-flower" role="status">
+            实时连接已断开
+          </p>
+        )}
+        <GiftFilterControl value={minPrice} onChange={handleMinPriceChange} />
+      </div>
       <div
         className={
           isFullscreen

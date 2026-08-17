@@ -104,7 +104,7 @@ function DayCell({ dateStr, day, inMonth, entries, today, maxSummaries, onSelect
       data-testid="calendar-day"
       onClick={() => clickable && onSelectDay?.(dateStr)}
       aria-label={inMonth ? `查看 ${dateStr} 安排` : undefined}
-      className={`relative flex min-h-16 flex-col rounded-md border p-1.5 text-left transition-colors ${
+      className={`relative flex h-full min-h-16 flex-col overflow-hidden rounded-md border p-1.5 text-left transition-colors ${
         isToday ? "border-flower" : "border-vine/40"
       } ${!inMonth ? "opacity-35" : ""} ${
         isToday ? "" : isPast ? "bg-night opacity-60" : "bg-raised hover:border-flower"
@@ -281,7 +281,7 @@ export default function CalendarView({ entries, onRangeChange, onSelectDay }: Ca
   }
 
   return (
-    <div className="w-full select-none">
+    <div className="flex h-full w-full flex-col select-none">
       <div className="mb-4 flex items-center justify-between">
         <button
           type="button"
@@ -313,7 +313,9 @@ export default function CalendarView({ entries, onRangeChange, onSelectDay }: Ca
             周{w}
           </div>
         ))}
+      </div>
 
+      <div className="grid h-full min-h-0 flex-1 grid-cols-7 grid-rows-6 gap-1">
         {cells.map((cell) => (
           <DayCell
             key={cell.dateStr}

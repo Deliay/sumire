@@ -63,21 +63,25 @@ export function mergeEventsByTime(...lists: LiveEvent[][]): LiveEvent[] {
   });
 }
 
-/** 将事件列表中的重复弹幕折叠为一行（按折叠键全列表去重，代表行停在末次出现的原位）。 */
+/** 将事件列表中的重复弹幕折叠为一行（仅折叠最近 20 条，更早的弹幕原样透传）。 */
 export function mergeDanmaku(events: LiveEvent[]): MergedDanmaku[] {
-  // 首遍：统计各折叠键的出现次数与末次出现下标。
+  const HEAD = 20;
+  const head = events.slice(0, HEAD);
+  const tail = events.slice(HEAD);
+
+  // 首遍：统计各折叠键的出现次数与末次出现下标（仅作用于前 20 条）。
   const countByKey = new Map<string, number>();
   const lastIndexByKey = new Map<string, number>();
-  events.forEach((event, index) => {
+  head.forEach((event, index) => {
     const key = danmakuMergeKey(event);
     if (key === null) return;
     countByKey.set(key, (countByKey.get(key) ?? 0) + 1);
     lastIndexByKey.set(key, index);
   });
 
-  // 次遍：折叠键仅在末次出现处渲染代表行（更早的重复弹幕折叠跳过）；非弹幕原样透传。
+  // 次遍：折叠键仅在末次出现处渲染代表行；非弹幕原样透传。
   const rows: MergedDanmaku[] = [];
-  events.forEach((event, index) => {
+  head.forEach((event, index) => {
     const key = danmakuMergeKey(event);
     if (key !== null) {
       if (lastIndexByKey.get(key) === index) {
@@ -87,5 +91,11 @@ export function mergeDanmaku(events: LiveEvent[]): MergedDanmaku[] {
     }
     rows.push({ event, count: 1 });
   });
+
+  // 20 条之后的弹幕不折叠，原样透传。
+  for (const event of tail) {
+    rows.push({ event, count: 1 });
+  }
+
   return rows;
 }

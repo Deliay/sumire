@@ -310,6 +310,55 @@ describe("GET /api/live-events（检索代理 + 归一化 + 已读合并）", ()
     expect(r.status).toBe(400);
   });
 
+  it("minPrice=5 透传上游 fetchRange 第 4 参", async () => {
+    const upstream = stubUpstream(pageOf([]));
+    const { app, store } = buildApp(upstream);
+    const cookie = await sessionCookie(store, "member");
+    const r = await call(app, { method: "GET", path: "/api/live-events?type=gift&minPrice=5", cookie });
+    expect(r.status).toBe(200);
+    expect(upstream.fetchRange).toHaveBeenCalledWith(["gift"], 1, 50, 5);
+  });
+
+  it("minPrice=0 不传第 4 参（保持三参调用）", async () => {
+    const upstream = stubUpstream(pageOf([]));
+    const { app, store } = buildApp(upstream);
+    const cookie = await sessionCookie(store, "member");
+    const r = await call(app, { method: "GET", path: "/api/live-events?type=gift&minPrice=0", cookie });
+    expect(r.status).toBe(200);
+    expect(upstream.fetchRange).toHaveBeenCalledWith(["gift"], 1, 50);
+  });
+
+  it("不带 minPrice 保持三参调用（回归）", async () => {
+    const upstream = stubUpstream(pageOf([]));
+    const { app, store } = buildApp(upstream);
+    const cookie = await sessionCookie(store, "member");
+    const r = await call(app, { method: "GET", path: "/api/live-events?type=gift", cookie });
+    expect(r.status).toBe(200);
+    expect(upstream.fetchRange).toHaveBeenCalledWith(["gift"], 1, 50);
+  });
+
+  it("minPrice=abc → 400", async () => {
+    const { app, store } = buildApp(stubUpstream(pageOf([])));
+    const cookie = await sessionCookie(store, "member");
+    const r = await call(app, { method: "GET", path: "/api/live-events?minPrice=abc", cookie });
+    expect(r.status).toBe(400);
+    expect((r.body as { error: string }).error).toBe("分页参数非法");
+  });
+
+  it("minPrice=-1 → 400", async () => {
+    const { app, store } = buildApp(stubUpstream(pageOf([])));
+    const cookie = await sessionCookie(store, "member");
+    const r = await call(app, { method: "GET", path: "/api/live-events?minPrice=-1", cookie });
+    expect(r.status).toBe(400);
+  });
+
+  it("minPrice=101 → 400", async () => {
+    const { app, store } = buildApp(stubUpstream(pageOf([])));
+    const cookie = await sessionCookie(store, "member");
+    const r = await call(app, { method: "GET", path: "/api/live-events?minPrice=101", cookie });
+    expect(r.status).toBe(400);
+  });
+
   it("上游 5xx → 502 中文错误", async () => {
     const upstream = {
       fetchRange: vi.fn().mockRejectedValue(new Error("upstream status 503")),

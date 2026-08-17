@@ -93,6 +93,20 @@ describe("mergeDanmaku 弹幕折叠", () => {
     expect(rows.map((r) => r.count)).toEqual([1, 1, 1]);
     expect(rows.map((r) => r.event.type)).toEqual(["danmaku", "gift", "danmaku"]);
   });
+
+  it("仅折叠最近 20 条，第 21 条及之后不参与折叠", () => {
+    // 前 20 条中有重复弹幕，第 21 条也重复但不折叠
+    const head = Array.from({ length: 20 }, (_, i) => dm(`h${i}`, "妈妈"));
+    const tail = [dm("t1", "妈妈"), dm("t2", "你好")];
+    const rows = mergeDanmaku([...head, ...tail]);
+    // 前 20 条折叠为 1 行（count=20），后 2 条原样
+    expect(rows).toHaveLength(3);
+    expect(rows[0].count).toBe(20);
+    expect(rows[1].event.eventId).toBe("t1");
+    expect(rows[1].count).toBe(1);
+    expect(rows[2].event.eventId).toBe("t2");
+    expect(rows[2].count).toBe(1);
+  });
 });
 
 describe("mergeEventsByTime 混排合并", () => {

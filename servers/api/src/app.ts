@@ -8,6 +8,7 @@ import { createUsersRouter } from "./routes/users";
 import { createStreamPlansRouter } from "./routes/streamPlans";
 import { createLiveHistoryRouter } from "./routes/liveHistory";
 import { createLiveEventsRouter } from "./routes/liveEvents";
+import { createBiliCoverRouter } from "./routes/biliCover";
 import { createLiveEventsUpstream, type LiveEventsUpstream } from "./liveEvents/upstream";
 import { createMemoryLiveHistoryCache, type LiveHistoryCache } from "./infra/liveHistoryCache";
 import { config } from "./config";
@@ -65,6 +66,10 @@ export function createApp(deps: AppDeps): Application {
       upstream: deps.liveEventsUpstream ?? createLiveEventsUpstream(config.liveEventsUpstreamUrl),
       toRomajiFn: deps.toRomajiFn,
     }),
+  );
+  api.use(
+    "/bilibili/cover",
+    createBiliCoverRouter({ upstreamUrl: config.biliCoverUpstreamUrl }),
   );
 
   app.use("/api", api);

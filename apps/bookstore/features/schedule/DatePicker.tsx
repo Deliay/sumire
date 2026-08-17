@@ -87,6 +87,7 @@ export default function DatePicker({ id, value, onChange, invalid }: DatePickerP
         }`}
         placeholder="2026-08-15"
         aria-label="日期"
+        autoComplete="off"
       />
       {hint && <p className="text-xs text-flower">{hint}</p>}
       {open && (

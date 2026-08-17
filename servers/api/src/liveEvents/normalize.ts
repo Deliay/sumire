@@ -30,7 +30,7 @@ export interface LiveEvent {
   emote?: { url: string; name?: string; width?: number; height?: number };
   price?: number;
   scColors?: { backgroundStart: string; backgroundEnd: string; fontColor: string };
-  gift?: { name: string; count: number };
+  gift?: { name: string; count: number; iconUrl?: string };
   guard?: { level: number; name: string; count: number };
   read: boolean;
 }
@@ -222,6 +222,7 @@ function normalizeGift(payload: Record<string, unknown>, occurredAt: string): Li
 
   const giftName = asString(data.giftName) ?? "";
   const count = asNumber(asRecord(data.combo_send)?.combo_num) ?? asNumber(data.num) ?? 1;
+  const iconUrl = asString(data.img_basic);
 
   return {
     eventId: `gift:${id}`,
@@ -229,7 +230,7 @@ function normalizeGift(payload: Record<string, unknown>, occurredAt: string): Li
     occurredAt,
     sender: { uid, name, nameRomaji: null, face: asString(data.face) ?? null, medal: medalFromMedalInfo(data.medal_info), guardLevel: guardLevelFromUinfo(data.uinfo) },
     price,
-    gift: { name: giftName, count },
+    gift: { name: giftName, count, ...(iconUrl ? { iconUrl } : {}) },
     read: false,
   };
 }

@@ -13,7 +13,7 @@ interface GuardItemProps {
 }
 
 /**
- * 上船条目：左侧船型色竖条 + 船型 chip（3/2/1 → 舰长蓝/提督紫/总督红，未知回退上游名称）
+ * 上船条目：左侧船型色竖条 + 船型徽章/chip（3/2/1 → 舰长蓝/提督紫/总督红，未知回退上游名称）
  * + Sender + 金额与数量（月数）。整条以船型色打底强调，文字按船型色强调。
  * 已读置灰；可交互时双击切换已读。实时流到达的上船带「New」标记。
  */
@@ -35,7 +35,7 @@ export default function GuardItem({ event, isNew = false, onToggleRead }: GuardI
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex items-center gap-2">
             {shipName && (
-              <span className={`shrink-0 rounded-sm px-1.5 py-px text-[10px] leading-4 font-semibold ${tone.chip} ${tone.text}`}>
+               <span className={`flex shrink-0 items-center gap-1 rounded-sm px-1.5 py-px text-xs leading-4 font-semibold ${tone.chip} ${tone.text}`}>
                 上船 · {shipName}
               </span>
             )}

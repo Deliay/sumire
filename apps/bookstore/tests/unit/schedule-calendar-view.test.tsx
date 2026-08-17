@@ -159,6 +159,24 @@ describe("CalendarView（月视图，默认无 matchMedia）", () => {
     fireEvent.click(cell);
     expect(onSelectDay).toHaveBeenCalledWith(d);
   });
+
+  it("月视图格子网格容器含 grid-rows-6 且占满高度", () => {
+    render(<CalendarView entries={[]} />);
+    const grids = document.querySelectorAll(".grid.grid-cols-7");
+    const cellGrid = grids[1]; // 第二个 grid 是格子容器
+    expect(cellGrid).toBeTruthy();
+    expect(cellGrid.className).toContain("grid-rows-6");
+    expect(cellGrid.className).toContain("h-full");
+  });
+
+  it("月视图 DayCell 含 h-full 和 overflow-hidden", () => {
+    render(<CalendarView entries={[]} />);
+    const cells = screen.getAllByTestId("calendar-day");
+    cells.forEach((cell) => {
+      expect(cell.className).toContain("h-full");
+      expect(cell.className).toContain("overflow-hidden");
+    });
+  });
 });
 
 describe("CalendarView（周视图，matchMedia 为真）", () => {

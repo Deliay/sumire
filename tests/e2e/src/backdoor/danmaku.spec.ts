@@ -237,11 +237,11 @@ function offsetOfText(feed: Locator, text: string): Promise<number | null> {
 async function gotoDanmaku(page: Page, account: { username: string; password: string }) {
   await loginViaUi(page, account, BASE);
   await page.goto(`${BASE}/backdoor/danmaku`);
-  await expect(page.getByRole("heading", { name: "弹幕后台" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "弹幕看板" })).toBeVisible();
 }
 
-test.describe("backdoor danmaku 弹幕后台", () => {
-  test("danmaku-nav-columns: 侧边导航进入弹幕后台，默认三栏渲染历史事件并可收到实时事件", async ({
+test.describe("backdoor danmaku 弹幕看板", () => {
+  test("danmaku-nav-columns: 侧边导航进入弹幕看板，默认三栏渲染历史事件并可收到实时事件", async ({
     page,
   }) => {
     const events = [
@@ -257,10 +257,10 @@ test.describe("backdoor danmaku 弹幕后台", () => {
     await loginViaUi(page, accounts.admin, BASE);
     await page
       .getByRole("navigation", { name: "后台导航" })
-      .getByRole("link", { name: "弹幕后台" })
+      .getByRole("link", { name: "弹幕看板" })
       .click();
     await expect(page).toHaveURL(/\/backdoor\/danmaku$/);
-    await expect(page.getByRole("heading", { name: "弹幕后台" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "弹幕看板" })).toBeVisible();
 
     // 默认三栏：礼物 | SC+上船 | 弹幕
     await expect(page.getByRole("heading", { name: "礼物", exact: true })).toBeVisible();
@@ -361,7 +361,7 @@ test.describe("backdoor danmaku 弹幕后台", () => {
 
     // 刷新后保持（page.route mock 在测试进程内维护已读状态）
     await page.reload();
-    await expect(page.getByRole("heading", { name: "弹幕后台" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "弹幕看板" })).toBeVisible();
     await expect(page.locator('[data-event-id="sc:100"]')).toHaveClass(/opacity-60/);
     await expect(page.locator('[data-event-id="sc:101"]')).not.toHaveClass(/opacity-60/);
 

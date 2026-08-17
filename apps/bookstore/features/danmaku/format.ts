@@ -1,4 +1,4 @@
-/** 弹幕后台展示换算纯函数。 */
+/** 弹幕看板展示换算纯函数。 */
 
 import type { LiveEventType } from "./types";
 

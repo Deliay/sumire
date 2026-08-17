@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { LiveEvent } from "../types";
 import { formatPrice, giftPriceTone } from "../format";
 import Sender from "./Sender";
@@ -8,8 +9,10 @@ interface GiftItemProps {
   event: LiveEvent;
 }
 
-/** 礼物条目：左侧 primary 竖条 + 「礼物」chip + Sender；礼物名 × 数量 + 价值（元）按金额分级着色。 */
+/** 礼物条目：左侧 primary 竖条 + 「礼物」chip + 名称；价值按金额分级着色；图标在金额后 24×24。 */
 export default function GiftItem({ event }: GiftItemProps) {
+  const [iconVisible, setIconVisible] = useState(true);
+  const iconUrl = event.gift?.iconUrl;
   return (
     <div data-event-id={event.eventId} className="flex gap-2.5 px-3 py-2">
       <span aria-hidden className="w-1 shrink-0 self-stretch rounded-full bg-primary/70" />
@@ -28,9 +31,20 @@ export default function GiftItem({ event }: GiftItemProps) {
           </div>
           <Sender sender={event.sender} />
         </div>
-        {event.price !== undefined && event.price > 0 && (
-          <span className={`shrink-0 text-sm font-semibold ${giftPriceTone(event.price)}`}>{formatPrice(event.price)}</span>
-        )}
+        <div className="flex shrink-0 items-center gap-1.5">
+          {event.price !== undefined && event.price > 0 && (
+            <span className={`text-sm font-semibold ${giftPriceTone(event.price)}`}>{formatPrice(event.price)}</span>
+          )}
+          {iconUrl && iconVisible && (
+            <img
+              src={iconUrl}
+              alt=""
+              loading="lazy"
+              onError={() => setIconVisible(false)}
+              className="h-6 w-6 shrink-0 rounded-sm object-contain"
+            />
+          )}
+        </div>
       </div>
     </div>
   );

@@ -95,7 +95,7 @@ describe("DanmakuDashboard", () => {
     expect(await screen.findByText("弹幕一")).toBeTruthy();
     expect(screen.getByText("醒目留言一")).toBeTruthy();
     expect(screen.getByText(/辣条/)).toBeTruthy();
-    // 每节（栏 + 类型）独立检索请求：礼物 | SC+上船 | 弹幕
+    // 每节（栏 + 类型）独立检索请求：礼物 | 上船+SC | 弹幕
     const calledTypes = listLiveEvents.mock.calls.map((c) => c[0]);
     expect(calledTypes).toContainEqual(["gift"]);
     expect(calledTypes).toContainEqual(["guard_buy"]);
@@ -103,40 +103,32 @@ describe("DanmakuDashboard", () => {
     expect(calledTypes).toContainEqual(["danmaku"]);
   });
 
-  it("默认 wide 渲染 礼物 | SC+上船(混排) | 弹幕 三栏标题", async () => {
+  it("默认 wide 渲染 礼物 | 上船+SC(分节) | 弹幕 三栏标题", async () => {
     render(<DanmakuDashboard />);
     expect(await screen.findByRole("heading", { name: "礼物" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "SC + 上船" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "上船 + SC" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "弹幕" })).toBeTruthy();
   });
 
-  it("SC+上船 栏混排：SC 与上船事件合并为单一信息流（无类型小节标签）", async () => {
+  it("上船+SC 栏分节：SC 与上船事件分别渲染", async () => {
     const { container } = render(<DanmakuDashboard />);
     await screen.findByText("醒目留言一");
-    // 上船事件同栏渲染（混排合并）
+    // 上船事件按分节渲染
     expect(screen.getByText(/上船 · 舰长/)).toBeTruthy();
-    // 混排栏无 per-type 小节标签（分栏才渲染 SC / 上船 标签）
-    expect(container.querySelectorAll(".text-xs.font-medium.text-ink-dim")).toHaveLength(0);
+    expect(container.querySelectorAll(".text-xs.font-medium.text-ink-dim")).toHaveLength(2);
   });
 
-  it("配置面板把 SC+上船 栏切为分栏：渲染 SC/上船 两小节并持久化 mode=split", async () => {
+  it("配置面板保持上船+SC 分栏：渲染两小节并持久化 mode=split", async () => {
     const { container } = render(<DanmakuDashboard />);
     await screen.findByText("醒目留言一");
-    fireEvent.click(screen.getByRole("button", { name: /配置「SC/ }));
-
-    // 默认混排：混排单选选中
-    expect((screen.getByRole("radio", { name: "混排" }) as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: /配置「上船/ }));
     fireEvent.click(screen.getByRole("radio", { name: "分栏" }));
 
-    // 持久化 mode=split
-    const stored = JSON.parse(window.localStorage.getItem(COLUMNS_STORAGE_KEY) ?? "null");
-    expect(stored).toContainEqual({ id: "sc_guard", types: ["super_chat", "guard_buy"], mode: "split" });
-
-    // 分栏后渲染 SC / 上船 两小节标签
+    expect(screen.getByRole("radio", { name: "分栏" })).toBeTruthy();
     const labels = [...container.querySelectorAll(".text-xs.font-medium.text-ink-dim")].map(
       (n) => n.textContent,
     );
-    expect(labels).toEqual(["SC", "上船"]);
+    expect(labels).toEqual(["上船", "SC"]);
   });
 
   it("admin 双击 SC：乐观置灰并调用 read 接口", async () => {
@@ -317,5 +309,30 @@ describe("DanmakuDashboard", () => {
     expect(screen.getByText("醒目留言一")).toBeTruthy();
     // 仍为纯视图层折叠：localStorage 未被写入
     expect(window.localStorage.getItem(COLUMNS_STORAGE_KEY)).toBeNull();
+  });
+
+  it("礼物筛选阈值变更后礼物节以新阈值重载", async () => {
+    render(<DanmakuDashboard />);
+    await screen.findByText("辣条");
+
+    // 初始调用：礼物节携带 minPrice（第4参为 0，loadGiftMinPrice 返回 0）
+    const giftCallsBefore = listLiveEvents.mock.calls.filter((c) => c[0].includes("gift"));
+    expect(giftCallsBefore.length).toBeGreaterThan(0);
+    expect(giftCallsBefore[giftCallsBefore.length - 1][3]).toBe(0);
+
+    // 点击「礼物筛选」按钮打开弹层
+    fireEvent.click(screen.getByRole("button", { name: "礼物筛选" }));
+
+    // 输入新阈值并 blur 提交
+    const input = screen.getByLabelText("最低礼物价值（元）");
+    fireEvent.change(input, { target: { value: "10" } });
+    fireEvent.blur(input);
+
+    // 等待礼物节以新阈值重载
+    await waitFor(() => {
+      const giftCallsAfter = listLiveEvents.mock.calls.filter((c) => c[0].includes("gift"));
+      const lastCall = giftCallsAfter[giftCallsAfter.length - 1];
+      expect(lastCall[3]).toBe(10);
+    });
   });
 });

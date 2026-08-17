@@ -68,6 +68,7 @@ export default function Sender({ sender, compact = false, guardLevel }: SenderPr
               referrerPolicy="no-referrer"
             />
           )}
+
         </span>
         <span className="flex min-w-0 flex-col justify-center">
           <span

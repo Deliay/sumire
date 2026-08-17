@@ -14,7 +14,7 @@ import {
 
 /**
  * 「视图栏」选择器：按视口约束切换栏数（narrow 隐藏，medium 1/2 栏，wide 2/3 栏）。
- * 独立于 DanmakuDashboard 存在，供弹幕后台页头与「全屏模式/退出全屏」按钮同排展示；
+ * 独立于 DanmakuDashboard 存在，供弹幕看板页头与「全屏模式/退出全屏」按钮同排展示；
  * 与 Dashboard 同源（localStorage 快照 + 视口档位），切换写入预设后经订阅同步至各栏。
  */
 export default function ColumnCountSelector() {

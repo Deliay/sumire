@@ -23,6 +23,7 @@
 
 - eventId 派生：`dm:{id_str}`（dm_v2 extra 优先，回退经典数组 info[0][7]）；`sc:{id}`；`gift:{batch_combo_id ?? combo_id}`；`guard:{uid}:{start_time}`。
 - 金额：礼物金瓜子 `combo_total_coin/1000`（银瓜子 0），上船 `price/1000`。
+- 礼物 `data.img_basic` 非空时归一化为可选 `gift.iconUrl`，缺失或空串时不下发。
 - 牌子颜色兼容十进制整数 → hex；guard_buy 恒无 face/medal。
 - 弹幕表情两来源：经典 `info[0][13]` emoticon 对象 + `extra.emots` 按 content 键控的小表情映射。
 - `sender.guardLevel`（3=舰长/2=提督/1=总督）弹幕/SC/礼物均携带，仅身份标识。

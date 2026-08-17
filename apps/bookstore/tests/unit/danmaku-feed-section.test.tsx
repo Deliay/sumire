@@ -145,7 +145,7 @@ describe("FeedSection New 标记（实时流 SC/上船）", () => {
     const guard = makeEvent({ eventId: "guard:1", type: "guard_buy", price: 138, guard: { level: 3, name: "舰长", count: 1 } });
     render(
       <FeedSection
-        label="SC+上船"
+        label="上船+SC"
         events={[sc, guard]}
         canManage={false}
         newIds={new Map([

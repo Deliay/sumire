@@ -80,7 +80,7 @@ describe("toLiveEvent 四类事件映射（实测样本夹具）", () => {
         guardLevel: null,
       },
       price: 9,
-      gift: { name: "打call", count: 3 },
+      gift: { name: "打call", count: 3, iconUrl: "https://s1.hdslb.com/bfs/live/asset/gift-basic.png" },
       read: false,
     });
   });
@@ -97,6 +97,15 @@ describe("toLiveEvent 四类事件映射（实测样本夹具）", () => {
       guard: { level: 3, name: "舰长", count: 1 },
       read: false,
     });
+  });
+
+  it("gift：img_basic 缺失或为空时不下发 iconUrl", () => {
+    for (const icon of [undefined, ""]) {
+      const fixture = clone(giftFixture) as Record<string, any>;
+      if (icon === undefined) delete fixture.payload.data.img_basic;
+      else fixture.payload.data.img_basic = icon;
+      expect(toLiveEvent(fixture)?.gift).toEqual({ name: "打call", count: 3 });
+    }
   });
 });
 

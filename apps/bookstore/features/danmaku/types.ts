@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * 弹幕后台类型定义。LiveEvent 与契约 `contract/live-events.openapi.yaml`
+ * 弹幕看板类型定义。LiveEvent 与契约 `contract/live-events.openapi.yaml`
  * 的 LiveEvent schema 逐字段一致：上游 B 站原始 payload 由服务端归一化，
  * 前端不感知 B 站结构。
  */
@@ -49,7 +49,7 @@ export const LiveEventSchema = z.object({
   /** 金额（元）：SC 直接为元；礼物=金瓜子 combo_total_coin/1000；上船=price/1000 */
   price: z.number().optional(),
   scColors: ScColorsSchema.optional(),
-  gift: z.object({ name: z.string(), count: z.number().int() }).optional(),
+  gift: z.object({ name: z.string(), count: z.number().int(), iconUrl: z.string().optional() }).optional(),
   guard: z
     .object({
       /** 3=舰长，2=提督，1=总督 */

@@ -11,7 +11,7 @@ export const COLUMNS_STORAGE_KEY = "danmaku-backdoor.columns";
 
 export const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: "gift", types: ["gift"], mode: "split" },
-  { id: "sc_guard", types: ["super_chat", "guard_buy"], mode: "mixed" },
+  { id: "guard_sc", types: ["guard_buy", "super_chat"], mode: "split" },
   { id: "danmaku", types: ["danmaku"], mode: "split" },
 ];
 
@@ -19,8 +19,8 @@ export const DEFAULT_COLUMNS: ColumnConfig[] = [
 export const COLUMN_PRESETS: Readonly<Record<1 | 2 | 3, ColumnConfig[]>> = {
   1: [{ id: "all", types: ["super_chat", "guard_buy", "gift", "danmaku"], mode: "mixed" }],
   2: [
-    { id: "sc_guard", types: ["super_chat", "guard_buy"], mode: "mixed" },
-    { id: "danmaku_gift", types: ["danmaku", "gift"], mode: "mixed" },
+    { id: "guard_sc", types: ["guard_buy", "super_chat"], mode: "split" },
+    { id: "gift_danmaku", types: ["gift", "danmaku"], mode: "mixed" },
   ],
   3: DEFAULT_COLUMNS,
 };

@@ -192,6 +192,23 @@ describe("GiftItem", () => {
     expect(screen.getByText("礼物")).toBeTruthy();
   });
 
+  it("有图标时懒加载礼物图标，无图标时不渲染，加载失败后隐藏", () => {
+    const { container } = render(
+      <GiftItem event={makeEvent({ eventId: "gift:icon", type: "gift", gift: { name: "情书", count: 1, iconUrl: "https://example.com/gift.png" } })} />,
+    );
+    const image = container.querySelector('img[alt=""]') as HTMLImageElement;
+    expect(image).toBeTruthy();
+    expect(image.getAttribute("loading")).toBe("lazy");
+    fireEvent.error(image);
+    expect(container.querySelector('img[alt=""]')).toBeNull();
+
+    cleanup();
+    const { container: withoutIcon } = render(
+      <GiftItem event={makeEvent({ eventId: "gift:no-icon", type: "gift", gift: { name: "情书", count: 1 } })} />,
+    );
+    expect(withoutIcon.querySelector('img[alt=""]')).toBeNull();
+  });
+
   it("价值分级着色：<10 灰（ink-dim）/10-99 蓝（eye）/100-500 金（gold）/>500 红（crimson）", () => {
     const { container: cLow } = render(
       <GiftItem event={makeEvent({ eventId: "gift:g1", type: "gift", price: 1, gift: { name: "a", count: 1 } })} />,
@@ -233,6 +250,17 @@ describe("GuardItem", () => {
     expect(screen.getByText(/舰长/)).toBeTruthy();
     expect(screen.getByText("¥138")).toBeTruthy();
     expect(screen.getByText(/1\s*个月/)).toBeTruthy();
+  });
+
+  it("船型 chip 前置对应本地徽章并强调字号，未知等级不渲染徽章", () => {
+    const { container } = render(<GuardItem event={guard} />);
+    expect(container.querySelector('img[src*="guard-badge-captain"]')).toBeTruthy();
+    expect(container.querySelector("span.text-xs")).toBeTruthy();
+    cleanup();
+    const { container: unknown } = render(
+      <GuardItem event={{ ...guard, guard: { level: 99, name: "未知船", count: 1 } }} />,
+    );
+    expect(unknown.querySelector('img[src*="guard-badge"]')).toBeNull();
   });
 
   it("上船事件头像按所购船型渲染挂件（sender.guardLevel 缺省时回退 event.guard.level）", () => {

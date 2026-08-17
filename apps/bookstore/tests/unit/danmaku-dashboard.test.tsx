@@ -310,4 +310,29 @@ describe("DanmakuDashboard", () => {
     // 仍为纯视图层折叠：localStorage 未被写入
     expect(window.localStorage.getItem(COLUMNS_STORAGE_KEY)).toBeNull();
   });
+
+  it("礼物筛选阈值变更后礼物节以新阈值重载", async () => {
+    render(<DanmakuDashboard />);
+    await screen.findByText("辣条");
+
+    // 初始调用：礼物节携带 minPrice（第4参为 0，loadGiftMinPrice 返回 0）
+    const giftCallsBefore = listLiveEvents.mock.calls.filter((c) => c[0].includes("gift"));
+    expect(giftCallsBefore.length).toBeGreaterThan(0);
+    expect(giftCallsBefore[giftCallsBefore.length - 1][3]).toBe(0);
+
+    // 点击「礼物筛选」按钮打开弹层
+    fireEvent.click(screen.getByRole("button", { name: "礼物筛选" }));
+
+    // 输入新阈值并 blur 提交
+    const input = screen.getByLabelText("最低礼物价值（元）");
+    fireEvent.change(input, { target: { value: "10" } });
+    fireEvent.blur(input);
+
+    // 等待礼物节以新阈值重载
+    await waitFor(() => {
+      const giftCallsAfter = listLiveEvents.mock.calls.filter((c) => c[0].includes("gift"));
+      const lastCall = giftCallsAfter[giftCallsAfter.length - 1];
+      expect(lastCall[3]).toBe(10);
+    });
+  });
 });

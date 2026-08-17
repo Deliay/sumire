@@ -397,6 +397,36 @@ describe("GET /api/live-events（检索代理）", () => {
       expect(typeof (res.body as { error?: unknown })?.error).toBe("string");
     }
   });
+
+  it("live-events-minprice: minPrice=5 透传上游（stub 收到 minPrice=5）", async () => {
+    const body = await fetchEvents("?type=gift&minPrice=5", memberJar);
+    expect(body.items.length).toBeGreaterThan(0);
+    for (const ev of body.items) {
+      expect(ev.type).toBe("gift");
+    }
+    const qs = new URLSearchParams(lastRangeSearch);
+    expect(qs.get("minPrice")).toBe("5");
+  });
+
+  it("live-events-minprice-0: minPrice=0 不透传（stub 不收到 minPrice）", async () => {
+    await fetchEvents("?type=gift&minPrice=0", memberJar);
+    const qs = new URLSearchParams(lastRangeSearch);
+    expect(qs.has("minPrice")).toBe(false);
+  });
+
+  it("live-events-minprice-absent: 不带 minPrice 时 stub 不收到 minPrice", async () => {
+    await fetchEvents("?type=gift", memberJar);
+    const qs = new URLSearchParams(lastRangeSearch);
+    expect(qs.has("minPrice")).toBe(false);
+  });
+
+  it("live-events-400-minprice: minPrice 非法 → 400 且返回 { error }", async () => {
+    for (const query of ["?minPrice=abc", "?minPrice=-1", "?minPrice=101"]) {
+      const res = await request(`/api/live-events${query}`, { jar: memberJar });
+      expect(res.status).toBe(400);
+      expect(typeof (res.body as { error?: unknown })?.error).toBe("string");
+    }
+  });
 });
 
 describe("live-events 已读状态", () => {

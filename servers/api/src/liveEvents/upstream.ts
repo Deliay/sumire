@@ -27,7 +27,7 @@ export interface UpstreamPage {
 export type LiveEventHandler = (envelope: UpstreamEnvelope) => void | Promise<void>;
 
 export interface LiveEventsUpstream {
-  fetchRange(types: string[], page: number, pageSize: number): Promise<UpstreamPage>;
+  fetchRange(types: string[], page: number, pageSize: number, minPrice?: number): Promise<UpstreamPage>;
   /** SSE 订阅：逐事件回调；流正常结束或出错时返回/抛出（由调用方决定是否重连）。 */
   subscribe(types: string[], onEvent: LiveEventHandler, signal: AbortSignal): Promise<void>;
 }
@@ -38,10 +38,11 @@ function buildUrl(base: string, path: string, types: string[]): URL {
   return url;
 }
 
-export function buildRangeUrl(base: string, types: string[], page: number, pageSize: number): string {
+export function buildRangeUrl(base: string, types: string[], page: number, pageSize: number, minPrice?: number): string {
   const url = buildUrl(base, "/event/range", types);
   url.searchParams.set("page", String(page));
   url.searchParams.set("pageSize", String(pageSize));
+  if (minPrice !== undefined && minPrice > 0) url.searchParams.set("minPrice", String(minPrice));
   return url.toString();
 }
 
@@ -67,8 +68,8 @@ export function createLiveEventsUpstream(baseUrl: string, fetchFn?: typeof fetch
   const fetchImpl = fetchFn ?? fetch;
 
   return {
-    async fetchRange(types, page, pageSize) {
-      const res = await fetchImpl(buildRangeUrl(baseUrl, types, page, pageSize), {
+    async fetchRange(types, page, pageSize, minPrice?) {
+      const res = await fetchImpl(buildRangeUrl(baseUrl, types, page, pageSize, minPrice), {
         signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       });
       if (!res.ok) throw new Error(`upstream status ${res.status}`);

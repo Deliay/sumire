@@ -47,6 +47,14 @@ function parsePageParam(value: unknown, fallback: number, max?: number): number 
   return n;
 }
 
+/** minPrice 参数：undefined 不筛选；非有限数字/负数/超上限 100 返回 null（由调用方 400）。 */
+function parseMinPriceParam(value: unknown): number | undefined | null {
+  if (value === undefined) return undefined;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0 || n > 100) return null;
+  return n > 0 ? n : undefined;
+}
+
 function upstreamUnavailable(res: Response, err: unknown): void {
   console.warn("[liveEvents] 上游事件服务不可用:", err instanceof Error ? err.message : err);
   res.status(502).json({ error: "上游事件服务不可用" });
@@ -92,13 +100,16 @@ export function createLiveEventsRouter(deps: LiveEventsRouterDeps): Router {
     }
     const page = parsePageParam(req.query.page, 1);
     const pageSize = parsePageParam(req.query.pageSize, 50, 100);
-    if (page === null || pageSize === null) {
+    const minPrice = parseMinPriceParam(req.query.minPrice);
+    if (page === null || pageSize === null || minPrice === null) {
       res.status(400).json({ error: "分页参数非法" });
       return;
     }
     let upstreamPage;
     try {
-      upstreamPage = await deps.upstream.fetchRange(types.types, page, pageSize);
+      upstreamPage = minPrice !== undefined
+        ? await deps.upstream.fetchRange(types.types, page, pageSize, minPrice)
+        : await deps.upstream.fetchRange(types.types, page, pageSize);
     } catch (err) {
       upstreamUnavailable(res, err);
       return;

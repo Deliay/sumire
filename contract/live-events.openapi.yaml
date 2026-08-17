@@ -27,6 +27,10 @@ paths:
           in: query
           description: 每页条数，上限 100
           schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - name: minPrice
+          in: query
+          description: 最低礼物价值（元），仅对 gift 类型生效；0 或不传表示不筛选
+          schema: { type: number, minimum: 0, maximum: 100 }
       responses:
         "200":
           description: 分页信封，items 已按上游倒序返回且 read 已合并

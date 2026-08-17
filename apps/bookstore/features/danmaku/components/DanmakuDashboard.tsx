@@ -360,11 +360,11 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
   );
 
   return (
-    <div className={isFullscreen ? "flex h-full flex-1 flex-col gap-4" : "flex flex-col gap-4"}>
+    <div className={isFullscreen ? "flex h-full flex-1 flex-col" : "flex flex-col gap-4"}>
       <div
         className={
           isFullscreen
-            ? `flex min-h-0 flex-1 gap-4 ${columns.length > 1 ? "flex-row" : "flex-col"}`
+            ? `flex min-h-0 flex-1 ${columns.length > 1 ? "flex-row" : "flex-col"}`
             : `flex h-[calc(100svh-16rem)] gap-4 ${columns.length > 1 ? "flex-row" : "flex-col"}`
         }
       >

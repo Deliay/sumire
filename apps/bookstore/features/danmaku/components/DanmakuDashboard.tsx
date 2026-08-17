@@ -344,10 +344,11 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
     return map;
   }, [columns, eventsBySection]);
 
-  // 礼物最低金额筛选变更：保存 + 仅重载礼物分节
+  // 礼物最低金额筛选变更：保存 + 同步 ref + 仅重载礼物分节
   const handleMinPriceChange = useCallback(
     (newPrice: number) => {
       saveGiftMinPrice(newPrice);
+      minPriceRef.current = newPrice;
       setMinPrice(newPrice);
       // 仅对礼物分节触发 loadSection（页码重置为 1）
       for (const col of columns) {

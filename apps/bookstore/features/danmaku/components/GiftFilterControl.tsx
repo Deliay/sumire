@@ -91,7 +91,7 @@ export default function GiftFilterControl({ value, onChange }: GiftFilterControl
               min={0}
               max={100}
               step={0.1}
-              value={Number(draft)}
+              value={Number.isFinite(Number(draft)) ? Number(draft) : 0}
               onChange={(e) => handleDraftChange(e.target.value)}
               className="accent-primary flex-1"
             />

@@ -1,7 +1,7 @@
 "use client";
 
 import type { LiveEvent } from "../types";
-import { formatPrice, guardBadgeAsset, guardLevelName, guardLevelTone } from "../format";
+import { formatPrice, guardLevelName, guardLevelTone } from "../format";
 import Sender from "./Sender";
 
 interface GuardItemProps {
@@ -21,7 +21,6 @@ export default function GuardItem({ event, isNew = false, onToggleRead }: GuardI
   const guard = event.guard;
   const shipName = guard ? (guardLevelName(guard.level) ?? guard.name) : "";
   const tone = guard ? guardLevelTone(guard.level) : guardLevelTone(2);
-  const badgeAsset = guard ? guardBadgeAsset(guard.level) : null;
   return (
     <div
       data-event-id={event.eventId}
@@ -37,7 +36,6 @@ export default function GuardItem({ event, isNew = false, onToggleRead }: GuardI
           <div className="flex items-center gap-2">
             {shipName && (
                <span className={`flex shrink-0 items-center gap-1 rounded-sm px-1.5 py-px text-xs leading-4 font-semibold ${tone.chip} ${tone.text}`}>
-                 {badgeAsset && <img src={badgeAsset} alt="" className="h-4 w-4 shrink-0 object-contain" />}
                 上船 · {shipName}
               </span>
             )}

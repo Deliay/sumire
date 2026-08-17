@@ -22,11 +22,13 @@ export async function listLiveEvents(
   types: LiveEventType[],
   page = 1,
   pageSize = 50,
+  minPrice?: number,
 ): Promise<{ status: number; data: LiveEventsPage | ApiError }> {
   const params = new URLSearchParams();
   for (const type of types) params.append("type", type);
   params.set("page", String(page));
   params.set("pageSize", String(pageSize));
+  if (minPrice !== undefined && minPrice > 0) params.set("minPrice", String(minPrice));
   return request(`/api/live-events?${params.toString()}`);
 }
 

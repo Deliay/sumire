@@ -71,6 +71,35 @@ describe("danmaku api 请求路径", () => {
     expect(url).toContain("pageSize=50");
   });
 
+  it("listLiveEvents 携带 minPrice 时追加 minPrice 参数", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://localhost:4000");
+    const fetchSpy = vi.fn(async () => ({
+      status: 200,
+      text: async () => JSON.stringify({ total: 0, page: 1, pageSize: 50, items: [] }),
+    }));
+    vi.stubGlobal("fetch", fetchSpy);
+    const { listLiveEvents } = await loadApi();
+    await listLiveEvents(["gift"], 1, 50, 5);
+    const [url] = fetchSpy.mock.calls[0] as unknown as [string];
+    expect(url).toContain("minPrice=5");
+  });
+
+  it("listLiveEvents minPrice=0 或 undefined 时不追加 minPrice 参数", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://localhost:4000");
+    const fetchSpy = vi.fn(async () => ({
+      status: 200,
+      text: async () => JSON.stringify({ total: 0, page: 1, pageSize: 50, items: [] }),
+    }));
+    vi.stubGlobal("fetch", fetchSpy);
+    const { listLiveEvents } = await loadApi();
+    await listLiveEvents(["gift"], 1, 50, 0);
+    const [url1] = fetchSpy.mock.calls[0] as unknown as [string];
+    expect(url1).not.toContain("minPrice");
+    await listLiveEvents(["gift"], 1, 50);
+    const [url2] = fetchSpy.mock.calls[1] as unknown as [string];
+    expect(url2).not.toContain("minPrice");
+  });
+
   it("markLiveEventRead / markLiveEventUnread 以 POST + JSON body 调用", async () => {
     vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://localhost:4000");
     const fetchSpy = vi.fn(async () => ({

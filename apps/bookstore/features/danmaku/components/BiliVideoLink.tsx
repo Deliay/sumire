@@ -200,7 +200,7 @@ export default function BiliVideoLink({ text, className }: BiliVideoLinkProps) {
       ? createPortal(
           <div
             role="tooltip"
-            className="fixed z-50 w-64"
+            className="fixed z-[70] w-64"
             style={{ left: popoverPos.x, top: popoverPos.y }}
             onMouseEnter={handlePopoverEnter}
             onMouseLeave={handlePopoverLeave}

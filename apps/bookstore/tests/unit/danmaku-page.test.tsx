@@ -138,15 +138,15 @@ describe("DanmakuPage 视图栏选择器", () => {
     expect(screen.getByRole("button", { name: "全屏模式" })).toBeTruthy();
   });
 
-  it("medium 选择 2 栏后按预设分组（SC+上船 | 弹幕+礼物）并持久化", async () => {
+  it("medium 选择 2 栏后按预设分组（上船+SC | 礼物+弹幕）并持久化", async () => {
     stubMatchMedia({ "(max-width: 639px)": false, "(min-width: 1024px)": false });
     render(<DanmakuPage />);
 
     const select = (await screen.findByRole("combobox", { name: "视图栏" })) as HTMLSelectElement;
     fireEvent.change(select, { target: { value: "2" } });
 
-    expect(await screen.findByText("SC + 上船")).toBeTruthy();
-    expect(screen.getByText("弹幕 + 礼物")).toBeTruthy();
+    expect(await screen.findByText("上船 + SC")).toBeTruthy();
+    expect(screen.getByText("礼物 + 弹幕")).toBeTruthy();
 
     const stored = JSON.parse(window.localStorage.getItem(COLUMNS_STORAGE_KEY) ?? "null");
     expect(stored).toEqual(COLUMN_PRESETS[2]);
@@ -170,7 +170,7 @@ describe("DanmakuPage 视图栏选择器", () => {
     const select = (await screen.findByRole("combobox", { name: "视图栏" })) as HTMLSelectElement;
     fireEvent.change(select, { target: { value: "2" } });
 
-    expect(await screen.findByText("SC + 上船")).toBeTruthy();
+    expect(await screen.findByText("上船 + SC")).toBeTruthy();
     const stored = JSON.parse(window.localStorage.getItem(COLUMNS_STORAGE_KEY) ?? "null");
     expect(stored).toEqual(COLUMN_PRESETS[2]);
   });
@@ -183,6 +183,6 @@ describe("DanmakuPage 视图栏选择器", () => {
 
     const select = (await screen.findByRole("combobox", { name: "视图栏" })) as HTMLSelectElement;
     fireEvent.change(select, { target: { value: "2" } });
-    expect(await screen.findByText("SC + 上船")).toBeTruthy();
+    expect(await screen.findByText("上船 + SC")).toBeTruthy();
   });
 });

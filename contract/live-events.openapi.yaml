@@ -248,6 +248,7 @@ components:
           properties:
             name: { type: string, description: 礼物名 }
             count: { type: integer, description: 数量（连击为 combo_num） }
+            iconUrl: { type: string, description: 礼物图标 URL（上游 data.img_basic；缺失时不下发该字段） }
         guard:
           type: object
           required: [level, name, count]

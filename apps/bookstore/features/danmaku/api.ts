@@ -2,7 +2,7 @@ import { request, type ApiError } from "@/features/backdoor/api";
 import type { LiveEvent, LiveEventType } from "./types";
 
 /**
- * 弹幕后台 API 封装：历史检索与三个已读写接口。
+ * 弹幕看板 API 封装：历史检索与三个已读写接口。
  * 口径复用 `features/backdoor/api.ts` 的 `request()`（未配置 NEXT_PUBLIC_API_BASE_URL 时短路不 fetch，
  * 请求统一 credentials: "include"）。契约单一事实源：contract/live-events.openapi.yaml。
  */

@@ -488,7 +488,7 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
         })}
       </div>
       {toast && (
-        <div className="fixed right-6 bottom-6 z-50 rounded-md border border-flower/60 bg-raised px-4 py-2 text-sm text-ink shadow-xl">
+        <div className="fixed right-6 bottom-6 z-[70] rounded-md border border-flower/60 bg-raised px-4 py-2 text-sm text-ink shadow-xl">
           {toast}
           <button type="button" className="ml-2 text-ink-dim hover:text-ink" onClick={() => setToast("")}>
             ✕

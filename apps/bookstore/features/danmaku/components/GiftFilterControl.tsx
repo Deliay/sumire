@@ -98,7 +98,7 @@ export default function GiftFilterControl({ value, onChange }: GiftFilterControl
         createPortal(
           <div
             ref={popoverRef}
-            className="fixed z-50 w-56 rounded-md border border-vine/50 bg-raised p-3 shadow-lg"
+            className="fixed z-[70] w-56 rounded-md border border-vine/50 bg-raised p-3 shadow-lg"
             style={{ left: popPos.x, top: popPos.y }}
           >
             <label htmlFor="gift-min-price" className="mb-2 block text-xs text-ink-dim">

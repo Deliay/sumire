@@ -59,6 +59,20 @@ export function guardBadgeAsset(level: number): string | null {
   }
 }
 
+/** 弹幕条目船型 0.5% 透明度背景：3→eye, 2→flower, 1→crimson, 其余 null。 */
+export function guardDanmakuTint(level: number | null | undefined): string | null {
+  switch (level) {
+    case 3:
+      return "bg-eye/[0.5%] rounded-md";
+    case 2:
+      return "bg-flower/[0.5%] rounded-md";
+    case 1:
+      return "bg-crimson/[0.5%] rounded-md";
+    default:
+      return null;
+  }
+}
+
 /**
  * 礼物价值（元）强调色：<10 灰（ink-dim）；10-99 蓝（eye）；100-500 金（gold）；>500 红（crimson）。
  * 返回 Tailwind token 类名。

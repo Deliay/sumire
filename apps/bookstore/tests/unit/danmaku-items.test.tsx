@@ -96,6 +96,32 @@ describe("DanmakuItem", () => {
     render(<DanmakuItem event={makeEvent({ eventId: "dm:7", type: "danmaku", content: "妈妈" })} count={1} />);
     expect(screen.queryByText(/×/)).toBeNull();
   });
+
+  it("船型弹幕（sender.guardLevel）渲染对应淡色背景（tint）", () => {
+    const { container: c3 } = render(
+      <DanmakuItem event={makeEvent({ eventId: "dm:g3", type: "danmaku", content: "舰长弹幕" })} />,
+    );
+    // guardLevel=null → 无 tint
+    expect(c3.firstElementChild?.className).not.toContain("bg-eye/");
+    cleanup();
+
+    const { container: c3g } = render(
+      <DanmakuItem event={makeEvent({ eventId: "dm:g3", type: "danmaku", content: "舰长弹幕", sender: { ...SENDER, guardLevel: 3 } })} />,
+    );
+    expect(c3g.firstElementChild?.className).toContain("bg-eye/");
+    cleanup();
+
+    const { container: c2g } = render(
+      <DanmakuItem event={makeEvent({ eventId: "dm:g2", type: "danmaku", content: "提督弹幕", sender: { ...SENDER, guardLevel: 2 } })} />,
+    );
+    expect(c2g.firstElementChild?.className).toContain("bg-flower/");
+    cleanup();
+
+    const { container: c1g } = render(
+      <DanmakuItem event={makeEvent({ eventId: "dm:g1", type: "danmaku", content: "总督弹幕", sender: { ...SENDER, guardLevel: 1 } })} />,
+    );
+    expect(c1g.firstElementChild?.className).toContain("bg-crimson/");
+  });
 });
 
 describe("SuperChatItem", () => {

@@ -14,6 +14,7 @@ import {
   type ReadAllType,
 } from "../api";
 import { loadGiftMinPrice, saveGiftMinPrice } from "../giftMinPrice";
+import { loadMergeEnabled, saveMergeEnabled } from "../mergeEnabled";
 import {
   getColumnsServerSnapshot,
   getColumnsSnapshot,
@@ -109,6 +110,14 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
   useEffect(() => {
     minPriceRef.current = minPrice;
   }, [minPrice]);
+
+  // 弹幕合并开关
+  const [mergeEnabled, setMergeEnabled] = useState(() => loadMergeEnabled());
+  const handleMergeEnabledChange = useCallback(() => {
+    const next = !mergeEnabled;
+    saveMergeEnabled(next);
+    setMergeEnabled(next);
+  }, [mergeEnabled]);
 
   // 检索代际：columns 变化时递增，旧代检索结果作废，避免竞态覆盖新栏位数据
   const generationRef = useRef(0);
@@ -415,6 +424,7 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
               canManage={canManage}
               onToggleRead={toggleRead}
               newIds={newIds}
+              mergeEnabled={mergeEnabled}
               readAllTypes={col.types.filter((t): t is ReadAllType =>
                 (READ_ALL_TYPES as readonly string[]).includes(t),
               )}
@@ -431,6 +441,20 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
                       实时连接已断开
                     </p>
                   )}
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={mergeEnabled}
+                    aria-label="弹幕合并"
+                    onClick={handleMergeEnabledChange}
+                    className={`rounded-md border px-2 py-1 text-xs transition-colors duration-150 ${
+                      mergeEnabled
+                        ? "border-flower text-ink"
+                        : "border-vine/50 text-ink-dim hover:border-flower hover:text-ink"
+                    }`}
+                  >
+                    弹幕合并
+                  </button>
                   {col.types.includes("gift") && (
                     <GiftFilterControl value={minPrice} onChange={handleMinPriceChange} />
                   )}

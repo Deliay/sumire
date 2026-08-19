@@ -21,6 +21,10 @@ interface FeedSectionProps {
   onToggleRead?: (event: LiveEvent) => void;
   /** 实时流到达的 SC/上船 eventId → type 映射，用于「New」标记。 */
   newIds?: ReadonlyMap<string, LiveEventType>;
+  /** 弹幕合并开关（默认 false，逐条渲染）。 */
+  mergeEnabled?: boolean;
+  /** 新插入的事件 ID 集合（用于入场动效）。 */
+  freshIds?: ReadonlySet<string>;
   /** 空态文案（默认「暂无事件」）。 */
   emptyText?: string;
   /** 本小节历史加载中（无事件时展示骨架）。 */
@@ -48,6 +52,8 @@ export default function FeedSection({
   canManage,
   onToggleRead,
   newIds = new Map(),
+  mergeEnabled = false,
+  freshIds = new Set(),
   emptyText = "暂无事件",
   loading = false,
   error = null,
@@ -59,9 +65,12 @@ export default function FeedSection({
   const { containerRef, showBackToTop, handleScroll, scrollToTop } = useAnchoredFeed();
 
   // 相邻重复弹幕折叠为一行（展示计数）；非弹幕原样透传。
-  const rows = useMemo<MergedDanmaku[]>(() => mergeDanmaku(events), [events]);
+  const rows = useMemo<MergedDanmaku[]>(
+    () => mergeEnabled ? mergeDanmaku(events) : events.map((event) => ({ event, count: 1 })),
+    [events, mergeEnabled],
+  );
   // 折叠使可视行减少（rows.length < events.length）
-  const folded = rows.length < events.length;
+  const folded = mergeEnabled && rows.length < events.length;
 
   const virtualizer = useVirtualizer({
     count: rows.length,

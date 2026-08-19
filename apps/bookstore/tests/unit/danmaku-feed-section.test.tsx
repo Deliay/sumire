@@ -89,7 +89,7 @@ describe("FeedSection 弹幕折叠", () => {
       makeEvent({ eventId: "dm:c", type: "danmaku", content: "妈妈" }),
       makeEvent({ eventId: "dm:d", type: "danmaku", content: "欢迎欢迎" }),
     ];
-    render(<FeedSection label="弹幕" events={dupes} canManage={false} />);
+    render(<FeedSection label="弹幕" events={dupes} canManage={false} mergeEnabled />);
     expect(screen.getByText("×3")).toBeTruthy();
     expect(screen.queryByText("×1")).toBeNull();
   });
@@ -100,7 +100,7 @@ describe("FeedSection 弹幕折叠", () => {
       makeEvent({ eventId: "dm:2", type: "danmaku", content: "欢迎欢迎" }),
       makeEvent({ eventId: "dm:3", type: "danmaku", content: "妈妈" }),
     ];
-    render(<FeedSection label="弹幕" events={events} canManage={false} />);
+    render(<FeedSection label="弹幕" events={events} canManage={false} mergeEnabled />);
     expect(screen.getByText("×2")).toBeTruthy();
   });
 
@@ -111,7 +111,7 @@ describe("FeedSection 弹幕折叠", () => {
       makeEvent({ eventId: "dm:1", type: "danmaku", content: "妈妈" }),
       makeEvent({ eventId: "dm:2", type: "danmaku", content: "妈妈" }),
     ];
-    render(<FeedSection label="弹幕" events={dupes} canManage={false} onLoadMore={onLoadMore} hasMore />);
+    render(<FeedSection label="弹幕" events={dupes} canManage={false} onLoadMore={onLoadMore} hasMore mergeEnabled />);
     await act(async () => {});
     expect(onLoadMore).toHaveBeenCalled();
   });
@@ -124,6 +124,17 @@ describe("FeedSection 弹幕折叠", () => {
     await act(async () => {});
     expect(onLoadMore).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "加载更多" })).toBeTruthy();
+  });
+
+  it("mergeEnabled 默认 false 时逐条渲染无「×N」（不合并）", () => {
+    const dupes: LiveEvent[] = [
+      makeEvent({ eventId: "dm:a", type: "danmaku", content: "妈妈妈妈妈" }),
+      makeEvent({ eventId: "dm:b", type: "danmaku", content: "妈妈妈" }),
+      makeEvent({ eventId: "dm:c", type: "danmaku", content: "妈妈" }),
+      makeEvent({ eventId: "dm:d", type: "danmaku", content: "欢迎欢迎" }),
+    ];
+    render(<FeedSection label="弹幕" events={dupes} canManage={false} />);
+    expect(screen.queryByText(/×\d/)).toBeNull();
   });
 });
 

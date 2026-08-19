@@ -119,6 +119,10 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
     setMergeEnabled(next);
   }, [mergeEnabled]);
 
+  // 入场动效：新插入事件 ID 集合（300ms 单计时器批量清除）
+  const [freshIds, setFreshIds] = useState<ReadonlySet<string>>(new Set());
+  const freshIdsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // 检索代际：columns 变化时递增，旧代检索结果作废，避免竞态覆盖新栏位数据
   const generationRef = useRef(0);
 
@@ -231,6 +235,7 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
     (event: LiveEvent) => {
       // SSE 低价礼物丢弃
       if (event.type === "gift" && (event.price ?? 0) < minPriceRef.current) return;
+      const insertedIds: string[] = [];
       setEventsBySection((prev) => {
         const next = { ...prev };
         for (const col of columns) {
@@ -239,9 +244,25 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
           const list = next[key] ?? [];
           if (list.some((e) => e.eventId === event.eventId)) continue;
           next[key] = [event, ...list];
+          insertedIds.push(event.eventId);
         }
         return next;
       });
+      if (insertedIds.length > 0) {
+        setFreshIds((prev) => {
+          const next = new Set(prev);
+          for (const id of insertedIds) next.add(id);
+          return next;
+        });
+        if (freshIdsTimerRef.current) clearTimeout(freshIdsTimerRef.current);
+        freshIdsTimerRef.current = setTimeout(() => {
+          setFreshIds((prev) => {
+            const next = new Set(prev);
+            for (const id of insertedIds) next.delete(id);
+            return next;
+          });
+        }, 300);
+      }
       // 实时流到达的 SC/上船标记为 New（读后清除）
       if ((NEW_MARK_TYPES as readonly string[]).includes(event.type)) {
         setNewIds((prev) => {
@@ -425,6 +446,7 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
               onToggleRead={toggleRead}
               newIds={newIds}
               mergeEnabled={mergeEnabled}
+              freshIds={freshIds}
               readAllTypes={col.types.filter((t): t is ReadAllType =>
                 (READ_ALL_TYPES as readonly string[]).includes(t),
               )}

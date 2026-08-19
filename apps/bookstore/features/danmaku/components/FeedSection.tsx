@@ -166,10 +166,16 @@ export default function FeedSection({
                     key={virtualItem.key}
                     data-index={virtualItem.index}
                     ref={virtualizer.measureElement}
-                    className="absolute top-0 left-0 w-full border-b border-vine/30"
+                    className={`absolute top-0 left-0 w-full border-b border-vine/30 ${
+                      virtualizer.isScrolling
+                        ? ""
+                        : "transition-transform duration-200 motion-reduce:transition-none"
+                    }`}
                     style={{ transform: `translateY(${virtualItem.start}px)` }}
                   >
-                    {renderItem(row)}
+                    <div className={freshIds.has(row.event.eventId) ? "animate-danmaku-enter motion-reduce:animate-none" : undefined}>
+                      {renderItem(row)}
+                    </div>
                   </div>
                 );
               })}

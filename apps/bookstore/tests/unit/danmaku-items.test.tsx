@@ -138,8 +138,17 @@ describe("SuperChatItem", () => {
     const { container } = render(<SuperChatItem event={sc} />);
     const root = container.firstElementChild as HTMLElement;
     expect(root.className).not.toContain("cursor-pointer");
-    expect(root.className).not.toContain("select-none");
     fireEvent.doubleClick(root); // 不应抛错
+  });
+
+  it("SC 留言可选中（select-text cursor-text），双击不触发已读切换", () => {
+    const onToggleRead = vi.fn();
+    render(<SuperChatItem event={sc} onToggleRead={onToggleRead} />);
+    const bubble = screen.getByText("首播加油");
+    expect(bubble.className).toContain("select-text");
+    expect(bubble.className).toContain("cursor-text");
+    fireEvent.doubleClick(bubble);
+    expect(onToggleRead).not.toHaveBeenCalled();
   });
 
   it("isNew=true 渲染「New」标记，isNew 缺省/为 false 不渲染", () => {

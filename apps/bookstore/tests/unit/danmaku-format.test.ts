@@ -72,9 +72,9 @@ describe("giftPriceTone 礼物价值分级", () => {
 
 describe("guardDanmakuTint 弹幕条目船型淡色背景", () => {
   it("3→eye, 2→flower, 1→crimson（含 rounded-md）", () => {
-    expect(guardDanmakuTint(3)).toBe("bg-eye/[0.5%] rounded-md");
-    expect(guardDanmakuTint(2)).toBe("bg-flower/[0.5%] rounded-md");
-    expect(guardDanmakuTint(1)).toBe("bg-crimson/[0.5%] rounded-md");
+    expect(guardDanmakuTint(3)).toBe("bg-eye/10 rounded-md");
+    expect(guardDanmakuTint(2)).toBe("bg-flower/10 rounded-md");
+    expect(guardDanmakuTint(1)).toBe("bg-crimson/10 rounded-md");
   });
 
   it("未知等级 / null / undefined → null", () => {

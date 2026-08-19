@@ -59,15 +59,15 @@ export function guardBadgeAsset(level: number): string | null {
   }
 }
 
-/** 弹幕条目船型 0.5% 透明度背景：3→eye, 2→flower, 1→crimson, 其余 null。 */
+/** 弹幕条目船型淡色背景：3→eye, 2→flower, 1→crimson, 其余 null。 */
 export function guardDanmakuTint(level: number | null | undefined): string | null {
   switch (level) {
     case 3:
-      return "bg-eye/[0.5%] rounded-md";
+      return "bg-eye/10 rounded-md";
     case 2:
-      return "bg-flower/[0.5%] rounded-md";
+      return "bg-flower/10 rounded-md";
     case 1:
-      return "bg-crimson/[0.5%] rounded-md";
+      return "bg-crimson/10 rounded-md";
     default:
       return null;
   }

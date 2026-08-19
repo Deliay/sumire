@@ -256,11 +256,7 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
         });
         if (freshIdsTimerRef.current) clearTimeout(freshIdsTimerRef.current);
         freshIdsTimerRef.current = setTimeout(() => {
-          setFreshIds((prev) => {
-            const next = new Set(prev);
-            for (const id of insertedIds) next.delete(id);
-            return next;
-          });
+          setFreshIds(new Set());
         }, 300);
       }
       // 实时流到达的 SC/上船标记为 New（读后清除）

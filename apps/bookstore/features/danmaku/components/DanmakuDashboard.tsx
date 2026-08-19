@@ -111,6 +111,12 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
     minPriceRef.current = minPrice;
   }, [minPrice]);
 
+  // 事件分发状态 ref（供 handleStreamEvent 在 updater 外读取最新值）
+  const eventsBySectionRef = useRef(eventsBySection);
+  useEffect(() => {
+    eventsBySectionRef.current = eventsBySection;
+  }, [eventsBySection]);
+
   // 弹幕合并开关
   const [mergeEnabled, setMergeEnabled] = useState(() => loadMergeEnabled());
   const handleMergeEnabledChange = useCallback(() => {
@@ -235,7 +241,16 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
     (event: LiveEvent) => {
       // SSE 低价礼物丢弃
       if (event.type === "gift" && (event.price ?? 0) < minPriceRef.current) return;
-      const insertedIds: string[] = [];
+      // 在 updater 外用 ref 读取当前状态，判断事件是否为新增（避免 updater 内副作用）
+      let isNew = false;
+      for (const col of columns) {
+        if (!col.types.includes(event.type)) continue;
+        const key = sectionKey(col.id, event.type);
+        const list = eventsBySectionRef.current[key] ?? [];
+        if (list.some((e) => e.eventId === event.eventId)) continue;
+        isNew = true;
+        break;
+      }
       setEventsBySection((prev) => {
         const next = { ...prev };
         for (const col of columns) {
@@ -244,14 +259,13 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
           const list = next[key] ?? [];
           if (list.some((e) => e.eventId === event.eventId)) continue;
           next[key] = [event, ...list];
-          insertedIds.push(event.eventId);
         }
         return next;
       });
-      if (insertedIds.length > 0) {
+      if (isNew) {
         setFreshIds((prev) => {
           const next = new Set(prev);
-          for (const id of insertedIds) next.add(id);
+          next.add(event.eventId);
           return next;
         });
         if (freshIdsTimerRef.current) clearTimeout(freshIdsTimerRef.current);

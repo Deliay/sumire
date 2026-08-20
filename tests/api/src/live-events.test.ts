@@ -108,6 +108,40 @@ function gift(i: number, min: number): StubEnvelope {
   };
 }
 
+function giftV2(i: number, min: number): StubEnvelope {
+  return {
+    roomId: 1727076670,
+    type: "gift_v2",
+    occurredAt: at(min),
+    liveSessionId: "session-stub-1",
+    payload: {
+      data: {
+        senderUinfo: {
+          uid: 50_000 + i,
+          base: { name: `礼物V2用户${i}`, face: "https://example.com/gift-v2-face.jpg" },
+          medal: { name: "堇色粉", level: 12, color: "#b4a6bf" },
+        },
+        giftList: {
+          batchComboId: `batch-v2-stub-${i}`,
+          giftId: 1000 + i,
+          giftName: "小花花V2",
+          num: 2,
+          coinType: "gold",
+          comboTotalCoin: 2000,
+          timestamp: Date.now() + i,
+          giftInfo: { imgBasic: "https://example.com/gift-v2-icon.jpg" },
+        },
+        uid: 50_000 + i,
+        uname: `礼物V2用户${i}`,
+        face: "https://example.com/gift-v2-face.jpg",
+        img_basic: "https://example.com/gift-v2-icon.jpg",
+        medalInfo: { medalName: "堇色粉", medalLevel: 12, medalColor: "#b4a6bf" },
+        guardLevel: 0,
+      },
+    },
+  };
+}
+
 function guardBuy(i: number, min: number): StubEnvelope {
   return {
     roomId: 1727076670,
@@ -128,17 +162,18 @@ function guardBuy(i: number, min: number): StubEnvelope {
   };
 }
 
-/** 确定性数据集：弹幕×12 / SC×8 / 礼物×6 / 上船×6，共 32 条，occurredAt 递增。 */
+/** 确定性数据集：弹幕×12 / SC×8 / 礼物×6 / 礼物V2×4 / 上船×6，共 36 条，occurredAt 递增。 */
 function dataset(): StubEnvelope[] {
   const events: StubEnvelope[] = [];
   for (let i = 0; i < 12; i++) events.push(danmaku(i, i));
   for (let i = 0; i < 8; i++) events.push(superChat(i, 12 + i));
   for (let i = 0; i < 6; i++) events.push(gift(i, 20 + i));
-  for (let i = 0; i < 6; i++) events.push(guardBuy(i, 26 + i));
+  for (let i = 0; i < 4; i++) events.push(giftV2(i, 26 + i));
+  for (let i = 0; i < 6; i++) events.push(guardBuy(i, 30 + i));
   return events;
 }
 
-const ALL_EVENTS = dataset();
+const ALL_EVENTS = dataset(); // 36 条
 
 /** 模拟上游行为：按 type 过滤（缺省全部），按 occurredAt 倒序。 */
 function filterByTypes(types: string[]): StubEnvelope[] {
@@ -360,6 +395,36 @@ describe("GET /api/live-events（检索代理）", () => {
     }
     const qs = new URLSearchParams(lastRangeSearch);
     expect(qs.getAll("type")).toEqual(["danmaku", "super_chat"]);
+  });
+
+  it("live-events-gift-v2: gift_v2 扩参透传上游，响应 type 为 gift（归一化）", async () => {
+    const body = await fetchEvents("?type=gift&type=gift_v2", memberJar);
+    expect(body.items.length).toBeGreaterThan(0);
+    for (const ev of body.items) {
+      expect(ev.type).toBe("gift");
+      expect(ev.eventId).toMatch(/^gift:/);
+    }
+    const qs = new URLSearchParams(lastRangeSearch);
+    expect(qs.getAll("type")).toEqual(["gift", "gift_v2"]);
+  });
+
+  it("live-events-gift-v2-read: gift_v2 事件已读链路（POST /read → read:true）", async () => {
+    const body = await fetchEvents("?type=gift&type=gift_v2", memberJar);
+    const giftV2Event = body.items.find((e) => e.eventId.startsWith("gift:batch-v2-stub-"));
+    expect(giftV2Event).toBeDefined();
+    expect(giftV2Event!.read).toBe(false);
+
+    const mark = await request("/api/live-events/read", {
+      method: "POST",
+      body: { eventId: giftV2Event!.eventId },
+      jar: adminJar,
+    });
+    expect(mark.status).toBe(200);
+    expect((mark.body as { ok?: unknown }).ok).toBe(true);
+
+    const after = await fetchEvents("?type=gift&type=gift_v2", memberJar);
+    const marked = after.items.find((e) => e.eventId === giftV2Event!.eventId);
+    expect(marked?.read).toBe(true);
   });
 
   it("live-events-pagination: page/pageSize 透传上游，响应信封一致", async () => {
@@ -664,6 +729,19 @@ describe("GET /api/live-events/stream（SSE）", () => {
     const byId = new Map(parseSseFrames(text).map((f) => [f.eventId, f]));
     expect(byId.get("gift:batch-stub-5")?.read).toBe(true);
     expect(byId.get("gift:batch-stub-4")?.read).toBe(false);
+  });
+
+  it("live-events-sse-gift-v2: SSE 帧 gift_v2 扩参，type 为 gift（归一化）", async () => {
+    const res = await openStream("?type=gift&type=gift_v2", memberJar);
+    expect(res.status).toBe(200);
+    const text = await collectSse(res, (t) => parseSseFrames(t).length >= 1, 10_000);
+    const frames = parseSseFrames(text);
+    expect(frames.length).toBeGreaterThanOrEqual(1);
+    for (const ev of frames) {
+      expect(ev.type).toBe("gift");
+      expect(ev.eventId).toMatch(/^gift:/);
+    }
+    expect(lastSubscribeTypes).toEqual(["gift", "gift_v2"]);
   });
 
   it(

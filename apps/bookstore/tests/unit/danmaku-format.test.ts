@@ -3,6 +3,7 @@ import {
   formatPrice,
   giftPriceTone,
   guardBadgeAsset,
+  guardDanmakuTint,
   guardLevelName,
   guardLevelTone,
 } from "@/features/danmaku/format";
@@ -54,6 +55,21 @@ describe("guardBadgeAsset 头像上船挂件", () => {
   it("未知/空等级返回 null（不渲染挂件）", () => {
     expect(guardBadgeAsset(0)).toBeNull();
     expect(guardBadgeAsset(9)).toBeNull();
+  });
+});
+
+describe("guardDanmakuTint 弹幕条目船型淡色背景", () => {
+  it("3 舰长 → eye / 2 提督 → flower / 1 总督 → crimson（0.5% 透明度）", () => {
+    expect(guardDanmakuTint(3)).toBe("bg-eye/[0.5%]");
+    expect(guardDanmakuTint(2)).toBe("bg-flower/[0.5%]");
+    expect(guardDanmakuTint(1)).toBe("bg-crimson/[0.5%]");
+  });
+
+  it("无等级/未知等级返回 null（无背景）", () => {
+    expect(guardDanmakuTint(null)).toBeNull();
+    expect(guardDanmakuTint(undefined)).toBeNull();
+    expect(guardDanmakuTint(0)).toBeNull();
+    expect(guardDanmakuTint(99)).toBeNull();
   });
 });
 

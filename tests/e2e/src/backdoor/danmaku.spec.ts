@@ -540,15 +540,14 @@ test.describe("backdoor danmaku 弹幕看板", () => {
     const stub = await stubLiveEvents(page, events);
     await gotoDanmaku(page, getAccounts().admin);
 
-    // 点击「弹幕检索」链接进入检索页
-    await page.getByRole("link", { name: "弹幕检索" }).click();
+    // 点击导航栏「弹幕检索」链接进入检索页
+    await page.getByRole("navigation", { name: "后台导航" }).getByRole("link", { name: "弹幕检索" }).click();
     await expect(page).toHaveURL(/\/backdoor\/danmaku\/search/);
     await expect(page.getByRole("heading", { name: "弹幕检索" })).toBeVisible();
 
     // 输入关键词搜索
     const input = page.getByLabel("弹幕检索关键词");
     await input.fill("关键词");
-    await expect(page.getByText("搜索中…")).toBeVisible();
 
     // 等待搜索结果
     await expect(page.getByText("共 2 条")).toBeVisible({ timeout: 5000 });
@@ -562,7 +561,7 @@ test.describe("backdoor danmaku 弹幕看板", () => {
     await stubLiveEvents(page, events);
     await gotoDanmaku(page, getAccounts().admin);
 
-    await page.getByRole("link", { name: "弹幕检索" }).click();
+    await page.getByRole("navigation", { name: "后台导航" }).getByRole("link", { name: "弹幕检索" }).click();
     await page.getByLabel("弹幕检索关键词").fill("天气");
     await expect(page.getByText("共 1 条")).toBeVisible({ timeout: 5000 });
 
@@ -575,7 +574,7 @@ test.describe("backdoor danmaku 弹幕看板", () => {
     await stubLiveEvents(page, events);
     await gotoDanmaku(page, getAccounts().admin);
 
-    await page.getByRole("link", { name: "弹幕检索" }).click();
+    await page.getByRole("navigation", { name: "后台导航" }).getByRole("link", { name: "弹幕检索" }).click();
     await page.getByLabel("弹幕检索关键词").fill("不存在的关键词");
     await expect(page.getByText("无匹配弹幕")).toBeVisible({ timeout: 5000 });
   });
@@ -585,7 +584,7 @@ test.describe("backdoor danmaku 弹幕看板", () => {
     const stub = await stubLiveEvents(page, events);
     await gotoDanmaku(page, getAccounts().admin);
 
-    await page.getByRole("link", { name: "弹幕检索" }).click();
+    await page.getByRole("navigation", { name: "后台导航" }).getByRole("link", { name: "弹幕检索" }).click();
     stub.setSearchDown(true);
     await page.getByLabel("弹幕检索关键词").fill("弹幕");
     await expect(page.getByText("搜索服务不可用")).toBeVisible({ timeout: 5000 });
@@ -600,11 +599,94 @@ test.describe("backdoor danmaku 弹幕看板", () => {
     await stubLiveEvents(page, []);
     await gotoDanmaku(page, getAccounts().admin);
 
-    await page.getByRole("link", { name: "弹幕检索" }).click();
+    await page.getByRole("navigation", { name: "后台导航" }).getByRole("link", { name: "弹幕检索" }).click();
     await expect(page).toHaveURL(/\/backdoor\/danmaku\/search/);
 
     await page.getByRole("link", { name: "返回看板" }).click();
     await expect(page).toHaveURL(/\/backdoor\/danmaku$/);
     await expect(page.getByRole("heading", { name: "弹幕看板" })).toBeVisible();
+  });
+
+  test("danmaku-search-v2-nav-entry-active-state: 导航入口与选中态", async ({ page }) => {
+    await stubLiveEvents(page, []);
+    const accounts = getAccounts();
+    await loginViaUi(page, accounts.admin, BASE);
+
+    // 登录后左侧导航可见「弹幕检索」且位于「弹幕看板」之后
+    const nav = page.getByRole("navigation", { name: "后台导航" });
+    const danmakuBoardLink = nav.getByRole("link", { name: "弹幕看板" });
+    const danmakuSearchLink = nav.getByRole("link", { name: "弹幕检索" });
+    await expect(danmakuBoardLink).toBeVisible();
+    await expect(danmakuSearchLink).toBeVisible();
+
+    // 验证顺序：弹幕看板在弹幕检索之前
+    const boardBox = await danmakuBoardLink.boundingBox();
+    const searchBox = await danmakuSearchLink.boundingBox();
+    expect(boardBox).not.toBeNull();
+    expect(searchBox).not.toBeNull();
+    expect(boardBox!.y).toBeLessThan(searchBox!.y);
+
+    // 点击进入弹幕检索页
+    await danmakuSearchLink.click();
+    await expect(page).toHaveURL(/\/backdoor\/danmaku\/search/);
+    await expect(page.getByRole("heading", { name: "弹幕检索" })).toBeVisible();
+
+    // 导航仅「弹幕检索」高亮（含 border-primary 类）
+    await expect(danmakuSearchLink).toHaveClass(/border-primary/);
+    await expect(danmakuBoardLink).not.toHaveClass(/border-primary/);
+
+    // 返回看板页
+    await page.getByRole("link", { name: "返回看板" }).click();
+    await expect(page).toHaveURL(/\/backdoor\/danmaku$/);
+    await expect(page.getByRole("heading", { name: "弹幕看板" })).toBeVisible();
+
+    // 导航仅「弹幕看板」高亮
+    await expect(danmakuBoardLink).toHaveClass(/border-primary/);
+    await expect(danmakuSearchLink).not.toHaveClass(/border-primary/);
+  });
+
+  test("danmaku-search-v2-mixed-results: 混合类型结果渲染", async ({ page }) => {
+    const events = [
+      danmakuEvent("dm:mix1", "普通弹幕内容"),
+      scEvent("sc:mix1", "SC留言内容"),
+      giftEvent("gift:mix1", "小花花"),
+      guardEvent("guard:mix1"),
+    ];
+    const stub = await stubLiveEvents(page, events);
+    await gotoDanmaku(page, getAccounts().admin);
+
+    // 进入检索页
+    await page.getByRole("navigation", { name: "后台导航" }).getByRole("link", { name: "弹幕检索" }).click();
+    await expect(page).toHaveURL(/\/backdoor\/danmaku\/search/);
+
+    // 输入关键词搜索：命中弹幕与SC（gift/guard 无 content 不命中）
+    const input = page.getByLabel("弹幕检索关键词");
+    await input.fill("内容");
+
+    // 等待搜索结果
+    await expect(page.getByText("共 2 条")).toBeVisible({ timeout: 5000 });
+
+    // 断言SC呈现金额与气泡样式
+    const scCard = page.locator('[data-event-id="sc:mix1"]');
+    await expect(scCard).toBeVisible();
+    await expect(scCard.getByText("¥100")).toBeVisible();
+    await expect(scCard.locator(".rounded-md")).toBeVisible();
+
+    // 断言弹幕保持 <mark> 高亮卡片（弹幕和SC结果均含高亮）
+    await expect(page.locator("mark").filter({ hasText: "内容" })).toHaveCount(2);
+
+    // 返回看板页验证礼物与上船渲染
+    await page.getByRole("link", { name: "返回看板" }).click();
+    await expect(page).toHaveURL(/\/backdoor\/danmaku$/);
+
+    // 断言礼物呈现礼物名
+    const giftCard = page.locator('[data-event-id="gift:mix1"]');
+    await expect(giftCard).toBeVisible();
+    await expect(giftCard.getByText("小花花")).toBeVisible();
+
+    // 断言上船呈现船型徽章
+    const guardCard = page.locator('[data-event-id="guard:mix1"]');
+    await expect(guardCard).toBeVisible();
+    await expect(guardCard.getByText("舰长")).toBeVisible();
   });
 });

@@ -331,7 +331,7 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
           eventId: `${event.eventId}${suffix}`,
         };
         handleStreamEvent(replayEvent);
-        await new Promise((r) => setTimeout(r, 50));
+        await new Promise((r) => setTimeout(r, 100));
       }
     },
     [handleStreamEvent],

@@ -59,10 +59,10 @@ describe("guardBadgeAsset 头像上船挂件", () => {
 });
 
 describe("guardDanmakuTint 弹幕条目船型淡色背景", () => {
-  it("3 舰长 → eye / 2 提督 → flower / 1 总督 → crimson（0.5% 透明度）", () => {
-    expect(guardDanmakuTint(3)).toBe("bg-eye/[0.5%]");
-    expect(guardDanmakuTint(2)).toBe("bg-flower/[0.5%]");
-    expect(guardDanmakuTint(1)).toBe("bg-crimson/[0.5%]");
+  it("3 舰长 → eye / 2 提督 → flower / 1 总督 → crimson（10% 透明度）", () => {
+    expect(guardDanmakuTint(3)).toBe("bg-eye/10");
+    expect(guardDanmakuTint(2)).toBe("bg-flower/10");
+    expect(guardDanmakuTint(1)).toBe("bg-crimson/10");
   });
 
   it("无等级/未知等级返回 null（无背景）", () => {

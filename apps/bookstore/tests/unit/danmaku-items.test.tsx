@@ -97,26 +97,26 @@ describe("DanmakuItem", () => {
     expect(screen.queryByText(/×/)).toBeNull();
   });
 
-  it("发送者船型等级渲染对应 0.5% 淡色背景与圆角（3 舰长蓝 eye/2 提督紫 flower/1 总督红 crimson）", () => {
+  it("发送者船型等级渲染对应 10% 淡色背景与圆角（3 舰长蓝 eye/2 提督紫 flower/1 总督红 crimson）", () => {
     const withGuard = (guardLevel: number): LiveEvent["sender"] => ({ ...SENDER, guardLevel });
     const { container: c3 } = render(
       <DanmakuItem event={makeEvent({ eventId: "dm:g3", type: "danmaku", content: "舰长弹幕", sender: withGuard(3) })} />,
     );
     const r3 = c3.querySelector('[data-event-id="dm:g3"]') as HTMLElement;
-    expect(r3.className).toContain("bg-eye/[0.5%]");
+    expect(r3.className).toContain("bg-eye/10");
     expect(r3.className).toContain("rounded-md");
     cleanup();
 
     const { container: c2 } = render(
       <DanmakuItem event={makeEvent({ eventId: "dm:g2", type: "danmaku", content: "提督弹幕", sender: withGuard(2) })} />,
     );
-    expect((c2.querySelector('[data-event-id="dm:g2"]') as HTMLElement).className).toContain("bg-flower/[0.5%]");
+    expect((c2.querySelector('[data-event-id="dm:g2"]') as HTMLElement).className).toContain("bg-flower/10");
     cleanup();
 
     const { container: c1 } = render(
       <DanmakuItem event={makeEvent({ eventId: "dm:g1", type: "danmaku", content: "总督弹幕", sender: withGuard(1) })} />,
     );
-    expect((c1.querySelector('[data-event-id="dm:g1"]') as HTMLElement).className).toContain("bg-crimson/[0.5%]");
+    expect((c1.querySelector('[data-event-id="dm:g1"]') as HTMLElement).className).toContain("bg-crimson/10");
   });
 
   it("无等级/未知等级发送者不渲染船型背景（无 tint 类与圆角）", () => {

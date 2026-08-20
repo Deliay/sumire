@@ -46,17 +46,17 @@ export function guardLevelTone(level: number): { bar: string; chip: string; text
 }
 
 /**
- * 弹幕条目船型淡色背景：舰长蓝（eye）/提督紫（flower）/总督红（crimson）0.5% 透明度；
+ * 弹幕条目船型淡色背景：舰长蓝（eye）/提督紫（flower）/总督红（crimson）10% 透明度；
  * 无等级/未知等级返回 null（无背景）。类名字面量全量书写，供 Tailwind 扫描。
  */
 export function guardDanmakuTint(level: number | null | undefined): string | null {
   switch (level) {
     case 3:
-      return "bg-eye/[0.5%]";
+      return "bg-eye/10";
     case 2:
-      return "bg-flower/[0.5%]";
+      return "bg-flower/10";
     case 1:
-      return "bg-crimson/[0.5%]";
+      return "bg-crimson/10";
     default:
       return null;
   }

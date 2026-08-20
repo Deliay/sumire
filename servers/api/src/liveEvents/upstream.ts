@@ -28,6 +28,8 @@ export type LiveEventHandler = (envelope: UpstreamEnvelope) => void | Promise<vo
 
 export interface LiveEventsUpstream {
   fetchRange(types: string[], page: number, pageSize: number, minPrice?: number): Promise<UpstreamPage>;
+  /** 按关键词检索事件：代理上游 event/search。 */
+  search(params: { stringCriteria: string; page: number; pageSize: number }): Promise<UpstreamPage>;
   /** SSE 订阅：逐事件回调；流正常结束或出错时返回/抛出（由调用方决定是否重连）。 */
   subscribe(types: string[], onEvent: LiveEventHandler, signal: AbortSignal): Promise<void>;
 }
@@ -50,6 +52,14 @@ export function buildSubscribeUrl(base: string, types: string[]): string {
   return buildUrl(base, "/event/subscribe", types).toString();
 }
 
+export function buildSearchUrl(base: string, params: { stringCriteria: string; page: number; pageSize: number }): string {
+  const url = new URL(`${base.replace(/\/+$/, "")}${EVENT_API_PREFIX}/event/search`);
+  url.searchParams.set("stringCriteria", params.stringCriteria);
+  url.searchParams.set("page", String(params.page));
+  url.searchParams.set("pageSize", String(params.pageSize));
+  return url.toString();
+}
+
 /** 校验上游分页信封：items 必须是数组。 */
 function parsePage(json: unknown, page: number, pageSize: number): UpstreamPage {
   const rec = typeof json === "object" && json !== null ? (json as Record<string, unknown>) : null;
@@ -70,6 +80,14 @@ export function createLiveEventsUpstream(baseUrl: string, fetchFn?: typeof fetch
   return {
     async fetchRange(types, page, pageSize, minPrice?) {
       const res = await fetchImpl(buildRangeUrl(baseUrl, types, page, pageSize, minPrice), {
+        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+      });
+      if (!res.ok) throw new Error(`upstream status ${res.status}`);
+      return parsePage(await res.json(), page, pageSize);
+    },
+
+    async search({ stringCriteria, page, pageSize }) {
+      const res = await fetchImpl(buildSearchUrl(baseUrl, { stringCriteria, page, pageSize }), {
         signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       });
       if (!res.ok) throw new Error(`upstream status ${res.status}`);

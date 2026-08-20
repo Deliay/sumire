@@ -59,6 +59,52 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
               example: { error: "上游事件服务不可用" }
+  /api/live-events/search:
+    get:
+      summary: 按关键词检索直播事件（member 及以上）
+      description: 需登录且角色 member 及以上。服务端代理内网上游事件搜索（event/search），按 stringCriteria 在事件内容中检索，将原始信封归一化为 LiveEvent 并合并已读状态（read 字段）。上游不可达/超时/返回非法时返回 502。
+      parameters:
+        - name: stringCriteria
+          in: query
+          required: true
+          description: 搜索关键词，trim 后不能为空，长度 1–200 字符
+          schema: { type: string, minLength: 1, maxLength: 200 }
+        - name: page
+          in: query
+          description: 页码，从 1 开始
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          description: 每页条数，上限 100
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: 分页信封，items 已归一化且 read 已合并
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [total, page, pageSize, items]
+                properties:
+                  total: { type: integer, description: 符合搜索条件的事件总数 }
+                  page: { type: integer }
+                  pageSize: { type: integer }
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/LiveEvent" }
+        "400":
+          description: stringCriteria 缺失/为空/超长，或分页参数非法（page/pageSize 非正整数或 pageSize 超上限 100）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: "stringCriteria 不能为空" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "502":
+          description: 上游事件服务不可用（不可达 / 超时 / 返回非法）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: "上游事件服务不可用" }
   /api/live-events/stream:
     get:
       summary: 订阅实时直播事件流（member 及以上，SSE）

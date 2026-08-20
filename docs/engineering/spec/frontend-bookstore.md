@@ -55,3 +55,15 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 - `SuperChatItem` 容器无 `select-none`，留言气泡 `select-text cursor-text` + dblclick 隔离（stopPropagation），选中复制与双击已读互不干扰。
 - `DanmakuItem` 按 `sender.guardLevel` 经 `guardDanmakuTint`（`format.ts`，3/2/1→eye/flower/crimson 10% 透明度，其余 null）渲染淡色背景。
 - 礼物金额筛选（`giftMinPrice.ts` + `GiftFilterControl.tsx`）：localStorage `danmaku-backdoor.gift-min-price`（JSON number），Zod `z.coerce.number().finite()` 校验 + 夹取 [0,100] + 四舍五入到 0.1 步进，损坏回退 0；按钮 + 弹层（滑动条+输入框双向同步，防抖 300ms 提交，blur/Enter 立即提交）；阈值变化仅重载礼物分节（页码重置），SSE 低价礼物前端丢弃；礼物请求捕获阈值、响应比对丢弃（作用域收窄到 gift，不递增全局 generationRef）。
+
+## 弹幕检索（features/danmaku/search）
+
+- `search/api.ts`：`searchLiveEvents(criteria, page, pageSize, signal?)` 复用 `request()`（支持 AbortSignal 透传），返回 `LiveEventsPage` 口径。
+- `search/highlight.ts`：纯函数 `splitByKeyword(content, keyword)` 使用 `indexOf` 循环朴素子串切分（规避正则元字符），连续命中合并；`formatOccurredAt(iso)` 输出 `MM/DD HH:mm` 本地化短格式（danmaku 域本期新增口径）。
+- `search/useDanmakuSearch.ts`：状态 `{input, criteria, results, total, page, status, loadingMore, error, failedPage}`；输入变化防抖 300ms → criteria 触发搜索；回车 flush 立即搜索；每次请求新建 AbortController、effect 清理 abort（竞态以 abort 为准）；非追加搜索（首搜/切换关键词）起始时重置 results/total/page（loading 态显示「搜索中…」，失败时落入整页错误态，不残留旧关键词结果）；追加失败保留已有结果、清 loadingMore、记录 failedPage 供页内重试；`loadMore` append + 防重复；`results.length >= total` 隐藏「加载更多」。
+- `search/components/`：
+  - `SearchBox.tsx`：全宽输入框 + 搜索图标 + 清除按钮，`aria-label="弹幕检索关键词"`，`maxLength={200}`。
+  - `SearchResultCard.tsx`：复用 `Sender`（compact）+ `splitByKeyword` 命中段包 `<mark>`（bg-eye/30）+ emote 渲染 + `formatOccurredAt` 时间。
+  - `SearchResults.tsx`：容器 `flex flex-wrap gap-3`，卡片响应式宽度（sm:w-[calc(50%-6px)] lg:w-[calc(33.333%-8px)]）；三态（加载中/无匹配/错误+重试）+ 总数 + 末尾「加载更多」。
+- 页面：`app/backdoor/(dashboard)/danmaku/search/page.tsx`（`"use client"`：页头 + 返回看板 Link + SearchBox + SearchResults）；看板页头工具区新增「弹幕检索」Link。
+- `features/backdoor/api.ts` 的 `request()` 扩展 `signal` 选项（`fetch({ signal })`），保持既有调用零影响。

@@ -171,7 +171,7 @@ export default function FeedSection({
                       // 过渡会与补偿叠加闪回，同样禁用；仅贴顶跟随时列表变化（prepend/append/折叠）平滑平移
                       virtualizer.isScrolling || !isAtTop
                         ? "transition-none"
-                        : "transition-transform duration-100"
+                        : "transition-transform duration-50"
                     }`}
                     style={{ transform: `translateY(${virtualItem.start}px)` }}
                   >

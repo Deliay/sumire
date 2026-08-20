@@ -197,7 +197,7 @@ describe("FeedSection 插入/平移动效", () => {
     const { container } = render(<FeedSection label="弹幕" events={EVENTS.slice(0, 3)} canManage={false} />);
     const wrapper = container.querySelector('[data-event-id="dm:0"]')?.parentElement?.parentElement;
     expect(wrapper?.className).toContain("transition-transform");
-    expect(wrapper?.className).toContain("duration-100");
+    expect(wrapper?.className).toContain("duration-50");
   });
 
   it("离顶滚动后虚拟行 wrapper 禁用平移过渡（锚定补偿瞬时接管，防补偿+过渡叠加闪回）", async () => {

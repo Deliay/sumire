@@ -1,0 +1,134 @@
+{
+  "roomId": 1727076670,
+  "type": "gift_v2",
+  "occurredAt": "2026-08-20T05:36:15.173Z",
+  "liveSessionId": "21c0ff2c-138f-44d8-b7fd-0bee31d87fcf",
+  "payload": {
+    "data": {
+      "uid": 403496,
+      "uname": "Zero_Ash",
+      "face": "https://i2.hdslb.com/bfs/face/6244f01daaa0ad197cbdc337792da76632b9bfa2.jpg",
+      "nameColor": "#00D1F1",
+      "guardLevel": 3,
+      "svgaBlock": 0,
+      "medalInfo": {
+        "targetId": 1150976664,
+        "anchorRoomid": 0,
+        "medalLevel": 25,
+        "medalName": "小粉螈",
+        "medalColor": 398668,
+        "medalColorStart": 398668,
+        "medalColorEnd": 6850801,
+        "medalColorBorder": 6809855,
+        "isLighted": 1,
+        "guardLevel": 3
+      },
+      "giftList": {
+        "giftId": 31039,
+        "giftName": "牛哇牛哇",
+        "num": 1,
+        "demarcation": 1,
+        "price": 100,
+        "discountPrice": 100,
+        "totalCoin": 100,
+        "coinType": "gold",
+        "tid": "4807761822579087360",
+        "timestamp": 1787204173,
+        "superBatchGiftNum": 1,
+        "batchComboId": "batch:gift:combo_id:403496:1150976664:31039:1787204173.4476",
+        "comboResourcesId": 10,
+        "comboTotalCoin": 100,
+        "comboStayTime": 5,
+        "magnification": 1,
+        "showBatchComboSend": true,
+        "action": "投喂",
+        "effectBlock": 0,
+        "isSpecialBatch": 0,
+        "floatScResourceId": 0,
+        "critProb": 0,
+        "rcost": 984441,
+        "test": 0,
+        "faceEffectType": 0,
+        "faceEffectId": 0,
+        "isNaming": false,
+        "receiveUserInfo": {
+          "uname": "枝堇Sumire",
+          "uid": 1150976664
+        },
+        "isJoinReceiver": false,
+        "receiverUinfo": {
+          "uid": 1150976664,
+          "base": {
+            "name": "枝堇Sumire",
+            "face": "https://i0.hdslb.com/bfs/face/04c61a5b0a797d8521ae28fb4572abdb1526d48b.jpg",
+            "nameColor": 0,
+            "isMystery": false,
+            "originInfo": {
+              "name": "枝堇Sumire",
+              "face": "https://i0.hdslb.com/bfs/face/04c61a5b0a797d8521ae28fb4572abdb1526d48b.jpg"
+            },
+            "officialInfo": {
+              "role": 0,
+              "type": -1
+            }
+          }
+        },
+        "faceEffectV2": {
+          "id": 0,
+          "type": 0
+        },
+        "giftInfo": {
+          "imgBasic": "https://s1.hdslb.com/bfs/live/91ac8e35dd93a7196325f1e2052356e71d135afb.png",
+          "webp": "https://i0.hdslb.com/bfs/live/7571c8bdfcb65f9b00ab1307b2c86630f0d00859.webp",
+          "effectId": 0,
+          "hasImagedGift": 0,
+          "imgGif": "https://i0.hdslb.com/bfs/live/179f42946c1f268071800aca17f7743654af7177.gif"
+        },
+        "giftTipPrice": 0
+      },
+      "switch": true,
+      "test": 0,
+      "wealthInfo": {
+        "level": 35
+      },
+      "senderUinfo": {
+        "uid": 403496,
+        "base": {
+          "name": "Zero_Ash",
+          "face": "https://i2.hdslb.com/bfs/face/6244f01daaa0ad197cbdc337792da76632b9bfa2.jpg",
+          "nameColor": 0,
+          "isMystery": false,
+          "originInfo": {
+            "name": "Zero_Ash",
+            "face": "https://i2.hdslb.com/bfs/face/6244f01daaa0ad197cbdc337792da76632b9bfa2.jpg"
+          },
+          "officialInfo": {
+            "role": 0,
+            "type": -1
+          }
+        },
+        "medal": {
+          "name": "小粉螈",
+          "level": 25,
+          "colorStart": 398668,
+          "colorEnd": 6850801,
+          "colorBorder": 6809855,
+          "color": 398668,
+          "id": 0,
+          "type": 0,
+          "isLight": 1,
+          "ruid": 1150976664,
+          "guardLevel": 3,
+          "score": 8493,
+          "guardIcon": "https://i0.hdslb.com/bfs/live/48360c8f3b7de8031e86ff1ef4a2dfc0ec2a61c2.png",
+          "v2MedalColorStart": "#3FB4F699",
+          "v2MedalColorEnd": "#3FB4F699",
+          "v2MedalColorBorder": "#5FC7F4",
+          "v2MedalColorText": "#FFFFFF",
+          "v2MedalColorLevel": "#3FB4F6E6"
+        }
+      }
+    },
+    "raw": "{\"cmd\":\"SEND_GIFT_V2\",\"danmu\":{\"area\":1},\"data\":{\"dmscore\":952,\"pb\":\"CKjQGBIIWmVyb19Bc2gaSmh0dHBzOi8vaTIuaGRzbGIuY29tL2Jmcy9mYWNlLzYyNDRmMDFkYWFhMGFkMTk3Y2JkYzMzNzc5MmRhNzY2MzJiOWJmYTIuanBnIgcjMDBEMUYxKANCKQiYheqkBCgZMgnlsI/nsononog4zKoYQMyqGEjxkaIDUP/RnwNYAWADUu8ECL/yARIM54mb5ZOH54mb5ZOHGAEgAShkMGQ4ZEIEZ29sZEoTNDgwNzc2MTgyMjU3OTA4NzM2MFDNpJrUBlgBYjtiYXRjaDpnaWZ0OmNvbWJvX2lkOjQwMzQ5NjoxMTUwOTc2NjY0OjMxMDM5OjE3ODcyMDQxNzMuNDQ3NmgKcGR4BYUBAACAP4gBAZIBBuaKleWWgsAB+Yo86gEUCgzmnp3loIdTdW1pcmUQmIXqpASKAswBCJiF6qQEEsMBCgzmnp3loIdTdW1pcmUSSmh0dHBzOi8vaTAuaGRzbGIuY29tL2Jmcy9mYWNlLzA0YzYxYTViMGE3OTdkODUyMWFlMjhmYjQ1NzJhYmRiMTUyNmQ0OGIuanBnMloKDOaeneWgh1N1bWlyZRJKaHR0cHM6Ly9pMC5oZHNsYi5jb20vYmZzL2ZhY2UvMDRjNjFhNWIwYTc5N2Q4NTIxYWUyOGZiNDU3MmFiZGIxNTI2ZDQ4Yi5qcGc6CyD///////////8BkgIAmgLlAQpKaHR0cHM6Ly9zMS5oZHNsYi5jb20vYmZzL2xpdmUvOTFhYzhlMzVkZDkzYTcxOTYzMjVmMWUyMDUyMzU2ZTcxZDEzNWFmYi5wbmcSS2h0dHBzOi8vaTAuaGRzbGIuY29tL2Jmcy9saXZlLzc1NzFjOGJkZmNiNjVmOWIwMGFiMTMwN2IyYzg2NjMwZjBkMDA4NTkud2VicCpKaHR0cHM6Ly9pMC5oZHNsYi5jb20vYmZzL2xpdmUvMTc5ZjQyOTQ2YzFmMjY4MDcxODAwYWNhMTdmNzc0MzY1NGFmNzE3Ny5naWaqAgBYAWoCCCN69AIIqNAYErsBCghaZXJvX0FzaBJKaHR0cHM6Ly9pMi5oZHNsYi5jb20vYmZzL2ZhY2UvNjI0NGYwMWRhYWEwYWQxOTdjYmRjMzM3NzkyZGE3NjYzMmI5YmZhMi5qcGcyVgoIWmVyb19Bc2gSSmh0dHBzOi8vaTIuaGRzbGIuY29tL2Jmcy9mYWNlLzYyNDRmMDFkYWFhMGFkMTk3Y2JkYzMzNzc5MmRhNzY2MzJiOWJmYTIuanBnOgsg////////////ARqvAQoJ5bCP57KJ6J6IEBkYzKoYIPGRogMo/9GfAzDMqhhIAVCYheqkBFgDYK1CakpodHRwczovL2kwLmhkc2xiLmNvbS9iZnMvbGl2ZS80ODM2MGM4ZjNiN2RlODAzMWU4NmZmMWVmNGEyZGZjMGVjMmE2MWMyLnBuZ3oJIzNGQjRGNjk5ggEJIzNGQjRGNjk5igEHIzVGQzdGNJIBByNGRkZGRkaaAQkjM0ZCNEY2RTY=\"}}"
+  }
+}

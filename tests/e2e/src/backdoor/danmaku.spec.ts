@@ -262,9 +262,9 @@ test.describe("backdoor danmaku 弹幕看板", () => {
     await expect(page).toHaveURL(/\/backdoor\/danmaku$/);
     await expect(page.getByRole("heading", { name: "弹幕看板" })).toBeVisible();
 
-    // 默认三栏：礼物 | SC+上船 | 弹幕
+    // 默认三栏：礼物 | 上船+SC | 弹幕
     await expect(page.getByRole("heading", { name: "礼物", exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "SC + 上船", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "上船 + SC", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "弹幕", exact: true })).toBeVisible();
 
     // 历史事件按栏渲染
@@ -273,8 +273,8 @@ test.describe("backdoor danmaku 弹幕看板", () => {
     await expect(page.locator('[data-event-id="gift:1"]')).toBeVisible();
     await expect(page.locator('[data-event-id="guard:1"]')).toBeVisible();
 
-    // 船员（guardLevel=3）的弹幕附带「舰长」标识
-    await expect(page.locator('[data-event-id="dm:guard"]').getByText("舰长")).toBeVisible();
+    // 船员（guardLevel=3）的弹幕附带「舰长」标识（exact：避免误匹配弹幕内容文本）
+    await expect(page.locator('[data-event-id="dm:guard"]').getByText("舰长", { exact: true })).toBeVisible();
     await expect(page.locator('[data-event-id="dm:1"]').getByText(/舰长|提督|总督/)).toHaveCount(0);
 
     // SSE 实时事件 prepend 进对应栏
@@ -293,7 +293,10 @@ test.describe("backdoor danmaku 弹幕看板", () => {
     const stub = await stubLiveEvents(page, events);
     await gotoDanmaku(page, getAccounts().admin);
 
-    const feed = page.locator(".overflow-y-auto").filter({ has: page.locator('[data-event-id="dm:1"]') });
+    // 信息流容器按栏位标题定位（不依赖具体条目：滚动后虚拟化会卸载视口外条目）
+    const feed = page
+      .locator("section", { has: page.getByRole("heading", { name: "弹幕", exact: true }) })
+      .locator(".overflow-y-auto");
     await expect(page.locator('[data-event-id="dm:1"]')).toBeVisible();
 
     // 滚动离开顶部 → 出现「回到顶部」
@@ -304,6 +307,15 @@ test.describe("backdoor danmaku 弹幕看板", () => {
     const backToTop = page.getByRole("button", { name: "回到顶部" });
     await expect(backToTop).toBeVisible();
 
+    // 滚动会触发新入行实测回填与平移过渡，等位置稳定后再取锚点基线（避免拿到过渡中的中间值）
+    await expect
+      .poll(async () => {
+        const a = await topVisibleItem(feed);
+        await page.waitForTimeout(120);
+        const b = await topVisibleItem(feed);
+        return a !== null && b !== null && a.text === b.text && Math.abs(a.offset - b.offset) < 0.5;
+      })
+      .toBe(true);
     const before = await topVisibleItem(feed);
     expect(before, "滚动后应有视口顶部条目").not.toBeNull();
 
@@ -354,8 +366,8 @@ test.describe("backdoor danmaku 弹幕看板", () => {
     await expect(target).toBeVisible();
     await expect(target).not.toHaveClass(/opacity-60/);
 
-    // 双击置灰（双击落在留言文本上，事件冒泡到条目容器，避免点到 Sender 链接）
-    await target.getByText("双击我标记已读").dblclick();
+    // 双击置灰（F3 起留言文本双击被隔离以便选中复制，直接在条目容器上派发 dblclick）
+    await target.dispatchEvent("dblclick");
     await expect(target).toHaveClass(/opacity-60/);
     await expect.poll(() => stub.writes.filter((u) => u.endsWith("/read")).length).toBe(1);
 
@@ -366,7 +378,7 @@ test.describe("backdoor danmaku 弹幕看板", () => {
     await expect(page.locator('[data-event-id="sc:101"]')).not.toHaveClass(/opacity-60/);
 
     // 再次双击取消已读，刷新后同样保持
-    await page.locator('[data-event-id="sc:100"]').getByText("双击我标记已读").dblclick();
+    await page.locator('[data-event-id="sc:100"]').dispatchEvent("dblclick");
     await expect(page.locator('[data-event-id="sc:100"]')).not.toHaveClass(/opacity-60/);
     await expect.poll(() => stub.writes.filter((u) => u.endsWith("/unread")).length).toBe(1);
     await page.reload();
@@ -402,6 +414,42 @@ test.describe("backdoor danmaku 弹幕看板", () => {
     await expect(page.locator('[data-event-id="sc:201"]')).toHaveClass(/opacity-60/);
   });
 
+  test("danmaku-enter-animation: 实时事件入场挂载 animate-danmaku-enter 且动画真实运行", async ({
+    page,
+  }) => {
+    const events = [danmakuEvent("dm:1", "历史弹幕")];
+    const stub = await stubLiveEvents(page, events);
+    await gotoDanmaku(page, getAccounts().admin);
+    await expect(page.locator('[data-event-id="dm:1"]')).toBeVisible();
+
+    // 历史首屏条目不触发入场动效
+    await expect(page.locator(".animate-danmaku-enter")).toHaveCount(0);
+
+    // 四类实时事件（契约同构 mock 体）逐一推送，均应有入场动效
+    const liveEvents: MockLiveEvent[] = [
+      danmakuEvent("dm:anim", "实时弹幕动效"),
+      scEvent("sc:anim", "实时SC动效"),
+      giftEvent("gift:anim", "节奏风暴"),
+      guardEvent("guard:anim"),
+    ];
+    for (const event of liveEvents) {
+      await stub.push(event);
+      const wrapper = page
+        .locator(".animate-danmaku-enter")
+        .filter({ has: page.locator(`[data-event-id="${event.eventId}"]`) });
+      await expect(wrapper).toHaveCount(1);
+      // 真实浏览器中断言 CSS 动画已应用于该节点（danmaku-enter keyframes）
+      const animationNames = await wrapper.evaluate((el) =>
+        el.getAnimations().map((a) => (a as CSSAnimation).animationName),
+      );
+      expect(animationNames).toContain("danmaku-enter");
+    }
+
+    // freshIds 300ms 批量清除：动效类随之移除，条目保留
+    await expect(page.locator(".animate-danmaku-enter")).toHaveCount(0);
+    await expect(page.locator('[data-event-id="dm:anim"]')).toBeVisible();
+  });
+
   test("danmaku-member-readonly: member 账号不见已读交互（无双击置灰、无全部已读按钮）", async ({
     page,
   }) => {
@@ -418,41 +466,45 @@ test.describe("backdoor danmaku 弹幕看板", () => {
 
     // 无双击已读交互：无提示 title，双击不产生写请求、不置灰
     await expect(sc).not.toHaveAttribute("title", "双击切换已读");
-    await sc.getByText("member 只读醒目留言").dblclick();
+    await sc.dispatchEvent("dblclick");
     await page.waitForTimeout(500);
     expect(stub.writes).toHaveLength(0);
     await expect(sc).not.toHaveClass(/opacity-60/);
   });
 
-  test("danmaku-column-config: 混排/分栏切换后刷新保留（localStorage 持久化）", async ({
+  test("danmaku-column-config: 分栏/混排切换后刷新保留（localStorage 持久化）", async ({
     page,
   }) => {
     const events = [scEvent("sc:400", "栏位配置页SC"), guardEvent("guard:400")];
     await stubLiveEvents(page, events);
     await gotoDanmaku(page, getAccounts().admin);
 
-    // 默认 SC+上船 栏为混排：SC 与上船同栏渲染
+    // 默认 上船+SC 栏为分栏：上船 / SC 上下分两小节（标签按 types 顺序）
     await expect(page.locator('[data-event-id="sc:400"]')).toBeVisible();
     await expect(page.locator('[data-event-id="guard:400"]')).toBeVisible();
+    await expect(page.locator(".text-xs.font-medium.text-ink-dim")).toHaveText(["上船", "SC"]);
 
-    // 打开 SC+上船 栏配置，默认「混排」选中
-    await page.getByRole("button", { name: "配置「SC + 上船」栏" }).click();
-    await expect(page.getByRole("radio", { name: "混排" })).toBeChecked();
+    // 打开 上船+SC 栏配置，默认「分栏」选中
+    await page.getByRole("button", { name: "配置「上船 + SC」栏" }).click();
+    await expect(page.getByRole("radio", { name: "分栏" })).toBeChecked();
 
-    // 切到「分栏」：SC / 上船 上下分栏（出现两小节标签）
-    await page.getByRole("radio", { name: "分栏" }).check();
-    await expect(page.locator(".text-xs.font-medium.text-ink-dim")).toHaveText(["SC", "上船"]);
+    // 切到「混排」：小节合并，标签消失，两事件仍同栏渲染
+    await page.getByRole("radio", { name: "混排" }).check();
+    await expect(page.locator(".text-xs.font-medium.text-ink-dim")).toHaveCount(0);
+    await expect(page.locator('[data-event-id="sc:400"]')).toBeVisible();
+    await expect(page.locator('[data-event-id="guard:400"]')).toBeVisible();
 
     const stored = await page.evaluate(() => localStorage.getItem("danmaku-backdoor.columns"));
     expect(stored).not.toBeNull();
     expect(JSON.parse(stored!)).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: "sc_guard", types: ["super_chat", "guard_buy"], mode: "split" }),
+        expect.objectContaining({ id: "guard_sc", types: ["guard_buy", "super_chat"], mode: "mixed" }),
       ]),
     );
 
-    // 刷新后仍分栏
+    // 刷新后仍混排
     await page.reload();
-    await expect(page.locator(".text-xs.font-medium.text-ink-dim")).toHaveText(["SC", "上船"]);
+    await expect(page.locator('[data-event-id="sc:400"]')).toBeVisible();
+    await expect(page.locator(".text-xs.font-medium.text-ink-dim")).toHaveCount(0);
   });
 });

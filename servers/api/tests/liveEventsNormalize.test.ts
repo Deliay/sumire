@@ -3,6 +3,7 @@ import { toLiveEvent } from "../src/liveEvents/normalize";
 import danmakuFixture from "./fixtures/live-events/danmaku.json";
 import superChatFixture from "./fixtures/live-events/super_chat.json";
 import giftFixture from "./fixtures/live-events/gift.json";
+import giftV2Fixture from "./fixtures/live-events/gift_v2.json";
 import guardBuyFixture from "./fixtures/live-events/guard_buy.json";
 
 function clone<T>(value: T): T {
@@ -99,6 +100,27 @@ describe("toLiveEvent 四类事件映射（实测样本夹具）", () => {
     });
   });
 
+  it("gift_v2：金瓜子 comboTotalCoin/1000、eventId 用 batchComboId、类型归一化为 gift", () => {
+    const e = toLiveEvent(clone(giftV2Fixture));
+    expect(e).not.toBeNull();
+    expect(e).toEqual({
+      eventId: "gift:batch:gift:combo_id:403496:1150976664:31039:1787204173.4476",
+      type: "gift",
+      occurredAt: "2026-08-20T05:36:15.173Z",
+      sender: {
+        uid: 403496,
+        name: "Zero_Ash",
+        nameRomaji: null,
+        face: "https://i2.hdslb.com/bfs/face/6244f01daaa0ad197cbdc337792da76632b9bfa2.jpg",
+        medal: { name: "小粉螈", level: 25, color: "#06154c" },
+        guardLevel: 3,
+      },
+      price: 0.1,
+      gift: { name: "牛哇牛哇", count: 1, iconUrl: "https://s1.hdslb.com/bfs/live/91ac8e35dd93a7196325f1e2052356e71d135afb.png" },
+      read: false,
+    });
+  });
+
   it("gift：img_basic 缺失或为空时不下发 iconUrl", () => {
     for (const icon of [undefined, ""]) {
       const fixture = clone(giftFixture) as Record<string, any>;
@@ -106,6 +128,81 @@ describe("toLiveEvent 四类事件映射（实测样本夹具）", () => {
       else fixture.payload.data.img_basic = icon;
       expect(toLiveEvent(fixture)?.gift).toEqual({ name: "打call", count: 3 });
     }
+  });
+
+  it("gift_v2：imgBasic 缺失或为空时不下发 iconUrl", () => {
+    for (const icon of [undefined, ""]) {
+      const fixture = clone(giftV2Fixture) as Record<string, any>;
+      const giftList = fixture.payload.data.giftList;
+      if (icon === undefined) delete giftList.giftInfo.imgBasic;
+      else giftList.giftInfo.imgBasic = icon;
+      expect(toLiveEvent(fixture)?.gift).toEqual({ name: "牛哇牛哇", count: 1 });
+    }
+  });
+
+  it("gift_v2：银瓜子（coinType=silver）金额为 0", () => {
+    const fixture = clone(giftV2Fixture) as Record<string, any>;
+    fixture.payload.data.giftList.coinType = "silver";
+    const e = toLiveEvent(fixture);
+    expect(e?.price).toBe(0);
+  });
+
+  it("gift_v2：缺 batchComboId 时回退 uid:giftId:timestamp", () => {
+    const fixture = clone(giftV2Fixture) as Record<string, any>;
+    delete fixture.payload.data.giftList.batchComboId;
+    const e = toLiveEvent(fixture);
+    expect(e?.eventId).toBe("gift:403496:31039:1787204173");
+  });
+
+  it("gift_v2：senderUinfo.medal 优先于 medalInfo", () => {
+    const fixture = clone(giftV2Fixture) as Record<string, any>;
+    fixture.payload.data.senderUinfo.medal = { name: "测试牌子", level: 1, color: 123456 };
+    const e = toLiveEvent(fixture);
+    expect(e?.sender.medal?.name).toBe("测试牌子");
+    expect(e?.sender.medal?.color).toBe("#01e240");
+  });
+
+  it("gift_v2：data.guardLevel 优先于 senderUinfo.medal.guardLevel", () => {
+    const fixture = clone(giftV2Fixture) as Record<string, any>;
+    fixture.payload.data.guardLevel = 2;
+    fixture.payload.data.senderUinfo.medal = { guardLevel: 3 };
+    const e = toLiveEvent(fixture);
+    expect(e?.sender.guardLevel).toBe(2);
+  });
+
+  it("gift_v2：guardLevel 为 0 或缺位时 sender.guardLevel 为 null", () => {
+    const fixture = clone(giftV2Fixture) as Record<string, any>;
+    fixture.payload.data.guardLevel = 0;
+    expect(toLiveEvent(fixture)?.sender.guardLevel).toBeNull();
+    delete fixture.payload.data.guardLevel;
+    delete fixture.payload.data.senderUinfo.medal.guardLevel;
+    expect(toLiveEvent(fixture)?.sender.guardLevel).toBeNull();
+  });
+});
+
+describe("toLiveEvent gift_v2 事件归一化", () => {
+  it("gift_v2：senderUinfo.medal 缺失时回退 medalInfo", () => {
+    const fixture = clone(giftV2Fixture) as Record<string, any>;
+    delete fixture.payload.data.senderUinfo.medal;
+    const e = toLiveEvent(fixture);
+    expect(e?.sender.medal?.name).toBe("小粉螈");
+    expect(e?.sender.medal?.level).toBe(25);
+    expect(e?.sender.medal?.color).toBe("#06154c");
+  });
+
+  it("gift_v2：medalInfo 也缺失时 medal 为 null", () => {
+    const fixture = clone(giftV2Fixture) as Record<string, any>;
+    delete fixture.payload.data.senderUinfo.medal;
+    delete fixture.payload.data.medalInfo;
+    const e = toLiveEvent(fixture);
+    expect(e?.sender.medal).toBeNull();
+  });
+
+  it("gift_v2：牌子名为空时 medal 为 null", () => {
+    const fixture = clone(giftV2Fixture) as Record<string, any>;
+    fixture.payload.data.senderUinfo.medal.name = "";
+    const e = toLiveEvent(fixture);
+    expect(e?.sender.medal).toBeNull();
   });
 });
 

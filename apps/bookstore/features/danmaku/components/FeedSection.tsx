@@ -21,6 +21,10 @@ interface FeedSectionProps {
   onToggleRead?: (event: LiveEvent) => void;
   /** 实时流到达的 SC/上船 eventId → type 映射，用于「New」标记。 */
   newIds?: ReadonlyMap<string, LiveEventType>;
+  /** 弹幕合并开关（默认 false 逐条渲染；true 时折叠相邻/重复弹幕并展示「×N」）。 */
+  mergeEnabled?: boolean;
+  /** SSE 实时插入的事件 id 集合：命中行挂入场动画（动画结束后由看板清除）。 */
+  freshIds?: ReadonlySet<string>;
   /** 空态文案（默认「暂无事件」）。 */
   emptyText?: string;
   /** 本小节历史加载中（无事件时展示骨架）。 */
@@ -48,6 +52,8 @@ export default function FeedSection({
   canManage,
   onToggleRead,
   newIds = new Map(),
+  mergeEnabled = false,
+  freshIds = new Set(),
   emptyText = "暂无事件",
   loading = false,
   error = null,
@@ -56,12 +62,15 @@ export default function FeedSection({
   hasMore = false,
   loadingMore = false,
 }: FeedSectionProps) {
-  const { containerRef, showBackToTop, handleScroll, scrollToTop } = useAnchoredFeed();
+  const { containerRef, showBackToTop, isAtTop, handleScroll, scrollToTop } = useAnchoredFeed();
 
-  // 相邻重复弹幕折叠为一行（展示计数）；非弹幕原样透传。
-  const rows = useMemo<MergedDanmaku[]>(() => mergeDanmaku(events), [events]);
-  // 折叠使可视行减少（rows.length < events.length）
-  const folded = rows.length < events.length;
+  // 合并开关开启时相邻/重复弹幕折叠为一行（展示计数）；关闭时逐条渲染（count 恒 1，无「×N」）。
+  const rows = useMemo<MergedDanmaku[]>(
+    () => (mergeEnabled ? mergeDanmaku(events) : events.map((event) => ({ event, count: 1 }))),
+    [events, mergeEnabled],
+  );
+  // 折叠使可视行减少（rows.length < events.length）；合并关闭时不折叠
+  const folded = mergeEnabled && rows.length < events.length;
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -157,10 +166,25 @@ export default function FeedSection({
                     key={virtualItem.key}
                     data-index={virtualItem.index}
                     ref={virtualizer.measureElement}
-                    className="absolute top-0 left-0 w-full border-b border-vine/30"
+                    className={`absolute top-0 left-0 w-full border-b border-vine/30 ${
+                      // 滚动中禁用过渡避免 transform 滞后抖动；离顶时 prepend 由锚定补偿瞬时保持内容，
+                      // 过渡会与补偿叠加闪回，同样禁用；仅贴顶跟随时列表变化（prepend/append/折叠）平滑平移
+                      virtualizer.isScrolling || !isAtTop
+                        ? "transition-none"
+                        : "transition-transform duration-50"
+                    }`}
                     style={{ transform: `translateY(${virtualItem.start}px)` }}
                   >
-                    {renderItem(row)}
+                    {/* 入场动画挂内层（translateY(-8px) 不改行高），不干扰被 measureElement 测量的 wrapper */}
+                    <div
+                      className={
+                        freshIds.has(row.event.eventId)
+                          ? "animate-danmaku-enter"
+                          : undefined
+                      }
+                    >
+                      {renderItem(row)}
+                    </div>
                   </div>
                 );
               })}

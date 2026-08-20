@@ -18,6 +18,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/backdoor", label: "仪表盘", roles: ["superadmin", "admin", "member"] },
   { href: "/backdoor/schedule", label: "直播计划", roles: ["superadmin", "admin", "member"] },
   { href: "/backdoor/danmaku", label: "弹幕看板", roles: ["superadmin", "admin", "member"] },
+  { href: "/backdoor/danmaku/search", label: "弹幕检索", roles: ["superadmin", "admin", "member"] },
   { href: "/backdoor/users", label: "用户管理", roles: ["superadmin"] },
 ];
 
@@ -26,14 +27,15 @@ export default function SideNav({ role }: SideNavProps) {
   const pathname = usePathname();
   const items = NAV_ITEMS.filter((item) => item.roles.includes(role));
 
+  const activeHref = items
+    .filter((item) => pathname === item.href || pathname.startsWith(item.href + "/"))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
+
   return (
     <nav className="w-full border-r border-vine/50 bg-night lg:w-48" aria-label="后台导航">
       <ul className="flex flex-col gap-1 p-3 lg:sticky lg:top-0">
         {items.map((item) => {
-          const active =
-            item.href === "/backdoor"
-              ? pathname === "/backdoor"
-              : pathname.startsWith(item.href);
+          const active = item.href === activeHref;
           return (
             <li key={item.href}>
               <Link

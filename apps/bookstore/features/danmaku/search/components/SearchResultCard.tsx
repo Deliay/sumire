@@ -4,13 +4,16 @@ import type { LiveEvent } from "../../types";
 import { splitByKeyword, formatOccurredAt } from "../highlight";
 import { guardDanmakuTint } from "../../format";
 import Sender from "../../components/Sender";
+import SuperChatItem from "../../components/SuperChatItem";
+import GiftItem from "../../components/GiftItem";
+import GuardItem from "../../components/GuardItem";
 
 interface SearchResultCardProps {
   event: LiveEvent;
   keyword: string;
 }
 
-export default function SearchResultCard({ event, keyword }: SearchResultCardProps) {
+function DanmakuCard({ event, keyword }: { event: LiveEvent; keyword: string }) {
   const tint = guardDanmakuTint(event.sender.guardLevel);
   const content = event.content ?? "";
   const segments = splitByKeyword(content, keyword);
@@ -49,4 +52,31 @@ export default function SearchResultCard({ event, keyword }: SearchResultCardPro
       </div>
     </div>
   );
+}
+
+export default function SearchResultCard({ event, keyword }: SearchResultCardProps) {
+  switch (event.type) {
+    case "danmaku":
+      return <DanmakuCard event={event} keyword={keyword} />;
+    case "super_chat":
+      return (
+        <div className="w-full sm:w-[calc(50%-6px)] lg:w-[calc(33.333%-8px)]">
+          <SuperChatItem event={event} highlightKeyword={keyword} />
+        </div>
+      );
+    case "gift":
+      return (
+        <div className="w-full sm:w-[calc(50%-6px)] lg:w-[calc(33.333%-8px)]">
+          <GiftItem event={event} />
+        </div>
+      );
+    case "guard_buy":
+      return (
+        <div className="w-full sm:w-[calc(50%-6px)] lg:w-[calc(33.333%-8px)]">
+          <GuardItem event={event} />
+        </div>
+      );
+    default:
+      return <DanmakuCard event={event} keyword={keyword} />;
+  }
 }

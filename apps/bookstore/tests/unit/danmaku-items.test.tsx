@@ -215,6 +215,41 @@ describe("SuperChatItem", () => {
     expect(screen.getByText("首播加油")).toBeTruthy();
     expect(screen.getByText("shubi otsukaresama")).toBeTruthy();
   });
+
+  it("highlightKeyword 非空时留言命中子串包 <mark>，罗马音行无 <mark>", () => {
+    render(<SuperChatItem event={{ ...sc, content: "首播加油，今天也要加油哦" }} highlightKeyword="加油" />);
+    // 应包含两个高亮 mark（"加油" 出现两次）
+    const marks = screen.getAllByText("加油");
+    expect(marks.length).toBe(2);
+    marks.forEach((mark) => {
+      expect(mark.tagName).toBe("MARK");
+      expect(mark.className).toContain("rounded-sm");
+      expect(mark.className).toContain("bg-eye/30");
+      expect(mark.className).toContain("px-0.5");
+    });
+    // 罗马音行无 mark
+    render(<SuperChatItem event={{ ...sc, content: "首播加油", contentRomaji: "shubi otsukaresama" }} highlightKeyword="加油" />);
+    const romaji = screen.getByText("shubi otsukaresama");
+    expect(romaji.tagName).not.toBe("MARK");
+    expect(romaji.className).toContain("opacity-75");
+  });
+
+  it("highlightKeyword 缺省时输出与现态逐字节一致（无高亮）", () => {
+    const { container: withKeyword } = render(
+      <SuperChatItem event={{ ...sc, content: "首播加油" }} highlightKeyword="加油" />,
+    );
+    const { container: withoutKeyword } = render(
+      <SuperChatItem event={{ ...sc, content: "首播加油" }} />,
+    );
+    // 两个容器的留言内容 HTML 应一致（无高亮 vs 有高亮）
+    const withMark = withKeyword.querySelector("mark");
+    const withoutMark = withoutKeyword.querySelector("mark");
+    expect(withMark).toBeTruthy();
+    expect(withoutMark).toBeNull();
+    // 留言文本应相同
+    expect(withKeyword.textContent).toContain("首播加油");
+    expect(withoutKeyword.textContent).toContain("首播加油");
+  });
 });
 
 describe("GiftItem", () => {

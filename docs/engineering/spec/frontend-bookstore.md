@@ -63,7 +63,10 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 - `search/useDanmakuSearch.ts`：状态 `{input, criteria, results, total, page, status, loadingMore, error, failedPage}`；输入变化防抖 300ms → criteria 触发搜索；回车 flush 立即搜索；每次请求新建 AbortController、effect 清理 abort（竞态以 abort 为准）；非追加搜索（首搜/切换关键词）起始时重置 results/total/page（loading 态显示「搜索中…」，失败时落入整页错误态，不残留旧关键词结果）；追加失败保留已有结果、清 loadingMore、记录 failedPage 供页内重试；`loadMore` append + 防重复；`results.length >= total` 隐藏「加载更多」。
 - `search/components/`：
   - `SearchBox.tsx`：全宽输入框 + 搜索图标 + 清除按钮，`aria-label="弹幕检索关键词"`，`maxLength={200}`。
-  - `SearchResultCard.tsx`：复用 `Sender`（compact）+ `splitByKeyword` 命中段包 `<mark>`（bg-eye/30）+ emote 渲染 + `formatOccurredAt` 时间。
-  - `SearchResults.tsx`：容器 `flex flex-wrap gap-3`，卡片响应式宽度（sm:w-[calc(50%-6px)] lg:w-[calc(33.333%-8px)]）；三态（加载中/无匹配/错误+重试）+ 总数 + 末尾「加载更多」。
-- 页面：`app/backdoor/(dashboard)/danmaku/search/page.tsx`（`"use client"`：页头 + 返回看板 Link + SearchBox + SearchResults）；看板页头工具区新增「弹幕检索」Link。
+  - `SearchResultCard.tsx`：按 `event.type` 分发渲染——`danmaku` 走 `DanmakuCard`（复用 `Sender` compact + `splitByKeyword` 命中段包 `<mark>` bg-eye/30 + emote 渲染 + `formatOccurredAt`）、`super_chat` 走 `SuperChatItem` 传入 `highlightKeyword`、`gift` 走 `GiftItem`、`guard_buy` 走 `GuardItem`；容器响应式宽度（sm:w-[calc(50%-6px)] lg:w-[calc(33.333%-8px)]）。
+  - `SuperChatItem`（复用看板组件）：新增可选 `highlightKeyword` 入参，非空时留言命中子串以 `<mark>` bg-eye/30 高亮；罗马音行不高亮；缺省时输出与现态一致。
+  - `SearchResults.tsx`：容器 `flex flex-wrap gap-3`，三态（加载中/无匹配/错误+重试）+ 总数 + 末尾「加载更多」。
+- 页面：`app/backdoor/(dashboard)/danmaku/search/page.tsx`（`"use client"`：页头 + 返回看板 Link + SearchBox + SearchResults）。
+- SideNav `NAV_ITEMS` 已注册「弹幕检索」为一级导航项（全角色可见），选中态通过最长前缀匹配（`pathname.startsWith(href)` + href 长度降序）判定。
+- 只读口径：检索页不挂载已读交互，不调用 `markLiveEventRead` 等写接口。
 - `features/backdoor/api.ts` 的 `request()` 扩展 `signal` 选项（`fetch({ signal })`），保持既有调用零影响。

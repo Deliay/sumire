@@ -39,6 +39,11 @@ function parseTypesParam(value: unknown): { ok: boolean; types: string[] } {
   return { ok: true, types };
 }
 
+/** 契约 type → 上游 type 查询参数：gift 并入 gift_v2 来源（前端透明）。 */
+function toUpstreamTypes(types: string[]): string[] {
+  return types.flatMap((t) => (t === "gift" ? ["gift", "gift_v2"] : [t]));
+}
+
 /** 分页参数：缺省回退 fallback；非正整数或超过 max 返回 null（由调用方 400）。 */
 function parsePageParam(value: unknown, fallback: number, max?: number): number | null {
   if (value === undefined) return fallback;
@@ -106,10 +111,11 @@ export function createLiveEventsRouter(deps: LiveEventsRouterDeps): Router {
       return;
     }
     let upstreamPage;
+    const upstreamTypes = toUpstreamTypes(types.types);
     try {
       upstreamPage = minPrice !== undefined
-        ? await deps.upstream.fetchRange(types.types, page, pageSize, minPrice)
-        : await deps.upstream.fetchRange(types.types, page, pageSize);
+        ? await deps.upstream.fetchRange(upstreamTypes, page, pageSize, minPrice)
+        : await deps.upstream.fetchRange(upstreamTypes, page, pageSize);
     } catch (err) {
       upstreamUnavailable(res, err);
       return;
@@ -180,7 +186,8 @@ export function createLiveEventsRouter(deps: LiveEventsRouterDeps): Router {
           await send(envelope);
         };
         try {
-          await deps.upstream.subscribe(types.types, trackedSend, controller.signal);
+          const upstreamTypes = toUpstreamTypes(types.types);
+          await deps.upstream.subscribe(upstreamTypes, trackedSend, controller.signal);
         } catch (err) {
           if (controller.signal.aborted) break;
           console.warn("[liveEvents] 上游订阅中断，退避重连:", err instanceof Error ? err.message : err);

@@ -64,6 +64,64 @@ describe("useAnchoredFeed", () => {
     expect(el.scrollTop).toBe(0);
   });
 
+  it("prepend 估算补偿后，新行实测回填回缩时回退多补的部分", () => {
+    const { result, rerender } = renderHook(() => useAnchoredFeed());
+    const el = makeScrollable(0, 1000);
+    act(() => {
+      result.current.containerRef.current = el;
+    });
+    rerender(); // 基线 1000
+
+    // prepend：新行无实测缓存，先按估算高度 +72 补偿
+    el.scrollTop = 300;
+    el.scrollHeight = 1072;
+    rerender();
+    expect(el.scrollTop).toBe(372);
+
+    // 新行实测回填（实际 29.2px）：总高回缩 42.8，回退多补的部分
+    el.scrollHeight = 1029.2;
+    rerender();
+    expect(el.scrollTop).toBeCloseTo(329.2, 5);
+  });
+
+  it("补偿与实测回填之间夹带 diff=0 的中间渲染（如 isScrolling）不影响回退", () => {
+    const { result, rerender } = renderHook(() => useAnchoredFeed());
+    const el = makeScrollable(0, 1000);
+    act(() => {
+      result.current.containerRef.current = el;
+    });
+    rerender(); // 基线 1000
+
+    el.scrollTop = 300;
+    el.scrollHeight = 1072;
+    rerender();
+    expect(el.scrollTop).toBe(372);
+
+    // 补偿改写 scrollTop 触发的 isScrolling 中间渲染：高度未变
+    rerender();
+    expect(el.scrollTop).toBe(372);
+
+    // 实测回填回缩仍需回退
+    el.scrollHeight = 1029.2;
+    rerender();
+    expect(el.scrollTop).toBeCloseTo(329.2, 5);
+  });
+
+  it("无前置 prepend 补偿的高度回缩不调整（滚动加载实测回填场景）", () => {
+    const { result, rerender } = renderHook(() => useAnchoredFeed());
+    const el = makeScrollable(0, 1000);
+    act(() => {
+      result.current.containerRef.current = el;
+    });
+    rerender(); // 基线 1000
+
+    // 滚动中新渲染条目实测小于估算：总高回缩，不得补偿（避免滚动中视口跳动）
+    el.scrollTop = 300;
+    el.scrollHeight = 950;
+    rerender();
+    expect(el.scrollTop).toBe(300);
+  });
+
   it("scrollTop > 200 时显示回到顶部，scrollToTop 回滚到顶", () => {
     const { result } = renderHook(() => useAnchoredFeed());
     const el = makeScrollable(0, 2000);
@@ -88,5 +146,26 @@ describe("useAnchoredFeed", () => {
       result.current.handleScroll();
     });
     expect(result.current.showBackToTop).toBe(false);
+  });
+
+  it("isAtTop：初始贴顶，滚动离开后 false，回到顶部后恢复 true", () => {
+    const { result } = renderHook(() => useAnchoredFeed());
+    const el = makeScrollable(0, 2000);
+    act(() => {
+      result.current.containerRef.current = el;
+    });
+    expect(result.current.isAtTop).toBe(true);
+
+    act(() => {
+      el.scrollTop = ANCHOR_THRESHOLD + 1;
+      result.current.handleScroll();
+    });
+    expect(result.current.isAtTop).toBe(false);
+
+    act(() => {
+      el.scrollTop = ANCHOR_THRESHOLD;
+      result.current.handleScroll();
+    });
+    expect(result.current.isAtTop).toBe(true);
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, forwardRef, useImperativeHandle } from "react";
 import { useSession } from "@/features/backdoor/session";
 import { atLeast } from "@/features/backdoor/roleAccess";
 import type { ApiError } from "@/features/backdoor/api";
@@ -14,6 +14,7 @@ import {
   type ReadAllType,
 } from "../api";
 import { loadGiftMinPrice, saveGiftMinPrice } from "../giftMinPrice";
+import { loadMergeEnabled, saveMergeEnabled } from "../mergeEnabled";
 import {
   getColumnsServerSnapshot,
   getColumnsSnapshot,
@@ -44,6 +45,9 @@ const NEW_MARK_TYPES: readonly LiveEventType[] = ["super_chat", "guard_buy"];
 /** 历史检索每页条数（后端 pageSize 上限 100）。 */
 const PAGE_SIZE = 100;
 
+/** 入场动画批量清除延迟（ms）：动画 50ms + 余量；高密度连续插入时新批次重置计时器。 */
+const FRESH_ANIMATION_MS = 300;
+
 function dedupeById(events: LiveEvent[]): LiveEvent[] {
   const seen = new Set<string>();
   return events.filter((e) => {
@@ -66,13 +70,22 @@ interface DanmakuDashboardProps {
   isFullscreen?: boolean;
 }
 
+/** DanmakuDashboard 暴露给父组件的 imperative handle。 */
+export interface DanmakuDashboardHandle {
+  /** 回放指定类型的历史事件（模拟 SSE 发布）。 */
+  replayTest: (type: LiveEventType) => Promise<void>;
+}
+
 /** 单栏检索：进入 loading（移出已加载），失败记错误态，成功写入去重后条目。
  * 按「栏 + 类型」分别加载（一个分栏勾选的每种事件类型各自独立请求）。 */
 function sectionKey(colId: string, type: LiveEventType): string {
   return `${colId}:${type}`;
 }
 
-export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashboardProps) {
+const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProps>(function DanmakuDashboard(
+  { isFullscreen = false },
+  ref,
+) {
   const { session } = useSession();
   const canManage = session.status === "authenticated" && atLeast(session.me.role, "admin");
 
@@ -103,12 +116,43 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
   // 实时流到达的 SC/上船事件 eventId → type 集合（读后清除，用于「New」标记）
   const [newIds, setNewIds] = useState<ReadonlyMap<string, LiveEventType>>(new Map());
 
+  // SSE 实际插入分节的事件 id 集合（入场动画标记，单计时器 300ms 后批量清除）
+  const [freshIds, setFreshIds] = useState<ReadonlySet<string>>(new Set());
+  const freshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 清除逻辑走 ref，避免计时器闭包持有陈旧 state
+  const clearFreshRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    clearFreshRef.current = () => {
+      freshTimerRef.current = null;
+      setFreshIds(new Set());
+    };
+  });
+  useEffect(() => {
+    return () => {
+      if (freshTimerRef.current) clearTimeout(freshTimerRef.current);
+    };
+  }, []);
+
+  // 事件列表镜像（供 handleStreamEvent 在 setState 前判定「实际插入/去重跳过」）
+  const eventsBySectionRef = useRef(eventsBySection);
+  useEffect(() => {
+    eventsBySectionRef.current = eventsBySection;
+  }, [eventsBySection]);
+
   // 礼物最低金额筛选
   const [minPrice, setMinPrice] = useState(() => loadGiftMinPrice());
   const minPriceRef = useRef(minPrice);
   useEffect(() => {
     minPriceRef.current = minPrice;
   }, [minPrice]);
+
+  // 弹幕合并开关（默认关闭，localStorage 持久化；切换即时生效不重新检索）
+  const [mergeEnabled, setMergeEnabled] = useState(() => loadMergeEnabled());
+  const handleMergeEnabledChange = useCallback(() => {
+    const next = !mergeEnabled;
+    saveMergeEnabled(next);
+    setMergeEnabled(next);
+  }, [mergeEnabled]);
 
   // 检索代际：columns 变化时递增，旧代检索结果作废，避免竞态覆盖新栏位数据
   const generationRef = useRef(0);
@@ -220,8 +264,24 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
 
   const handleStreamEvent = useCallback(
     (event: LiveEvent) => {
-      // SSE 低价礼物丢弃
+      // SSE 低价礼物丢弃（不标记入场动画）
       if (event.type === "gift" && (event.price ?? 0) < minPriceRef.current) return;
+      // 实际插入判定：至少一个目标分节未含该 eventId；被分节去重跳过的不标记入场
+      const inserted = columns.some((col) => {
+        if (!col.types.includes(event.type)) return false;
+        const list = eventsBySectionRef.current[sectionKey(col.id, event.type)] ?? [];
+        return !list.some((e) => e.eventId === event.eventId);
+      });
+      if (inserted) {
+        setFreshIds((prev) => {
+          const next = new Set(prev);
+          next.add(event.eventId);
+          return next;
+        });
+        // 单计时器批量清除整批；新批次到达重置计时器（替换进行中动画，不叠加）
+        if (freshTimerRef.current) clearTimeout(freshTimerRef.current);
+        freshTimerRef.current = setTimeout(() => clearFreshRef.current(), FRESH_ANIMATION_MS);
+      }
       setEventsBySection((prev) => {
         const next = { ...prev };
         for (const col of columns) {
@@ -247,6 +307,37 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
   );
 
   const streamStatus = useLiveEventStream(streamTypes, handleStreamEvent);
+
+  // 回放测试：从API拉取历史数据，模拟SSE发布
+  const replayTest = useCallback(
+    async (type: LiveEventType) => {
+      const suffix = `-replay-${Date.now()}`;
+      let data: LiveEventsPage | ApiError | null = null;
+      try {
+        const res = type === "gift"
+          ? await listLiveEvents([type], 1, 100, 0)
+          : await listLiveEvents([type], 1, 100);
+        if (res.status === 200 && "items" in res.data) {
+          data = res.data;
+        }
+      } catch {
+        // 网络错误忽略
+      }
+      if (!data) return;
+      // 模拟SSE发布：逐条延迟调用handleStreamEvent
+      for (const event of data.items) {
+        const replayEvent: LiveEvent = {
+          ...event,
+          eventId: `${event.eventId}${suffix}`,
+        };
+        handleStreamEvent(replayEvent);
+        await new Promise((r) => setTimeout(r, 100));
+      }
+    },
+    [handleStreamEvent],
+  );
+
+  useImperativeHandle(ref, () => ({ replayTest }), [replayTest]);
 
   const updateEvent = useCallback((eventId: string, fn: (e: LiveEvent) => LiveEvent) => {
     setEventsBySection((prev) => {
@@ -415,6 +506,8 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
               canManage={canManage}
               onToggleRead={toggleRead}
               newIds={newIds}
+              mergeEnabled={mergeEnabled}
+              freshIds={freshIds}
               readAllTypes={col.types.filter((t): t is ReadAllType =>
                 (READ_ALL_TYPES as readonly string[]).includes(t),
               )}
@@ -430,6 +523,22 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
                     <p className="text-sm text-flower" role="status">
                       实时连接已断开
                     </p>
+                  )}
+                  {col.types.includes("danmaku") && (
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={mergeEnabled}
+                      aria-label="弹幕合并"
+                      onClick={handleMergeEnabledChange}
+                      className={`rounded-md border px-2 py-1 text-xs transition-colors duration-150 ${
+                        mergeEnabled
+                          ? "border-flower text-ink"
+                          : "border-vine/50 text-ink-dim hover:border-flower hover:text-ink"
+                      }`}
+                    >
+                      弹幕合并
+                    </button>
                   )}
                   {col.types.includes("gift") && (
                     <GiftFilterControl value={minPrice} onChange={handleMinPriceChange} />
@@ -497,4 +606,6 @@ export default function DanmakuDashboard({ isFullscreen = false }: DanmakuDashbo
       )}
     </div>
   );
-}
+});
+
+export default DanmakuDashboard;

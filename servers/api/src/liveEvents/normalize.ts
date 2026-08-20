@@ -35,7 +35,7 @@ export interface LiveEvent {
   read: boolean;
 }
 
-const EVENT_TYPES: readonly string[] = ["danmaku", "super_chat", "gift", "guard_buy"];
+const EVENT_TYPES: readonly string[] = ["danmaku", "super_chat", "gift", "gift_v2", "guard_buy"];
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -235,6 +235,86 @@ function normalizeGift(payload: Record<string, unknown>, occurredAt: string): Li
   };
 }
 
+function normalizeGiftV2(payload: Record<string, unknown>, occurredAt: string): LiveEvent | null {
+  const data = asRecord(payload.data);
+  if (!data) return null;
+
+  // gift_v2 结构：senderUinfo 包含发送者信息，giftList 包含礼物信息
+  const senderUinfo = asRecord(data.senderUinfo);
+  const giftList = asRecord(data.giftList);
+  if (!senderUinfo || !giftList) return null;
+
+  // eventId：优先 batchComboId，回退 uid:giftId:timestamp
+  const batchComboId = asString(giftList.batchComboId);
+  const uid = asNumber(senderUinfo.uid) ?? asNumber(data.uid);
+  const giftId = asNumber(giftList.giftId);
+  const timestamp = asNumber(giftList.timestamp);
+  if (uid === undefined) return null;
+
+  let id: string;
+  if (batchComboId) {
+    id = batchComboId;
+  } else if (giftId !== undefined && timestamp !== undefined) {
+    id = `${uid}:${giftId}:${timestamp}`;
+  } else {
+    return null;
+  }
+
+  // 发送者信息
+  const senderBase = asRecord(senderUinfo.base);
+  const name = asString(senderBase?.name) ?? asString(data.uname);
+  if (!name) return null;
+  const face = asString(senderBase?.face) ?? asString(data.face) ?? null;
+
+  // 金额：金瓜子 comboTotalCoin/1000，银瓜子记 0
+  const coinType = asString(giftList.coinType);
+  const price = coinType === "gold" ? (asNumber(giftList.comboTotalCoin) ?? 0) / 1000 : 0;
+
+  // 礼物信息
+  const giftName = asString(giftList.giftName) ?? "";
+  const count = asNumber(giftList.num) ?? 1;
+  const iconUrl = asString(asRecord(giftList.giftInfo)?.imgBasic) ?? asString(data.img_basic);
+
+  // 牌子：优先 senderUinfo.medal，备选 medalInfo
+  const senderMedal = asRecord(senderUinfo.medal);
+  const medalInfo = asRecord(data.medalInfo);
+  let medal: LiveEventSender["medal"] = null;
+
+  if (senderMedal) {
+    const medalName = asString(senderMedal.name);
+    if (medalName) {
+      medal = {
+        name: medalName,
+        level: asNumber(senderMedal.level) ?? 0,
+        color: medalColor(senderMedal.color),
+      };
+    }
+  } else if (medalInfo) {
+    const medalName = asString(medalInfo.medalName);
+    if (medalName) {
+      medal = {
+        name: medalName,
+        level: asNumber(medalInfo.medalLevel) ?? 0,
+        color: medalColor(medalInfo.medalColor),
+      };
+    }
+  }
+
+  // 上船等级：优先 data.guardLevel，备选 senderUinfo.medal.guardLevel
+  const rawGuardLevel = asNumber(data.guardLevel) ?? asNumber(senderMedal?.guardLevel);
+  const guardLevel = rawGuardLevel !== undefined && rawGuardLevel > 0 ? rawGuardLevel : null;
+
+  return {
+    eventId: `gift:${id}`,
+    type: "gift",
+    occurredAt,
+    sender: { uid, name, nameRomaji: null, face, medal, guardLevel },
+    price,
+    gift: { name: giftName, count, ...(iconUrl ? { iconUrl } : {}) },
+    read: false,
+  };
+}
+
 function normalizeGuardBuy(payload: Record<string, unknown>, occurredAt: string): LiveEvent | null {
   const data = asRecord(payload.data);
   if (!data) return null;
@@ -286,7 +366,9 @@ export function toLiveEvent(envelope: unknown): LiveEvent | null {
           ? normalizeSuperChat(payload, occurredAt)
           : type === "gift"
             ? normalizeGift(payload, occurredAt)
-            : normalizeGuardBuy(payload, occurredAt);
+            : type === "gift_v2"
+              ? normalizeGiftV2(payload, occurredAt)
+              : normalizeGuardBuy(payload, occurredAt);
     if (!event) throw new Error(`${type} 事件字段缺失或无法派生 eventId`);
     return event;
   } catch (err) {

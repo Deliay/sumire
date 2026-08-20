@@ -524,20 +524,22 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
                       实时连接已断开
                     </p>
                   )}
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={mergeEnabled}
-                    aria-label="弹幕合并"
-                    onClick={handleMergeEnabledChange}
-                    className={`rounded-md border px-2 py-1 text-xs transition-colors duration-150 ${
-                      mergeEnabled
-                        ? "border-flower text-ink"
-                        : "border-vine/50 text-ink-dim hover:border-flower hover:text-ink"
-                    }`}
-                  >
-                    弹幕合并
-                  </button>
+                  {col.types.includes("danmaku") && (
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={mergeEnabled}
+                      aria-label="弹幕合并"
+                      onClick={handleMergeEnabledChange}
+                      className={`rounded-md border px-2 py-1 text-xs transition-colors duration-150 ${
+                        mergeEnabled
+                          ? "border-flower text-ink"
+                          : "border-vine/50 text-ink-dim hover:border-flower hover:text-ink"
+                      }`}
+                    >
+                      弹幕合并
+                    </button>
+                  )}
                   {col.types.includes("gift") && (
                     <GiftFilterControl value={minPrice} onChange={handleMinPriceChange} />
                   )}

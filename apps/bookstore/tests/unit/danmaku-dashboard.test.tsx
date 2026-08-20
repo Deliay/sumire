@@ -355,11 +355,12 @@ describe("DanmakuDashboard", () => {
     expect(window.localStorage.getItem(COLUMNS_STORAGE_KEY)).toBeNull();
   });
 
-  it("各栏工具区渲染「弹幕合并」开关（role=switch），默认 aria-checked=false", async () => {
+  it("「弹幕合并」开关仅在勾选弹幕类型的栏工具区渲染（默认三栏仅弹幕栏），默认 aria-checked=false", async () => {
     render(<DanmakuDashboard />);
     await screen.findByText("弹幕一");
+    // 默认三栏「礼物 | 上船+SC | 弹幕」：仅弹幕栏含 danmaku 类型，只渲染一个开关
     const switches = screen.getAllByRole("switch", { name: "弹幕合并" });
-    expect(switches.length).toBeGreaterThan(0);
+    expect(switches).toHaveLength(1);
     for (const sw of switches) expect(sw.getAttribute("aria-checked")).toBe("false");
   });
 

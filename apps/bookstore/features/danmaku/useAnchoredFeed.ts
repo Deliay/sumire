@@ -34,10 +34,16 @@ interface AnchoredFeed {
 /**
  * 倒序信息流滚动锚定（提案 K4）：新事件 prepend 到顶部导致 scrollHeight 增长后，
  * 若用户已离开顶部则按 scrollHeight 差补偿 scrollTop；scrollTop > 200 显示「回到顶部」。
+ * 虚拟化实测回填修正：prepend 的新行无测量缓存，先按 estimateSize 计入总高并据此补偿（计入挂账）；
+ * 之后新行实测回填使总高回缩时，在挂账额度内回退多补部分。无挂账的回缩（如下滚动实测偏小）不调整。
  */
 export function useAnchoredFeed(): AnchoredFeed {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const prevHeightRef = useRef(0);
+  // 补偿挂账（px）：prepend 的新行无测量缓存，先按 estimateSize 计入总高并据此补偿；
+  // 待新行实测回填、总高回缩时从挂账回退多补部分（净补偿=新行实测高度）。
+  // 用挂账而非布尔标记：补偿本身触发 isScrolling 等中间渲染（diff=0），布尔会被误清。
+  const correctionDebtRef = useRef(0);
   const [showBackToTop, setShowBackToTop] = useState(false);
 
   // 每次渲染后记录 scrollHeight 基线；高度增长（新事件 prepend 到顶部）且离开顶部时补偿。
@@ -48,8 +54,22 @@ export function useAnchoredFeed(): AnchoredFeed {
     const prev = prevHeightRef.current;
     const next = el.scrollHeight;
     if (prev > 0) {
-      const adjusted = computeAnchorScrollTop(el.scrollTop, prev, next);
-      if (adjusted !== null) el.scrollTop = adjusted;
+      const scrollTop = el.scrollTop;
+      const diff = next - prev;
+      if (diff > 0) {
+        const adjusted = computeAnchorScrollTop(scrollTop, prev, next);
+        if (adjusted !== null) {
+          el.scrollTop = adjusted;
+          correctionDebtRef.current += diff;
+        } else {
+          correctionDebtRef.current = 0;
+        }
+      } else if (diff < 0 && correctionDebtRef.current > 0 && scrollTop > ANCHOR_THRESHOLD) {
+        // 实测回填回缩：在挂账额度内回退多补的部分（无挂账的回缩不调整，防滚动中视口跳动）
+        const payback = Math.min(-diff, correctionDebtRef.current);
+        el.scrollTop = scrollTop - payback;
+        correctionDebtRef.current -= payback;
+      }
     }
     prevHeightRef.current = next;
   });

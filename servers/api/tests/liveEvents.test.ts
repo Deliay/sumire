@@ -292,7 +292,7 @@ describe("GET /api/live-events（检索代理 + 归一化 + 已读合并）", ()
     const cookie = await sessionCookie(store, "member");
     const r = await call(app, { method: "GET", path: "/api/live-events", cookie });
     expect(r.status).toBe(200);
-    expect(upstream.fetchRange).toHaveBeenCalledWith(["danmaku", "super_chat", "gift", "guard_buy"], 1, 50);
+    expect(upstream.fetchRange).toHaveBeenCalledWith(["danmaku", "super_chat", "gift", "gift_v2", "guard_buy"], 1, 50);
   });
 
   it("type 非法 → 400", async () => {
@@ -316,7 +316,7 @@ describe("GET /api/live-events（检索代理 + 归一化 + 已读合并）", ()
     const cookie = await sessionCookie(store, "member");
     const r = await call(app, { method: "GET", path: "/api/live-events?type=gift&minPrice=5", cookie });
     expect(r.status).toBe(200);
-    expect(upstream.fetchRange).toHaveBeenCalledWith(["gift"], 1, 50, 5);
+    expect(upstream.fetchRange).toHaveBeenCalledWith(["gift", "gift_v2"], 1, 50, 5);
   });
 
   it("minPrice=0 不传第 4 参（保持三参调用）", async () => {
@@ -325,7 +325,7 @@ describe("GET /api/live-events（检索代理 + 归一化 + 已读合并）", ()
     const cookie = await sessionCookie(store, "member");
     const r = await call(app, { method: "GET", path: "/api/live-events?type=gift&minPrice=0", cookie });
     expect(r.status).toBe(200);
-    expect(upstream.fetchRange).toHaveBeenCalledWith(["gift"], 1, 50);
+    expect(upstream.fetchRange).toHaveBeenCalledWith(["gift", "gift_v2"], 1, 50);
   });
 
   it("不带 minPrice 保持三参调用（回归）", async () => {
@@ -334,7 +334,7 @@ describe("GET /api/live-events（检索代理 + 归一化 + 已读合并）", ()
     const cookie = await sessionCookie(store, "member");
     const r = await call(app, { method: "GET", path: "/api/live-events?type=gift", cookie });
     expect(r.status).toBe(200);
-    expect(upstream.fetchRange).toHaveBeenCalledWith(["gift"], 1, 50);
+    expect(upstream.fetchRange).toHaveBeenCalledWith(["gift", "gift_v2"], 1, 50);
   });
 
   it("minPrice=abc → 400", async () => {

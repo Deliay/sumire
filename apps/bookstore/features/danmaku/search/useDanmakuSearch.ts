@@ -13,6 +13,8 @@ interface SearchState {
   status: SearchStatus;
   loadingMore: boolean;
   error: string | null;
+  /** 最近一次追加失败的页码（用于重试） */
+  failedPage: number | null;
 }
 
 const INITIAL_STATE: SearchState = {
@@ -22,23 +24,25 @@ const INITIAL_STATE: SearchState = {
   status: "idle",
   loadingMore: false,
   error: null,
+  failedPage: null,
 };
 
 export function useDanmakuSearch() {
   const [input, setInput] = useState("");
   const [state, setState] = useState<SearchState>(INITIAL_STATE);
-  const criteriaRef = useRef("");
+  const [criteria, setCriteria] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const criteriaRef = useRef("");
 
   const doSearch = useCallback(async (q: string, p: number, append: boolean) => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
     if (!append) {
-      setState((s) => ({ ...s, status: "loading", error: null }));
+      setState((s) => ({ ...s, status: "loading", error: null, failedPage: null }));
     } else {
-      setState((s) => ({ ...s, loadingMore: true, error: null }));
+      setState((s) => ({ ...s, loadingMore: true, error: null, failedPage: null }));
     }
     try {
       const res = await searchLiveEvents(q, p, 20, controller.signal);
@@ -50,24 +54,27 @@ export function useDanmakuSearch() {
           results: append ? [...s.results, ...data.items] : data.items,
           total: data.total,
           page: data.page,
-          status: data.items.length > 0 || data.total > 0 ? "done" : "idle",
+          status: "done",
           loadingMore: false,
+          failedPage: null,
         }));
       } else {
         const msg = res.status === 502 ? "搜索服务不可用" : "error" in res.data ? String((res.data as { error: string }).error) : "请求失败";
-        setState((s) => ({ ...s, status: "error", error: msg, loadingMore: false }));
+        if (append) {
+          setState((s) => ({ ...s, loadingMore: false, error: msg, failedPage: p }));
+        } else {
+          setState((s) => ({ ...s, status: "error", error: msg, loadingMore: false, failedPage: null }));
+        }
       }
     } catch {
       if (controller.signal.aborted) return;
-      setState((s) => ({ ...s, status: "error", error: "网络错误", loadingMore: false }));
+      if (append) {
+        setState((s) => ({ ...s, loadingMore: false, error: "网络错误", failedPage: p }));
+      } else {
+        setState((s) => ({ ...s, status: "error", error: "网络错误", loadingMore: false, failedPage: null }));
+      }
     }
   }, []);
-
-  useEffect(() => {
-    const q = criteriaRef.current;
-    if (!q) return;
-    doSearch(q, 1, false);
-  }, [doSearch]);
 
   useEffect(() => {
     return () => {
@@ -80,13 +87,17 @@ export function useDanmakuSearch() {
     setInput(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (!value.trim()) {
+      abortRef.current?.abort();
       criteriaRef.current = "";
+      setCriteria("");
       setState(INITIAL_STATE);
       return;
     }
     debounceRef.current = setTimeout(() => {
-      criteriaRef.current = value.trim();
-      doSearch(value.trim(), 1, false);
+      const q = value.trim();
+      criteriaRef.current = q;
+      setCriteria(q);
+      doSearch(q, 1, false);
     }, 300);
   }, [doSearch]);
 
@@ -95,14 +106,22 @@ export function useDanmakuSearch() {
     const trimmed = input.trim();
     if (trimmed) {
       criteriaRef.current = trimmed;
-      doSearch(trimmed, 1, false);
+      setCriteria(trimmed);
+      return doSearch(trimmed, 1, false);
     }
+    return Promise.resolve();
   }, [input, doSearch]);
 
-  const loadMore = useCallback(() => {
-    if (state.status === "error" || state.loadingMore || state.results.length >= state.total) return;
-    doSearch(criteriaRef.current, state.page + 1, true);
-  }, [state.status, state.loadingMore, state.results.length, state.total, state.page, doSearch]);
+  const retryFailedPage = useCallback(() => {
+    const fp = state.failedPage;
+    if (fp === null) return;
+    doSearch(criteriaRef.current, fp, true);
+  }, [state.failedPage, doSearch]);
 
-  return { input, updateInput, flushSearch, ...state, loadMore };
+  const loadMore = useCallback(() => {
+    if (state.loadingMore || state.results.length >= state.total) return;
+    doSearch(criteriaRef.current, state.page + 1, true);
+  }, [state.loadingMore, state.results.length, state.total, state.page, doSearch]);
+
+  return { input, criteria, updateInput, flushSearch, ...state, loadMore, retryFailedPage };
 }

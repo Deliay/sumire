@@ -10,9 +10,11 @@ interface SearchResultsProps {
   status: SearchStatus;
   loadingMore: boolean;
   error: string | null;
+  failedPage: number | null;
   keyword: string;
   onLoadMore: () => void;
   onRetry?: () => void;
+  onRetryFailedPage?: () => void;
 }
 
 export default function SearchResults({
@@ -21,9 +23,11 @@ export default function SearchResults({
   status,
   loadingMore,
   error,
+  failedPage,
   keyword,
   onLoadMore,
   onRetry,
+  onRetryFailedPage,
 }: SearchResultsProps) {
   if (status === "idle" && results.length === 0) {
     return (
@@ -41,7 +45,7 @@ export default function SearchResults({
     );
   }
 
-  if (status === "error") {
+  if (status === "error" && results.length === 0) {
     return (
       <div className="flex flex-col items-center gap-3 py-16 text-ink-dim">
         <p>{error ?? "请求失败"}</p>
@@ -76,7 +80,21 @@ export default function SearchResults({
           <SearchResultCard key={event.eventId} event={event} keyword={keyword} />
         ))}
       </div>
-      {hasMore && (
+      {failedPage !== null && error && (
+        <div className="flex items-center justify-center gap-3 py-4 text-sm text-red-dim">
+          <span>加载失败：{error}</span>
+          {onRetryFailedPage && (
+            <button
+              type="button"
+              onClick={onRetryFailedPage}
+              className="rounded-md border border-vine/50 px-3 py-1.5 text-sm text-ink-dim transition-colors hover:border-flower hover:text-ink"
+            >
+              重试
+            </button>
+          )}
+        </div>
+      )}
+      {hasMore && failedPage === null && (
         <div className="flex justify-center py-4">
           <button
             type="button"

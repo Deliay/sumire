@@ -6,7 +6,20 @@ import SearchResults from "@/features/danmaku/search/components/SearchResults";
 import { useDanmakuSearch } from "@/features/danmaku/search/useDanmakuSearch";
 
 export default function DanmakuSearchPage() {
-  const { input, updateInput, flushSearch, results, total, status, loadingMore, error, loadMore } = useDanmakuSearch();
+  const {
+    input,
+    criteria,
+    updateInput,
+    flushSearch,
+    results,
+    total,
+    status,
+    loadingMore,
+    error,
+    failedPage,
+    loadMore,
+    retryFailedPage,
+  } = useDanmakuSearch();
 
   return (
     <div className="flex flex-col gap-6">
@@ -29,9 +42,11 @@ export default function DanmakuSearchPage() {
         status={status}
         loadingMore={loadingMore}
         error={error}
-        keyword={input}
+        failedPage={failedPage}
+        keyword={criteria}
         onLoadMore={loadMore}
         onRetry={flushSearch}
+        onRetryFailedPage={retryFailedPage}
       />
     </div>
   );

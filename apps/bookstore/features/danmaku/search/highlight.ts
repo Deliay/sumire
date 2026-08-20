@@ -11,31 +11,29 @@ export function splitByKeyword(content: string, keyword: string): HighlightSegme
   if (!keyword || !content) {
     return [{ text: content, hit: false }];
   }
-  const segments: HighlightSegment[] = [];
-  let lastIndex = 0;
   const lowerContent = content.toLowerCase();
   const lowerKeyword = keyword.toLowerCase();
-  while (lastIndex < content.length) {
-    const hitIndex = lowerContent.indexOf(lowerKeyword, lastIndex);
+  const segments: HighlightSegment[] = [];
+  let lastEnd = 0;
+
+  while (lastEnd < content.length) {
+    const hitIndex = lowerContent.indexOf(lowerKeyword, lastEnd);
     if (hitIndex === -1) {
-      segments.push({ text: content.slice(lastIndex), hit: false });
+      segments.push({ text: content.slice(lastEnd), hit: false });
       break;
     }
-    if (hitIndex > lastIndex) {
-      segments.push({ text: content.slice(lastIndex, hitIndex), hit: false });
+    // 推进到下一个非关键词开头的位置
+    let nextStart = hitIndex + keyword.length;
+    while (nextStart < content.length && lowerContent.startsWith(lowerKeyword, nextStart)) {
+      nextStart += keyword.length;
     }
-    let end = hitIndex + keyword.length;
-    while (end < content.length && lowerContent[end] === lowerKeyword[lowerKeyword.length - 1]) {
-      const nextHit = lowerContent.indexOf(lowerKeyword, end);
-      if (nextHit === end) {
-        end += keyword.length;
-      } else {
-        break;
-      }
+    if (hitIndex > lastEnd) {
+      segments.push({ text: content.slice(lastEnd, hitIndex), hit: false });
     }
-    segments.push({ text: content.slice(hitIndex, end), hit: true });
-    lastIndex = end;
+    segments.push({ text: content.slice(hitIndex, nextStart), hit: true });
+    lastEnd = nextStart;
   }
+
   if (segments.length === 0) {
     return [{ text: content, hit: false }];
   }

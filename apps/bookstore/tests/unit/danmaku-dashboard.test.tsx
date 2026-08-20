@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import type { LiveEvent } from "@/features/danmaku/types";
 import type { Role } from "@/features/backdoor/api";
 import { COLUMNS_STORAGE_KEY } from "@/features/danmaku/columns";
+import { MERGE_ENABLED_STORAGE_KEY } from "@/features/danmaku/mergeEnabled";
 
 const listLiveEvents = vi.fn();
 const markLiveEventRead = vi.fn();
@@ -27,6 +28,15 @@ vi.mock("@/features/backdoor/session", () => ({
     refresh: vi.fn(),
     clear: vi.fn(),
   }),
+}));
+
+// SSE 流 mock：捕获事件回调供测试手动触发（避免依赖 EventSource）
+let streamHandler: ((event: LiveEvent) => void) | null = null;
+vi.mock("@/features/danmaku/useLiveEventStream", () => ({
+  useLiveEventStream: (_types: unknown, onEvent: (event: LiveEvent) => void) => {
+    streamHandler = onEvent;
+    return "open";
+  },
 }));
 
 import DanmakuDashboard from "@/features/danmaku/components/DanmakuDashboard";
@@ -88,6 +98,40 @@ describe("DanmakuDashboard", () => {
     vi.clearAllMocks();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    vi.useRealTimers();
+    streamHandler = null;
+  });
+
+  it("历史首屏检索结果不带入场动画类", async () => {
+    const { container } = render(<DanmakuDashboard />);
+    await screen.findByText("弹幕一");
+    expect(container.querySelector(".animate-danmaku-enter")).toBeNull();
+  });
+
+  it("SSE 新事件插入时对应行带入场动画类，300ms 后批量清除", async () => {
+    const { container } = render(<DanmakuDashboard />);
+    await screen.findByText("弹幕一");
+    vi.useFakeTimers();
+    act(() => {
+      streamHandler?.(makeEvent({ eventId: "dm:fresh", type: "danmaku", content: "实时弹幕" }));
+    });
+    const item = container.querySelector('[data-event-id="dm:fresh"]') as HTMLElement;
+    expect(item).not.toBeNull();
+    expect(item.parentElement?.className).toContain("animate-danmaku-enter");
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(item.parentElement?.className ?? "").not.toContain("animate-danmaku-enter");
+    vi.useRealTimers();
+  });
+
+  it("SSE 去重跳过（eventId 已在列表中）不标记入场动画", async () => {
+    const { container } = render(<DanmakuDashboard />);
+    await screen.findByText("弹幕一");
+    act(() => {
+      streamHandler?.(makeEvent({ eventId: "dm:1", type: "danmaku", content: "弹幕一" }));
+    });
+    expect(container.querySelector(".animate-danmaku-enter")).toBeNull();
   });
 
   it("默认三栏渲染并按类型分栏加载历史事件", async () => {
@@ -309,6 +353,69 @@ describe("DanmakuDashboard", () => {
     expect(screen.getByText("醒目留言一")).toBeTruthy();
     // 仍为纯视图层折叠：localStorage 未被写入
     expect(window.localStorage.getItem(COLUMNS_STORAGE_KEY)).toBeNull();
+  });
+
+  it("「弹幕合并」开关仅在勾选弹幕类型的栏工具区渲染（默认三栏仅弹幕栏），默认 aria-checked=false", async () => {
+    render(<DanmakuDashboard />);
+    await screen.findByText("弹幕一");
+    // 默认三栏「礼物 | 上船+SC | 弹幕」：仅弹幕栏含 danmaku 类型，只渲染一个开关
+    const switches = screen.getAllByRole("switch", { name: "弹幕合并" });
+    expect(switches).toHaveLength(1);
+    for (const sw of switches) expect(sw.getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("点击「弹幕合并」开关切换 aria-checked 并全局生效", async () => {
+    render(<DanmakuDashboard />);
+    await screen.findByText("弹幕一");
+    fireEvent.click(screen.getAllByRole("switch", { name: "弹幕合并" })[0]);
+    for (const sw of screen.getAllByRole("switch", { name: "弹幕合并" })) {
+      expect(sw.getAttribute("aria-checked")).toBe("true");
+    }
+  });
+
+  /** 弹幕节返回两条同内容重复弹幕（折叠键相同）。 */
+  function mockDuplicateDanmaku() {
+    listLiveEvents.mockImplementation(async (types: string[]) => {
+      const items = [
+        makeEvent({ eventId: "dm:d1", type: "danmaku", content: "妈妈" }),
+        makeEvent({ eventId: "dm:d2", type: "danmaku", content: "妈妈" }),
+        SC_EVENT,
+        GIFT_EVENT,
+        GUARD_EVENT,
+      ].filter((e) => types.includes(e.type));
+      return { status: 200, data: { total: items.length, page: 1, pageSize: 50, items } };
+    });
+  }
+
+  it("默认合并关闭：重复弹幕逐条渲染，无「×N」计数", async () => {
+    mockDuplicateDanmaku();
+    render(<DanmakuDashboard />);
+    await screen.findAllByText("妈妈");
+    expect(screen.getAllByText("妈妈")).toHaveLength(2);
+    expect(screen.queryByText(/×\d+/)).toBeNull();
+  });
+
+  it("开关切换即时折叠（不重新检索）且 localStorage 写入 true", async () => {
+    mockDuplicateDanmaku();
+    render(<DanmakuDashboard />);
+    await screen.findAllByText("妈妈");
+    const danmakuCallsBefore = listLiveEvents.mock.calls.filter((c) => c[0].includes("danmaku")).length;
+
+    fireEvent.click(screen.getAllByRole("switch", { name: "弹幕合并" })[0]);
+
+    // 即时折叠为单行 ×2，且不触发新的弹幕检索
+    expect(screen.getByText("×2")).toBeTruthy();
+    expect(window.localStorage.getItem(MERGE_ENABLED_STORAGE_KEY)).toBe("true");
+    const danmakuCallsAfter = listLiveEvents.mock.calls.filter((c) => c[0].includes("danmaku")).length;
+    expect(danmakuCallsAfter).toBe(danmakuCallsBefore);
+  });
+
+  it("localStorage 预置 true 时首屏即折叠重复弹幕", async () => {
+    window.localStorage.setItem(MERGE_ENABLED_STORAGE_KEY, "true");
+    mockDuplicateDanmaku();
+    render(<DanmakuDashboard />);
+    expect(await screen.findByText("×2")).toBeTruthy();
+    expect(screen.getAllByRole("switch", { name: "弹幕合并" })[0].getAttribute("aria-checked")).toBe("true");
   });
 
   it("礼物筛选阈值变更后礼物节以新阈值重载", async () => {

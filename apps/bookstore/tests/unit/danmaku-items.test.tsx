@@ -96,6 +96,46 @@ describe("DanmakuItem", () => {
     render(<DanmakuItem event={makeEvent({ eventId: "dm:7", type: "danmaku", content: "妈妈" })} count={1} />);
     expect(screen.queryByText(/×/)).toBeNull();
   });
+
+  it("发送者船型等级渲染对应 10% 淡色背景与圆角（3 舰长蓝 eye/2 提督紫 flower/1 总督红 crimson）", () => {
+    const withGuard = (guardLevel: number): LiveEvent["sender"] => ({ ...SENDER, guardLevel });
+    const { container: c3 } = render(
+      <DanmakuItem event={makeEvent({ eventId: "dm:g3", type: "danmaku", content: "舰长弹幕", sender: withGuard(3) })} />,
+    );
+    const r3 = c3.querySelector('[data-event-id="dm:g3"]') as HTMLElement;
+    expect(r3.className).toContain("bg-eye/10");
+    expect(r3.className).toContain("rounded-md");
+    cleanup();
+
+    const { container: c2 } = render(
+      <DanmakuItem event={makeEvent({ eventId: "dm:g2", type: "danmaku", content: "提督弹幕", sender: withGuard(2) })} />,
+    );
+    expect((c2.querySelector('[data-event-id="dm:g2"]') as HTMLElement).className).toContain("bg-flower/10");
+    cleanup();
+
+    const { container: c1 } = render(
+      <DanmakuItem event={makeEvent({ eventId: "dm:g1", type: "danmaku", content: "总督弹幕", sender: withGuard(1) })} />,
+    );
+    expect((c1.querySelector('[data-event-id="dm:g1"]') as HTMLElement).className).toContain("bg-crimson/10");
+  });
+
+  it("无等级/未知等级发送者不渲染船型背景（无 tint 类与圆角）", () => {
+    const { container } = render(
+      <DanmakuItem event={makeEvent({ eventId: "dm:g0", type: "danmaku", content: "普通弹幕" })} />,
+    );
+    const root = container.querySelector('[data-event-id="dm:g0"]') as HTMLElement;
+    expect(root.className).not.toContain("bg-eye");
+    expect(root.className).not.toContain("bg-flower");
+    expect(root.className).not.toContain("bg-crimson");
+    expect(root.className).not.toContain("rounded-md");
+    cleanup();
+    const { container: c99 } = render(
+      <DanmakuItem
+        event={makeEvent({ eventId: "dm:g99", type: "danmaku", content: "未知船弹幕", sender: { ...SENDER, guardLevel: 99 } })}
+      />,
+    );
+    expect((c99.querySelector('[data-event-id="dm:g99"]') as HTMLElement).className).not.toContain("rounded-md");
+  });
 });
 
 describe("SuperChatItem", () => {
@@ -140,6 +180,26 @@ describe("SuperChatItem", () => {
     expect(root.className).not.toContain("cursor-pointer");
     expect(root.className).not.toContain("select-none");
     fireEvent.doubleClick(root); // 不应抛错
+  });
+
+  it("留言气泡可选中复制（select-text cursor-text），容器不带 select-none", () => {
+    const onToggleRead = vi.fn();
+    const { container } = render(<SuperChatItem event={sc} onToggleRead={onToggleRead} />);
+    const bubble = screen.getByText("首播加油");
+    expect(bubble.className).toContain("select-text");
+    expect(bubble.className).toContain("cursor-text");
+    expect((container.firstElementChild as HTMLElement).className).not.toContain("select-none");
+  });
+
+  it("气泡上双击不触发已读切换（dblclick 隔离），气泡外双击仍触发", () => {
+    const onToggleRead = vi.fn();
+    const { container } = render(<SuperChatItem event={sc} onToggleRead={onToggleRead} />);
+    // 气泡上双击：隔离，不冒泡到条目容器
+    fireEvent.doubleClick(screen.getByText("首播加油"));
+    expect(onToggleRead).not.toHaveBeenCalled();
+    // 气泡外（条目容器）双击：照常切换已读
+    fireEvent.doubleClick(container.firstElementChild as Element);
+    expect(onToggleRead).toHaveBeenCalledTimes(1);
   });
 
   it("isNew=true 渲染「New」标记，isNew 缺省/为 false 不渲染", () => {

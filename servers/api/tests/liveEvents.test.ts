@@ -11,6 +11,7 @@ import type { UpstreamEnvelope, UpstreamPage } from "../src/liveEvents/upstream"
 import danmakuFixture from "./fixtures/live-events/danmaku.json";
 import superChatFixture from "./fixtures/live-events/super_chat.json";
 import guardBuyFixture from "./fixtures/live-events/guard_buy.json";
+import giftV2Fixture from "./fixtures/live-events/gift_v2.json";
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -669,6 +670,89 @@ describe("GET /api/live-events/stream（SSE 透传）", () => {
         expect(callTimes.length).toBeGreaterThanOrEqual(3);
         const secondGap = callTimes[2] - callTimes[1];
         expect(secondGap).toBeLessThan(70);
+      } finally {
+        controller.abort();
+      }
+    });
+  });
+});
+
+// ---------- gift_v2 扩参 / 类型验证 ----------
+
+describe("gift_v2 类型扩参与回归", () => {
+  it("type=gift 扩参为 ['gift', 'gift_v2'] 透传上游（检索）", async () => {
+    const upstream = stubUpstream(pageOf([]));
+    const { app, store } = buildApp(upstream);
+    const cookie = await sessionCookie(store, "member");
+    const r = await call(app, { method: "GET", path: "/api/live-events?type=gift", cookie });
+    expect(r.status).toBe(200);
+    expect(upstream.fetchRange).toHaveBeenCalledWith(["gift", "gift_v2"], 1, 50);
+  });
+
+  it("type=gift_v2 → 400（契约未定义 gift_v2 为合法前端 type）", async () => {
+    const { app, store } = buildApp(stubUpstream(pageOf([])));
+    const cookie = await sessionCookie(store, "member");
+    const r = await call(app, { method: "GET", path: "/api/live-events?type=gift_v2", cookie });
+    expect(r.status).toBe(400);
+    expect((r.body as { error: string }).error).toBe("type 参数非法");
+  });
+
+  it("gift_v2 信封经检索出口 type 为 gift（归一化）", async () => {
+    const upstream = stubUpstream(pageOf([clone(giftV2Fixture)]));
+    const { app, store } = buildApp(upstream);
+    const cookie = await sessionCookie(store, "member");
+    const r = await call(app, { method: "GET", path: "/api/live-events?type=gift", cookie });
+    expect(r.status).toBe(200);
+    const body = r.body as { items: Array<{ eventId: string; type: string }> };
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0].type).toBe("gift");
+    expect(body.items[0].eventId).toMatch(/^gift:/);
+  });
+
+  it("gift_v2 信封已读链路：POST /read → read:true", async () => {
+    const upstream = stubUpstream(pageOf([clone(giftV2Fixture)]));
+    const { app, store } = buildApp(upstream);
+    const adminCookie = await sessionCookie(store, "admin");
+    const memberCookie = await sessionCookie(store, "member");
+
+    // 检索获取 eventId
+    const list = await call(app, { method: "GET", path: "/api/live-events?type=gift", cookie: memberCookie });
+    const items = (list.body as { items: Array<{ eventId: string; read: boolean }> }).items;
+    expect(items).toHaveLength(1);
+    expect(items[0].read).toBe(false);
+
+    // 标记已读
+    const mark = await call(app, { method: "POST", path: "/api/live-events/read", body: { eventId: items[0].eventId }, cookie: adminCookie });
+    expect(mark.status).toBe(200);
+
+    // 再次检索确认已读
+    const after = await call(app, { method: "GET", path: "/api/live-events?type=gift", cookie: memberCookie });
+    const afterItems = (after.body as { items: Array<{ eventId: string; read: boolean }> }).items;
+    expect(afterItems[0].read).toBe(true);
+  });
+
+  it("SSE type=gift 扩参为 ['gift', 'gift_v2'] 透传上游 subscribe", async () => {
+    const store = memSessionStore();
+    const cookie = await sessionCookie(store, "member");
+    const subscribedTypes = vi.fn();
+    const upstream = {
+      fetchRange: vi.fn(),
+      subscribe: vi.fn().mockImplementation(async (types: string[], _cb: unknown, signal: AbortSignal) => {
+        subscribedTypes(...types);
+        await hangUntilAbort(signal);
+      }),
+    };
+    await withServer(sseTestApp(store, upstream), async (port) => {
+      const controller = new AbortController();
+      try {
+        const res = await fetch(`http://127.0.0.1:${port}/api/live-events/stream?type=gift`, {
+          headers: { cookie },
+          signal: controller.signal,
+        });
+        expect(res.status).toBe(200);
+        // 等待 subscribe 被调用
+        await vi.waitFor(() => expect(subscribedTypes).toHaveBeenCalled());
+        expect(upstream.subscribe).toHaveBeenCalledWith(["gift", "gift_v2"], expect.any(Function), expect.any(AbortSignal));
       } finally {
         controller.abort();
       }

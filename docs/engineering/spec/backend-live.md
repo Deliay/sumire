@@ -20,7 +20,7 @@
 
 ## LiveEvent 归一化（liveEvents/normalize.ts）
 
-防御式归一化：B 站原始 cmd（DANMU_MSG / SUPER_CHAT_MESSAGE / SEND_GIFT / SEND_GIFT_V2 / GUARD_BUY）→ 契约 `LiveEvent`；无法识别返回 null + `console.warn`，绝不抛错中断流。
+防御式归一化：上游信封 type（danmaku / super_chat / gift / gift_v2 / guard_buy）→ 契约 `LiveEvent`；无法识别返回 null + `console.warn`，绝不抛错中断流。
 
 - eventId 派生：`dm:{id_str}`（dm_v2 extra 优先，回退经典数组 info[0][7]）；`sc:{id}`；`gift:{batch_combo_id ?? combo_id}`（gift_v2 使用 `gift:{batchComboId}` 或回退 `gift:{uid}:{giftId}:{timestamp}`）；`guard:{uid}:{start_time}`。
 - 金额：礼物金瓜子 `combo_total_coin/1000`（银瓜子 0），上船 `price/1000`；gift_v2 金瓜子 `comboTotalCoin/1000`（银瓜子 0）。

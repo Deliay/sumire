@@ -22,7 +22,7 @@ function isSmallEmote(emote: NonNullable<LiveEvent["emote"]>): boolean {
 }
 
 /** 弹幕条目：左侧 vine 竖条 + Sender；表情弹幕渲染表情图片；折叠弹幕最右侧展示计数；
- * 按发送者船型等级渲染 0.5% 透明度淡色背景（舰长蓝/提督紫/总督红，其余无背景）。 */
+ * 按发送者船型等级渲染 10% 透明度淡色背景（舰长蓝/提督紫/总督红，其余无背景）。 */
 export default function DanmakuItem({ event, count }: DanmakuItemProps) {
   const tint = guardDanmakuTint(event.sender.guardLevel);
   return (

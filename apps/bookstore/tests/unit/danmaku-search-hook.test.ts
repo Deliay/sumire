@@ -200,4 +200,41 @@ describe("useDanmakuSearch", () => {
     expect(result.current.failedPage).toBe(2);
     expect(result.current.error).toBe("搜索服务不可用");
   });
+
+  it("新搜索失败时不残留旧结果，status=error", async () => {
+    // 第一次搜索成功
+    mockSearchLiveEvents.mockResolvedValueOnce({
+      status: 200,
+      data: { total: 3, page: 1, pageSize: 20, items: [makeEvent("dm:1"), makeEvent("dm:2")] },
+    });
+
+    const { result } = renderHook(() => useDanmakuSearch());
+    act(() => { result.current.updateInput("A"); });
+
+    await act(async () => {
+      result.current.flushSearch();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(result.current.results).toHaveLength(2);
+    expect(result.current.status).toBe("done");
+
+    // 第二次搜索失败
+    mockSearchLiveEvents.mockResolvedValueOnce({
+      status: 502,
+      data: { error: "上游事件服务不可用" },
+    });
+
+    act(() => { result.current.updateInput("B"); });
+
+    await act(async () => {
+      result.current.flushSearch();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    // 旧结果不应残留，应显示错误态
+    expect(result.current.status).toBe("error");
+    expect(result.current.results).toHaveLength(0);
+    expect(result.current.error).toBe("搜索服务不可用");
+    expect(result.current.failedPage).toBeNull();
+  });
 });

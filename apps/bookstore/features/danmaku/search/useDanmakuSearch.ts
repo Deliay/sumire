@@ -40,7 +40,7 @@ export function useDanmakuSearch() {
     const controller = new AbortController();
     abortRef.current = controller;
     if (!append) {
-      setState((s) => ({ ...s, status: "loading", error: null, failedPage: null }));
+      setState((s) => ({ ...s, results: [], total: 0, page: 1, status: "loading", error: null, failedPage: null }));
     } else {
       setState((s) => ({ ...s, loadingMore: true, error: null, failedPage: null }));
     }

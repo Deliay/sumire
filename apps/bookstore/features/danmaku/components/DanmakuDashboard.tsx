@@ -338,7 +338,6 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
   );
 
   useImperativeHandle(ref, () => ({ replayTest }), [replayTest]);
-
   const updateEvent = useCallback((eventId: string, fn: (e: LiveEvent) => LiveEvent) => {
     setEventsBySection((prev) => {
       const next: Record<string, LiveEvent[]> = {};

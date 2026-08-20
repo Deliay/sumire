@@ -19,15 +19,16 @@
 
 ## LiveEvent 归一化（liveEvents/normalize.ts）
 
-防御式归一化：B 站原始 cmd（DANMU_MSG / SUPER_CHAT_MESSAGE / SEND_GIFT / GUARD_BUY）→ 契约 `LiveEvent`；无法识别返回 null + `console.warn`，绝不抛错中断流。
+防御式归一化：B 站原始 cmd（DANMU_MSG / SUPER_CHAT_MESSAGE / SEND_GIFT / SEND_GIFT_V2 / GUARD_BUY）→ 契约 `LiveEvent`；无法识别返回 null + `console.warn`，绝不抛错中断流。
 
-- eventId 派生：`dm:{id_str}`（dm_v2 extra 优先，回退经典数组 info[0][7]）；`sc:{id}`；`gift:{batch_combo_id ?? combo_id}`；`guard:{uid}:{start_time}`。
-- 金额：礼物金瓜子 `combo_total_coin/1000`（银瓜子 0），上船 `price/1000`。
-- 礼物 `data.img_basic` 非空时归一化为可选 `gift.iconUrl`，缺失或空串时不下发。
+- eventId 派生：`dm:{id_str}`（dm_v2 extra 优先，回退经典数组 info[0][7]）；`sc:{id}`；`gift:{batch_combo_id ?? combo_id}`（gift_v2 使用 `gift:{batchComboId}` 或回退 `gift:{uid}:{giftId}:{timestamp}`）；`guard:{uid}:{start_time}`。
+- 金额：礼物金瓜子 `combo_total_coin/1000`（银瓜子 0），上船 `price/1000`；gift_v2 金瓜子 `comboTotalCoin/1000`（银瓜子 0）。
+- 礼物 `data.img_basic` 非空时归一化为可选 `gift.iconUrl`，缺失或空串时不下发；gift_v2 优先 `giftList.giftInfo.imgBasic`，回退 `data.img_basic`。
 - 牌子颜色兼容十进制整数 → hex；guard_buy 恒无 face/medal。
 - 弹幕表情两来源：经典 `info[0][13]` emoticon 对象 + `extra.emots` 按 content 键控的小表情映射。
-- `sender.guardLevel`（3=舰长/2=提督/1=总督）弹幕/SC/礼物均携带，仅身份标识。
+- `sender.guardLevel`（3=舰长/2=提督/1=总督）弹幕/SC/礼物均携带，仅身份标识；gift_v2 优先 `data.guardLevel`，回退 `senderUinfo.medal.guardLevel`。
 - occurredAt 缺失/非法的事件直接丢弃（不回退当前时间，避免污染水位线比较）。
+- gift_v2 归一化为 `type: "gift"`（对前端透明），EVENT_TYPES 包含五类但契约枚举仍为四类。
 
 ## 罗马音标注（liveEvents/romaji.ts）
 
@@ -44,8 +45,8 @@ kuroshiro+kuromoji（懒加载字典）→ 失败则 OpenCC 简→日汉字重�
 
 | 方法+路径 | 鉴权 | 要点 |
 |---|---|---|
-| GET `/api/live-events` | member+ | `type` 可重复（四类枚举，非法 400）；`page`≥1 默认 1、`pageSize` 1–100 默认 50；`minPrice` 可选（number 0–100，0 或不传不筛选，非法 400）；上游失败 502；items 已归一化 + read 合并 + 罗马音 |
-| GET `/api/live-events/stream` | member+ | SSE，见下 |
+| GET `/api/live-events` | member+ | `type` 可重复（四类枚举，非法 400）；`page`≥1 默认 1、`pageSize` 1–100 默认 50；`minPrice` 可选（number 0–100，0 或不传不筛选，非法 400）；上游失败 502；items 已归一化 + read 合并 + 罗马音；`type=gift` 向上游请求时展开为 `["gift", "gift_v2"]` |
+| GET `/api/live-events/stream` | member+ | SSE，见下；`type=gift` 同样展开为 `["gift", "gift_v2"]` |
 | POST `/api/live-events/read` | admin+ | body `{eventId}`；前缀须 dm/sc/gift/guard 否则 400（防摧毁水位线）；幂等 upsert |
 | POST `/api/live-events/unread` | admin+ | 同上，写显式 unread 覆盖水位线 |
 | POST `/api/live-events/read-all` | admin+ | type 仅 `super_chat`/`guard_buy`；水位线语义 |

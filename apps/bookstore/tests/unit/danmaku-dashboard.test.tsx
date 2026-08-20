@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import type { LiveEvent } from "@/features/danmaku/types";
 import type { Role } from "@/features/backdoor/api";
 import { COLUMNS_STORAGE_KEY } from "@/features/danmaku/columns";
+import { MERGE_ENABLED_STORAGE_KEY } from "@/features/danmaku/mergeEnabled";
 
 const listLiveEvents = vi.fn();
 const markLiveEventRead = vi.fn();
@@ -369,6 +370,51 @@ describe("DanmakuDashboard", () => {
     for (const sw of screen.getAllByRole("switch", { name: "弹幕合并" })) {
       expect(sw.getAttribute("aria-checked")).toBe("true");
     }
+  });
+
+  /** 弹幕节返回两条同内容重复弹幕（折叠键相同）。 */
+  function mockDuplicateDanmaku() {
+    listLiveEvents.mockImplementation(async (types: string[]) => {
+      const items = [
+        makeEvent({ eventId: "dm:d1", type: "danmaku", content: "妈妈" }),
+        makeEvent({ eventId: "dm:d2", type: "danmaku", content: "妈妈" }),
+        SC_EVENT,
+        GIFT_EVENT,
+        GUARD_EVENT,
+      ].filter((e) => types.includes(e.type));
+      return { status: 200, data: { total: items.length, page: 1, pageSize: 50, items } };
+    });
+  }
+
+  it("默认合并关闭：重复弹幕逐条渲染，无「×N」计数", async () => {
+    mockDuplicateDanmaku();
+    render(<DanmakuDashboard />);
+    await screen.findAllByText("妈妈");
+    expect(screen.getAllByText("妈妈")).toHaveLength(2);
+    expect(screen.queryByText(/×\d+/)).toBeNull();
+  });
+
+  it("开关切换即时折叠（不重新检索）且 localStorage 写入 true", async () => {
+    mockDuplicateDanmaku();
+    render(<DanmakuDashboard />);
+    await screen.findAllByText("妈妈");
+    const danmakuCallsBefore = listLiveEvents.mock.calls.filter((c) => c[0].includes("danmaku")).length;
+
+    fireEvent.click(screen.getAllByRole("switch", { name: "弹幕合并" })[0]);
+
+    // 即时折叠为单行 ×2，且不触发新的弹幕检索
+    expect(screen.getByText("×2")).toBeTruthy();
+    expect(window.localStorage.getItem(MERGE_ENABLED_STORAGE_KEY)).toBe("true");
+    const danmakuCallsAfter = listLiveEvents.mock.calls.filter((c) => c[0].includes("danmaku")).length;
+    expect(danmakuCallsAfter).toBe(danmakuCallsBefore);
+  });
+
+  it("localStorage 预置 true 时首屏即折叠重复弹幕", async () => {
+    window.localStorage.setItem(MERGE_ENABLED_STORAGE_KEY, "true");
+    mockDuplicateDanmaku();
+    render(<DanmakuDashboard />);
+    expect(await screen.findByText("×2")).toBeTruthy();
+    expect(screen.getAllByRole("switch", { name: "弹幕合并" })[0].getAttribute("aria-checked")).toBe("true");
   });
 
   it("礼物筛选阈值变更后礼物节以新阈值重载", async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, forwardRef, useImperativeHandle } from "react";
 import { useSession } from "@/features/backdoor/session";
 import { atLeast } from "@/features/backdoor/roleAccess";
 import type { ApiError } from "@/features/backdoor/api";
@@ -70,7 +70,11 @@ interface DanmakuDashboardProps {
   isFullscreen?: boolean;
 }
 
-
+/** DanmakuDashboard 暴露给父组件的 imperative handle。 */
+export interface DanmakuDashboardHandle {
+  /** 回放指定类型的历史事件（模拟 SSE 发布）。 */
+  replayTest: (type: LiveEventType) => Promise<void>;
+}
 
 /** 单栏检索：进入 loading（移出已加载），失败记错误态，成功写入去重后条目。
  * 按「栏 + 类型」分别加载（一个分栏勾选的每种事件类型各自独立请求）。 */
@@ -78,7 +82,10 @@ function sectionKey(colId: string, type: LiveEventType): string {
   return `${colId}:${type}`;
 }
 
-function DanmakuDashboard({ isFullscreen = false }: DanmakuDashboardProps) {
+const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProps>(function DanmakuDashboard(
+  { isFullscreen = false },
+  ref,
+) {
   const { session } = useSession();
   const canManage = session.status === "authenticated" && atLeast(session.me.role, "admin");
 
@@ -301,8 +308,36 @@ function DanmakuDashboard({ isFullscreen = false }: DanmakuDashboardProps) {
 
   const streamStatus = useLiveEventStream(streamTypes, handleStreamEvent);
 
+  // 回放测试：从API拉取历史数据，模拟SSE发布
+  const replayTest = useCallback(
+    async (type: LiveEventType) => {
+      const suffix = `-replay-${Date.now()}`;
+      let data: LiveEventsPage | ApiError | null = null;
+      try {
+        const res = type === "gift"
+          ? await listLiveEvents([type], 1, 100, 0)
+          : await listLiveEvents([type], 1, 100);
+        if (res.status === 200 && "items" in res.data) {
+          data = res.data;
+        }
+      } catch {
+        // 网络错误忽略
+      }
+      if (!data) return;
+      // 模拟SSE发布：逐条延迟调用handleStreamEvent
+      for (const event of data.items) {
+        const replayEvent: LiveEvent = {
+          ...event,
+          eventId: `${event.eventId}${suffix}`,
+        };
+        handleStreamEvent(replayEvent);
+        await new Promise((r) => setTimeout(r, 100));
+      }
+    },
+    [handleStreamEvent],
+  );
 
-
+  useImperativeHandle(ref, () => ({ replayTest }), [replayTest]);
   const updateEvent = useCallback((eventId: string, fn: (e: LiveEvent) => LiveEvent) => {
     setEventsBySection((prev) => {
       const next: Record<string, LiveEvent[]> = {};
@@ -570,6 +605,6 @@ function DanmakuDashboard({ isFullscreen = false }: DanmakuDashboardProps) {
       )}
     </div>
   );
-}
+});
 
 export default DanmakuDashboard;

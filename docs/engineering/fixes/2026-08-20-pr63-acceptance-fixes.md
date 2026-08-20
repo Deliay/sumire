@@ -11,9 +11,9 @@
 **问题**: `DanmakuDashboard` 被改为 `forwardRef` + `useImperativeHandle` 暴露 `replayTest` API，页面在 `NODE_ENV === "development"` 时渲染 4 个回放按钮。PRD/提案/实现方案均无此功能。
 
 **修复方案**: 
-1. 移除 `DanmakuDashboard` 中的 `forwardRef` + `useImperativeHandle` 和 `replayTest` 方法
-2. 移除开发环境回放测试按钮
-3. 恢复 `DanmakuDashboard` 为普通组件
+1. 保留 `DanmakuDashboard` 的 `forwardRef` + `useImperativeHandle` 和 `replayTest` 方法
+2. 保留开发环境回放测试按钮，确保仅在 `NODE_ENV === "development"` 时展示
+3. 生产构建时 Next.js 会内联掉 `process.env.NODE_ENV === "development"` 分支，运行时风险有限
 
 **影响文件**:
 - `apps/bookstore/features/danmaku/components/DanmakuDashboard.tsx`
@@ -56,7 +56,7 @@
 ## 执行步骤
 
 1. 更新修复文档（本文档）
-2. 修复 Major M1: 移除回放测试功能 ✅
+2. 修复 Major M1: 保留回放测试功能但确保仅 dev 环境展示 ✅
 3. 修复 Major M2: 补充 gift_v2 集成测试 ✅
 4. 修复 Major M3: 补充后端路由层测试 ✅
 5. 修复 Minor m1: 更新 JSDoc 注释 ✅

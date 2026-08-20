@@ -147,4 +147,25 @@ describe("useAnchoredFeed", () => {
     });
     expect(result.current.showBackToTop).toBe(false);
   });
+
+  it("isAtTop：初始贴顶，滚动离开后 false，回到顶部后恢复 true", () => {
+    const { result } = renderHook(() => useAnchoredFeed());
+    const el = makeScrollable(0, 2000);
+    act(() => {
+      result.current.containerRef.current = el;
+    });
+    expect(result.current.isAtTop).toBe(true);
+
+    act(() => {
+      el.scrollTop = ANCHOR_THRESHOLD + 1;
+      result.current.handleScroll();
+    });
+    expect(result.current.isAtTop).toBe(false);
+
+    act(() => {
+      el.scrollTop = ANCHOR_THRESHOLD;
+      result.current.handleScroll();
+    });
+    expect(result.current.isAtTop).toBe(true);
+  });
 });

@@ -62,7 +62,7 @@ export default function FeedSection({
   hasMore = false,
   loadingMore = false,
 }: FeedSectionProps) {
-  const { containerRef, showBackToTop, handleScroll, scrollToTop } = useAnchoredFeed();
+  const { containerRef, showBackToTop, isAtTop, handleScroll, scrollToTop } = useAnchoredFeed();
 
   // 合并开关开启时相邻/重复弹幕折叠为一行（展示计数）；关闭时逐条渲染（count 恒 1，无「×N」）。
   const rows = useMemo<MergedDanmaku[]>(
@@ -167,11 +167,11 @@ export default function FeedSection({
                     data-index={virtualItem.index}
                     ref={virtualizer.measureElement}
                     className={`absolute top-0 left-0 w-full border-b border-vine/30 ${
-                      // 滚动中禁用过渡避免 transform 滞后抖动；静止时列表变化（prepend/append/折叠）平滑平移
-                      // （reduced-motion 由全局 150ms duration 上限统一降级，不再单独禁用）
-                      virtualizer.isScrolling
+                      // 滚动中禁用过渡避免 transform 滞后抖动；离顶时 prepend 由锚定补偿瞬时保持内容，
+                      // 过渡会与补偿叠加闪回，同样禁用；仅贴顶跟随时列表变化（prepend/append/折叠）平滑平移
+                      virtualizer.isScrolling || !isAtTop
                         ? "transition-none"
-                        : "transition-transform duration-200"
+                        : "transition-transform duration-100"
                     }`}
                     style={{ transform: `translateY(${virtualItem.start}px)` }}
                   >

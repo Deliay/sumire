@@ -27,6 +27,9 @@ export function computeAnchorScrollTop(
 interface AnchoredFeed {
   containerRef: RefObject<HTMLDivElement | null>;
   showBackToTop: boolean;
+  /** 是否贴顶（scrollTop ≤ 阈值）：贴顶时行平移过渡可见；离顶时 prepend 由锚定补偿瞬时保持内容，
+   * 过渡会与补偿叠加造成闪回，须禁用。 */
+  isAtTop: boolean;
   handleScroll: () => void;
   scrollToTop: () => void;
 }
@@ -45,6 +48,7 @@ export function useAnchoredFeed(): AnchoredFeed {
   // 用挂账而非布尔标记：补偿本身触发 isScrolling 等中间渲染（diff=0），布尔会被误清。
   const correctionDebtRef = useRef(0);
   const [showBackToTop, setShowBackToTop] = useState(false);
+  const [isAtTop, setIsAtTop] = useState(true);
 
   // 每次渲染后记录 scrollHeight 基线；高度增长（新事件 prepend 到顶部）且离开顶部时补偿。
   // 无依赖数组：补偿基于「相邻两次渲染的高度差」，高度未变时 diff=0 天然幂等。
@@ -77,11 +81,12 @@ export function useAnchoredFeed(): AnchoredFeed {
   const handleScroll = useCallback(() => {
     const el = containerRef.current;
     setShowBackToTop(el ? el.scrollTop > BACK_TO_TOP_THRESHOLD : false);
+    setIsAtTop(el ? el.scrollTop <= ANCHOR_THRESHOLD : true);
   }, []);
 
   const scrollToTop = useCallback(() => {
     containerRef.current?.scrollTo({ top: 0 });
   }, []);
 
-  return { containerRef, showBackToTop, handleScroll, scrollToTop };
+  return { containerRef, showBackToTop, isAtTop, handleScroll, scrollToTop };
 }

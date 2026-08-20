@@ -45,7 +45,7 @@ const NEW_MARK_TYPES: readonly LiveEventType[] = ["super_chat", "guard_buy"];
 /** 历史检索每页条数（后端 pageSize 上限 100）。 */
 const PAGE_SIZE = 100;
 
-/** 入场动画批量清除延迟（ms）：动画 200ms + 余量；高密度连续插入时新批次重置计时器。 */
+/** 入场动画批量清除延迟（ms）：动画 100ms + 余量；高密度连续插入时新批次重置计时器。 */
 const FRESH_ANIMATION_MS = 300;
 
 function dedupeById(events: LiveEvent[]): LiveEvent[] {

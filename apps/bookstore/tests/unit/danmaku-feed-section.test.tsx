@@ -197,7 +197,25 @@ describe("FeedSection 插入/平移动效", () => {
     const { container } = render(<FeedSection label="弹幕" events={EVENTS.slice(0, 3)} canManage={false} />);
     const wrapper = container.querySelector('[data-event-id="dm:0"]')?.parentElement?.parentElement;
     expect(wrapper?.className).toContain("transition-transform");
-    expect(wrapper?.className).toContain("duration-200");
+    expect(wrapper?.className).toContain("duration-100");
+  });
+
+  it("离顶滚动后虚拟行 wrapper 禁用平移过渡（锚定补偿瞬时接管，防补偿+过渡叠加闪回）", async () => {
+    const { container } = render(<FeedSection label="弹幕" events={EVENTS.slice(0, 3)} canManage={false} />);
+    const wrapper = () => container.querySelector('[data-event-id="dm:0"]')?.parentElement?.parentElement;
+    expect(wrapper()?.className).toContain("transition-transform");
+
+    const scroller = container.querySelector(".overflow-y-auto")!;
+    scroller.scrollTop = 100;
+    fireEvent.scroll(scroller);
+    expect(wrapper()?.className).toContain("transition-none");
+
+    // 回顶后 isAtTop 恢复，但 virtualizer.isScrolling 有滚动结束去抖延迟，待其复位后再断言
+    scroller.scrollTop = 0;
+    fireEvent.scroll(scroller);
+    await vi.waitFor(() => {
+      expect(wrapper()?.className).toContain("transition-transform");
+    });
   });
 });
 

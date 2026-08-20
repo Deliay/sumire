@@ -45,6 +45,9 @@ const NEW_MARK_TYPES: readonly LiveEventType[] = ["super_chat", "guard_buy"];
 /** 历史检索每页条数（后端 pageSize 上限 100）。 */
 const PAGE_SIZE = 100;
 
+/** 入场动画批量清除延迟（ms）：动画 200ms + 余量；高密度连续插入时新批次重置计时器。 */
+const FRESH_ANIMATION_MS = 300;
+
 function dedupeById(events: LiveEvent[]): LiveEvent[] {
   const seen = new Set<string>();
   return events.filter((e) => {
@@ -112,6 +115,29 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
   const [loadingMoreBySection, setLoadingMoreBySection] = useState<Record<string, boolean>>({});
   // 实时流到达的 SC/上船事件 eventId → type 集合（读后清除，用于「New」标记）
   const [newIds, setNewIds] = useState<ReadonlyMap<string, LiveEventType>>(new Map());
+
+  // SSE 实际插入分节的事件 id 集合（入场动画标记，单计时器 300ms 后批量清除）
+  const [freshIds, setFreshIds] = useState<ReadonlySet<string>>(new Set());
+  const freshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 清除逻辑走 ref，避免计时器闭包持有陈旧 state
+  const clearFreshRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    clearFreshRef.current = () => {
+      freshTimerRef.current = null;
+      setFreshIds(new Set());
+    };
+  });
+  useEffect(() => {
+    return () => {
+      if (freshTimerRef.current) clearTimeout(freshTimerRef.current);
+    };
+  }, []);
+
+  // 事件列表镜像（供 handleStreamEvent 在 setState 前判定「实际插入/去重跳过」）
+  const eventsBySectionRef = useRef(eventsBySection);
+  useEffect(() => {
+    eventsBySectionRef.current = eventsBySection;
+  }, [eventsBySection]);
 
   // 礼物最低金额筛选
   const [minPrice, setMinPrice] = useState(() => loadGiftMinPrice());
@@ -238,8 +264,24 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
 
   const handleStreamEvent = useCallback(
     (event: LiveEvent) => {
-      // SSE 低价礼物丢弃
+      // SSE 低价礼物丢弃（不标记入场动画）
       if (event.type === "gift" && (event.price ?? 0) < minPriceRef.current) return;
+      // 实际插入判定：至少一个目标分节未含该 eventId；被分节去重跳过的不标记入场
+      const inserted = columns.some((col) => {
+        if (!col.types.includes(event.type)) return false;
+        const list = eventsBySectionRef.current[sectionKey(col.id, event.type)] ?? [];
+        return !list.some((e) => e.eventId === event.eventId);
+      });
+      if (inserted) {
+        setFreshIds((prev) => {
+          const next = new Set(prev);
+          next.add(event.eventId);
+          return next;
+        });
+        // 单计时器批量清除整批；新批次到达重置计时器（替换进行中动画，不叠加）
+        if (freshTimerRef.current) clearTimeout(freshTimerRef.current);
+        freshTimerRef.current = setTimeout(() => clearFreshRef.current(), FRESH_ANIMATION_MS);
+      }
       setEventsBySection((prev) => {
         const next = { ...prev };
         for (const col of columns) {
@@ -465,6 +507,7 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
               onToggleRead={toggleRead}
               newIds={newIds}
               mergeEnabled={mergeEnabled}
+              freshIds={freshIds}
               readAllTypes={col.types.filter((t): t is ReadAllType =>
                 (READ_ALL_TYPES as readonly string[]).includes(t),
               )}

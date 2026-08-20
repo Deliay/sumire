@@ -23,6 +23,8 @@ interface FeedSectionProps {
   newIds?: ReadonlyMap<string, LiveEventType>;
   /** 弹幕合并开关（默认 false 逐条渲染；true 时折叠相邻/重复弹幕并展示「×N」）。 */
   mergeEnabled?: boolean;
+  /** SSE 实时插入的事件 id 集合：命中行挂入场动画（动画结束后由看板清除）。 */
+  freshIds?: ReadonlySet<string>;
   /** 空态文案（默认「暂无事件」）。 */
   emptyText?: string;
   /** 本小节历史加载中（无事件时展示骨架）。 */
@@ -51,6 +53,7 @@ export default function FeedSection({
   onToggleRead,
   newIds = new Map(),
   mergeEnabled = false,
+  freshIds = new Set(),
   emptyText = "暂无事件",
   loading = false,
   error = null,
@@ -163,10 +166,24 @@ export default function FeedSection({
                     key={virtualItem.key}
                     data-index={virtualItem.index}
                     ref={virtualizer.measureElement}
-                    className="absolute top-0 left-0 w-full border-b border-vine/30"
+                    className={`absolute top-0 left-0 w-full border-b border-vine/30 ${
+                      // 滚动中禁用过渡避免 transform 滞后抖动；静止时列表变化（prepend/append/折叠）平滑平移
+                      virtualizer.isScrolling
+                        ? "transition-none"
+                        : "transition-transform duration-200 motion-reduce:transition-none"
+                    }`}
                     style={{ transform: `translateY(${virtualItem.start}px)` }}
                   >
-                    {renderItem(row)}
+                    {/* 入场动画挂内层（translateY(-8px) 不改行高），不干扰被 measureElement 测量的 wrapper */}
+                    <div
+                      className={
+                        freshIds.has(row.event.eventId)
+                          ? "animate-danmaku-enter motion-reduce:animate-none"
+                          : undefined
+                      }
+                    >
+                      {renderItem(row)}
+                    </div>
                   </div>
                 );
               })}

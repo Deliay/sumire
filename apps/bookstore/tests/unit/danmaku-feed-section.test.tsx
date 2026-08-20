@@ -160,6 +160,49 @@ describe("FeedSection 弹幕折叠", () => {
   });
 });
 
+describe("FeedSection 插入/平移动效", () => {
+  beforeEach(() => {
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(600);
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(600);
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(360);
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(2000);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("freshIds 命中的行内层带入场动画类，未命中行不带", () => {
+    const { container } = render(
+      <FeedSection
+        label="弹幕"
+        events={EVENTS.slice(0, 3)}
+        canManage={false}
+        freshIds={new Set(["dm:1"])}
+      />,
+    );
+    const freshInner = container.querySelector('[data-event-id="dm:1"]')?.parentElement;
+    expect(freshInner?.className).toContain("animate-danmaku-enter");
+    expect(freshInner?.className).toContain("motion-reduce:animate-none");
+    const otherInner = container.querySelector('[data-event-id="dm:0"]')?.parentElement;
+    expect(otherInner?.className ?? "").not.toContain("animate-danmaku-enter");
+  });
+
+  it("freshIds 缺省时无入场动画类", () => {
+    const { container } = render(<FeedSection label="弹幕" events={EVENTS.slice(0, 3)} canManage={false} />);
+    expect(container.querySelector(".animate-danmaku-enter")).toBeNull();
+  });
+
+  it("虚拟行 wrapper 静止时带 transform 平移过渡类（含 motion-reduce 降级）", () => {
+    const { container } = render(<FeedSection label="弹幕" events={EVENTS.slice(0, 3)} canManage={false} />);
+    const wrapper = container.querySelector('[data-event-id="dm:0"]')?.parentElement?.parentElement;
+    expect(wrapper?.className).toContain("transition-transform");
+    expect(wrapper?.className).toContain("duration-200");
+    expect(wrapper?.className).toContain("motion-reduce:transition-none");
+  });
+});
+
 describe("FeedSection New 标记（实时流 SC/上船）", () => {
   beforeEach(() => {
     vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(600);

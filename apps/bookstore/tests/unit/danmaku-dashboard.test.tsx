@@ -29,6 +29,15 @@ vi.mock("@/features/backdoor/session", () => ({
   }),
 }));
 
+// SSE 流 mock：捕获事件回调供测试手动触发（避免依赖 EventSource）
+let streamHandler: ((event: LiveEvent) => void) | null = null;
+vi.mock("@/features/danmaku/useLiveEventStream", () => ({
+  useLiveEventStream: (_types: unknown, onEvent: (event: LiveEvent) => void) => {
+    streamHandler = onEvent;
+    return "open";
+  },
+}));
+
 import DanmakuDashboard from "@/features/danmaku/components/DanmakuDashboard";
 
 const SENDER: LiveEvent["sender"] = { uid: 1, name: "观众A", nameRomaji: null, face: null, medal: null, guardLevel: null };
@@ -88,6 +97,40 @@ describe("DanmakuDashboard", () => {
     vi.clearAllMocks();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    vi.useRealTimers();
+    streamHandler = null;
+  });
+
+  it("历史首屏检索结果不带入场动画类", async () => {
+    const { container } = render(<DanmakuDashboard />);
+    await screen.findByText("弹幕一");
+    expect(container.querySelector(".animate-danmaku-enter")).toBeNull();
+  });
+
+  it("SSE 新事件插入时对应行带入场动画类，300ms 后批量清除", async () => {
+    const { container } = render(<DanmakuDashboard />);
+    await screen.findByText("弹幕一");
+    vi.useFakeTimers();
+    act(() => {
+      streamHandler?.(makeEvent({ eventId: "dm:fresh", type: "danmaku", content: "实时弹幕" }));
+    });
+    const item = container.querySelector('[data-event-id="dm:fresh"]') as HTMLElement;
+    expect(item).not.toBeNull();
+    expect(item.parentElement?.className).toContain("animate-danmaku-enter");
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(item.parentElement?.className ?? "").not.toContain("animate-danmaku-enter");
+    vi.useRealTimers();
+  });
+
+  it("SSE 去重跳过（eventId 已在列表中）不标记入场动画", async () => {
+    const { container } = render(<DanmakuDashboard />);
+    await screen.findByText("弹幕一");
+    act(() => {
+      streamHandler?.(makeEvent({ eventId: "dm:1", type: "danmaku", content: "弹幕一" }));
+    });
+    expect(container.querySelector(".animate-danmaku-enter")).toBeNull();
   });
 
   it("默认三栏渲染并按类型分栏加载历史事件", async () => {

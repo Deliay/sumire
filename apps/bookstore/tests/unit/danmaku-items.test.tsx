@@ -142,6 +142,26 @@ describe("SuperChatItem", () => {
     fireEvent.doubleClick(root); // 不应抛错
   });
 
+  it("留言气泡可选中复制（select-text cursor-text），容器不带 select-none", () => {
+    const onToggleRead = vi.fn();
+    const { container } = render(<SuperChatItem event={sc} onToggleRead={onToggleRead} />);
+    const bubble = screen.getByText("首播加油");
+    expect(bubble.className).toContain("select-text");
+    expect(bubble.className).toContain("cursor-text");
+    expect((container.firstElementChild as HTMLElement).className).not.toContain("select-none");
+  });
+
+  it("气泡上双击不触发已读切换（dblclick 隔离），气泡外双击仍触发", () => {
+    const onToggleRead = vi.fn();
+    const { container } = render(<SuperChatItem event={sc} onToggleRead={onToggleRead} />);
+    // 气泡上双击：隔离，不冒泡到条目容器
+    fireEvent.doubleClick(screen.getByText("首播加油"));
+    expect(onToggleRead).not.toHaveBeenCalled();
+    // 气泡外（条目容器）双击：照常切换已读
+    fireEvent.doubleClick(container.firstElementChild as Element);
+    expect(onToggleRead).toHaveBeenCalledTimes(1);
+  });
+
   it("isNew=true 渲染「New」标记，isNew 缺省/为 false 不渲染", () => {
     render(<SuperChatItem event={sc} isNew />);
     expect(screen.getByText("New")).toBeTruthy();

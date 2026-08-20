@@ -27,7 +27,7 @@ export default function SuperChatItem({ event, isNew = false, onToggleRead }: Su
       title={onToggleRead ? "双击切换已读" : undefined}
       className={`flex gap-2.5 px-3 py-2 transition-opacity duration-150 ${
         event.read ? "opacity-60" : ""
-      } ${onToggleRead ? "cursor-pointer select-none" : ""}`}
+      } ${onToggleRead ? "cursor-pointer" : ""}`}
     >
       <span aria-hidden className="w-1 shrink-0 self-stretch rounded-full bg-flower/70" />
       <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -46,7 +46,8 @@ export default function SuperChatItem({ event, isNew = false, onToggleRead }: Su
         </div>
         {event.content !== undefined && (
           <p
-            className="rounded-md px-2 py-1.5 text-sm break-words"
+            className="rounded-md px-2 py-1.5 text-sm break-words select-text cursor-text"
+            onDoubleClick={(e) => e.stopPropagation()}
             style={
               colors
                 ? {

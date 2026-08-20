@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState } from "react";
 import DanmakuDashboard, { type DanmakuDashboardHandle } from "@/features/danmaku/components/DanmakuDashboard";
 import ColumnCountSelector from "@/features/danmaku/components/ColumnCountSelector";
@@ -46,6 +47,12 @@ export default function DanmakuPage() {
                 </div>
               )}
               <ColumnCountSelector />
+              <Link
+                href="/backdoor/danmaku/search"
+                className="rounded-md border border-vine/50 px-3 py-1.5 text-sm text-ink-dim transition-colors duration-150 hover:border-flower hover:text-ink"
+              >
+                弹幕检索
+              </Link>
               <button
                 type="button"
                 onClick={() => setIsFullscreen((v) => !v)}

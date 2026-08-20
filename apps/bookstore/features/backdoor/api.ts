@@ -22,7 +22,7 @@ export const API_CONFIGURED = BASE_URL !== "";
 
 export async function request<T>(
   path: string,
-  options: { method?: string; body?: unknown } = {},
+  options: { method?: string; body?: unknown; signal?: AbortSignal } = {},
 ): Promise<{ status: number; data: T }> {
   if (!API_CONFIGURED) {
     return { status: 0, data: null as unknown as T };
@@ -32,6 +32,7 @@ export async function request<T>(
     headers: options.body !== undefined ? { "Content-Type": "application/json" } : undefined,
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
     credentials: "include",
+    signal: options.signal,
   });
   let data: unknown = null;
   const text = await res.text();

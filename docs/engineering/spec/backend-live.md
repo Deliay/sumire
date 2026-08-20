@@ -6,6 +6,7 @@
 
 - 历史：`GET {base}/api/b/live/1727076670/history`。
 - 事件检索：`GET {base}/api/b/live/1727076670/event/range`（分页，5s 超时）。
+- 事件搜索：`GET {base}/api/b/live/1727076670/event/search`（分页，5s 超时）。
 - 事件订阅：`…/event/subscribe`（SSE 逐行解析，仅取 `data:` 行）。
 
 ## GET /api/live-history（公开）
@@ -46,6 +47,7 @@ kuroshiro+kuromoji（懒加载字典）→ 失败则 OpenCC 简→日汉字重�
 | 方法+路径 | 鉴权 | 要点 |
 |---|---|---|
 | GET `/api/live-events` | member+ | `type` 可重复（四类枚举，非法 400）；`page`≥1 默认 1、`pageSize` 1–100 默认 50；`minPrice` 可选（number 0–100，0 或不传不筛选，非法 400）；上游失败 502；items 已归一化 + read 合并 + 罗马音；`type=gift` 向上游请求时展开为 `["gift", "gift_v2"]` |
+| GET `/api/live-events/search` | member+ | `stringCriteria` 必填（string 1–200，trim 后非空）；`page`≥1 默认 1、`pageSize` 1–100 默认 20；上游失败 502；items 已归一化 + read 合并 + 罗马音 |
 | GET `/api/live-events/stream` | member+ | SSE，见下；`type=gift` 同样展开为 `["gift", "gift_v2"]` |
 | POST `/api/live-events/read` | admin+ | body `{eventId}`；前缀须 dm/sc/gift/guard 否则 400（防摧毁水位线）；幂等 upsert |
 | POST `/api/live-events/unread` | admin+ | 同上，写显式 unread 覆盖水位线 |

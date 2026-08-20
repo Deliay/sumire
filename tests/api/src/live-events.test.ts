@@ -150,6 +150,9 @@ type RangeMode = "ok" | "error" | "empty";
 let rangeMode: RangeMode = "ok";
 let lastRangeSearch = "";
 let lastSubscribeTypes: string[] = [];
+let lastSearchQuery = "";
+type SearchMode = "ok" | "error" | "empty";
+let searchMode: SearchMode = "ok";
 
 function startStub(): Server {
   return createServer((req, res) => {
@@ -173,6 +176,42 @@ function startStub(): Server {
       const items = filtered.slice((page - 1) * pageSize, page * pageSize);
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ total: filtered.length, page, pageSize, items }));
+      return;
+    }
+    if (url.pathname === `${EVENT_PREFIX}/event/search`) {
+      lastSearchQuery = url.search;
+      if (searchMode === "error") {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "stub upstream broken" }));
+        return;
+      }
+      if (searchMode === "empty") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ total: 0, page: 1, pageSize: 20, items: [] }));
+        return;
+      }
+      const criteria = url.searchParams.get("stringCriteria") ?? "";
+      const page = Number(url.searchParams.get("page") ?? "1");
+      const pageSize = Number(url.searchParams.get("pageSize") ?? "20");
+      const matched = ALL_EVENTS.filter((e) => {
+        const content = e.payload && typeof e.payload === "object"
+          ? (e.payload as Record<string, unknown>).info
+          : undefined;
+        if (Array.isArray(content) && content[1] && typeof content[1] === "string") {
+          return content[1].includes(criteria);
+        }
+        if (e.payload && typeof e.payload === "object") {
+          const data = (e.payload as Record<string, unknown>).data;
+          if (data && typeof data === "object") {
+            const msg = (data as Record<string, unknown>).message;
+            if (typeof msg === "string" && msg.includes(criteria)) return true;
+          }
+        }
+        return false;
+      });
+      const items = matched.slice((page - 1) * pageSize, page * pageSize);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ total: matched.length, page, pageSize, items }));
       return;
     }
     if (url.pathname === `${EVENT_PREFIX}/event/subscribe`) {
@@ -308,8 +347,8 @@ afterAll(() => {
 });
 
 describe("live-events 鉴权矩阵", () => {
-  it("live-events-401: 五端点未认证均 401 且返回 { error }", async () => {
-    const gets = ["/api/live-events", "/api/live-events/stream"];
+  it("live-events-401: 六端点未认证均 401 且返回 { error }", async () => {
+    const gets = ["/api/live-events", "/api/live-events/search?stringCriteria=test", "/api/live-events/stream"];
     for (const path of gets) {
       const res = await request(path);
       expect(res.status).toBe(401);
@@ -322,9 +361,11 @@ describe("live-events 鉴权矩阵", () => {
     }
   });
 
-  it("live-events-member: member 读端点可用、三写接口均 403", async () => {
+  it("live-events-member: member 读端点可用、search 可用、三写接口均 403", async () => {
     const list = await request("/api/live-events", { jar: memberJar });
     expect(list.status).toBe(200);
+    const search = await request("/api/live-events/search?stringCriteria=test", { jar: memberJar });
+    expect(search.status).toBe(200);
     const writes: Array<[string, unknown]> = [
       ["/api/live-events/read", { eventId: "sc:1" }],
       ["/api/live-events/unread", { eventId: "sc:1" }],
@@ -425,6 +466,80 @@ describe("GET /api/live-events（检索代理）", () => {
       const res = await request(`/api/live-events${query}`, { jar: memberJar });
       expect(res.status).toBe(400);
       expect(typeof (res.body as { error?: unknown })?.error).toBe("string");
+    }
+  });
+});
+
+describe("GET /api/live-events/search（检索代理）", () => {
+  it("live-events-search-shape: stringCriteria 透传上游，分页信封齐全", async () => {
+    const res = await request("/api/live-events/search?stringCriteria=弹幕", { jar: memberJar });
+    expect(res.status).toBe(200);
+    const body = res.body as PageShape;
+    expect(typeof body.total).toBe("number");
+    expect(typeof body.page).toBe("number");
+    expect(typeof body.pageSize).toBe("number");
+    expect(Array.isArray(body.items)).toBe(true);
+    const qs = new URLSearchParams(lastSearchQuery);
+    expect(qs.get("stringCriteria")).toBe("弹幕");
+  });
+
+  it("live-events-search-pagination: page/pageSize 透传上游", async () => {
+    const res = await request("/api/live-events/search?stringCriteria=弹幕&page=2&pageSize=5", { jar: memberJar });
+    expect(res.status).toBe(200);
+    const body = res.body as PageShape;
+    const qs = new URLSearchParams(lastSearchQuery);
+    expect(qs.get("page")).toBe("2");
+    expect(qs.get("pageSize")).toBe("5");
+    expect(body.page).toBe(2);
+    expect(body.pageSize).toBe(5);
+  });
+
+  it("live-events-search-400-criteria-missing: stringCriteria 缺失 → 400", async () => {
+    const res = await request("/api/live-events/search", { jar: memberJar });
+    expect(res.status).toBe(400);
+    expect((res.body as { error?: unknown }).error).toBe("stringCriteria 不能为空");
+  });
+
+  it("live-events-search-400-criteria-empty: stringCriteria 为空白 → 400", async () => {
+    const res = await request("/api/live-events/search?stringCriteria=%20%20", { jar: memberJar });
+    expect(res.status).toBe(400);
+    expect((res.body as { error?: unknown }).error).toBe("stringCriteria 不能为空");
+  });
+
+  it("live-events-search-400-criteria-long: stringCriteria 超 200 字符 → 400", async () => {
+    const long = "a".repeat(201);
+    const res = await request(`/api/live-events/search?stringCriteria=${encodeURIComponent(long)}`, { jar: memberJar });
+    expect(res.status).toBe(400);
+    expect((res.body as { error?: unknown }).error).toBe("stringCriteria 超长");
+  });
+
+  it("live-events-search-400-pagination: 分页参数非法 → 400", async () => {
+    for (const query of ["?stringCriteria=test&page=0", "?stringCriteria=test&pageSize=101", "?stringCriteria=test&page=abc"]) {
+      const res = await request(`/api/live-events/search${query}`, { jar: memberJar });
+      expect(res.status).toBe(400);
+      expect(typeof (res.body as { error?: unknown })?.error).toBe("string");
+    }
+  });
+
+  it("live-events-search-502: 上游 5xx → 502", async () => {
+    searchMode = "error";
+    try {
+      const res = await request("/api/live-events/search?stringCriteria=弹幕", { jar: memberJar });
+      expect(res.status).toBe(502);
+      expect(res.body).toEqual({ error: "上游事件服务不可用" });
+    } finally {
+      searchMode = "ok";
+    }
+  });
+
+  it("live-events-search-normalized: 搜索结果已归一化且含 read 字段", async () => {
+    const res = await request("/api/live-events/search?stringCriteria=弹幕", { jar: memberJar });
+    expect(res.status).toBe(200);
+    const body = res.body as PageShape;
+    expect(body.items.length).toBeGreaterThan(0);
+    for (const ev of body.items) {
+      expectLiveEventShape(ev);
+      expect(typeof ev.read).toBe("boolean");
     }
   });
 });

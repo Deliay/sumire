@@ -129,6 +129,40 @@ export function createLiveEventsRouter(deps: LiveEventsRouterDeps): Router {
     });
   });
 
+  // GET /api/live-events/search —— 按关键词检索事件（member 及以上）
+  router.get("/search", requireRole("member"), async (req: Request, res: Response) => {
+    const rawCriteria = req.query.stringCriteria;
+    const criteria = typeof rawCriteria === "string" ? rawCriteria.trim() : "";
+    if (criteria.length === 0) {
+      res.status(400).json({ error: "stringCriteria 不能为空" });
+      return;
+    }
+    if (criteria.length > 200) {
+      res.status(400).json({ error: "stringCriteria 超长" });
+      return;
+    }
+    const page = parsePageParam(req.query.page, 1);
+    const pageSize = parsePageParam(req.query.pageSize, 20, 100);
+    if (page === null || pageSize === null) {
+      res.status(400).json({ error: "分页参数非法" });
+      return;
+    }
+    let upstreamPage;
+    try {
+      upstreamPage = await deps.upstream.search({ stringCriteria: criteria, page, pageSize });
+    } catch (err) {
+      upstreamUnavailable(res, err);
+      return;
+    }
+    const items = await resolveReadState(normalizeAll(upstreamPage.items));
+    res.status(200).json({
+      total: upstreamPage.total,
+      page: upstreamPage.page,
+      pageSize: upstreamPage.pageSize,
+      items: await annotateRomaji(items, toRomajiFn),
+    });
+  });
+
   // GET /api/live-events/stream —— SSE 实时事件流（member 及以上，按连接透传）
   router.get("/stream", requireRole("member"), async (req: Request, res: Response) => {
     const types = parseTypesParam(req.query.type);

@@ -311,6 +311,23 @@ describe("DanmakuDashboard", () => {
     expect(window.localStorage.getItem(COLUMNS_STORAGE_KEY)).toBeNull();
   });
 
+  it("各栏工具区渲染「弹幕合并」开关（role=switch），默认 aria-checked=false", async () => {
+    render(<DanmakuDashboard />);
+    await screen.findByText("弹幕一");
+    const switches = screen.getAllByRole("switch", { name: "弹幕合并" });
+    expect(switches.length).toBeGreaterThan(0);
+    for (const sw of switches) expect(sw.getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("点击「弹幕合并」开关切换 aria-checked 并全局生效", async () => {
+    render(<DanmakuDashboard />);
+    await screen.findByText("弹幕一");
+    fireEvent.click(screen.getAllByRole("switch", { name: "弹幕合并" })[0]);
+    for (const sw of screen.getAllByRole("switch", { name: "弹幕合并" })) {
+      expect(sw.getAttribute("aria-checked")).toBe("true");
+    }
+  });
+
   it("礼物筛选阈值变更后礼物节以新阈值重载", async () => {
     render(<DanmakuDashboard />);
     await screen.findByText("辣条");

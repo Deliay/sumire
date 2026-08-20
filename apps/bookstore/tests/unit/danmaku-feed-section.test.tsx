@@ -82,29 +82,61 @@ describe("FeedSection 弹幕折叠", () => {
     vi.restoreAllMocks();
   });
 
-  it("相邻重复弹幕折叠为一行并展示计数，而非重复弹幕各自展示", () => {
+  it("mergeEnabled 缺省（默认关闭）时重复弹幕逐条渲染，无「×N」计数", () => {
+    const dupes: LiveEvent[] = [
+      makeEvent({ eventId: "dm:a", type: "danmaku", content: "妈妈妈妈妈" }),
+      makeEvent({ eventId: "dm:b", type: "danmaku", content: "妈妈" }),
+    ];
+    render(<FeedSection label="弹幕" events={dupes} canManage={false} />);
+    expect(screen.queryByText(/×\d+/)).toBeNull();
+    expect(screen.getByText("妈妈妈妈妈")).toBeTruthy();
+    expect(screen.getByText("妈妈")).toBeTruthy();
+  });
+
+  it("mergeEnabled=false 时重复弹幕逐条渲染，无「×N」计数", () => {
+    const dupes: LiveEvent[] = [
+      makeEvent({ eventId: "dm:a", type: "danmaku", content: "妈妈妈妈妈" }),
+      makeEvent({ eventId: "dm:b", type: "danmaku", content: "妈妈" }),
+    ];
+    render(<FeedSection label="弹幕" events={dupes} canManage={false} mergeEnabled={false} />);
+    expect(screen.queryByText(/×\d+/)).toBeNull();
+  });
+
+  it("mergeEnabled=true：相邻重复弹幕折叠为一行并展示计数，而非重复弹幕各自展示", () => {
     const dupes: LiveEvent[] = [
       makeEvent({ eventId: "dm:a", type: "danmaku", content: "妈妈妈妈妈" }),
       makeEvent({ eventId: "dm:b", type: "danmaku", content: "妈妈妈" }),
       makeEvent({ eventId: "dm:c", type: "danmaku", content: "妈妈" }),
       makeEvent({ eventId: "dm:d", type: "danmaku", content: "欢迎欢迎" }),
     ];
-    render(<FeedSection label="弹幕" events={dupes} canManage={false} />);
+    render(<FeedSection label="弹幕" events={dupes} canManage={false} mergeEnabled />);
     expect(screen.getByText("×3")).toBeTruthy();
     expect(screen.queryByText("×1")).toBeNull();
   });
 
-  it("非连续重复弹幕同样折叠（跨其他事件）", () => {
+  it("mergeEnabled=true：非连续重复弹幕同样折叠（跨其他事件）", () => {
     const events: LiveEvent[] = [
       makeEvent({ eventId: "dm:1", type: "danmaku", content: "妈妈" }),
       makeEvent({ eventId: "dm:2", type: "danmaku", content: "欢迎欢迎" }),
       makeEvent({ eventId: "dm:3", type: "danmaku", content: "妈妈" }),
     ];
-    render(<FeedSection label="弹幕" events={events} canManage={false} />);
+    render(<FeedSection label="弹幕" events={events} canManage={false} mergeEnabled />);
     expect(screen.getByText("×2")).toBeTruthy();
   });
 
-  it("折叠使短列表未铺满时自动向下加载一条填充（hasMore）", async () => {
+  it("mergeEnabled=true：折叠使短列表未铺满时自动向下加载一条填充（hasMore）", async () => {
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(300);
+    const onLoadMore = vi.fn();
+    const dupes: LiveEvent[] = [
+      makeEvent({ eventId: "dm:1", type: "danmaku", content: "妈妈" }),
+      makeEvent({ eventId: "dm:2", type: "danmaku", content: "妈妈" }),
+    ];
+    render(<FeedSection label="弹幕" events={dupes} canManage={false} mergeEnabled onLoadMore={onLoadMore} hasMore />);
+    await act(async () => {});
+    expect(onLoadMore).toHaveBeenCalled();
+  });
+
+  it("mergeEnabled=false：重复弹幕不折叠（folded=false），短列表不触发折叠自动填充", async () => {
     vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(300);
     const onLoadMore = vi.fn();
     const dupes: LiveEvent[] = [
@@ -113,7 +145,8 @@ describe("FeedSection 弹幕折叠", () => {
     ];
     render(<FeedSection label="弹幕" events={dupes} canManage={false} onLoadMore={onLoadMore} hasMore />);
     await act(async () => {});
-    expect(onLoadMore).toHaveBeenCalled();
+    expect(onLoadMore).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "加载更多" })).toBeTruthy();
   });
 
   it("未折叠的短列表不自动加载（保留防无限加载回归）", async () => {

@@ -184,7 +184,6 @@ describe("FeedSection 插入/平移动效", () => {
     );
     const freshInner = container.querySelector('[data-event-id="dm:1"]')?.parentElement;
     expect(freshInner?.className).toContain("animate-danmaku-enter");
-    expect(freshInner?.className).toContain("motion-reduce:animate-none");
     const otherInner = container.querySelector('[data-event-id="dm:0"]')?.parentElement;
     expect(otherInner?.className ?? "").not.toContain("animate-danmaku-enter");
   });
@@ -194,12 +193,11 @@ describe("FeedSection 插入/平移动效", () => {
     expect(container.querySelector(".animate-danmaku-enter")).toBeNull();
   });
 
-  it("虚拟行 wrapper 静止时带 transform 平移过渡类（含 motion-reduce 降级）", () => {
+  it("虚拟行 wrapper 静止时带 transform 平移过渡类", () => {
     const { container } = render(<FeedSection label="弹幕" events={EVENTS.slice(0, 3)} canManage={false} />);
     const wrapper = container.querySelector('[data-event-id="dm:0"]')?.parentElement?.parentElement;
     expect(wrapper?.className).toContain("transition-transform");
     expect(wrapper?.className).toContain("duration-200");
-    expect(wrapper?.className).toContain("motion-reduce:transition-none");
   });
 });
 

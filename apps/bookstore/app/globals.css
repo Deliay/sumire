@@ -145,7 +145,7 @@ body {
   }
 }
 
-/* ---------- 尊重减少动态偏好 ---------- */
+/* ---------- 尊重减少动态偏好（降级为 150ms 短动画，不完全移除） ---------- */
 @media (prefers-reduced-motion: reduce) {
   .fog-a,
   .fog-b {
@@ -160,7 +160,7 @@ body {
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
+    animation-duration: 150ms !important;
+    transition-duration: 150ms !important;
   }
 }

@@ -168,9 +168,10 @@ export default function FeedSection({
                     ref={virtualizer.measureElement}
                     className={`absolute top-0 left-0 w-full border-b border-vine/30 ${
                       // 滚动中禁用过渡避免 transform 滞后抖动；静止时列表变化（prepend/append/折叠）平滑平移
+                      // （reduced-motion 由全局 150ms duration 上限统一降级，不再单独禁用）
                       virtualizer.isScrolling
                         ? "transition-none"
-                        : "transition-transform duration-200 motion-reduce:transition-none"
+                        : "transition-transform duration-200"
                     }`}
                     style={{ transform: `translateY(${virtualItem.start}px)` }}
                   >
@@ -178,7 +179,7 @@ export default function FeedSection({
                     <div
                       className={
                         freshIds.has(row.event.eventId)
-                          ? "animate-danmaku-enter motion-reduce:animate-none"
+                          ? "animate-danmaku-enter"
                           : undefined
                       }
                     >

@@ -90,6 +90,8 @@ interface LiveEventStub {
   push: (event: MockLiveEvent) => Promise<void>;
   /** 令匹配类型的检索接口返回 502（模拟上游不可用）；传 null 恢复 200。 */
   setRangeDown: (types: LiveEventType[] | null) => void;
+  /** 令搜索接口返回 502（模拟上游不可用）；传 null 恢复 200。 */
+  setSearchDown: (down: boolean) => void;
 }
 
 /**
@@ -103,6 +105,7 @@ async function stubLiveEvents(page: Page, events: MockLiveEvent[]): Promise<Live
   const readState = new Map<string, boolean>();
   const writes: string[] = [];
   let rangeDownTypes: LiveEventType[] | null = null;
+  let searchDown = false;
 
   await page.addInitScript(() => {
     interface FakeES {
@@ -166,6 +169,23 @@ async function stubLiveEvents(page: Page, events: MockLiveEvent[]): Promise<Live
         .map((e) => ({ ...e, read: readState.get(e.eventId) ?? e.read }));
       return fulfillJson(200, { total: items.length, page: 1, pageSize: 50, items });
     }
+    if (req.method() === "GET" && url.pathname === "/api/live-events/search") {
+      const criteria = url.searchParams.get("stringCriteria") ?? "";
+      const page = Number(url.searchParams.get("page") ?? "1");
+      const pageSize = Number(url.searchParams.get("pageSize") ?? "20");
+      if (searchDown) {
+        return fulfillJson(502, { error: "上游事件服务不可用" });
+      }
+      const matched = events
+        .filter((e) => {
+          if (!criteria) return false;
+          const content = e.content ?? "";
+          return content.includes(criteria);
+        })
+        .map((e) => ({ ...e, read: readState.get(e.eventId) ?? e.read }));
+      const items = matched.slice((page - 1) * pageSize, page * pageSize);
+      return fulfillJson(200, { total: matched.length, page, pageSize, items });
+    }
     if (req.method() === "POST" && url.pathname === "/api/live-events/read") {
       writes.push(req.url());
       const body = req.postDataJSON() as { eventId?: string };
@@ -197,6 +217,9 @@ async function stubLiveEvents(page: Page, events: MockLiveEvent[]): Promise<Live
     writes,
     setRangeDown: (types) => {
       rangeDownTypes = types;
+    },
+    setSearchDown: (down) => {
+      searchDown = down;
     },
     push: (event) =>
       page.evaluate(
@@ -506,5 +529,82 @@ test.describe("backdoor danmaku 弹幕看板", () => {
     await page.reload();
     await expect(page.locator('[data-event-id="sc:400"]')).toBeVisible();
     await expect(page.locator(".text-xs.font-medium.text-ink-dim")).toHaveCount(0);
+  });
+
+  test("danmaku-search-basic: 从看板进入检索页，输入关键词显示结果卡片", async ({ page }) => {
+    const events = [
+      danmakuEvent("dm:s1", "测试弹幕关键词"),
+      danmakuEvent("dm:s2", "另一条弹幕"),
+      scEvent("sc:s1", "SC留言关键词"),
+    ];
+    const stub = await stubLiveEvents(page, events);
+    await gotoDanmaku(page, getAccounts().admin);
+
+    // 点击「弹幕检索」链接进入检索页
+    await page.getByRole("link", { name: "弹幕检索" }).click();
+    await expect(page).toHaveURL(/\/backdoor\/danmaku\/search/);
+    await expect(page.getByRole("heading", { name: "弹幕检索" })).toBeVisible();
+
+    // 输入关键词搜索
+    const input = page.getByLabel("弹幕检索关键词");
+    await input.fill("关键词");
+    await expect(page.getByText("搜索中…")).toBeVisible();
+
+    // 等待搜索结果
+    await expect(page.getByText("共 2 条")).toBeVisible({ timeout: 5000 });
+    await expect(page.locator("mark")).toHaveCount(2);
+    await expect(page.getByText("测试弹幕关键词")).toBeVisible();
+    await expect(page.getByText("SC留言关键词")).toBeVisible();
+  });
+
+  test("danmaku-search-highlight: 搜索结果中关键词被高亮显示", async ({ page }) => {
+    const events = [danmakuEvent("dm:h1", "今天天气真好")];
+    await stubLiveEvents(page, events);
+    await gotoDanmaku(page, getAccounts().admin);
+
+    await page.getByRole("link", { name: "弹幕检索" }).click();
+    await page.getByLabel("弹幕检索关键词").fill("天气");
+    await expect(page.getByText("共 1 条")).toBeVisible({ timeout: 5000 });
+
+    const mark = page.locator("mark").first();
+    await expect(mark).toHaveText("天气");
+  });
+
+  test("danmaku-search-empty: 无匹配结果时显示「无匹配弹幕」", async ({ page }) => {
+    const events = [danmakuEvent("dm:e1", "弹幕内容")];
+    await stubLiveEvents(page, events);
+    await gotoDanmaku(page, getAccounts().admin);
+
+    await page.getByRole("link", { name: "弹幕检索" }).click();
+    await page.getByLabel("弹幕检索关键词").fill("不存在的关键词");
+    await expect(page.getByText("无匹配弹幕")).toBeVisible({ timeout: 5000 });
+  });
+
+  test("danmaku-search-error: 搜索服务不可用时显示错误提示", async ({ page }) => {
+    const events = [danmakuEvent("dm:err1", "弹幕")];
+    const stub = await stubLiveEvents(page, events);
+    await gotoDanmaku(page, getAccounts().admin);
+
+    await page.getByRole("link", { name: "弹幕检索" }).click();
+    stub.setSearchDown(true);
+    await page.getByLabel("弹幕检索关键词").fill("弹幕");
+    await expect(page.getByText("搜索服务不可用")).toBeVisible({ timeout: 5000 });
+
+    // 重试恢复
+    stub.setSearchDown(false);
+    await page.getByRole("button", { name: "重试" }).click();
+    await expect(page.getByText("共 1 条")).toBeVisible({ timeout: 5000 });
+  });
+
+  test("danmaku-search-back: 点击「返回看板」回到弹幕看板页", async ({ page }) => {
+    await stubLiveEvents(page, []);
+    await gotoDanmaku(page, getAccounts().admin);
+
+    await page.getByRole("link", { name: "弹幕检索" }).click();
+    await expect(page).toHaveURL(/\/backdoor\/danmaku\/search/);
+
+    await page.getByRole("link", { name: "返回看板" }).click();
+    await expect(page).toHaveURL(/\/backdoor\/danmaku$/);
+    await expect(page.getByRole("heading", { name: "弹幕看板" })).toBeVisible();
   });
 });

@@ -136,12 +136,11 @@ export function createLiveEventsRouter(deps: LiveEventsRouterDeps): Router {
     }
     const resolved = await resolveReadState(liveEvents);
     const annotated = await annotateRomaji(resolved, toRomajiFn);
-    const passthroughEnvelopes = passthroughItems.map((e) => ({ type: e.type, payload: e }));
     res.status(200).json({
       total: upstreamPage.total,
       page: upstreamPage.page,
       pageSize: upstreamPage.pageSize,
-      items: [...annotated, ...passthroughEnvelopes],
+      items: [...annotated, ...passthroughItems],
     });
   });
 

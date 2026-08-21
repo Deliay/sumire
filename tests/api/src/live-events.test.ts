@@ -871,3 +871,70 @@ describe("GET /api/live-events/stream（SSE）", () => {
     45_000,
   );
 });
+
+describe("GET /api/live-events（online_rank_count 透传）", () => {
+  it("live-events-online-rank-count-passthrough: type=online_rank_count 透传原始信封，payload.online_count 可取", async () => {
+    const res = await request("/api/live-events?type=online_rank_count&page=1&pageSize=1", { jar: memberJar });
+    expect(res.status).toBe(200);
+    const body = res.body as { total: number; items: Array<{ roomId: number; type: string; payload: { online_count?: number } }> };
+    expect(body.items.length).toBe(1);
+    const item = body.items[0];
+    expect(item.type).toBe("online_rank_count");
+    expect(typeof item.roomId).toBe("number");
+    expect(typeof item.payload).toBe("object");
+    expect(typeof item.payload.online_count).toBe("number");
+  });
+
+  it("live-events-online-rank-count-mixed: 混订 type=danmaku&type=online_rank_count，两类条目混存", async () => {
+    const res = await request("/api/live-events?type=danmaku&type=online_rank_count&page=1&pageSize=50", { jar: memberJar });
+    expect(res.status).toBe(200);
+    const body = res.body as { items: Array<{ type: string; eventId?: string; payload?: { online_count?: number } }> };
+    const types = new Set(body.items.map((i) => i.type));
+    expect(types.has("danmaku")).toBe(true);
+    expect(types.has("online_rank_count")).toBe(true);
+    // danmaku 有 eventId（归一化），online_rank_count 有 payload（透传）
+    for (const item of body.items) {
+      if (item.type === "danmaku") {
+        expect(typeof item.eventId).toBe("string");
+      } else if (item.type === "online_rank_count") {
+        expect(typeof item.payload?.online_count).toBe("number");
+      }
+    }
+  });
+
+  it("live-events-online-rank-count-default-types: type 缺省时仍只返回四类（不含 online_rank_count）", async () => {
+    const res = await request("/api/live-events?page=1&pageSize=100", { jar: memberJar });
+    expect(res.status).toBe(200);
+    const body = res.body as { items: Array<{ type: string }> };
+    const types = new Set(body.items.map((i) => i.type));
+    expect(types).toEqual(new Set(["danmaku", "super_chat", "gift", "guard_buy"]));
+  });
+});
+
+describe("GET /api/live-events/stream（online_rank_count SSE 命名帧）", () => {
+  it("live-events-sse-online-rank-count: type=online_rank_count 收到命名帧且 data 为原始信封", async () => {
+    const res = await openStream("?type=online_rank_count", memberJar);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type") ?? "").toContain("text/event-stream");
+
+    const text = await collectSse(res, (t) => parseSseFrames(t).length >= 1, 10_000);
+    // 解析命名帧：event: online_rank_count\ndata: <JSON>
+    const frames = text
+      .split("\n\n")
+      .map((f) => f.trim())
+      .filter((f) => f.startsWith("event: online_rank_count"))
+      .map((f) => {
+        const dataLine = f.split("\n").find((l) => l.startsWith("data:"));
+        return dataLine ? JSON.parse(dataLine.slice(5).trim()) : null;
+      })
+      .filter(Boolean);
+    expect(frames.length).toBeGreaterThanOrEqual(1);
+    for (const frame of frames) {
+      expect(frame.type).toBe("online_rank_count");
+      expect(typeof frame.roomId).toBe("number");
+      expect(typeof frame.payload).toBe("object");
+      expect(typeof frame.payload.online_count).toBe("number");
+    }
+    expect(lastSubscribeTypes).toEqual(["online_rank_count"]);
+  });
+});

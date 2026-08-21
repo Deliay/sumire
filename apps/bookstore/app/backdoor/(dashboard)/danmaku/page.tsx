@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import DanmakuDashboard, { type DanmakuDashboardHandle } from "@/features/danmaku/components/DanmakuDashboard";
 import ColumnCountSelector from "@/features/danmaku/components/ColumnCountSelector";
+import { OnlineCountText } from "@/features/danmaku/components/OnlineCountText";
 import type { LiveEventType } from "@/features/danmaku/types";
+import { useOnlineCount } from "@/features/danmaku/useOnlineCount";
 
 /**
    * 弹幕看板页：复用 (dashboard)/layout.tsx 会话守卫，数据全部客户端拉取。
@@ -14,6 +16,7 @@ import type { LiveEventType } from "@/features/danmaku/types";
 export default function DanmakuPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const dashboardRef = useRef<DanmakuDashboardHandle>(null);
+  const onlineCount = useOnlineCount();
 
   const replayTypes: { type: LiveEventType; label: string }[] = [
     { type: "danmaku", label: "弹幕回放" },
@@ -27,9 +30,9 @@ export default function DanmakuPage() {
       {!isFullscreen && (
         <div className="flex flex-col gap-6">
           <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
+            <div className="flex items-baseline gap-2">
               <h1 className="font-serif text-2xl font-semibold text-ink">弹幕看板</h1>
-              <p className="mt-1 text-ink-dim">直播间弹幕、醒目留言、礼物与上船一览</p>
+              <OnlineCountText onlineCount={onlineCount} />
             </div>
             <div className="flex items-center gap-3">
               {process.env.NODE_ENV === "development" && (
@@ -73,7 +76,7 @@ export default function DanmakuPage() {
           className="fixed inset-0 z-[60] flex h-svh flex-col overflow-hidden bg-night"
         >
           <div className="relative z-10 flex shrink-0 items-center justify-between border-b border-vine/50 bg-raised px-3 py-2">
-            <h1 className="font-serif text-xl font-semibold text-ink">弹幕看板</h1>
+            <h1 className="flex items-baseline gap-2 font-serif text-xl font-semibold text-ink">弹幕看板<OnlineCountText onlineCount={onlineCount} /></h1>
             <div className="flex items-center gap-3">
               {process.env.NODE_ENV === "development" && (
                 <div className="flex items-center gap-1">

@@ -92,6 +92,8 @@ interface LiveEventStub {
   setRangeDown: (types: LiveEventType[] | null) => void;
   /** 令搜索接口返回 502（模拟上游不可用）；传 null 恢复 200。 */
   setSearchDown: (down: boolean) => void;
+  /** 设置在线人数（null 表示请求失败返回空 items）。 */
+  setOnlineCount: (count: number | null) => void;
 }
 
 /**
@@ -106,6 +108,7 @@ async function stubLiveEvents(page: Page, events: MockLiveEvent[]): Promise<Live
   const writes: string[] = [];
   let rangeDownTypes: LiveEventType[] | null = null;
   let searchDown = false;
+  let onlineCount: number | null = null;
 
   await page.addInitScript(() => {
     interface FakeES {
@@ -161,6 +164,25 @@ async function stubLiveEvents(page: Page, events: MockLiveEvent[]): Promise<Live
 
     if (req.method() === "GET" && url.pathname === "/api/live-events") {
       const types = url.searchParams.getAll("type");
+      if (types.includes("online_rank_count")) {
+        if (onlineCount === null) {
+          return fulfillJson(200, { total: 0, page: 1, pageSize: 50, items: [] });
+        }
+        return fulfillJson(200, {
+          total: 1,
+          page: 1,
+          pageSize: 50,
+          items: [
+            {
+              roomId: 12345,
+              type: "online_rank_count",
+              occurredAt: new Date().toISOString(),
+              liveSessionId: "session-1",
+              payload: { online_count: onlineCount },
+            },
+          ],
+        });
+      }
       if (rangeDownTypes && types.some((t) => (rangeDownTypes as string[]).includes(t))) {
         return fulfillJson(502, { error: "上游事件服务不可用" });
       }
@@ -220,6 +242,9 @@ async function stubLiveEvents(page: Page, events: MockLiveEvent[]): Promise<Live
     },
     setSearchDown: (down) => {
       searchDown = down;
+    },
+    setOnlineCount: (count) => {
+      onlineCount = count;
     },
     push: (event) =>
       page.evaluate(
@@ -688,5 +713,21 @@ test.describe("backdoor danmaku 弹幕看板", () => {
     const guardCard = page.locator('[data-event-id="guard:mix1"]');
     await expect(guardCard).toBeVisible();
     await expect(guardCard.getByText("舰长")).toBeVisible();
+  });
+
+  test("online-count-show: 在线人数正常显示", async ({ page }) => {
+    const stub = await stubLiveEvents(page, []);
+    stub.setOnlineCount(1521);
+    await gotoDanmaku(page, getAccounts().admin);
+
+    await expect(page.getByText("当前直播间在线 1521 人")).toBeVisible();
+  });
+
+  test("online-count-fail-hide: 在线人数获取失败时不显示", async ({ page }) => {
+    const stub = await stubLiveEvents(page, []);
+    stub.setOnlineCount(null);
+    await gotoDanmaku(page, getAccounts().admin);
+
+    await expect(page.getByText(/在线.*人/)).toHaveCount(0);
   });
 });

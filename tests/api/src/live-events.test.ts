@@ -928,7 +928,11 @@ describe("GET /api/live-events/stream（online_rank_count SSE 命名帧）", () 
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type") ?? "").toContain("text/event-stream");
 
-    const text = await collectSse(res, (t) => parseSseFrames(t).length >= 1, 10_000);
+    const text = await collectSse(
+      res,
+      (t) => parseSseFrames(t).length >= 1 || t.includes("event: online_rank_count"),
+      10_000,
+    );
     // 解析命名帧：event: online_rank_count\ndata: <JSON>
     const frames = text
       .split("\n\n")

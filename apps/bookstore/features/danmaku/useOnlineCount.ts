@@ -32,10 +32,17 @@ export function useOnlineCount(): number | null {
       request<{ items: Array<{ payload?: { online_count?: number } }> }>(
         "/api/live-events?type=online_rank_count&page=1&pageSize=1",
         { signal: ac.signal },
-      ).then(({ data }) => {
-        const count = data?.items?.[0]?.payload?.online_count;
-        if (typeof count === "number") setOnlineCount(count);
-      });
+      )
+        .then(({ data }) => {
+          const count = data?.items?.[0]?.payload?.online_count;
+          if (typeof count === "number") setOnlineCount(count);
+        })
+        .catch((err) => {
+          // 忽略 AbortError（组件卸载或竞态取消）
+          if (err?.name !== "AbortError") {
+            console.warn("[useOnlineCount] fetch failed:", err);
+          }
+        });
     } else if (trailingTimerRef.current == null) {
       // trailing：延迟执行
       trailingTimerRef.current = setTimeout(() => {
@@ -48,10 +55,17 @@ export function useOnlineCount(): number | null {
         request<{ items: Array<{ payload?: { online_count?: number } }> }>(
           "/api/live-events?type=online_rank_count&page=1&pageSize=1",
           { signal: ac.signal },
-        ).then(({ data }) => {
-          const count = data?.items?.[0]?.payload?.online_count;
-          if (typeof count === "number") setOnlineCount(count);
-        });
+        )
+          .then(({ data }) => {
+            const count = data?.items?.[0]?.payload?.online_count;
+            if (typeof count === "number") setOnlineCount(count);
+          })
+          .catch((err) => {
+            // 忽略 AbortError（组件卸载或竞态取消）
+            if (err?.name !== "AbortError") {
+              console.warn("[useOnlineCount] fetch failed:", err);
+            }
+          });
       }, 5000 - elapsed);
     }
   };
@@ -62,6 +76,8 @@ export function useOnlineCount(): number | null {
     fetchOnlineCount();
     return () => {
       controllerRef.current?.abort();
+      // 复位 lastFetchRef，确保 StrictMode 二次挂载重新走 leading 分支
+      lastFetchRef.current = 0;
       if (trailingTimerRef.current != null) {
         clearTimeout(trailingTimerRef.current);
         trailingTimerRef.current = null;

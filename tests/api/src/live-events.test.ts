@@ -162,7 +162,17 @@ function guardBuy(i: number, min: number): StubEnvelope {
   };
 }
 
-/** 确定性数据集：弹幕×12 / SC×8 / 礼物×6 / 礼物V2×4 / 上船×6，共 36 条，occurredAt 递增。 */
+function onlineRankCount(i: number, min: number): StubEnvelope {
+  return {
+    roomId: 1727076670,
+    type: "online_rank_count",
+    occurredAt: at(min),
+    liveSessionId: "session-stub-1",
+    payload: { online_count: 1500 + i },
+  };
+}
+
+/** 确定性数据集：弹幕×12 / SC×8 / 礼物×6 / 礼物V2×4 / 上船×6 / 在线人数×3，共 39 条，occurredAt 递增。 */
 function dataset(): StubEnvelope[] {
   const events: StubEnvelope[] = [];
   for (let i = 0; i < 12; i++) events.push(danmaku(i, i));
@@ -170,10 +180,11 @@ function dataset(): StubEnvelope[] {
   for (let i = 0; i < 6; i++) events.push(gift(i, 20 + i));
   for (let i = 0; i < 4; i++) events.push(giftV2(i, 26 + i));
   for (let i = 0; i < 6; i++) events.push(guardBuy(i, 30 + i));
+  for (let i = 0; i < 3; i++) events.push(onlineRankCount(i, 36 + i));
   return events;
 }
 
-const ALL_EVENTS = dataset(); // 36 条
+const ALL_EVENTS = dataset(); // 39 条
 
 /** 模拟上游行为：按 type 过滤（缺省全部），按 occurredAt 倒序。 */
 function filterByTypes(types: string[]): StubEnvelope[] {

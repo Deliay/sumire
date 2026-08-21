@@ -4,6 +4,7 @@ import type { LiveEvent } from "../types";
 import { formatPrice } from "../format";
 import { hasBiliLink } from "../biliVideo";
 import BiliVideoLink from "./BiliVideoLink";
+import { splitByKeyword } from "../search/highlight";
 import Sender from "./Sender";
 
 interface SuperChatItemProps {
@@ -12,13 +13,15 @@ interface SuperChatItemProps {
   isNew?: boolean;
   /** 双击切换已读（admin 及以上传入；member 不渲染已读交互，与后端 403 口径一致）。 */
   onToggleRead?: (event: LiveEvent) => void;
+  /** 搜索关键词，非空时留言高亮（检索场景）。 */
+  highlightKeyword?: string;
 }
 
 /**
  * SC 条目（提案 K6）：两行——Sender + 金额；留言气泡按 scColors 渐变底色与文字色渲染。
  * 已读置灰；可交互时双击切换已读。实时流到达的 SC 带「New」标记。
  */
-export default function SuperChatItem({ event, isNew = false, onToggleRead }: SuperChatItemProps) {
+export default function SuperChatItem({ event, isNew = false, onToggleRead, highlightKeyword }: SuperChatItemProps) {
   const colors = event.scColors;
   return (
     <div
@@ -57,7 +60,15 @@ export default function SuperChatItem({ event, isNew = false, onToggleRead }: Su
                 : undefined
             }
           >
-            {hasBiliLink(event.content) ? (
+            {highlightKeyword && event.content ? (
+              splitByKeyword(event.content, highlightKeyword).map((seg, i) =>
+                seg.hit ? (
+                  <mark key={i} className="rounded-sm bg-eye/30 px-0.5">{seg.text}</mark>
+                ) : (
+                  <span key={i}>{seg.text}</span>
+                ),
+              )
+            ) : hasBiliLink(event.content) ? (
               <BiliVideoLink text={event.content} className={colors ? "text-[inherit]" : undefined} />
             ) : (
               event.content

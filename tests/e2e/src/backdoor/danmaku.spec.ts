@@ -88,10 +88,14 @@ interface LiveEventStub {
   writes: string[];
   /** 经 mock EventSource 向页面推一条实时事件（SSE data 帧）。 */
   push: (event: MockLiveEvent) => Promise<void>;
+  /** 经 mock EventSource 向页面推一条命名帧事件（SSE event: <type>\ndata: <JSON> 帧）。 */
+  pushNamedEvent: (eventType: string, data: unknown) => Promise<void>;
   /** 令匹配类型的检索接口返回 502（模拟上游不可用）；传 null 恢复 200。 */
   setRangeDown: (types: LiveEventType[] | null) => void;
   /** 令搜索接口返回 502（模拟上游不可用）；传 null 恢复 200。 */
   setSearchDown: (down: boolean) => void;
+  /** 设置在线人数（null 表示请求失败返回空 items）。 */
+  setOnlineCount: (count: number | null) => void;
 }
 
 /**
@@ -106,6 +110,7 @@ async function stubLiveEvents(page: Page, events: MockLiveEvent[]): Promise<Live
   const writes: string[] = [];
   let rangeDownTypes: LiveEventType[] | null = null;
   let searchDown = false;
+  let onlineCount: number | null = null;
 
   await page.addInitScript(() => {
     interface FakeES {
@@ -113,6 +118,8 @@ async function stubLiveEvents(page: Page, events: MockLiveEvent[]): Promise<Live
       onopen: (() => void) | null;
       onmessage: ((msg: { data: string }) => void) | null;
       onerror: (() => void) | null;
+      addEventListener: (type: string, listener: (event: { data: string }) => void) => void;
+      removeEventListener: (type: string, listener: (event: { data: string }) => void) => void;
       close: () => void;
     }
     const instances = new Set<FakeES>();
@@ -124,6 +131,7 @@ async function stubLiveEvents(page: Page, events: MockLiveEvent[]): Promise<Live
       onopen: (() => void) | null = null;
       onmessage: ((msg: { data: string }) => void) | null = null;
       onerror: (() => void) | null = null;
+      private listeners = new Map<string, Set<(event: { data: string }) => void>>();
       constructor(
         public readonly url: string,
         _opts?: unknown,
@@ -136,6 +144,15 @@ async function stubLiveEvents(page: Page, events: MockLiveEvent[]): Promise<Live
           }
         }, 0);
       }
+      addEventListener(type: string, listener: (event: { data: string }) => void) {
+        if (!this.listeners.has(type)) {
+          this.listeners.set(type, new Set());
+        }
+        this.listeners.get(type)!.add(listener);
+      }
+      removeEventListener(type: string, listener: (event: { data: string }) => void) {
+        this.listeners.get(type)?.delete(listener);
+      }
       close() {
         this.readyState = 2;
         instances.delete(this);
@@ -144,10 +161,23 @@ async function stubLiveEvents(page: Page, events: MockLiveEvent[]): Promise<Live
     const w = window as unknown as {
       EventSource: unknown;
       __pushLiveEvent: (event: unknown) => void;
+      __pushNamedEvent: (eventType: string, data: unknown) => void;
     };
     w.__pushLiveEvent = (event: unknown) => {
       for (const es of instances) {
         if (es.readyState === 1) es.onmessage?.({ data: JSON.stringify(event) });
+      }
+    };
+    w.__pushNamedEvent = (eventType: string, data: unknown) => {
+      for (const es of instances) {
+        if (es.readyState === 1) {
+          const listeners = es.listeners.get(eventType);
+          if (listeners) {
+            for (const listener of listeners) {
+              listener({ data: JSON.stringify(data) });
+            }
+          }
+        }
       }
     };
     w.EventSource = FakeEventSource;
@@ -161,6 +191,25 @@ async function stubLiveEvents(page: Page, events: MockLiveEvent[]): Promise<Live
 
     if (req.method() === "GET" && url.pathname === "/api/live-events") {
       const types = url.searchParams.getAll("type");
+      if (types.includes("online_rank_count")) {
+        if (onlineCount === null) {
+          return fulfillJson(200, { total: 0, page: 1, pageSize: 50, items: [] });
+        }
+        return fulfillJson(200, {
+          total: 1,
+          page: 1,
+          pageSize: 50,
+          items: [
+            {
+              roomId: 12345,
+              type: "online_rank_count",
+              occurredAt: new Date().toISOString(),
+              liveSessionId: "session-1",
+              payload: { online_count: onlineCount },
+            },
+          ],
+        });
+      }
       if (rangeDownTypes && types.some((t) => (rangeDownTypes as string[]).includes(t))) {
         return fulfillJson(502, { error: "上游事件服务不可用" });
       }
@@ -221,10 +270,19 @@ async function stubLiveEvents(page: Page, events: MockLiveEvent[]): Promise<Live
     setSearchDown: (down) => {
       searchDown = down;
     },
+    setOnlineCount: (count) => {
+      onlineCount = count;
+    },
     push: (event) =>
       page.evaluate(
         (e) => (window as unknown as { __pushLiveEvent: (ev: unknown) => void }).__pushLiveEvent(e),
         event,
+      ),
+    pushNamedEvent: (eventType, data) =>
+      page.evaluate(
+        ({ type, d }) =>
+          (window as unknown as { __pushNamedEvent: (type: string, data: unknown) => void }).__pushNamedEvent(type, d),
+        { type: eventType, d: data },
       ),
   };
 }
@@ -688,5 +746,21 @@ test.describe("backdoor danmaku 弹幕看板", () => {
     const guardCard = page.locator('[data-event-id="guard:mix1"]');
     await expect(guardCard).toBeVisible();
     await expect(guardCard.getByText("舰长")).toBeVisible();
+  });
+
+  test("online-count-show: 在线人数正常显示", async ({ page }) => {
+    const stub = await stubLiveEvents(page, []);
+    stub.setOnlineCount(1521);
+    await gotoDanmaku(page, getAccounts().admin);
+
+    await expect(page.getByText("当前直播间在线 1521 人")).toBeVisible();
+  });
+
+  test("online-count-fail-hide: 在线人数获取失败时不显示", async ({ page }) => {
+    const stub = await stubLiveEvents(page, []);
+    stub.setOnlineCount(null);
+    await gotoDanmaku(page, getAccounts().admin);
+
+    await expect(page.getByText(/在线.*人/)).toHaveCount(0);
   });
 });

@@ -46,7 +46,7 @@ kuroshiro+kuromoji（懒加载字典）→ 失败则 OpenCC 简→日汉字重�
 
 | 方法+路径 | 鉴权 | 要点 |
 |---|---|---|
-| GET `/api/live-events` | member+ | `type` 可重复（四类枚举，非法 400）；`page`≥1 默认 1、`pageSize` 1–100 默认 50；`minPrice` 可选（number 0–100，0 或不传不筛选，非法 400）；上游失败 502；items 已归一化 + read 合并 + 罗马音；`type=gift` 向上游请求时展开为 `["gift", "gift_v2"]` |
+| GET `/api/live-events` | member+ | `type` 可重复（五类枚举：danmaku/super_chat/gift/guard_buy/online_rank_count，非法 400）；`page`≥1 默认 1、`pageSize` 1–100 默认 50；`minPrice` 可选（number 0–100，0 或不传不筛选，非法 400）；上游失败 502；items 已归一化 + read 合并 + 罗马音；`type=gift` 向上游请求时展开为 `["gift", "gift_v2"]`；`type=online_rank_count` 透传上游原始信封（不归一化、无 read/罗马音），与其余归一化条目混存 |
 | GET `/api/live-events/search` | member+ | `stringCriteria` 必填（string 1–200，trim 后非空）；`page`≥1 默认 1、`pageSize` 1–100 默认 20；上游失败 502；items 已归一化 + read 合并 + 罗马音 |
 | GET `/api/live-events/stream` | member+ | SSE，见下；`type=gift` 同样展开为 `["gift", "gift_v2"]` |
 | POST `/api/live-events/read` | admin+ | body `{eventId}`；前缀须 dm/sc/gift/guard 否则 400（防摧毁水位线）；幂等 upsert |
@@ -58,6 +58,7 @@ kuroshiro+kuromoji（懒加载字典）→ 失败则 OpenCC 简→日汉字重�
 - 先 `flushHeaders` 下 200（上游无事件时不主动刷头）；30s 一条 `: ping` 注释心跳。
 - 上游断流指数退避重连 1s 起步 ×2 至 30s 上限，**收到事件即重置退避**。
 - 客户端断开即 AbortController 中止整条链路；每帧 `data: <LiveEvent JSON>\n\n`，同样合并 read + 罗马音。
+- `type=online_rank_count` 事件不归一化，以命名帧 `event: online_rank_count\ndata: <上游原始信封 JSON>\n\n` 透传，与其余类型的无名帧可在同一流中混发。
 
 契约：`contract/live-events.openapi.yaml`。
 

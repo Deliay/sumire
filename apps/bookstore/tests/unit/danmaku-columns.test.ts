@@ -15,13 +15,13 @@ describe("danmaku columns 栏位配置", () => {
     window.localStorage.clear();
   });
 
-  it("无存储时回退默认 3 栏（礼物 | 上船+SC 分节 | 弹幕）", () => {
+  it("无存储时回退默认 3 栏（礼物+上船混排 | SC | 弹幕）", () => {
     const columns = loadColumns();
     expect(columns).toEqual(DEFAULT_COLUMNS);
     expect(columns).toHaveLength(3);
-    expect(columns[0]).toEqual({ id: "gift", types: ["gift"], mode: "split" });
-    expect(columns[1]).toEqual({ id: "guard_sc", types: ["guard_buy", "super_chat"], mode: "split" });
-    expect(columns[2]).toEqual({ id: "danmaku", types: ["danmaku"], mode: "split" });
+    expect(columns[0]).toEqual({ id: "gift_guard", types: ["gift", "guard_buy"], mode: "mixed" });
+    expect(columns[1]).toEqual({ id: "sc", types: ["super_chat"], mode: "mixed" });
+    expect(columns[2]).toEqual({ id: "danmaku", types: ["danmaku"], mode: "mixed" });
   });
 
   it("存储为非法 JSON 时回退默认", () => {
@@ -76,14 +76,14 @@ describe("danmaku columns 栏数预设 COLUMN_PRESETS", () => {
     ]);
   });
 
-  it("2 栏预设：上船+SC（分节）| 礼物+弹幕（混排）", () => {
+  it("2 栏预设：上船+SC（混排）| 弹幕+礼物（混排）", () => {
     expect(COLUMN_PRESETS[2]).toEqual([
-      { id: "guard_sc", types: ["guard_buy", "super_chat"], mode: "split" },
+      { id: "guard_sc", types: ["guard_buy", "super_chat"], mode: "mixed" },
       { id: "gift_danmaku", types: ["gift", "danmaku"], mode: "mixed" },
     ]);
   });
 
-  it("3 栏预设：沿用默认 3 栏（礼物 | 上船+SC 分节 | 弹幕）", () => {
+  it("3 栏预设：沿用默认 3 栏（礼物+上船混排 | SC | 弹幕）", () => {
     expect(COLUMN_PRESETS[3]).toEqual(DEFAULT_COLUMNS);
   });
 });

@@ -212,12 +212,14 @@ sequenceDiagram
 
 - **描述**: `FeedSection` 暴露按 `eventId` 定位与闪光的能力：
 
-  - **定位**：`FeedSection` 用 `@tanstack/react-virtual` 管理列表，按 `eventId` 计算目标行索引（`events.findIndex(e => e.eventId === id)`），命中则 `scrollToIndex(index, { align: "center" })` 滚动到可视区居中；未命中（不在已加载列表，虚拟化回收/历史未加载）则静默返回、不报错（PRD F4/边界）。
-  - **闪光**：`FeedSection` 维护一次性 `flashIds` 集合（`Set<string>`，初始空）；`locate(eventId)` 命中滚动后把 `eventId` 加入 `flashIds`，对应虚拟行渲染时挂一次性闪光样式；用单计时器在约定时长（≤200ms 结束后柔和淡出，总量约 1s：`animate-danmaku-flash` 类）后将该 `eventId` 从 `flashIds` 移除，自动复位。同一行再次点击可再次加入（重新闪光）。
+  - **定位**：`FeedSection` 用 `@tanstack/react-virtual` 管理列表。`locate(eventId)` 先尝试 `events.findIndex(e => e.eventId === id)`：
+    - 命中（目标在已加载数组，含被虚拟化回收但仍在数据中的行）→ `scrollToIndex(index, { align })` 滚动到可视区居中；数据中索引对应即滚回，虚拟化天然复用该索引；
+    - 未命中（目标在分页历史中尚未加载）→ 依 `scrollToIndex` 逼近目标所在列表深度并依据既有分页触底加载（`onLoadMore`）将目标引入已加载范围，加载后可再次定位；无法精确定位时落下滚动到对应深度，**不做虚假定位但必须让列表滚动以尝试到达目标**，绝不因目标不在列表就直接放弃（PRD F4/边界）。
+  - **闪光**：`FeedSection` 维护一次性 `flashIds` 集合（`Set<string>`，初始空）；`locate(eventId)` 滚动到位后把 `eventId` 加入 `flashIds`，对应虚拟行渲染时挂一次性闪光样式；用单计时器在约定时长（≤200ms 结束后柔和淡出，总量约 1s：`animate-danmaku-flash` 类）后将该 `eventId` 从 `flashIds` 移除，自动复位。同一行再次点击可再次加入（重新闪光）。
   - **接线**：`DanmakuDashboard` 的 `handleLocate(eventId)` 把胶囊点击转发到含对应类型的 `FeedSection` 的 `locate` 派生（经 ref/`useImperativeHandle` 或状态 `locateId` + 命中消费）。多类型混排栏需精确路由到包含目标类型的那个 `FeedSection`。
 
-- **技术细节**: 闪光只作用于虚拟行内层（不改变行测高/布局），避免虚拟化重测量的跳动；闪光状态不入 `eventId` 去重 key、不影响 `getItemKey`。定位用虚拟化 `scrollToIndex`（按已加载索引），避免手算 offset 与虚拟回收冲突。`flashIds` 为瞬态 UI 状态，刷新即清，不持久化。
-- **风险点**: ① 多类型混排栏内目标 `eventId` 可能经弹幕合并折叠（`merge.ts`）后不存在独立行——SC/上船不在折叠范围（仅弹幕折叠），故命中安全；② `scrollToIndex` 在目标已卸载（顶部 prepend 大量新条 + 目标被回收）时可能无效——未命中则静默，属可接受（PRD 边界）；③ 闪光动画须尊重 `prefers-reduced-motion`（降级为仅轻微高亮、无位移动画）。
+- **技术细节**: 闪光只作用于虚拟行内层（不改变行测高/布局），避免虚拟化重测量的跳动；闪光状态不入 `eventId` 去重 key、不影响 `getItemKey`。定位优先用虚拟化 `scrollToIndex`（按已加载索引），避免手算 offset 与虚拟回收冲突；未命中分支复用既有分页 `onLoadMore` 触底加载机制逐步逼近，保证「滚动列表定位到目标」。`flashIds` 为瞬态 UI 状态，刷新即清，不持久化。
+- **风险点**: ① 多类型混排栏内目标 `eventId` 可能经弹幕合并折叠（`merge.ts`）后不存在独立行——SC/上船不在折叠范围（仅弹幕折叠），故命中安全；② 目标在分页历史未加载时，需要依赖 `scrollToIndex` 逼近 + 触底加载循环，可能多次分页才到目标——须防止无限循环（每次 `onLoadMore` 后再按新数据重定位，加载到底无更多时停止并落到目标深度）；③ 闪光动画须尊重 `prefers-reduced-motion`（降级为仅轻微高亮、无位移动画）。
 
 ## 6. 技术决策
 
@@ -232,7 +234,8 @@ sequenceDiagram
 | 计时实现 | 单一 interval 扫描 | 逐胶囊 setTimeout | A | 胶囊多时有定时器堆积风险；统一扫描更稳（PRD §4.1） |
 | 排列顺序 | 金额降序 | 到达时间倒序 | A | 需求「按礼物金额排序」；金额相同新者优先 |
 | 持久化 | 不落 localStorage | 持久化 | A | 悬停胶囊为时点展示，刷新即清符合「当下有效」语义，无持久化价值 |
-| 点击定位机制 | 虚拟化 `scrollToIndex` + 一次性 `flashIds` | 原生 scrollIntoView + 持久高亮 | A | 虚拟列表须用 `scrollToIndex` 规避虚拟回收冲突；`flashIds` 一次性复位比持久高亮更不干扰；原生 scrollIntoView 对虚拟未装载行无效 |
+| 点击定位机制 | 虚拟化 `scrollToIndex`（未命中走触底分页逼近）+ 一次性 `flashIds` | 原生 scrollIntoView + 持久高亮 | A | 虚拟列表须用 `scrollToIndex` 规避虚拟回收冲突、并对分页未加载目标滚动列表逼近；`flashIds` 一次性复位比持久高亮更不干扰；原生 scrollIntoView 对虚拟未装载行无效 |
+| 目标不在已加载列表 | 滚动列表逼近定位（scrollToIndex + 复用 onLoadMore 触底加载） | 静默放弃 | A | 需求要求「目标不在已加载列表时滚动列表定位到目标」；静默放弃无法达成定位意图，明确不做 |
 | 定位与闪光作用层级 | 虚拟行内层（不改行高） | 外层容器 | A | 内层闪光不触及虚拟化测高，避免定位时布局跳动 |
 | 多类型混排栏定位路由 | 按 `eventId` 的类型路由到含该类型的 `FeedSection` | 仅当前小节/仅首个小节 | A | 目标在任一含该类型的节内都应可定位；F3/F4 覆盖 SC 与上船所在节 |
 
@@ -280,7 +283,7 @@ servers/api/tests/liveEventsNormalize.test.ts # 更新：SC 透传 time 断言
   - `hoverTopBar.ts`：`isHoverable`（仅 super_chat/guard_buy）；`pillPrice`（缺失→0）；`hoverDuration`（SC=time / 缺省 60s / 舰长60/提督300/总督3600/未知60）；`pillKind`；`pillSort`（金额降序、同额新者优先）；
   - `useHoverPills`：add 生成 `expiresAt` 正确；interval 到期移除非到期保留；重复 `eventId` 覆盖刷新计时；排序输出；
   - `HoverTopBar`：无 pill 不占位；SC 胶囊含「醒目留言」+ 价格 + 渐变样式；上船胶囊含船型 + 配色；`scColors` 缺失回退；点击胶囊触发 `onLocate(eventId)`；
-  - `FeedSection` 定位 + 闪光：`locate(eventId)` 命中行 `scrollToIndex`（对齐居中）并加入 `flashIds`，行渲染闪光类，计时后复位移除；未命中静默不报错；重复定位可重新闪光；多类型混排栏路由到包含目标类型的节。
+  - `FeedSection` 定位 + 闪光：`locate(eventId)` 命中行 `scrollToIndex`（对齐居中）并加入 `flashIds`，行渲染闪光类，计时后复位移除；**未命中（分页未加载）时滚动列表、触底 `onLoadMore` 逼近并再次定位到目标，到底无更多时停止并落下目标深度（不无限循环）**；重复定位可重新闪光；多类型混排栏路由到包含目标类型的节。
 - API/e2e 无契约破坏：契约仅增加可选字段，`live-events` 既有测试保持绿；e2e 既有断言通常不涉及悬停栏（空时不占位）。
 
 ### 8.2 测试类型
@@ -311,7 +314,7 @@ servers/api/tests/liveEventsNormalize.test.ts # 更新：SC 透传 time 断言
 - [ ] SSE 实时 SC/上船到达即生成胶囊，多胶囊按金额降序排列（同额新者优先）
 - [ ] SC 胶囊渐变底色 + 醒目留言 + 价格，悬停时长 = `time` 秒；上船胶囊船型强调色 + 船型，悬停时长 舰长60/提督300/总督3600 秒
 - [ ] 胶囊到期自动移除、全部清零悬停栏不占位；虚拟化/已读/SSE/栏位配置等既有能力零回归
-- [ ] 点击任一 SC/上船胶囊，信息流滚动定位到对应 `eventId` 记录并播放一次性闪光，闪光后复位不改变布局；目标不在已加载列表时静默不报错
+- [ ] 点击任一 SC/上船胶囊，信息流滚动定位到对应 `eventId` 记录并播放一次性闪光，闪光后复位不改变布局；目标不在当前可视/已加载列表时，列表滚动定位到目标（含未加载走分页逼近），不盲目放弃
 - [ ] 单元测试全绿，`pnpm lint && pnpm test && pnpm build` 全绿
 
 ## 11. 相关文档

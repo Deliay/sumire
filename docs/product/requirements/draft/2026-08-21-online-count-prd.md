@@ -6,9 +6,11 @@ type: Fleeting
 # 直播间在线人数展示
 
 **功能名称**: 直播间在线人数展示（Live Online Count）
-**PRD 版本**: v1.0
+**PRD 版本**: v1.1
 **创建日期**: 2026-08-21
 **作者**: sumire workflow
+
+> **v1.1 修订说明（2026-08-22，按集成验收真实环境实测打回意见修订）**：真实上游环境下 `event/range` 历史检索查不到 `online_rank_count`（该类型为实时推送帧），v1.0「事件仅作触发、数值仍经 range 接口取得」的口径不成立。修订为：在线人数直接取自 SSE 命名帧 `online_rank_count` 的 `payload.online_count`（帧即完整信封），且订阅并入弹幕看板既有唯一 SSE 连接（全页面 `/api/live-events/stream` 仅一条连接）；range 首取仅作首屏兜底（至多 1 次 GET，无数据则等首帧）。
 
 ## 一、背景与目标
 
@@ -22,8 +24,8 @@ type: Fleeting
 GET http://vtuber.internal.fffdan.com/api/b/live/1727076670/event/range?page=1&pageSize=1&type=online_rank_count
 ```
 
-- 上游持续产生 `online_rank_count` 类型事件（在线人数/榜单变动时推送），可通过既有 `event/range`（取最新一条）与 `event/subscribe`（SSE 实时事件）两个通道获取；
-- 事件数据中 `online_count` 字段即当前在线人数。
+- 上游持续产生 `online_rank_count` 类型事件（在线人数/榜单变动时推送），经 `event/subscribe`（SSE 实时事件）推送；`event/range` 历史检索对实时推送型事件可能查不到（v1.1 实测口径），故 range 仅作首屏兜底、SSE 帧为数值主来源；
+- 事件数据中 `online_count` 字段即当前在线人数（SSE 帧即完整信封，含 `payload.online_count`）。
 
 ### 1.2 目标
 
@@ -57,37 +59,40 @@ GET http://vtuber.internal.fffdan.com/api/b/live/1727076670/event/range?page=1&p
 
 ### 3.1 功能概述
 
-本期在弹幕看板页头标题旁新增在线人数展示：打开看板时经服务端代理调用上游 `event/range?type=online_rank_count&page=1&pageSize=1` 取最新 `online_count`；同时经既有 SSE 通道监听 `online_rank_count` 事件作为刷新触发。涉及契约新增端点、服务端代理与前端展示，无数据库变更。
+本期在弹幕看板页头标题旁新增在线人数展示：在线人数直接取自 SSE 命名帧 `online_rank_count` 的 `payload.online_count`（帧即完整信封，服务端代理透传），订阅并入弹幕看板既有唯一 SSE 连接（全页面 `/api/live-events/stream` 仅一条连接）；打开看板时可经服务端代理调用上游 `event/range?type=online_rank_count&page=1&pageSize=1` 作首屏兜底（至多 1 次 GET，无数据则等首帧）。涉及契约扩展、服务端代理与前端展示，无数据库变更。
 
 ### 3.2 功能列表
 
 #### F1 在线人数获取与展示
 
-**描述**: 弹幕看板打开（页面挂载）时，前端调用服务端新增端点获取当前在线人数：
+**描述**: 弹幕看板打开（页面挂载）时获取当前在线人数并展示：
 
+- 数值来源以 SSE 命名帧为准（见 F2）；页面挂载时另作一次首屏兜底首取（至多 1 次 `GET /api/live-events?type=online_rank_count&page=1&pageSize=1`，真实上游 range 可能查不到该实时推送型事件，返回空属正常，空则不展示、等待首帧）；
 - 文案固定为「当前直播间在线 {online_count} 人」，其中 `{online_count}` 为上游数据中的 `online_count` 数值，按原样展示（不做千分位等格式化）；
 - 文案为小字号（明显小于标题、弱化的辅助信息样式），位置紧随「弹幕看板」标题其后（同行尾随）；
 - 获取成功前不展示；获取失败或无数据时不展示该文案，也不展示任何占位或错误提示（纯增强信息，不打扰盯屏主流程）。
 
 **验收标准**:
 
-- [ ] 看板打开且接口返回成功时，标题旁展示「当前直播间在线 {online_count} 人」；
+- [ ] 看板打开且拿到有效数值（首取兜底或首个 SSE 帧）时，标题旁展示「当前直播间在线 {online_count} 人」；
 - [ ] 文案样式为小字号弱化样式，与标题同行尾随，不挤压工具区布局；
-- [ ] 接口失败 / 上游无 `online_rank_count` 数据时文案不渲染，看板其余功能正常。
+- [ ] 首取失败 / 上游无 `online_rank_count` 数据时文案不渲染，看板其余功能正常。
 
 #### F2 在线人数实时刷新
 
-**描述**: 监听上游 `online_rank_count` 实时事件（复用既有 SSE 代理通道），事件到达时重新获取在线人数并更新文案：
+**描述**: 监听上游 `online_rank_count` 实时事件（复用既有 SSE 代理通道），事件到达时直接取帧内数值更新文案：
 
-- 事件仅作为「人数可能已变化」的触发信号，最新数值仍经 F1 的获取接口取得（与需求口径一致：监听到事件后调用 range 接口取数）；
-- 上游事件可能高频到达，前端刷新需节流：最短刷新间隔 5s，间隔内的事件合并为一次尾随刷新；
+- `online_rank_count` 命名帧即完整上游信封，最新数值直接读取帧内 `payload.online_count`，**不再于事件到达后重新 GET 取数**（真实上游 `event/range` 历史检索查不到该实时推送型事件）；
+- 该订阅并入弹幕看板既有 SSE 连接，全页面 `/api/live-events/stream` 仅一条连接，不为在线人数单开第二条 EventSource；
+- 上游事件可能高频到达，前端更新需节流：最短更新间隔 5s，间隔内的帧合并为一次尾随更新（节流于数值更新，不产生额外请求）；
 - 看板关闭（页面卸载 / 路由离开）后停止监听，不再发起请求；
 - SSE 断线由既有自动重连机制兜底，重连成功后恢复事件驱动的刷新。
 
 **验收标准**:
 
-- [ ] `online_rank_count` 事件到达后在线人数文案随之更新；
-- [ ] 高频事件下刷新间隔不小于 5s，UI 数值不抖动；
+- [ ] `online_rank_count` 事件到达后在线人数文案随之更新（数值取自帧内 `payload.online_count`）；
+- [ ] 全页面 `/api/live-events/stream` 仅一条连接；刷新页面至多 1 次 `GET /api/live-events?type=online_rank_count` 首取请求；
+- [ ] 高频事件下更新间隔不小于 5s，UI 数值不抖动；
 - [ ] 离开看板页后不再产生在线人数相关请求；
 - [ ] SSE 断线重连后刷新恢复，无需手动刷新页面。
 

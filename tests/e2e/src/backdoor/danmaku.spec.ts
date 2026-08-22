@@ -342,9 +342,9 @@ test.describe("backdoor danmaku 弹幕看板", () => {
     await expect(page).toHaveURL(/\/backdoor\/danmaku$/);
     await expect(page.getByRole("heading", { name: "弹幕看板" })).toBeVisible();
 
-    // 默认三栏：礼物 | 上船+SC | 弹幕
-    await expect(page.getByRole("heading", { name: "礼物", exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "上船 + SC", exact: true })).toBeVisible();
+    // 默认三栏：礼物+上船(混排) | SC | 弹幕
+    await expect(page.getByRole("heading", { name: "礼物 + 上船", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "SC", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "弹幕", exact: true })).toBeVisible();
 
     // 历史事件按栏渲染
@@ -559,33 +559,33 @@ test.describe("backdoor danmaku 弹幕看板", () => {
     await stubLiveEvents(page, events);
     await gotoDanmaku(page, getAccounts().admin);
 
-    // 默认 上船+SC 栏为分栏：上船 / SC 上下分两小节（标签按 types 顺序）
+    // 默认 礼物+上船 栏为混排：无分栏标签
     await expect(page.locator('[data-event-id="sc:400"]')).toBeVisible();
     await expect(page.locator('[data-event-id="guard:400"]')).toBeVisible();
-    await expect(page.locator(".text-xs.font-medium.text-ink-dim")).toHaveText(["上船", "SC"]);
-
-    // 打开 上船+SC 栏配置，默认「分栏」选中
-    await page.getByRole("button", { name: "配置「上船 + SC」栏" }).click();
-    await expect(page.getByRole("radio", { name: "分栏" })).toBeChecked();
-
-    // 切到「混排」：小节合并，标签消失，两事件仍同栏渲染
-    await page.getByRole("radio", { name: "混排" }).check();
     await expect(page.locator(".text-xs.font-medium.text-ink-dim")).toHaveCount(0);
+
+    // 打开 礼物+上船 栏配置，默认「混排」选中
+    await page.getByRole("button", { name: "配置「礼物 + 上船」栏" }).click();
+    await expect(page.getByRole("radio", { name: "混排" })).toBeChecked();
+
+    // 切到「分栏」：小节合并为两个，标签出现
+    await page.getByRole("radio", { name: "分栏" }).check();
     await expect(page.locator('[data-event-id="sc:400"]')).toBeVisible();
     await expect(page.locator('[data-event-id="guard:400"]')).toBeVisible();
+    await expect(page.locator(".text-xs.font-medium.text-ink-dim")).toHaveCount(2);
 
     const stored = await page.evaluate(() => localStorage.getItem("danmaku-backdoor.columns"));
     expect(stored).not.toBeNull();
     expect(JSON.parse(stored!)).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: "guard_sc", types: ["guard_buy", "super_chat"], mode: "mixed" }),
+        expect.objectContaining({ id: "gift_guard", types: ["gift", "guard_buy"], mode: "split" }),
       ]),
     );
 
-    // 刷新后仍混排
+    // 刷新后仍分栏
     await page.reload();
     await expect(page.locator('[data-event-id="sc:400"]')).toBeVisible();
-    await expect(page.locator(".text-xs.font-medium.text-ink-dim")).toHaveCount(0);
+    await expect(page.locator(".text-xs.font-medium.text-ink-dim")).toHaveCount(2);
   });
 
   test("danmaku-search-basic: 从看板进入检索页，输入关键词显示结果卡片", async ({ page }) => {

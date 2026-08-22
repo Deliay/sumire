@@ -1,11 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import DanmakuDashboard, { type DanmakuDashboardHandle } from "@/features/danmaku/components/DanmakuDashboard";
 import ColumnCountSelector from "@/features/danmaku/components/ColumnCountSelector";
+import MarkReadButtonGroup from "@/features/danmaku/components/MarkReadButtonGroup";
 import { OnlineCountText } from "@/features/danmaku/components/OnlineCountText";
+import {
+  getHideLowScServerSnapshot,
+  getHideLowScSnapshot,
+  saveHideLowSc,
+  subscribeHideLowSc,
+} from "@/features/danmaku/hideLowSc";
 import type { LiveEventType } from "@/features/danmaku/types";
+import type { ReadAllType } from "@/features/danmaku/api";
 import { useOnlineCount } from "@/features/danmaku/useOnlineCount";
 
 /**
@@ -17,6 +25,15 @@ export default function DanmakuPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const dashboardRef = useRef<DanmakuDashboardHandle>(null);
   const { onlineCount, onOnlineCount } = useOnlineCount();
+
+  const hideLowSc = useSyncExternalStore(subscribeHideLowSc, getHideLowScSnapshot, getHideLowScServerSnapshot);
+  const handleToggleHideLowSc = useCallback(() => {
+    saveHideLowSc(!hideLowSc);
+  }, [hideLowSc]);
+
+  const readAllFromRef = useCallback((type: ReadAllType) => {
+    void dashboardRef.current?.readAll(type);
+  }, []);
 
   const replayTypes: { type: LiveEventType; label: string }[] = [
     { type: "danmaku", label: "弹幕回放" },
@@ -52,6 +69,11 @@ export default function DanmakuPage() {
                   ))}
                 </div>
               )}
+              <MarkReadButtonGroup
+                hideLowSc={hideLowSc}
+                onToggleHideLowSc={handleToggleHideLowSc}
+                onReadAll={readAllFromRef}
+              />
               <ColumnCountSelector />
               <Link
                 href="/backdoor/danmaku/search"
@@ -95,6 +117,11 @@ export default function DanmakuPage() {
                   ))}
                 </div>
               )}
+              <MarkReadButtonGroup
+                hideLowSc={hideLowSc}
+                onToggleHideLowSc={handleToggleHideLowSc}
+                onReadAll={readAllFromRef}
+              />
               <ColumnCountSelector />
               <button
                 type="button"

@@ -173,4 +173,42 @@ describe("MarkReadButtonGroup", () => {
     expect(screen.queryByText("SC 全部已读")).toBeNull();
     expect(screen.queryByText("上船 全部已读")).toBeNull();
   });
+
+  it("wide 视口容器宽度不足时折叠为 dropdown", () => {
+    stubMatchMedia({ "(max-width: 639px)": false, "(min-width: 1024px)": true });
+    // admin 有 3 项 × 120px = 360px 所需宽度；mock offsetWidth 为 200（不足）
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(200);
+    render(
+      <MarkReadButtonGroup hideLowSc={false} onToggleHideLowSc={vi.fn()} onReadAll={vi.fn()} />,
+    );
+    // 宽视口但容器窄 → 折叠
+    expect(screen.queryByRole("button", { name: /SC 全部已读/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "标记已读" })).toBeTruthy();
+  });
+
+  it("wide 视口容器宽度足够时平铺渲染", () => {
+    stubMatchMedia({ "(max-width: 639px)": false, "(min-width: 1024px)": true });
+    // admin 有 3 项 × 120px = 360px 所需宽度；mock offsetWidth 为 600（足够）
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(600);
+    render(
+      <MarkReadButtonGroup hideLowSc={false} onToggleHideLowSc={vi.fn()} onReadAll={vi.fn()} />,
+    );
+    // 宽视口且容器宽 → 平铺
+    expect(screen.getByRole("button", { name: /SC 全部已读/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /上船 全部已读/ })).toBeTruthy();
+    expect(screen.getByRole("switch", { name: "隐藏钢镚" })).toBeTruthy();
+  });
+
+  it("member 宽视口容器窄时仅折叠隐藏钢镚，不显示全部已读", () => {
+    stubMatchMedia({ "(max-width: 639px)": false, "(min-width: 1024px)": true });
+    currentRole = "member";
+    // member 有 1 项 × 120px = 120px；mock offsetWidth 为 80（不足）
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(80);
+    render(
+      <MarkReadButtonGroup hideLowSc={false} onToggleHideLowSc={vi.fn()} onReadAll={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "标记已读" }));
+    expect(screen.getByText("隐藏钢镚")).toBeTruthy();
+    expect(screen.queryByText("SC 全部已读")).toBeNull();
+  });
 });

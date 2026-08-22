@@ -9,7 +9,7 @@ paths:
   /api/live-events:
     get:
       summary: 检索历史直播事件（member 及以上）
-      description: 需登录且角色 member 及以上。服务端代理内网上游分页检索（event/range），将原始信封归一化为 LiveEvent 并合并已读状态（read 字段）。type 为可重复查询参数（如 ?type=danmaku&type=super_chat），缺省表示全部四类；上游不可达/超时/返回非法时返回 502。
+      description: 需登录且角色 member 及以上。服务端代理内网上游分页检索（event/range），将原始信封归一化为 LiveEvent 并合并已读状态（read 字段）。type 为可重复查询参数（如 ?type=danmaku&type=super_chat），缺省表示全部四类；上游不可达/超时/返回非法时返回 502。特别地，online_rank_count 不是信息流事件，不做 LiveEvent 归一化：响应 items 中该类型条目为上游原始信封透传（{ roomId, type, occurredAt, liveSessionId, payload }，无 read/nameRomaji 字段），与其余类型的归一化 LiveEvent 条目可在同一响应中混存；注意 online_rank_count 为实时推送型事件，上游 range 历史检索可能查不到该类型，此时 items 为空（200，非错误）——在线人数主取数通道为 /api/live-events/stream 的命名帧（帧内 payload.online_count 即完整数值），本端点 type=online_rank_count&page=1&pageSize=1 仅作首屏兜底用法，调用方须容忍空 items。
       parameters:
         - name: type
           in: query
@@ -45,7 +45,8 @@ paths:
                   pageSize: { type: integer }
                   items:
                     type: array
-                    items: { $ref: "#/components/schemas/LiveEvent" }
+                    description: 归一化 LiveEvent 条目与 online_rank_count 原始信封条目混存
+                    items: { $ref: "#/components/schemas/LiveEventOrEnvelope" }
         "400":
           description: type 含非法值，或分页参数非法（page/pageSize 非正整数或 pageSize 超上限 100）
           content:
@@ -108,7 +109,7 @@ paths:
   /api/live-events/stream:
     get:
       summary: 订阅实时直播事件流（member 及以上，SSE）
-      description: "需登录且角色 member 及以上。响应 Content-Type: text/event-stream；服务端按连接向上游透传订阅，每条事件为一帧 data: <LiveEvent JSON>\\n\\n（已归一化并合并 read）；每 30s 发送一条 : ping 注释心跳保活。上游断流时服务端指数退避重连（1s 起步，30s 上限），重连成功前不关闭客户端连接。"
+      description: "需登录且角色 member 及以上。响应 Content-Type: text/event-stream；服务端按连接向上游透传订阅，每条事件为一帧 data: <LiveEvent JSON>\\n\\n（已归一化并合并 read）；每 30s 发送一条 : ping 注释心跳保活。上游断流时服务端指数退避重连（1s 起步，30s 上限），重连成功前不关闭客户端连接。特别地，online_rank_count 事件不归一化，以命名帧 event: online_rank_count\\ndata: <上游原始信封 JSON>\\n\\n 透传，与其余类型的无名帧可在同一流中混发。"
       parameters:
         - name: type
           in: query
@@ -228,7 +229,41 @@ components:
   schemas:
     LiveEventType:
       type: string
-      enum: [danmaku, super_chat, gift, guard_buy]
+      enum: [danmaku, super_chat, gift, guard_buy, online_rank_count]
+    LiveEventOrEnvelope:
+      description: 归一化 LiveEvent 或 online_rank_count 原始信封（透传上游信封，不归一化）
+      oneOf:
+        - $ref: "#/components/schemas/LiveEvent"
+        - $ref: "#/components/schemas/UpstreamEnvelope"
+    UpstreamEnvelope:
+      type: object
+      required: [roomId, type, occurredAt, liveSessionId, payload]
+      description: 上游原始信封透传（仅 online_rank_count 类型使用）
+      properties:
+        roomId:
+          type: integer
+          description: 直播间 ID
+        type:
+          type: string
+          description: 事件类型（online_rank_count）
+        occurredAt:
+          type: string
+          format: date-time
+          description: 事件发生时间
+        liveSessionId:
+          type: string
+          description: 直播会话 ID
+        payload:
+          type: object
+          required: [data]
+          properties:
+            data:
+              type: object
+              required: [online_count]
+              properties:
+                online_count:
+                  type: integer
+                  description: 当前直播间在线人数
     LiveEvent:
       type: object
       required: [eventId, type, occurredAt, sender, read]

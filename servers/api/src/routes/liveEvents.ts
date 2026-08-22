@@ -6,6 +6,8 @@ import type { LiveEventsUpstream, UpstreamEnvelope } from "../liveEvents/upstrea
 import { markRead, markUnread, markAllRead, resolveReadState, typeFromEventId } from "../db/liveEventReads";
 
 export const LIVE_EVENT_TYPES: readonly LiveEventType[] = ["danmaku", "super_chat", "gift", "guard_buy"];
+/** 直接透传、不做 toLiveEvent 归一化的类型。 */
+export const PASSTHROUGH_TYPES: readonly string[] = ["online_rank_count"];
 /** 「全部已读」仅支持需要已读管理的类型（契约口径）。 */
 const READ_ALL_TYPES: readonly string[] = ["super_chat", "guard_buy"];
 
@@ -26,12 +28,13 @@ export interface LiveEventsRouterDeps {
 }
 
 /** type 查询参数：可重复，缺省为全部四类；含非法值则整体 400。 */
-function parseTypesParam(value: unknown): { ok: boolean; types: string[] } {
+function parseTypesParam(value: unknown, extraTypes?: readonly string[]): { ok: boolean; types: string[] } {
+  const allowed = extraTypes ? [...LIVE_EVENT_TYPES, ...extraTypes] : [...LIVE_EVENT_TYPES];
   if (value === undefined) return { ok: true, types: [...LIVE_EVENT_TYPES] };
   const list = Array.isArray(value) ? value : [value];
   const types: string[] = [];
   for (const v of list) {
-    if (typeof v !== "string" || !(LIVE_EVENT_TYPES as readonly string[]).includes(v)) {
+    if (typeof v !== "string" || !allowed.includes(v)) {
       return { ok: false, types: [] };
     }
     types.push(v);
@@ -98,7 +101,7 @@ export function createLiveEventsRouter(deps: LiveEventsRouterDeps): Router {
 
   // GET /api/live-events —— 历史事件检索（member 及以上）
   router.get("/", requireRole("member"), async (req: Request, res: Response) => {
-    const types = parseTypesParam(req.query.type);
+    const types = parseTypesParam(req.query.type, PASSTHROUGH_TYPES);
     if (!types.ok) {
       res.status(400).json({ error: "type 参数非法" });
       return;
@@ -120,12 +123,24 @@ export function createLiveEventsRouter(deps: LiveEventsRouterDeps): Router {
       upstreamUnavailable(res, err);
       return;
     }
-    const items = await resolveReadState(normalizeAll(upstreamPage.items));
+    const passthroughSet = new Set(PASSTHROUGH_TYPES);
+    const liveEvents: LiveEvent[] = [];
+    const passthroughItems: UpstreamEnvelope[] = [];
+    for (const item of upstreamPage.items) {
+      if (item.type && passthroughSet.has(item.type)) {
+        passthroughItems.push(item);
+      } else {
+        const event = toLiveEvent(item);
+        if (event) liveEvents.push(event);
+      }
+    }
+    const resolved = await resolveReadState(liveEvents);
+    const annotated = await annotateRomaji(resolved, toRomajiFn);
     res.status(200).json({
       total: upstreamPage.total,
       page: upstreamPage.page,
       pageSize: upstreamPage.pageSize,
-      items: await annotateRomaji(items, toRomajiFn),
+      items: [...annotated, ...passthroughItems],
     });
   });
 
@@ -165,7 +180,7 @@ export function createLiveEventsRouter(deps: LiveEventsRouterDeps): Router {
 
   // GET /api/live-events/stream —— SSE 实时事件流（member 及以上，按连接透传）
   router.get("/stream", requireRole("member"), async (req: Request, res: Response) => {
-    const types = parseTypesParam(req.query.type);
+    const types = parseTypesParam(req.query.type, PASSTHROUGH_TYPES);
     if (!types.ok) {
       res.status(400).json({ error: "type 参数非法" });
       return;
@@ -188,6 +203,11 @@ export function createLiveEventsRouter(deps: LiveEventsRouterDeps): Router {
 
     const send = async (envelope: UpstreamEnvelope): Promise<void> => {
       if (controller.signal.aborted || res.writableEnded) return;
+      if (envelope.type && PASSTHROUGH_TYPES.includes(envelope.type)) {
+        if (controller.signal.aborted || res.writableEnded) return;
+        res.write(`event: ${envelope.type}\ndata: ${JSON.stringify(envelope)}\n\n`);
+        return;
+      }
       const event = toLiveEvent(envelope);
       if (!event) return;
       const [merged] = await resolveReadState([event]);

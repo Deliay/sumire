@@ -10,6 +10,7 @@
 - 金额分档配色：<10 灰 / 10–99 蓝 / 100–500 金 / >500 红。
 - 弹幕中的表情以图片展示；文字弹幕支持折叠（见下）。
 - 留言内容同样带罗马音标注。
+- 在线人数：弹幕看板页头标题后展示小字号文案「当前直播间在线 {online_count} 人」（普通/全屏页头）；数值直接取自看板唯一 SSE 连接（`/api/live-events/stream`）的 `online_rank_count` 命名帧 `payload.online_count`，5s 节流更新；挂载时 `GET /api/live-events?type=online_rank_count&page=1&pageSize=1` 首取仅作首屏兜底（至多 1 次，无数据则等首帧）；无数据或获取失败时不展示。
 
 ## 栏位布局
 

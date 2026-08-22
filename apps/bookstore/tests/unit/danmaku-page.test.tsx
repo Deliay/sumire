@@ -25,6 +25,11 @@ vi.mock("@/features/backdoor/session", () => ({
   }),
 }));
 
+let mockOnlineCount: number | null = null;
+vi.mock("@/features/danmaku/useOnlineCount", () => ({
+  useOnlineCount: () => ({ onlineCount: mockOnlineCount, onOnlineCount: vi.fn() }),
+}));
+
 import DanmakuPage from "@/app/backdoor/(dashboard)/danmaku/page";
 
 const SENDER: LiveEvent["sender"] = { uid: 1, name: "观众A", nameRomaji: null, face: null, medal: null, guardLevel: null };
@@ -184,5 +189,51 @@ describe("DanmakuPage 视图栏选择器", () => {
     const select = (await screen.findByRole("combobox", { name: "视图栏" })) as HTMLSelectElement;
     fireEvent.change(select, { target: { value: "2" } });
     expect(await screen.findByText("上船 + SC")).toBeTruthy();
+  });
+});
+
+describe("DanmakuPage 双页头 OnlineCountText", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    currentRole = "admin";
+    mockOnlineCount = 1521;
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(600);
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(600);
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(360);
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(2000);
+    listLiveEvents.mockImplementation(async (types: string[]) => {
+      const items = [DM_EVENT].filter((e) => types.includes(e.type));
+      return { status: 200, data: { total: items.length, page: 1, pageSize: 50, items } };
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("普通模式页头展示在线人数", async () => {
+    render(<DanmakuPage />);
+    await screen.findByText("弹幕一");
+    expect(screen.getByText("当前直播间在线 1521 人")).toBeTruthy();
+  });
+
+  it("全屏模式页头展示在线人数", async () => {
+    render(<DanmakuPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "全屏模式" }));
+    await screen.findByRole("button", { name: "退出全屏" });
+    expect(screen.getByText("当前直播间在线 1521 人")).toBeTruthy();
+  });
+
+  it("onlineCount=null 时双页头均不展示在线人数", async () => {
+    mockOnlineCount = null;
+    render(<DanmakuPage />);
+    await screen.findByText("弹幕一");
+    expect(screen.queryByText(/当前直播间在线/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "全屏模式" }));
+    await screen.findByRole("button", { name: "退出全屏" });
+    expect(screen.queryByText(/当前直播间在线/)).toBeNull();
   });
 });

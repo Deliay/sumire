@@ -221,7 +221,7 @@ describe("DanmakuDashboard", () => {
 
   it("经 ref 调用 readAll(\"super_chat\") 后该类型事件整体置灰", async () => {
     const ref = { current: null as DanmakuDashboardHandle | null };
-    const { rerender } = render(<DanmakuDashboard ref={(r) => { ref.current = r; }} />);
+    const { rerender: _rerender } = render(<DanmakuDashboard ref={(r) => { ref.current = r; }} />);
     const row = (await screen.findByText("醒目留言一")).closest("[data-event-id]") as HTMLElement;
     await act(async () => {
       await ref.current?.readAll("super_chat");

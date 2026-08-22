@@ -37,9 +37,9 @@ export default function MarkReadButtonGroup({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // 空间不足折叠：窄视口(<640) 恒折叠；宽视口按容器可用宽度判定
+  // 空间不足折叠：窄视口(<640) 恒折叠；宽视口按父容器可用宽度判定
   const isNarrow = useMediaQuery("(max-width: 639px)");
-  const [measureRef, containerWidth] = useContainerWidth<HTMLDivElement>();
+  const [measureRef, containerWidth] = useContainerWidth<HTMLDivElement>("parent");
 
   const itemCount = (canManage ? 2 : 0) + 1; // readAll buttons + 隐藏钢镚
   const neededWidth = itemCount * FLAT_ITEM_WIDTH_PX;

@@ -39,7 +39,7 @@ vi.mock("@/features/danmaku/useLiveEventStream", () => ({
   },
 }));
 
-import DanmakuDashboard from "@/features/danmaku/components/DanmakuDashboard";
+import DanmakuDashboard, { type DanmakuDashboardHandle } from "@/features/danmaku/components/DanmakuDashboard";
 
 const SENDER: LiveEvent["sender"] = { uid: 1, name: "观众A", nameRomaji: null, face: null, medal: null, guardLevel: null };
 
@@ -210,21 +210,22 @@ describe("DanmakuDashboard", () => {
     expect(await screen.findByText(/操作失败/)).toBeTruthy();
   });
 
-  it("member 双击不触发已读交互，也无全部已读按钮", async () => {
+  it("member 双击不触发已读交互", async () => {
     currentRole = "member";
     render(<DanmakuDashboard />);
     const row = (await screen.findByText("醒目留言一")).closest("[data-event-id]") as HTMLElement;
     fireEvent.doubleClick(row);
     expect(markLiveEventRead).not.toHaveBeenCalled();
     expect(markLiveEventUnread).not.toHaveBeenCalled();
-    expect(screen.queryByRole("button", { name: /全部已读/ })).toBeNull();
   });
 
-  it("「标记全部已读」后该类型事件整体置灰", async () => {
-    render(<DanmakuDashboard />);
+  it("经 ref 调用 readAll(\"super_chat\") 后该类型事件整体置灰", async () => {
+    const ref = { current: null as DanmakuDashboardHandle | null };
+    const { rerender } = render(<DanmakuDashboard ref={(r) => { ref.current = r; }} />);
     const row = (await screen.findByText("醒目留言一")).closest("[data-event-id]") as HTMLElement;
-    fireEvent.click(await screen.findByRole("button", { name: /SC 全部已读/ }));
-    fireEvent.click(screen.getByRole("button", { name: /确认全部已读/ }));
+    await act(async () => {
+      await ref.current?.readAll("super_chat");
+    });
     await waitFor(() => expect(markAllLiveEventsRead).toHaveBeenCalledWith("super_chat"));
     await waitFor(() => expect(row.className).toContain("opacity-60"));
   });

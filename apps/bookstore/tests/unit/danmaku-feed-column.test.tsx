@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { cleanup, fireEvent, render, screen, act } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import FeedColumn from "@/features/danmaku/components/FeedColumn";
 import type { LiveEvent } from "@/features/danmaku/types";
 
@@ -35,14 +35,12 @@ function sectionsOf(events: LiveEvent[]): { type: LiveEvent["type"]; label: stri
 
 describe("FeedColumn", () => {
   beforeEach(() => {
-    // jsdom 无布局：virtualizer 经 offsetWidth/offsetHeight 实测视口，stub 固定尺寸
     vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(600);
     vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(360);
   });
 
   afterEach(() => {
     cleanup();
-    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -69,45 +67,11 @@ describe("FeedColumn", () => {
     const labels = [...container.querySelectorAll(".text-xs.font-medium.text-ink-dim")].map(
       (n) => n.textContent,
     );
-    // 弹幕小节标签在礼物小节标签之前（上下分栏）
     expect(labels).toEqual(["弹幕", "礼物"]);
   });
 
-  it("SC 列显示「标记全部已读」，需二次确认后才触发", () => {
-    vi.useFakeTimers();
-    const onReadAll = vi.fn();
-    render(<FeedColumn title="SC" sections={sectionsOf(EVENTS)} canManage onReadAll={onReadAll} readAllTypes={["super_chat"]} />);
-    const btn = screen.getByRole("button", { name: /SC 全部已读/ });
-    fireEvent.click(btn);
-    expect(onReadAll).not.toHaveBeenCalled();
-    // 二次确认态
-    const confirm = screen.getByRole("button", { name: /确认全部已读/ });
-    fireEvent.click(confirm);
-    expect(onReadAll).toHaveBeenCalledWith("super_chat");
-  });
-
-  it("二次确认超时未点自动复位", () => {
-    vi.useFakeTimers();
-    const onReadAll = vi.fn();
-    render(<FeedColumn title="SC" sections={sectionsOf(EVENTS)} canManage onReadAll={onReadAll} readAllTypes={["super_chat"]} />);
-    fireEvent.click(screen.getByRole("button", { name: /SC 全部已读/ }));
-    act(() => {
-      vi.advanceTimersByTime(4000);
-    });
-    expect(screen.getByRole("button", { name: /SC 全部已读/ })).toBeTruthy();
-    expect(onReadAll).not.toHaveBeenCalled();
-  });
-
-  it("上船列触发 guard_buy 全部已读", () => {
-    const onReadAll = vi.fn();
-    render(<FeedColumn title="上船" sections={sectionsOf(EVENTS)} canManage onReadAll={onReadAll} readAllTypes={["guard_buy"]} />);
-    fireEvent.click(screen.getByRole("button", { name: /上船 全部已读/ }));
-    fireEvent.click(screen.getByRole("button", { name: /确认全部已读/ }));
-    expect(onReadAll).toHaveBeenCalledWith("guard_buy");
-  });
-
-  it("member（canManage=false）不渲染「标记全部已读」", () => {
-    render(<FeedColumn title="SC" sections={sectionsOf(EVENTS)} canManage={false} onReadAll={vi.fn()} readAllTypes={["super_chat"]} />);
+  it("栏头不再渲染全部已读按钮（已上收至页头按钮组）", () => {
+    render(<FeedColumn title="SC" sections={sectionsOf(EVENTS)} canManage />);
     expect(screen.queryByRole("button", { name: /全部已读/ })).toBeNull();
   });
 
@@ -124,7 +88,8 @@ describe("FeedColumn", () => {
       />,
     );
     expect(screen.getByText("检索失败")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    const retryBtn = screen.getByRole("button", { name: "重试" });
+    retryBtn.click();
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 });

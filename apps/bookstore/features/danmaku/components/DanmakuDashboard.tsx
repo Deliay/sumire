@@ -16,6 +16,12 @@ import {
 import { loadGiftMinPrice, saveGiftMinPrice } from "../giftMinPrice";
 import { loadMergeEnabled, saveMergeEnabled } from "../mergeEnabled";
 import {
+  getHideLowScServerSnapshot,
+  getHideLowScSnapshot,
+  isScHidden,
+  subscribeHideLowSc,
+} from "../hideLowSc";
+import {
   getColumnsServerSnapshot,
   getColumnsSnapshot,
   resolveColumns,
@@ -35,9 +41,6 @@ import {
 } from "../types";
 import FeedColumn from "./FeedColumn";
 import GiftFilterControl from "./GiftFilterControl";
-
-/** 「全部已读」仅支持需要已读管理的类型（契约口径）。 */
-const READ_ALL_TYPES: readonly ReadAllType[] = ["super_chat", "guard_buy"];
 
 /** 实时流到达即打「New」标记的事件类型（仅 SC / 上船）。 */
 const NEW_MARK_TYPES: readonly LiveEventType[] = ["super_chat", "guard_buy"];
@@ -76,6 +79,8 @@ interface DanmakuDashboardProps {
 export interface DanmakuDashboardHandle {
   /** 回放指定类型的历史事件（模拟 SSE 发布）。 */
   replayTest: (type: LiveEventType) => Promise<void>;
+  /** 按类型全部已读（由页头 MarkReadButtonGroup 调用）。 */
+  readAll: (type: ReadAllType) => Promise<void>;
 }
 
 /** 单栏检索：进入 loading（移出已加载），失败记错误态，成功写入去重后条目。
@@ -155,6 +160,13 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
     saveMergeEnabled(next);
     setMergeEnabled(next);
   }, [mergeEnabled]);
+
+  // 隐藏钢镚开关（跨组件同步：页头按钮组 + 看板过滤）
+  const hideLowSc = useSyncExternalStore(subscribeHideLowSc, getHideLowScSnapshot, getHideLowScServerSnapshot);
+  const hideLowScRef = useRef(hideLowSc);
+  useEffect(() => {
+    hideLowScRef.current = hideLowSc;
+  }, [hideLowSc]);
 
   // 检索代际：columns 变化时递增，旧代检索结果作废，避免竞态覆盖新栏位数据
   const generationRef = useRef(0);
@@ -269,6 +281,8 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
     (event: LiveEvent) => {
       // SSE 低价礼物丢弃（不标记入场动画）
       if (event.type === "gift" && (event.price ?? 0) < minPriceRef.current) return;
+      // 隐藏钢镚开启时丢弃低价 SC（不插入、不清 New、不标入场）
+      if (event.type === "super_chat" && hideLowScRef.current && isScHidden(event.price)) return;
       // 实际插入判定：至少一个目标分节未含该 eventId；被分节去重跳过的不标记入场
       const inserted = columns.some((col) => {
         if (!col.types.includes(event.type)) return false;
@@ -340,7 +354,6 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
     [handleStreamEvent],
   );
 
-  useImperativeHandle(ref, () => ({ replayTest }), [replayTest]);
   const updateEvent = useCallback((eventId: string, fn: (e: LiveEvent) => LiveEvent) => {
     setEventsBySection((prev) => {
       const next: Record<string, LiveEvent[]> = {};
@@ -399,6 +412,8 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
     }
   }, []);
 
+  useImperativeHandle(ref, () => ({ replayTest, readAll: handleReadAll }), [replayTest, handleReadAll]);
+
   // 栏位配置：勾选/取消事件类型，至少保留一种；写回 localStorage（订阅者自动收到新快照）。
   // 作用于当前有效栏（用户所见），跨视口夹取场景下写入为自定义栏数配置。
   const toggleColumnType = useCallback(
@@ -425,17 +440,34 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
     [columns],
   );
 
+  // 隐藏钢镚展示过滤：对所有含 SC 的节数据（split + mixed）过滤低价 SC
+  // 仅在渲染层过滤，原始 eventsBySection 不变（供去重/分页使用）
+  const visibleEventsBySection = useMemo(() => {
+    if (!hideLowSc) return eventsBySection;
+    const filtered: Record<string, LiveEvent[]> = {};
+    for (const [key, events] of Object.entries(eventsBySection)) {
+      // 判断该 key 对应的类型是否为 super_chat（key 格式 colId:type）
+      const type = key.split(":")[1];
+      if (type === "super_chat") {
+        filtered[key] = events.filter((e) => !isScHidden(e.price));
+      } else {
+        filtered[key] = events;
+      }
+    }
+    return filtered;
+  }, [eventsBySection, hideLowSc]);
+
   // 混排栏合并列表（按时间倒序）：仅 columns 或事件数据变化时重算，保证引用稳定
   const mixedEventsByColumn = useMemo(() => {
     const map: Record<string, LiveEvent[]> = {};
     for (const col of columns) {
       if (col.mode !== "mixed") continue;
       map[col.id] = mergeEventsByTime(
-        ...col.types.map((type) => eventsBySection[sectionKey(col.id, type)] ?? []),
+        ...col.types.map((type) => visibleEventsBySection[sectionKey(col.id, type)] ?? []),
       );
     }
     return map;
-  }, [columns, eventsBySection]);
+  }, [columns, visibleEventsBySection]);
 
   // 礼物最低金额筛选变更：保存 + 同步 ref + 仅重载礼物分节
   const handleMinPriceChange = useCallback(
@@ -491,7 +523,7 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
                   return {
                     type,
                     label: labelForType(type),
-                    events: eventsBySection[key] ?? [],
+                    events: visibleEventsBySection[key] ?? [],
                     loading: !loadedSections.has(key),
                     error: sectionErrors[key] ?? null,
                     onRetry: () => void loadSection(col, type, generationRef.current),
@@ -510,10 +542,6 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
               newIds={newIds}
               mergeEnabled={mergeEnabled}
               freshIds={freshIds}
-              readAllTypes={col.types.filter((t): t is ReadAllType =>
-                (READ_ALL_TYPES as readonly string[]).includes(t),
-              )}
-              onReadAll={handleReadAll}
               headerExtra={
                 <div className="flex items-center gap-2">
                   {streamStatus === "connecting" && (

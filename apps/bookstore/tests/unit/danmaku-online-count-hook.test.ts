@@ -64,9 +64,9 @@ describe("useOnlineCount", () => {
     expect(fetchCalls).toHaveLength(0);
   });
 
-  it("挂载首取返回含 payload.online_count 的 items → 数值就绪", async () => {
+  it("挂载首取返回含 payload.data.online_count 的 items → 数值就绪", async () => {
     fetchHandler = async () =>
-      new Response(JSON.stringify({ items: [{ payload: { online_count: 1521 } }] }));
+      new Response(JSON.stringify({ items: [{ payload: { data: { online_count: 1521 } } }] }));
     const { useOnlineCount } = await loadHook();
     const { result } = renderHook(() => useOnlineCount());
     const fetchPromise = waitForFetch();
@@ -126,7 +126,7 @@ describe("useOnlineCount", () => {
     fetchHandler = async () => {
       callCount++;
       if (callCount === 1) {
-        return new Response(JSON.stringify({ items: [{ payload: { online_count: 100 } }] }));
+        return new Response(JSON.stringify({ items: [{ payload: { data: { online_count: 100 } } }] }));
       }
       return new Response("{}", { status: 500 });
     };
@@ -158,7 +158,7 @@ describe("useOnlineCount", () => {
     const fetchCountBefore = fetchCalls.length;
 
     act(() => {
-      result.current.onOnlineCount({ payload: { online_count: 2048 } });
+      result.current.onOnlineCount({ payload: { data: { online_count: 2048 } } });
     });
     await act(() => vi.advanceTimersByTimeAsync(0));
     expect(result.current.onlineCount).toBe(2048);
@@ -180,15 +180,15 @@ describe("useOnlineCount", () => {
 
     // 第一个帧：leading 立即更新
     act(() => {
-      result.current.onOnlineCount({ payload: { online_count: 100 } });
+      result.current.onOnlineCount({ payload: { data: { online_count: 100 } } });
     });
     await act(() => vi.advanceTimersByTimeAsync(10));
     expect(result.current.onlineCount).toBe(100);
 
     // 间隔内多个帧：只记录最新值，不立即更新
     act(() => {
-      result.current.onOnlineCount({ payload: { online_count: 200 } });
-      result.current.onOnlineCount({ payload: { online_count: 300 } });
+      result.current.onOnlineCount({ payload: { data: { online_count: 200 } } });
+      result.current.onOnlineCount({ payload: { data: { online_count: 300 } } });
     });
     await act(() => vi.advanceTimersByTimeAsync(10));
     // leading 已更新为 100，后续帧在节流窗口内
@@ -213,7 +213,7 @@ describe("useOnlineCount", () => {
     await act(() => vi.advanceTimersByTimeAsync(5000));
 
     act(() => {
-      result.current.onOnlineCount({ payload: { online_count: NaN } });
+      result.current.onOnlineCount({ payload: { data: { online_count: NaN } } });
     });
     await act(() => vi.advanceTimersByTimeAsync(10));
     expect(result.current.onlineCount).toBeNull();
@@ -233,7 +233,7 @@ describe("useOnlineCount", () => {
 
   it("卸载后不再发请求亦不更新", async () => {
     fetchHandler = async () =>
-      new Response(JSON.stringify({ items: [{ payload: { online_count: 100 } }] }));
+      new Response(JSON.stringify({ items: [{ payload: { data: { online_count: 100 } } }] }));
     const { useOnlineCount } = await loadHook();
     const { result, unmount } = renderHook(() => useOnlineCount());
     await act(() => vi.advanceTimersByTimeAsync(100));

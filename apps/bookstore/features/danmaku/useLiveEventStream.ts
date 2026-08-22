@@ -17,7 +17,7 @@ export type LiveStreamStatus = "idle" | "connecting" | "open" | "closed";
 export function useLiveEventStream(
   types: readonly string[],
   onEvent: (event: LiveEvent) => void,
-  onOnlineCount?: (envelope: { payload?: { online_count?: number } }) => void,
+  onOnlineCount?: (envelope: { payload?: { data?: { online_count?: number } } }) => void,
 ): LiveStreamStatus {
   const enabled = API_CONFIGURED && types.length > 0;
   const typesKey = types.join(",");
@@ -65,7 +65,7 @@ export function useLiveEventStream(
     // 命名帧：online_rank_count 透传上游原始信封，不经 LiveEvent 归一化
     es.addEventListener("online_rank_count", ((msg: MessageEvent) => {
       try {
-        const data = JSON.parse(msg.data) as { payload?: { online_count?: number } };
+        const data = JSON.parse(msg.data) as { payload?: { data?: { online_count?: number } } };
         onOnlineCountRef.current?.(data);
       } catch {
         // 非法帧静默忽略

@@ -255,11 +255,15 @@ components:
           description: 直播会话 ID
         payload:
           type: object
-          required: [online_count]
+          required: [data]
           properties:
-            online_count:
-              type: integer
-              description: 当前直播间在线人数
+            data:
+              type: object
+              required: [online_count]
+              properties:
+                online_count:
+                  type: integer
+                  description: 当前直播间在线人数
     LiveEvent:
       type: object
       required: [eventId, type, occurredAt, sender, read]

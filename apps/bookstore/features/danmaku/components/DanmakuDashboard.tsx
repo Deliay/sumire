@@ -69,7 +69,7 @@ interface DanmakuDashboardProps {
   /** 全屏模式：分栏区占满整个屏幕（由弹幕看板页传入）。 */
   isFullscreen?: boolean;
   /** 在线人数命名帧回调（由 useOnlineCount 提供，经 useLiveEventStream 透出）。 */
-  onOnlineCount?: (envelope: { payload?: { online_count?: number } }) => void;
+  onOnlineCount?: (envelope: { payload?: { data?: { online_count?: number } } }) => void;
 }
 
 /** DanmakuDashboard 暴露给父组件的 imperative handle。 */

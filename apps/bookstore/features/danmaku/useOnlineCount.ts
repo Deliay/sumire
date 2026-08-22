@@ -11,7 +11,7 @@ import { API_CONFIGURED, request } from "@/features/backdoor/api";
  */
 export function useOnlineCount(): {
   onlineCount: number | null;
-  onOnlineCount: (envelope: { payload?: { online_count?: number } }) => void;
+  onOnlineCount: (envelope: { payload?: { data?: { online_count?: number } } }) => void;
 } {
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
   const lastUpdateRef = useRef(0);
@@ -24,13 +24,13 @@ export function useOnlineCount(): {
     if (!API_CONFIGURED) return;
     const ac = new AbortController();
     controllerRef.current = ac;
-    request<{ items: Array<{ payload?: { online_count?: number } }> }>(
+    request<{ items: Array<{ payload?: { data?: { online_count?: number } } }> }>(
       "/api/live-events?type=online_rank_count&page=1&pageSize=1",
       { signal: ac.signal },
     )
       .then(({ status, data }) => {
         if (status !== 200) return;
-        const count = data?.items?.[0]?.payload?.online_count;
+        const count = data?.items?.[0]?.payload?.data?.online_count;
         if (typeof count === "number" && Number.isFinite(count)) setOnlineCount(count);
       })
       .catch((err) => {
@@ -49,8 +49,8 @@ export function useOnlineCount(): {
 
   // ── 帧取数回调（由 useLiveEventStream 命名帧触发）──
   const onOnlineCount = useCallback(
-    (envelope: { payload?: { online_count?: number } }) => {
-      const count = envelope?.payload?.online_count;
+    (envelope: { payload?: { data?: { online_count?: number } } }) => {
+      const count = envelope?.payload?.data?.online_count;
       if (typeof count !== "number" || !Number.isFinite(count)) return;
 
       const now = Date.now();

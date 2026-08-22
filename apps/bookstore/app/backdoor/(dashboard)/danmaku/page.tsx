@@ -16,7 +16,7 @@ import { useOnlineCount } from "@/features/danmaku/useOnlineCount";
 export default function DanmakuPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const dashboardRef = useRef<DanmakuDashboardHandle>(null);
-  const onlineCount = useOnlineCount();
+  const { onlineCount, onOnlineCount } = useOnlineCount();
 
   const replayTypes: { type: LiveEventType; label: string }[] = [
     { type: "danmaku", label: "弹幕回放" },
@@ -70,7 +70,7 @@ export default function DanmakuPage() {
               </button>
             </div>
           </div>
-          <DanmakuDashboard ref={dashboardRef} isFullscreen={false} />
+          <DanmakuDashboard ref={dashboardRef} isFullscreen={false} onOnlineCount={onOnlineCount} />
         </div>
       )}
       {isFullscreen && (
@@ -108,7 +108,7 @@ export default function DanmakuPage() {
             </div>
           </div>
           <div className="flex min-h-0 flex-1 flex-col">
-            <DanmakuDashboard ref={dashboardRef} isFullscreen />
+            <DanmakuDashboard ref={dashboardRef} isFullscreen onOnlineCount={onOnlineCount} />
           </div>
         </div>
       )}

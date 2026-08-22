@@ -9,7 +9,7 @@ paths:
   /api/live-events:
     get:
       summary: 检索历史直播事件（member 及以上）
-      description: 需登录且角色 member 及以上。服务端代理内网上游分页检索（event/range），将原始信封归一化为 LiveEvent 并合并已读状态（read 字段）。type 为可重复查询参数（如 ?type=danmaku&type=super_chat），缺省表示全部四类；上游不可达/超时/返回非法时返回 502。特别地，online_rank_count 不是信息流事件，不做 LiveEvent 归一化：响应 items 中该类型条目为上游原始信封透传（{ roomId, type, occurredAt, liveSessionId, payload }，无 read/nameRomaji 字段），与其余类型的归一化 LiveEvent 条目可在同一响应中混存；在线人数取数用法为 type=online_rank_count&page=1&pageSize=1 取 items[0].payload.online_count；上游无该类型数据时 items 为空（200，非错误）。
+      description: 需登录且角色 member 及以上。服务端代理内网上游分页检索（event/range），将原始信封归一化为 LiveEvent 并合并已读状态（read 字段）。type 为可重复查询参数（如 ?type=danmaku&type=super_chat），缺省表示全部四类；上游不可达/超时/返回非法时返回 502。特别地，online_rank_count 不是信息流事件，不做 LiveEvent 归一化：响应 items 中该类型条目为上游原始信封透传（{ roomId, type, occurredAt, liveSessionId, payload }，无 read/nameRomaji 字段），与其余类型的归一化 LiveEvent 条目可在同一响应中混存；注意 online_rank_count 为实时推送型事件，上游 range 历史检索可能查不到该类型，此时 items 为空（200，非错误）——在线人数主取数通道为 /api/live-events/stream 的命名帧（帧内 payload.online_count 即完整数值），本端点 type=online_rank_count&page=1&pageSize=1 仅作首屏兜底用法，调用方须容忍空 items。
       parameters:
         - name: type
           in: query
@@ -255,11 +255,15 @@ components:
           description: 直播会话 ID
         payload:
           type: object
-          required: [online_count]
+          required: [data]
           properties:
-            online_count:
-              type: integer
-              description: 当前直播间在线人数
+            data:
+              type: object
+              required: [online_count]
+              properties:
+                online_count:
+                  type: integer
+                  description: 当前直播间在线人数
     LiveEvent:
       type: object
       required: [eventId, type, occurredAt, sender, read]

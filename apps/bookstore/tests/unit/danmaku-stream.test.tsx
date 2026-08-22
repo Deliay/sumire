@@ -12,6 +12,7 @@ class MockEventSource {
   onopen: (() => void) | null = null;
   onmessage: ((msg: { data: string }) => void) | null = null;
   onerror: (() => void) | null = null;
+  private listeners: Record<string, EventListener[]> = {};
   constructor(url: string, opts?: { withCredentials?: boolean }) {
     this.url = url;
     this.withCredentials = opts?.withCredentials ?? false;
@@ -21,8 +22,20 @@ class MockEventSource {
     this.closed = true;
     this.readyState = MockEventSource.CLOSED;
   }
+  addEventListener(type: string, listener: EventListener) {
+    if (!this.listeners[type]) this.listeners[type] = [];
+    this.listeners[type].push(listener);
+  }
+  removeEventListener(type: string, listener: EventListener) {
+    this.listeners[type] = (this.listeners[type] ?? []).filter((l) => l !== listener);
+  }
   emit(data: unknown) {
     this.onmessage?.({ data: JSON.stringify(data) });
+  }
+  __emitNamedEvent(type: string, data: unknown) {
+    const listeners = this.listeners[type] ?? [];
+    const event = new MessageEvent(type, { data: JSON.stringify(data) });
+    listeners.forEach((l) => l(event));
   }
 }
 
@@ -118,5 +131,33 @@ describe("useLiveEventStream", () => {
       es.emit(makeScEvent("sc:9"));
     });
     expect(onEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it("online_rank_count 命名帧触发 onOnlineCount 回调", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://localhost:4000");
+    vi.stubGlobal("EventSource", MockEventSource);
+    const { useLiveEventStream } = await loadHook();
+    const onEvent = vi.fn();
+    const onOnlineCount = vi.fn();
+    renderHook(() => useLiveEventStream(["danmaku", "online_rank_count"], onEvent, onOnlineCount));
+    const es = MockEventSource.instances[0];
+    const envelope = { roomId: 12345, type: "online_rank_count", occurredAt: "2026-08-22T00:00:00Z", liveSessionId: "s1", payload: { online_count: 1521 } };
+    act(() => {
+      es.__emitNamedEvent("online_rank_count", envelope);
+    });
+    expect(onOnlineCount).toHaveBeenCalledTimes(1);
+    expect(onOnlineCount).toHaveBeenCalledWith(envelope);
+    // 无名帧不受影响
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  it("online_rank_count 在 types 中时连接 URL 包含该 type", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://localhost:4000");
+    vi.stubGlobal("EventSource", MockEventSource);
+    const { useLiveEventStream } = await loadHook();
+    renderHook(() => useLiveEventStream(["danmaku", "online_rank_count"], vi.fn()));
+    const es = MockEventSource.instances[0];
+    expect(es.url).toContain("type=danmaku");
+    expect(es.url).toContain("type=online_rank_count");
   });
 });

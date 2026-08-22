@@ -68,6 +68,8 @@ function dedupeById(events: LiveEvent[]): LiveEvent[] {
 interface DanmakuDashboardProps {
   /** 全屏模式：分栏区占满整个屏幕（由弹幕看板页传入）。 */
   isFullscreen?: boolean;
+  /** 在线人数命名帧回调（由 useOnlineCount 提供，经 useLiveEventStream 透出）。 */
+  onOnlineCount?: (envelope: { payload?: { data?: { online_count?: number } } }) => void;
 }
 
 /** DanmakuDashboard 暴露给父组件的 imperative handle。 */
@@ -83,7 +85,7 @@ function sectionKey(colId: string, type: LiveEventType): string {
 }
 
 const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProps>(function DanmakuDashboard(
-  { isFullscreen = false },
+  { isFullscreen = false, onOnlineCount },
   ref,
 ) {
   const { session } = useSession();
@@ -256,11 +258,12 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
     }
   }, [columns, loadSection]);
 
-  // 实时流：类型为各栏并集，事件分发进所有包含该类型的栏（prepend + eventId 去重）
-  const streamTypes = useMemo(
-    () => [...new Set(columns.flatMap((col) => col.types))],
-    [columns],
-  );
+  // 实时流：类型为各栏并集 + online_rank_count（若提供 onOnlineCount），事件分发进所有包含该类型的栏
+  const streamTypes = useMemo((): string[] => {
+    const types: string[] = [...new Set(columns.flatMap((col) => col.types))];
+    if (onOnlineCount) types.push("online_rank_count");
+    return types;
+  }, [columns, onOnlineCount]);
 
   const handleStreamEvent = useCallback(
     (event: LiveEvent) => {
@@ -306,7 +309,7 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
     [columns],
   );
 
-  const streamStatus = useLiveEventStream(streamTypes, handleStreamEvent);
+  const streamStatus = useLiveEventStream(streamTypes, handleStreamEvent, onOnlineCount);
 
   // 回放测试：从API拉取历史数据，模拟SSE发布
   const replayTest = useCallback(

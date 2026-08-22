@@ -39,7 +39,7 @@ vi.mock("@/features/danmaku/useLiveEventStream", () => ({
   },
 }));
 
-import DanmakuDashboard from "@/features/danmaku/components/DanmakuDashboard";
+import DanmakuDashboard, { type DanmakuDashboardHandle } from "@/features/danmaku/components/DanmakuDashboard";
 
 const SENDER: LiveEvent["sender"] = { uid: 1, name: "观众A", nameRomaji: null, face: null, medal: null, guardLevel: null };
 
@@ -139,7 +139,7 @@ describe("DanmakuDashboard", () => {
     expect(await screen.findByText("弹幕一")).toBeTruthy();
     expect(screen.getByText("醒目留言一")).toBeTruthy();
     expect(screen.getByText(/辣条/)).toBeTruthy();
-    // 每节（栏 + 类型）独立检索请求：礼物 | 上船+SC | 弹幕
+    // 每节（栏 + 类型）独立检索请求：礼物+上船(mixed) | SC | 弹幕
     const calledTypes = listLiveEvents.mock.calls.map((c) => c[0]);
     expect(calledTypes).toContainEqual(["gift"]);
     expect(calledTypes).toContainEqual(["guard_buy"]);
@@ -147,32 +147,31 @@ describe("DanmakuDashboard", () => {
     expect(calledTypes).toContainEqual(["danmaku"]);
   });
 
-  it("默认 wide 渲染 礼物 | 上船+SC(分节) | 弹幕 三栏标题", async () => {
+  it("默认 wide 渲染 礼物+上船(混排) | SC | 弹幕 三栏标题", async () => {
     render(<DanmakuDashboard />);
-    expect(await screen.findByRole("heading", { name: "礼物" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "上船 + SC" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "礼物 + 上船" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "SC" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "弹幕" })).toBeTruthy();
   });
 
-  it("上船+SC 栏分节：SC 与上船事件分别渲染", async () => {
+  it("上船+礼物混排栏：guard_buy 与 gift 按时间混排", async () => {
     const { container } = render(<DanmakuDashboard />);
     await screen.findByText("醒目留言一");
-    // 上船事件按分节渲染
-    expect(screen.getByText(/上船 · 舰长/)).toBeTruthy();
-    expect(container.querySelectorAll(".text-xs.font-medium.text-ink-dim")).toHaveLength(2);
+    // 默认 gift_guard 栏为 mixed 模式：礼物与上船混排，无分栏标签
+    expect(container.querySelectorAll(".text-xs.font-medium.text-ink-dim")).toHaveLength(0);
   });
 
-  it("配置面板保持上船+SC 分栏：渲染两小节并持久化 mode=split", async () => {
+  it("配置面板切换混排/分栏：渲染小节并持久化 mode", async () => {
     const { container } = render(<DanmakuDashboard />);
     await screen.findByText("醒目留言一");
-    fireEvent.click(screen.getByRole("button", { name: /配置「上船/ }));
+    fireEvent.click(screen.getByRole("button", { name: /配置「礼物 \+ 上船」栏/ }));
     fireEvent.click(screen.getByRole("radio", { name: "分栏" }));
 
     expect(screen.getByRole("radio", { name: "分栏" })).toBeTruthy();
     const labels = [...container.querySelectorAll(".text-xs.font-medium.text-ink-dim")].map(
       (n) => n.textContent,
     );
-    expect(labels).toEqual(["上船", "SC"]);
+    expect(labels).toEqual(["礼物", "上船"]);
   });
 
   it("admin 双击 SC：乐观置灰并调用 read 接口", async () => {
@@ -211,21 +210,22 @@ describe("DanmakuDashboard", () => {
     expect(await screen.findByText(/操作失败/)).toBeTruthy();
   });
 
-  it("member 双击不触发已读交互，也无全部已读按钮", async () => {
+  it("member 双击不触发已读交互", async () => {
     currentRole = "member";
     render(<DanmakuDashboard />);
     const row = (await screen.findByText("醒目留言一")).closest("[data-event-id]") as HTMLElement;
     fireEvent.doubleClick(row);
     expect(markLiveEventRead).not.toHaveBeenCalled();
     expect(markLiveEventUnread).not.toHaveBeenCalled();
-    expect(screen.queryByRole("button", { name: /全部已读/ })).toBeNull();
   });
 
-  it("「标记全部已读」后该类型事件整体置灰", async () => {
-    render(<DanmakuDashboard />);
+  it("经 ref 调用 readAll(\"super_chat\") 后该类型事件整体置灰", async () => {
+    const ref = { current: null as DanmakuDashboardHandle | null };
+    const { rerender: _rerender } = render(<DanmakuDashboard ref={(r) => { ref.current = r; }} />);
     const row = (await screen.findByText("醒目留言一")).closest("[data-event-id]") as HTMLElement;
-    fireEvent.click(await screen.findByRole("button", { name: /SC 全部已读/ }));
-    fireEvent.click(screen.getByRole("button", { name: /确认全部已读/ }));
+    await act(async () => {
+      await ref.current?.readAll("super_chat");
+    });
     await waitFor(() => expect(markAllLiveEventsRead).toHaveBeenCalledWith("super_chat"));
     await waitFor(() => expect(row.className).toContain("opacity-60"));
   });
@@ -333,7 +333,7 @@ describe("DanmakuDashboard", () => {
     expect(screen.getByText(/辣条/)).toBeTruthy();
 
     // 打开配置面板：全部四类勾选
-    fireEvent.click(screen.getByRole("button", { name: /配置「SC/ }));
+    fireEvent.click(screen.getByRole("button", { name: /配置「SC \+ 上船 \+ 礼物 \+ 弹幕」栏/ }));
     const checkboxes = screen.getAllByRole("checkbox");
     expect(checkboxes).toHaveLength(4);
     for (const cb of checkboxes) expect((cb as HTMLInputElement).checked).toBe(true);

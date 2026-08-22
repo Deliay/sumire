@@ -47,7 +47,7 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 - `useOnlineCount.ts`：直播间在线人数 hook；直接解析 `useLiveEventStream` 透出的 `online_rank_count` 命名帧信封，取 `payload.online_count` 经 5s 节流（leading+trailing，作用于数值更新、不产生额外请求）更新；挂载时 `GET /api/live-events?type=online_rank_count&page=1&pageSize=1` 首取仅作首屏兜底（至多 1 次，空则等首帧）；`API_CONFIGURED === false` 恒返回 null；不持有 EventSource，卸载零请求。
 - `components/OnlineCountText.tsx`：`{ onlineCount: number | null }` 入参，null 返回 null，否则渲染 `<span className="text-sm font-normal text-ink-dim">当前直播间在线 {onlineCount} 人</span>`。
 - `useLiveEventStream.ts`：EventSource `/api/live-events/stream?type=…`（withCredentials），全页面唯一一条 SSE 连接（弹幕看板订阅类型由页面装配层追加 `online_rank_count`，不入栏位类型系统）；无名帧 eventId 内存 Set 去重（应对首屏重叠与重连重推）；非法帧静默忽略；`addEventListener("online_rank_count", …)` 命名帧解析上游原始信封经独立回调透出（不走归一化与去重）；状态机 idle/connecting/open/closed；类型组合变更用 derive-state 模式重建连接。
-- 栏位（`columns.ts`）：localStorage `danmaku-backdoor.columns`，Zod 校验、损坏回退默认 3 栏（礼物 | 上船+SC 分节 | 弹幕）；2 栏预设为上船+SC 分节 | 礼物+弹幕混排；`useSyncExternalStore` 快照 + storage 事件跨标签页同步，SSR 快照恒默认；视口夹取（narrow <640 单栏 / medium ≤2 栏 / wide 2–3 栏）用 `COLUMN_PRESETS` 覆盖且不回写存储。
+- 栏位（`columns.ts`）：localStorage `danmaku-backdoor.columns`，Zod 校验、损坏回退默认 3 栏（礼物+上船混排 | SC | 弹幕）；2 栏预设为上船+SC混排 | 弹幕+礼物混排；`useSyncExternalStore` 快照 + storage 事件跨标签页同步，SSR 快照恒默认；视口夹取（narrow <640 单栏 / medium ≤2 栏 / wide 2–3 栏）用 `COLUMN_PRESETS` 覆盖且不回写存储。
 - `GiftItem` 按契约可选 `gift.iconUrl` 懒加载固定尺寸图标，加载失败隐藏；`GuardItem` 按等级复用本地徽章素材并提升船型 chip 字号。
 - 每「栏×类型」独立分节检索/分页/错误重试，generation ref 防竞态；滚动近底 200px 自动加载（短列表不自动加载防循环，折叠后未铺满例外向下补一条）。
 - `useAnchoredFeed.ts`：prepend 致 scrollHeight 增长时，离顶 >8px 按差值补偿 scrollTop 并计入挂账；其后新行实测回填使总高回缩时，在挂账额度内回退多补部分（净补偿=新行实测高度）；无挂账的回缩不调整；>200px 显示「回到顶部」。
@@ -57,6 +57,9 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 - `SuperChatItem` 容器无 `select-none`，留言气泡 `select-text cursor-text` + dblclick 隔离（stopPropagation），选中复制与双击已读互不干扰。
 - `DanmakuItem` 按 `sender.guardLevel` 经 `guardDanmakuTint`（`format.ts`，3/2/1→eye/flower/crimson 10% 透明度，其余 null）渲染淡色背景。
 - 礼物金额筛选（`giftMinPrice.ts` + `GiftFilterControl.tsx`）：localStorage `danmaku-backdoor.gift-min-price`（JSON number），Zod `z.coerce.number().finite()` 校验 + 夹取 [0,100] + 四舍五入到 0.1 步进，损坏回退 0；按钮 + 弹层（滑动条+输入框双向同步，防抖 300ms 提交，blur/Enter 立即提交）；阈值变化仅重载礼物分节（页码重置），SSE 低价礼物前端丢弃；礼物请求捕获阈值、响应比对丢弃（作用域收窄到 gift，不递增全局 generationRef）。
+- SC 隐藏钢镚（`hideLowSc.ts`）：localStorage `danmaku-backdoor.hide-low-sc`（JSON boolean），typeof 校验，损坏回退 false（默认关闭）；复用 `columns.ts` 的 `useSyncExternalStore` + storage 事件口径实现跨组件同步（页头 `MarkReadButtonGroup` 写入 → `DanmakuDashboard` 读取过滤）；`isScHidden(price)` 纯函数：`price !== undefined && price < 30`。`DanmakuDashboard` 持有 `hideLowSc` state + ref，展示过滤统一在 `visibleEventsBySection` 派生层（对 super_chat 节 `filter(!isScHidden(price))`），原始 `eventsBySection` 不变保去重/分页；实时 `handleStreamEvent` 中低价 SC 丢弃（不插入、不清 New、不标入场）。
+- 标记已读按钮组（`MarkReadButtonGroup.tsx`）：admin+ 渲染上船/SC 全部已读（复用 3s 二次确认）+ 隐藏钢镚开关（role=switch）；member 仅渲染隐藏钢镚。空间不足折叠：`useMediaQuery("(max-width: 639px)")` 窄视口恒折叠，宽视口按容器 `offsetWidth` 与所需宽度（按钮数 × 120px）判定；折叠态渲染单个「标记已读」触发钮（aria-expanded），点击展开 dropdown 菜单含各项操作，点击外部/Esc 收起。`DanmakuDashboardHandle` 扩展 `readAll(type)` 方法，页头通过 `dashboardRef` 调用。
+- FeedColumn 移除栏头全部已读：去掉 `readAllTypes`/`onReadAll` 入参、`READ_ALL_LABELS`、`confirming` 状态与栏头全部已读按钮渲染；二次确认逻辑上收至 `MarkReadButtonGroup`。
 
 ## 弹幕检索（features/danmaku/search）
 

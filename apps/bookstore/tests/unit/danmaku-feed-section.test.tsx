@@ -255,3 +255,149 @@ describe("FeedSection New 标记（实时流 SC/上船）", () => {
     expect(screen.queryByText("New")).toBeNull();
   });
 });
+
+describe("FeedSection locate 定位 + 闪光", () => {
+  beforeEach(() => {
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(600);
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(600);
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(360);
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(2000);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("locate 命中已加载目标时滚动定位并触发闪光", async () => {
+    const ref = { current: null as unknown as import("@/features/danmaku/components/FeedSection").FeedSectionHandle };
+    render(
+      <FeedSection
+        ref={ref}
+        label="弹幕"
+        events={EVENTS.slice(0, 5)}
+        canManage={false}
+      />,
+    );
+    await act(async () => {
+      ref.current.locate("dm:2");
+    });
+    // 应该调用 scrollToIndex（通过 virtualizer）
+    // 闪光：目标行内层应有 animate-danmaku-flash 类
+    const targetInner = document.querySelector('[data-event-id="dm:2"]')?.parentElement;
+    expect(targetInner?.className).toContain("animate-danmaku-flash");
+  });
+
+  it("locate 闪光约 1s 后自动清除", async () => {
+    vi.useFakeTimers();
+    const ref = { current: null as unknown as import("@/features/danmaku/components/FeedSection").FeedSectionHandle };
+    render(
+      <FeedSection
+        ref={ref}
+        label="弹幕"
+        events={EVENTS.slice(0, 5)}
+        canManage={false}
+      />,
+    );
+    await act(async () => {
+      ref.current.locate("dm:2");
+    });
+    const flash = () => document.querySelector('[data-event-id="dm:2"]')?.parentElement;
+    expect(flash()?.className).toContain("animate-danmaku-flash");
+    // 约 1s 后闪光清除
+    act(() => vi.advanceTimersByTime(1100));
+    expect(flash()?.className).not.toContain("animate-danmaku-flash");
+    vi.useRealTimers();
+  });
+
+  it("locate 未命中时触发 onLoadMore 加载更多", async () => {
+    const onLoadMore = vi.fn();
+    const ref = { current: null as unknown as import("@/features/danmaku/components/FeedSection").FeedSectionHandle };
+    render(
+      <FeedSection
+        ref={ref}
+        label="弹幕"
+        events={EVENTS.slice(0, 5)}
+        canManage={false}
+        onLoadMore={onLoadMore}
+        hasMore
+      />,
+    );
+    await act(async () => {
+      ref.current.locate("dm:99"); // 不在已加载列表中
+    });
+    expect(onLoadMore).toHaveBeenCalled();
+  });
+
+  it("locate 未命中且 hasMore=false 时不触发 onLoadMore", async () => {
+    const onLoadMore = vi.fn();
+    const ref = { current: null as unknown as import("@/features/danmaku/components/FeedSection").FeedSectionHandle };
+    render(
+      <FeedSection
+        ref={ref}
+        label="弹幕"
+        events={EVENTS.slice(0, 5)}
+        canManage={false}
+        onLoadMore={onLoadMore}
+        hasMore={false}
+      />,
+    );
+    await act(async () => {
+      ref.current.locate("dm:99");
+    });
+    expect(onLoadMore).not.toHaveBeenCalled();
+  });
+
+  it("locate 重复定位可重新触发闪光", async () => {
+    vi.useFakeTimers();
+    const ref = { current: null as unknown as import("@/features/danmaku/components/FeedSection").FeedSectionHandle };
+    render(
+      <FeedSection
+        ref={ref}
+        label="弹幕"
+        events={EVENTS.slice(0, 5)}
+        canManage={false}
+      />,
+    );
+    await act(async () => {
+      ref.current.locate("dm:2");
+    });
+    const flash = () => document.querySelector('[data-event-id="dm:2"]')?.parentElement;
+    expect(flash()?.className).toContain("animate-danmaku-flash");
+    // 等待闪光清除
+    act(() => vi.advanceTimersByTime(1100));
+    expect(flash()?.className).not.toContain("animate-danmaku-flash");
+    // 重新定位
+    await act(async () => {
+      ref.current.locate("dm:2");
+    });
+    expect(flash()?.className).toContain("animate-danmaku-flash");
+    vi.useRealTimers();
+  });
+
+  it("locate 后 onScroll 不清除闪光状态（闪光由计时器控制）", async () => {
+    vi.useFakeTimers();
+    const ref = { current: null as unknown as import("@/features/danmaku/components/FeedSection").FeedSectionHandle };
+    render(
+      <FeedSection
+        ref={ref}
+        label="弹幕"
+        events={EVENTS.slice(0, 5)}
+        canManage={false}
+      />,
+    );
+    await act(async () => {
+      ref.current.locate("dm:2");
+    });
+    const flash = () => document.querySelector('[data-event-id="dm:2"]')?.parentElement;
+    expect(flash()?.className).toContain("animate-danmaku-flash");
+    // 滚动不触发闪光清除
+    const scroller = document.querySelector(".overflow-y-auto")!;
+    act(() => {
+      scroller.scrollTop = 100;
+      fireEvent.scroll(scroller);
+    });
+    expect(flash()?.className).toContain("animate-danmaku-flash");
+    vi.useRealTimers();
+  });
+});

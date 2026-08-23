@@ -1,5 +1,5 @@
 ---
-description: 弹幕看板「SC/上船 悬停胶囊栏」实现方案 v1.0——基于 PRD v1.0 与技术提案 v1.0 的实施计划（含返工两轮的 F4 定位增强）。唯一开发分支 feat/danmaku-hover-bar，契约新增 SC time 可选字段 + 前端 hoverTopBar 纯函数 / useHoverPills 胶囊集合 / HoverTopBar 组件 / FeedSection 按 eventId 定位与一次性闪光 / FeedColumn 与 DanmakuDashboard 接线，全部单测 TDD 落地；DB/编排零变更。
+description: 弹幕看板「SC/上船 悬停胶囊栏」实现方案 v1.0——基于 PRD v1.0 与技术提案 v1.0 的实施计划。唯一开发分支 feat/danmaku-hover-bar，契约新增 SC time 可选字段 + 前端 hoverTopBar 纯函数 / useHoverPills 胶囊集合 / HoverTopBar 组件 / GiftCardDialog 浮层 / FeedColumn 与 DanmakuDashboard 接线，全部单测 TDD 落地；DB/编排零变更。
 type: Permanent
 ---
 
@@ -10,7 +10,7 @@ type: Permanent
 **关联设计**: [[../../design/03-backdoor-design.md]]
 **需求总分支**: `prd/danmaku-hover-bar`
 **开发分支**: `feat/danmaku-hover-bar`（自需求总分支切出，**唯一开发分支**，全部实现与测试同在此分支）
-**版本**: v1.0（2026-08-23，含返工并入：目标不在已加载列表时滚动定位 + F4 点击定位闪光）
+**版本**: v1.0（2026-08-23，点击胶囊弹出 GiftCardDialog 浮层展示事件详情）
 **作者**: sumire workflow
 
 本方案将技术提案 v1.0 落实为可执行的实施计划。**前提事实**（已在需求总分支核对代码现态）：
@@ -24,7 +24,7 @@ type: Permanent
 - `apps/bookstore/features/danmaku/components/DanmakuDashboard.tsx`：`:108-113` `columns = resolveColumns(...)`；`:115-127` 状态（`eventsBySection`/`loadedSections`/`newIds`/`freshIds` 等）；`:220-260` `loadMoreSection`（append 去重，`total` 判定 hasMore）；`:280-324` `handleStreamEvent`（SSE 分发进所有含该类型的栏，`NEW_MARK_TYPES` 于 `:46` = `["super_chat","guard_buy"]`）；`:444-458` `visibleEventsBySection`（hidden钢镚渲染层过滤）；`:460-470` `mixedEventsByColumn`（混排栏 `mergeEventsByTime`）；`:496-534` 按 mode 构造 `sections`（split `:521-534` / mixed `:501-519`）；`:536-625` 渲染 `FeedColumn`；
 - 既有测试基底：`apps/bookstore/tests/unit/danmaku-feed-section.test.tsx`（虚拟化/onLoadMore/骨架）、`danmaku-feed-column.test.tsx`、`danmaku-dashboard.test.tsx`、`danmaku-items.test.tsx`（SC/上船条目）、`danmaku-format.test.ts`（guardLevelName/guardLevelTone/formatPrice）；后端 `servers/api/tests/liveEventsNormalize.test.ts:46`（super_chat 透传断言）。
 
-整体顺序：**切开发分支 → 服务端 SC time 透传（TDD）→ 契约 + 前端类型同步 → hoverTopBar 纯函数（TDD）→ useHoverPills（TDD）→ HoverTopBar 组件 + FeedColumn 接线（TDD）→ FeedSection 定位 + 闪光（TDD）→ DanmakuDashboard 路由接线（TDD）→ e2e 适配 + spec 同步 + 收尾验收**。单一开发分支 `feat/danmaku-hover-bar` 共享，前端 subagent 依赖明确，**串行执行**（服务端归一化/契约先行，前端纯函数 → 钩子/组件 → 接线由前到后）。
+整体顺序：**切开发分支 → 服务端 SC time 透传（TDD）→ 契约 + 前端类型同步 → hoverTopBar 纯函数（TDD）→ useHoverPills（TDD）→ HoverTopBar 组件 + GiftCardDialog 浮层 + FeedColumn 接线（TDD）→ DanmakuDashboard 路由接线（TDD）→ e2e 适配 + spec 同步 + 收尾验收**。单一开发分支 `feat/danmaku-hover-bar` 共享，前端 subagent 依赖明确，**串行执行**（服务端归一化/契约先行，前端纯函数 → 钩子/组件 → 接线由前到后）。
 
 ## 1. 现状与差距（主线现状 → 本期目标）
 
@@ -34,7 +34,7 @@ type: Permanent
 | 悬停胶囊栏 | 无 | 含 SC/上船类型的栏内容区顶部新增 `HoverTopBar`（约 48px），SC/上船 SSE 实时事件按金额降序置顶展示，倒计时到期消失、无胶囊不占位 |
 | SC 胶囊 | 无 | 头像 + 「醒目留言」四字 + `formatPrice`；`scColors.backgroundStart→End` 渐变底色 + `fontColor` 文字色；悬停时长 = 事件 `time` 秒 |
 | 上船胶囊 | 无 | 头像 + `guardLevelName(level) ?? guard.name`；`guardLevelTone(level)` 船型强调色；悬停时长 舰长 60s / 提督 5min / 总督 1h（level 1/2/3 映射） |
-| 点击定位 + 闪光 | 无 | 点击胶囊按 `eventId` 虚拟化定位到对应记录并播放一次性闪光；目标不在已加载列表（虚拟化回收/历史分页未加载）时滚动列表定位到目标可见后再闪光（复用 `scrollToIndex` + 分页 `onLoadMore` 逼近，到底无更多停止，不无限循环、不盲目放弃） |
+| 点击胶囊弹出浮层 | 无 | 点击胶囊弹出 GiftCardDialog 浮层，展示事件详情卡片（发送者头像、昵称、粉丝牌、事件类型、金额/价格、留言内容、发生时间等） |
 
 DB（MongoDB）、编排（`infra/aspire`）、历史检索路由零变更。
 
@@ -154,23 +154,26 @@ DB（MongoDB）、编排（`infra/aspire`）、历史检索路由零变更。
 
 **验证**：`pnpm -C apps/bookstore test -- danmaku-hover-top-bar` 全绿；`pnpm -C apps/bookstore test -- danmaku-feed-column`（既有渲染不回归）。
 
-### 步骤 6：按 eventId 定位 + 一次性闪光（FeedSection.tsx，TDD）
+### 步骤 6：GiftCardDialog 浮层组件（GiftCardDialog.tsx，TDD）
 
-改 `apps/bookstore/features/danmaku/components/FeedSection.tsx`：
+新增 `apps/bookstore/features/danmaku/components/GiftCardDialog.tsx`：
 
-1. **测试先行** 更新/新增 `apps/bookstore/tests/unit/danmaku-feed-section.test.tsx`：
-   - 命中（目标 eventId 在 `events` 已加载数组）：`locate(eventId)` 调用虚拟化 `scrollToIndex(index, { align })`（断言调用于 `rowVirtualizer`/容器 scroll 探针；mock virtualScrollToIndex 被调用且 index 正确、居中 align）；对应行加入 `flashIds` 并渲染闪光 class；
-   - 闪光复位：加入 `flashIds` 的行有一次性闪光样式；单计时器到达（约 1s）后该 eventId 从 `flashIds` 移除、样式消失；
-   - 未命中（目标不在 `events`，分页未加载）：`locate` 不抛；触发 `onLoadMore` 触底加载逐步逼近新数据，再定位到目标（重复 `scrollToIndex`）；到底无更多（`hasMore=false`/`onLoadMore` 无后续）时停止、落下滚动到目标深度，**不无限循环**；
-   - 已定位/重复定位可重新触发闪光（同 eventId 再次加入）；
-   - `flashIds` 不入 `getItemKey` 去重 key（`getItemKey` 仍 `rows[index].event.eventId ?? index`）。
-2. **实现** `FeedSection.tsx`：
-   - 新增 `flashIds: ReadonlySet<string>` state（初始空）+ 单计时器 `flashTimerRef`（约定约 1s：`animate-danmaku-flash`，内层仅 opacity/轻高亮过渡，≤200ms 后柔和淡出，尊重 `prefers-reduced-motion` 降级为仅轻微高亮无位移动画）；
-   - `locate(eventId)`：`const idx = rows.findIndex(r => r.event.eventId === eventId)`；命中 → `virtualizer.scrollToIndex(idx, { align: "center" })` 并把 eventId 加入 `flashIds`（单计时器复位后移除）；未命中 → 依 `scrollToIndex` 逼近目标所在深度并触发 `onLoadMore`（复用 `:89-101` `maybeLoadMore`/分页），新一轮数据后再 `findIndex` 重定位，`hasMore=false`/到达列表末尾即停止、落下滚动到目标深度——**绝不以目标不在列表就在回调里静默放弃**（PRD F4/边界口径）；
-   - 暴露 `locate` 于 `useImperativeHandle`（`FeedSectionHandle.locate(eventId)`），供 `FeedColumn`/`DanmakuDashboard` 经 ref 调用（或由 `FeedColumn` 持有小节 ref 汇总）；
-   - 虚拟行内层（`:179-187` 现挂 `animate-danmaku-enter` 的 div）叠加闪光：`flashIds.has(row.event.eventId)` 时挂 `animate-danmaku-flash`（内层不改行高，不影响 `measureElement` 测量的 wrapper，`03-backdoor-design.md` 无布局跳动）。
+1. **测试先行** 新增 `apps/bookstore/tests/unit/danmaku-gift-card-dialog.test.tsx`：
+   - 浮层渲染：传入 SC 事件数据，浮层正确展示发送者头像、昵称、粉丝牌、事件类型（SC）、金额/价格、留言内容、发生时间等信息；
+   - SC 卡片配色：SC 卡片使用 `scColors` 渐变配色；
+   - 上船卡片配色：上船卡片使用 `guardLevelTone` 船型强调色；
+   - 关闭交互：点击关闭按钮、点击遮罩层或按 Esc 键关闭浮层；
+   - 移动端适配：在移动端（<640px）浮层全屏展示。
+2. **实现** `GiftCardDialog.tsx`：
+   - 模态对话框，居中展示，半透明遮罩背景，圆角边框，阴影效果；
+   - 展示发送者头像、昵称、粉丝牌、事件类型（SC/上船）、金额/价格、留言内容（如有）、发生时间等完整信息；
+   - SC 卡片使用 `scColors` 渐变配色，上船卡片使用 `guardLevelTone` 船型强调色；
+   - 可通过点击关闭按钮、点击遮罩层或按 Esc 键关闭；
+   - 打开时阻止背景滚动（`overflow: hidden` on body）；
+   - 关闭后焦点回到触发胶囊（无障碍访问）；
+   - 移动端（<640px）全屏展示。
 
-**验证**：`pnpm -C apps/bookstore test -- danmaku-feed-section` 全绿；`pnpm -C apps/bookstore test -- danmaku-feed-column` 不回归。
+**验证**：`pnpm -C apps/bookstore test -- danmaku-gift-card-dialog` 全绿。
 
 ### 步骤 7：DanmakuDashboard 接线（useHoverPills + handleLocate 路由，TDD）
 
@@ -179,23 +182,25 @@ DB（MongoDB）、编排（`infra/aspire`）、历史检索路由零变更。
 1. **测试先行** 更新 `apps/bookstore/tests/unit/danmaku-dashboard.test.tsx`：
    - 渲染含 SC/上船类型的栏顶部出现 `HoverTopBar`；无 SC/上船类型栏不渲染；
    - SSE `handleStreamEvent` 到达 super_chat/guard_buy（`isHoverable`）→ `useHoverPills` 集合增胶囊；到达 danmaku/gift → 不增；
-   - `handleLocate(eventId)`：定位路由到含目标类型的 `FeedSection.locate`（依据目标 `eventId` 的 `event.type` 匹配含该类型的节）；
+   - `handleLocate(eventId)`：根据 `eventId` 查找目标事件，找到后触发 `GiftCardDialog` 打开并传入事件数据；
    - 既有 SSE/已读/隐藏钢镚/礼物过滤用例保持绿（零回归）。
 2. **实现** `DanmakuDashboard.tsx`：
    - `const hoverTypes = useMemo(() => columns.flatMap(c => c.types), [columns])`（其中过滤 `super_chat`/`guard_buy`，或 `isHoverable` 判定，供 `useHoverPills` 用）；
    - `const { pills, add } = useHoverPills(hoverTypes)`；
    - `handleStreamEvent` 内追加：`if (isHoverable(event)) add(event)`（所有含 SC/上船类型的栏共用一个胶囊集合；同一 `eventId` 在多个栏重复分发 → `add` 覆盖不重复）。**注意**：胶囊集合为「栏无关」还是「栏级」需结合渲染——若 `FeedColumn` 每栏独立取 `pills` 则共享集合即可，`HoverPill` 展示数据取自 `event`，与栏归属无关（见步骤 5 渲染）；
-   - `handleLocate(eventId)`：由胶囊点击触发，**按目标 `eventId` 的类型路由到包含该类型的节**——某混排栏含 SC+上船时精确路由到含目标类型的 `FeedSection`（多类型混排栏定位路由，提案实现点 5 风险③）。实现经 ref 汇总各 `FeedSection.locate`（`FeedColumn` 转发或 Dashboard 持有小节 ref 目录 `<colId:type → locate>`）：`locate(eventId)` 时查 `eventsBySection` 中 `eventId` 落入哪些节、取第一节调用其 `locate`；
-   - 传 `hoverPills={pills}` 与 `onLocate={handleLocate}` 给每个含 SC/上船类型的 `FeedColumn`（`:536` 渲染处）。
+   - `handleLocate(eventId)`：由胶囊点击触发，根据 `eventId` 在 `eventsBySection` 中查找目标事件，找到后触发 `GiftCardDialog` 打开并传入事件数据；
+   - 新增 `selectedEvent` state 管理 GiftCardDialog 打开状态；
+   - 传 `hoverPills={pills}` 与 `onLocate={handleLocate}` 给每个含 SC/上船类型的 `FeedColumn`（`:536` 渲染处）；
+   - 渲染 `GiftCardDialog` 组件，传入 `selectedEvent` 和关闭回调。
 
 **验证**：`pnpm -C apps/bookstore lint && pnpm -C apps/bookstore test` 全绿。
 
 ### 步骤 8：e2e 适配与收尾验收
 
-1. **e2e 适配**（SKILL: z-test，`tests/e2e/`）：既有弹幕看板 e2e 若不涉及悬停栏保持不变（空时 `HoverTopBar` 返回 null 不占位、不影响断言）；若需要，补一条「SSE 到达 SC → 顶部出现胶囊、点击后信息流滚动定位并闪光」的最小 e2e（可在 dev 回放 `replayTest("super_chat")` 驱动，`DanmakuDashboard` 已暴露 `replayTest`）。无契约破坏，`live-events` 既有 API/e2e 保持绿；
-2. **Spec 同步**（根 AGENTS.md 强制要求，同一 PR 内、按开发分支落地时同步）：更新 `docs/product/spec/danmaku.md`（悬停胶囊栏现态：作用范围、SC/上船胶囊展示与配色、悬停时长、倒计时消失、点击定位 + 一次性闪光；SC `time` 字段口径）、`docs/engineering/spec/frontend-bookstore.md`（`hoverTopBar.ts`/`useHoverPills`/`HoverTopBar`/`FeedSection.locate+flashIds`/`FeedColumn`/`DanmakuDashboard` 接线现态）；PRD 与提案为时点文档，不改原文；
+1. **e2e 适配**（SKILL: z-test，`tests/e2e/`）：既有弹幕看板 e2e 若不涉及悬停栏保持不变（空时 `HoverTopBar` 返回 null 不占位、不影响断言）；若需要，补一条「SSE 到达 SC → 顶部出现胶囊、点击后弹出 GiftCardDialog 浮层展示事件详情」的最小 e2e（可在 dev 回放 `replayTest("super_chat")` 驱动，`DanmakuDashboard` 已暴露 `replayTest`）。无契约破坏，`live-events` 既有 API/e2e 保持绿；
+2. **Spec 同步**（根 AGENTS.md 强制要求，同一 PR 内、按开发分支落地时同步）：更新 `docs/product/spec/danmaku.md`（悬停胶囊栏现态：作用范围、SC/上船胶囊展示与配色、悬停时长、倒计时消失、点击胶囊弹出 GiftCardDialog 浮层；SC `time` 字段口径）、`docs/engineering/spec/frontend-bookstore.md`（`hoverTopBar.ts`/`useHoverPills`/`HoverTopBar`/`GiftCardDialog`/`FeedColumn`/`DanmakuDashboard` 接线现态）；PRD 与提案为时点文档，不改原文；
 3. 检查 `apps/bookstore/AGENTS.md`「弹幕看板约定」「组件 `features/danmaku/components/`」段落是否需同步新口径；
-4. 核对提案 §10 验收标准与 PRD §1.3 成功标准逐条通过（悬停栏呈现、金额降序、SC/上船胶囊配色与时长、倒计时消失、点击定位+闪光、目标不在已加载列表时滚动定位不盲目放弃、既有能力零回归）；
+4. 核对提案 §10 验收标准与 PRD §1.3 成功标准逐条通过（悬停栏呈现、金额降序、SC/上船胶囊配色与时长、倒计时消失、点击胶囊弹出 GiftCardDialog 浮层、既有能力零回归）；
 5. 推送 `feat/danmaku-hover-bar` 并提 PR 至 `prd/danmaku-hover-bar`，结束流程等待 review。
 
 ## 4. 依赖与风险
@@ -206,9 +211,8 @@ DB（MongoDB）、编排（`infra/aspire`）、历史检索路由零变更。
   - **SC `time` 缺失/非法**：`asNumber` 不收非 number（字符串 `"300"` → undefined → 不携带）；前端 `hoverDuration` 对非正 `time` 回退 60s（PRD §3.4 边界）。SC `time` 是只读展示字段，无越权面；
   - **胶囊集合共享语义**：SSE 同一 `eventId` 在多栏重复时不被重复入列（`add` 以 `eventId` 覆盖）；悬停胶囊只认 SSE 实时到达，历史分页不注入悬停栏（PRD §3.4）；
   - **计时漂移/后台节流**：基于 `expiresAt` 时间戳判定而非剩余秒数（提案实现点 2 风险、PRD §4.1），后台 tab 节流到期即清；刷新页面清空悬停胶囊属预期（不持久化）；
-  - **Flash 与虚拟化**：闪光只作用虚拟行内层（不改行高），避免 `measureElement` 重测跳动（提案实现点 5 技术细节）；`flashIds` 不入 `getItemKey`；闪光动画尊重 `prefers-reduced-motion`（降级为轻微高亮、无位移动画）；
-  - **目标不在已加载列表的定位**：必须滚动列表定位（`scrollToIndex` 逼近 + 复用分页 `onLoadMore` 触底加载逐步逼近），到底无更多即停止防止无限循环；**绝不因目标不在列表就在胶囊点击时直接放弃定位**（PRD F4/边界，返工口径）。SC/上船不在弹幕折叠（`merge.ts` 仅折叠弹幕）范围，命中安全（提案实现点 5 风险①）；
-  - **多类型混排栏定位路由**：`FeedColumn` 多小节（上下分栏）与混排（`mixedEventsByColumn`）场景下，`handleLocate` 须按目标 `eventId` 类型路由到含该类型的节（提案实现点 5 风险③）；
+  - **GiftCardDialog 浮层**：模态对话框居中展示，半透明遮罩背景；SC 卡片使用 `scColors` 渐变配色，上船卡片使用 `guardLevelTone` 船型强调色；可通过关闭按钮、遮罩层或 Esc 键关闭；打开时阻止背景滚动；关闭后焦点回到触发胶囊（无障碍访问）；
+  - **移动端适配**：浮层在移动端（<640px）需适配全屏展示，避免卡片内容被裁剪；
   - **既有测试回归**：`danmaku-feed-section.test.tsx`（新增定位/闪光用例）、`danmaku-dashboard.test.tsx`（接线用例）随步骤 6/7 更新，避免红测试残留。
 
 ## 5. 相关文档

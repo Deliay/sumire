@@ -13,6 +13,8 @@ export interface FeedSectionData {
   type: LiveEventType;
   label: string;
   events: LiveEvent[];
+  /** 测试标识（仅测试用）。 */
+  testId?: string;
   /** 本小节历史加载中（无事件时展示骨架）。 */
   loading?: boolean;
   /** 本小节历史检索错误提示。 */
@@ -90,6 +92,7 @@ export default function FeedColumn({
               key={sectionKey}
               ref={sectionRefs?.get(sectionKey)}
               label={hasLabel ? section.label : undefined}
+              testId={section.testId}
               events={section.events}
               canManage={canManage}
               onToggleRead={onToggleRead}

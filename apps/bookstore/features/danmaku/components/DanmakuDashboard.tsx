@@ -641,6 +641,7 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
                   {
                     type: col.types[0],
                     label: "",
+                    testId: `${col.id}-merged-feed`,
                     events: mixedEventsByColumn[col.id] ?? [],
                     loading: keys.some((k) => !loadedSections.has(k)),
                     error: keys.map((k) => sectionErrors[k]).find((e) => e != null) ?? null,

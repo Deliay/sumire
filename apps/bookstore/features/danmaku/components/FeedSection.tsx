@@ -22,6 +22,8 @@ const LOAD_MORE_OFFSET_PX = 200;
 interface FeedSectionProps {
   /** 分栏内小节标题（多类型上下分栏时展示；单类型整栏不展示标签）。 */
   label?: string;
+  /** 测试标识（仅测试用，渲染为 data-testid）。 */
+  testId?: string;
   events: LiveEvent[];
   canManage: boolean;
   onToggleRead?: (event: LiveEvent) => void;
@@ -55,6 +57,7 @@ interface FeedSectionProps {
 const FeedSection = forwardRef<FeedSectionHandle, FeedSectionProps>(function FeedSection(
   {
     label,
+    testId,
     events,
     canManage,
     onToggleRead,
@@ -219,6 +222,7 @@ const FeedSection = forwardRef<FeedSectionHandle, FeedSectionProps>(function Fee
           }}
           className="min-h-0 flex-1 overflow-y-auto"
           aria-label={label ? `${label}信息流` : undefined}
+          data-testid={testId}
         >
           {loading && events.length === 0 ? (
             <div className="m-3 min-h-32 animate-pulse rounded-md border border-vine/50 bg-soft" aria-busy="true" />

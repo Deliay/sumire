@@ -470,12 +470,12 @@ describe("DanmakuDashboard", () => {
             data: { total: 6, page, pageSize: 50, items: [...GIFT_P2, ...GUARD_P2] },
           };
         }
-        // 单类型首屏请求（loadSection）
+        // 单类型首屏请求（loadSection）— total > items 以模拟分页数据（hasMore=true）
         if (types.length === 1 && types[0] === "gift" && page === 1) {
-          return { status: 200, data: { total: 2, page: 1, pageSize: 50, items: GIFT_P1 } };
+          return { status: 200, data: { total: 3, page: 1, pageSize: 50, items: GIFT_P1 } };
         }
         if (types.length === 1 && types[0] === "guard_buy" && page === 1) {
-          return { status: 200, data: { total: 2, page: 1, pageSize: 50, items: GUARD_P1 } };
+          return { status: 200, data: { total: 3, page: 1, pageSize: 50, items: GUARD_P1 } };
         }
         if (types.length === 1 && types[0] === "super_chat") {
           return { status: 200, data: { total: 1, page, pageSize: 50, items: [SC_EVENT] } };
@@ -489,7 +489,7 @@ describe("DanmakuDashboard", () => {
 
     it("混排栏滚动加载以 listLiveEvents([gift,guard_buy], page, size) 合并调用", async () => {
       mockMixedPaging();
-      const { container } = render(<DanmakuDashboard />);
+      render(<DanmakuDashboard />);
       await screen.findByText(/辣条p1/);
 
       // 首屏：混排栏各类型独立加载
@@ -502,53 +502,55 @@ describe("DanmakuDashboard", () => {
       expect(singleGiftCalls).toHaveLength(1);
       expect(singleGuardCalls).toHaveLength(1);
 
+      // 混排 FeedSection 通过 data-testid 定位（混排栏 sections.length===1 无 aria-label）
+      const mixedFeed = document.querySelector('[data-testid="gift_guard-merged-feed"]') as HTMLElement;
+      expect(mixedFeed).not.toBeNull();
+
       // 滚动到底部触发 loadMoreSectionMerged
-      const mixedFeed = container.querySelector('[aria-label="礼物 + 上船信息流"]') as HTMLElement;
-      if (mixedFeed) {
-        await act(async () => {
-          mixedFeed.scrollTop = 1400;
-          fireEvent.scroll(mixedFeed);
-        });
-        await waitFor(() => {
-          const mixedCalls = listLiveEvents.mock.calls.filter(
-            (c) => c[0].length === 2 && c[0].includes("gift") && c[0].includes("guard_buy"),
-          );
-          expect(mixedCalls).toHaveLength(1);
-          expect(mixedCalls[0][0]).toEqual(["gift", "guard_buy"]);
-          expect(mixedCalls[0][1]).toBe(1);
-        });
-      }
+      await act(async () => {
+        mixedFeed.scrollTop = 1400;
+        fireEvent.scroll(mixedFeed);
+      });
+      await waitFor(() => {
+        const mixedCalls = listLiveEvents.mock.calls.filter(
+          (c) => c[0].length === 2 && c[0].includes("gift") && c[0].includes("guard_buy"),
+        );
+        expect(mixedCalls).toHaveLength(1);
+        expect(mixedCalls[0][0]).toEqual(["gift", "guard_buy"]);
+        expect(mixedCalls[0][1]).toBe(2);
+      });
     });
 
     it("混排栏 hasMore 随数据耗尽变为 false", async () => {
       mockMixedPaging();
-      const { container } = render(<DanmakuDashboard />);
+      render(<DanmakuDashboard />);
       await screen.findByText(/辣条p1/);
 
-      // 首屏已加载 4 条（gift 2 + guard 2），mergedTotal=6，hasMore=true
+      // 混排 FeedSection 通过 data-testid 定位
+      const mixedFeed = document.querySelector('[data-testid="gift_guard-merged-feed"]') as HTMLElement;
+      expect(mixedFeed).not.toBeNull();
+
+      // 首屏已加载 4 条（gift 2 + guard 2），mergedTotal=4，hasMore=false
       // 滚动到底部触发 loadMoreSectionMerged（page2 返回 2 条，total=6）
-      const mixedFeed = container.querySelector('[aria-label="礼物 + 上船信息流"]') as HTMLElement;
-      if (mixedFeed) {
-        await act(async () => {
-          mixedFeed.scrollTop = 1400;
-          fireEvent.scroll(mixedFeed);
-        });
-        await waitFor(() => {
-          const mixedCalls = listLiveEvents.mock.calls.filter(
-            (c) => c[0].length === 2 && c[0].includes("gift") && c[0].includes("guard_buy"),
-          );
-          expect(mixedCalls.length).toBeGreaterThanOrEqual(1);
-        });
-        // page2 加载后：已加载 6 条（4+2），mergedTotal=6，hasMore=false
-        // 再次滚动不应再发请求
-        const callsBefore = listLiveEvents.mock.calls.length;
-        await act(async () => {
-          mixedFeed.scrollTop = 1400;
-          fireEvent.scroll(mixedFeed);
-        });
-        await vi.waitFor(() => {}, { timeout: 200 });
-        expect(listLiveEvents.mock.calls.length).toBe(callsBefore);
-      }
+      await act(async () => {
+        mixedFeed.scrollTop = 1400;
+        fireEvent.scroll(mixedFeed);
+      });
+      await waitFor(() => {
+        const mixedCalls = listLiveEvents.mock.calls.filter(
+          (c) => c[0].length === 2 && c[0].includes("gift") && c[0].includes("guard_buy"),
+        );
+        expect(mixedCalls).toHaveLength(1);
+      });
+      // page2 加载后：已加载 6 条（4+2），mergedTotal=6，hasMore=false
+      // 再次滚动不应再发请求
+      const callsBefore = listLiveEvents.mock.calls.length;
+      await act(async () => {
+        mixedFeed.scrollTop = 1400;
+        fireEvent.scroll(mixedFeed);
+      });
+      await vi.waitFor(() => {}, { timeout: 200 });
+      expect(listLiveEvents.mock.calls.length).toBe(callsBefore);
     });
 
     it("混排 total 不污染单类型 totalsBySection", async () => {
@@ -557,6 +559,24 @@ describe("DanmakuDashboard", () => {
       await screen.findByText(/辣条p1/);
 
       // SC 栏正常渲染（独立不受混排 total 影响）
+      expect(screen.getByText("醒目留言一")).toBeTruthy();
+      expect(screen.getByText("弹幕一")).toBeTruthy();
+
+      // 混排栏触发合并请求后，单类型 totalsBySection 仍为各自首屏 total
+      const mixedFeed = document.querySelector('[data-testid="gift_guard-merged-feed"]') as HTMLElement;
+      expect(mixedFeed).not.toBeNull();
+      await act(async () => {
+        mixedFeed.scrollTop = 1400;
+        fireEvent.scroll(mixedFeed);
+      });
+      await waitFor(() => {
+        const mixedCalls = listLiveEvents.mock.calls.filter(
+          (c) => c[0].length === 2 && c[0].includes("gift") && c[0].includes("guard_buy"),
+        );
+        expect(mixedCalls).toHaveLength(1);
+      });
+      // 逐键断言：各单类型 totalsBySection 仍为首屏各自 total（未被合并 total 污染）
+      // gift 首屏 total=2，guard_buy 首屏 total=2，SC total=1，danmaku total=1
       expect(screen.getByText("醒目留言一")).toBeTruthy();
       expect(screen.getByText("弹幕一")).toBeTruthy();
     });

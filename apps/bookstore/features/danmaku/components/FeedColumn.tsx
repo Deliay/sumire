@@ -1,8 +1,12 @@
 "use client";
 
 import type { ReactNode } from "react";
+import type { RefObject } from "react";
+import type { HoverPill } from "../hoverTopBar";
 import type { LiveEvent, LiveEventType } from "../types";
 import FeedSection from "./FeedSection";
+import type { FeedSectionHandle } from "./FeedSection";
+import HoverTopBar from "./HoverTopBar";
 
 /** 栏内小节：单类型数据 + 其标题。 */
 export interface FeedSectionData {
@@ -39,6 +43,12 @@ interface FeedColumnProps {
   headerExtra?: ReactNode;
   /** 栏位配置面板（展开时渲染于栏头下方）。 */
   configPanel?: ReactNode;
+  /** 悬停胶囊列表（SC/上船事件）。 */
+  hoverPills?: HoverPill[];
+  /** 点击胶囊定位到对应事件。 */
+  onLocate?: (eventId: string) => void;
+  /** 各小节 FeedSection 的 ref 映射（key = `${colId}:${type}`），用于外部定位调用。 */
+  sectionRefs?: ReadonlyMap<string, RefObject<FeedSectionHandle | null>>;
 }
 
 /**
@@ -56,6 +66,9 @@ export default function FeedColumn({
   freshIds = new Set(),
   headerExtra,
   configPanel,
+  hoverPills,
+  onLocate,
+  sectionRefs,
 }: FeedColumnProps) {
   const hasLabel = sections.length > 1;
 
@@ -68,25 +81,30 @@ export default function FeedColumn({
         </div>
       </header>
       {configPanel}
+      {hoverPills && onLocate && <HoverTopBar pills={hoverPills} onLocate={onLocate} />}
       <div className="flex min-h-0 flex-1 flex-col">
-        {sections.map((section) => (
-          <FeedSection
-            key={section.type}
-            label={hasLabel ? section.label : undefined}
-            events={section.events}
-            canManage={canManage}
-            onToggleRead={onToggleRead}
-            newIds={newIds}
-            mergeEnabled={mergeEnabled}
-            freshIds={freshIds}
-            loading={section.loading}
-            error={section.error}
-            onRetry={section.onRetry}
-            onLoadMore={section.onLoadMore}
-            hasMore={section.hasMore}
-            loadingMore={section.loadingMore}
-          />
-        ))}
+        {sections.map((section) => {
+          const sectionKey = section.type;
+          return (
+            <FeedSection
+              key={sectionKey}
+              ref={sectionRefs?.get(sectionKey)}
+              label={hasLabel ? section.label : undefined}
+              events={section.events}
+              canManage={canManage}
+              onToggleRead={onToggleRead}
+              newIds={newIds}
+              mergeEnabled={mergeEnabled}
+              freshIds={freshIds}
+              loading={section.loading}
+              error={section.error}
+              onRetry={section.onRetry}
+              onLoadMore={section.onLoadMore}
+              hasMore={section.hasMore}
+              loadingMore={section.loadingMore}
+            />
+          );
+        })}
       </div>
     </section>
   );

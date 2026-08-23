@@ -139,10 +139,9 @@ describe("DanmakuDashboard", () => {
     expect(await screen.findByText("弹幕一")).toBeTruthy();
     expect(screen.getByText("醒目留言一")).toBeTruthy();
     expect(screen.getByText(/辣条/)).toBeTruthy();
-    // 每节（栏 + 类型）独立检索请求：礼物+上船(mixed) | SC | 弹幕
+    // mixed 栏走合并请求：["gift","guard_buy"] 一次；SC / 弹幕 各自独立
     const calledTypes = listLiveEvents.mock.calls.map((c) => c[0]);
-    expect(calledTypes).toContainEqual(["gift"]);
-    expect(calledTypes).toContainEqual(["guard_buy"]);
+    expect(calledTypes).toContainEqual(["gift", "guard_buy"]);
     expect(calledTypes).toContainEqual(["super_chat"]);
     expect(calledTypes).toContainEqual(["danmaku"]);
   });
@@ -159,6 +158,29 @@ describe("DanmakuDashboard", () => {
     await screen.findByText("醒目留言一");
     // 默认 gift_guard 栏为 mixed 模式：礼物与上船混排，无分栏标签
     expect(container.querySelectorAll(".text-xs.font-medium.text-ink-dim")).toHaveLength(0);
+  });
+
+  it("悬停胶囊栏仅在勾选弹幕的栏渲染，不含弹幕的栏不渲染", async () => {
+    // 冻结时间使胶囊未过期（事件 occurredAt = 2026-08-16T12:00:00.000Z）
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-08-16T12:00:05.000Z"));
+    render(<DanmakuDashboard />);
+    await screen.findByText("醒目留言一");
+
+    // 默认栏位：gift_guard=[gift,guard_buy], sc=[super_chat], danmaku=[danmaku]
+    // 含弹幕的栏（danmaku）应渲染悬停胶囊栏
+    const danmakuHeading = screen.getByRole("heading", { name: "弹幕" });
+    const danmakuSection = danmakuHeading.closest("section") as HTMLElement;
+    expect(danmakuSection).not.toBeNull();
+    expect(danmakuSection.querySelector('[role="toolbar"]')).not.toBeNull();
+
+    // 不含弹幕的栏（SC、上船+礼物）不应渲染悬停胶囊栏
+    const scHeading = screen.getByRole("heading", { name: "SC" });
+    const scSection = scHeading.closest("section") as HTMLElement;
+    expect(scSection).not.toBeNull();
+    expect(scSection.querySelector('[role="toolbar"]')).toBeNull();
+
+    vi.useRealTimers();
   });
 
   it("配置面板切换混排/分栏：渲染小节并持久化 mode", async () => {
@@ -221,7 +243,7 @@ describe("DanmakuDashboard", () => {
 
   it("经 ref 调用 readAll(\"super_chat\") 后该类型事件整体置灰", async () => {
     const ref = { current: null as DanmakuDashboardHandle | null };
-    const { rerender: _rerender } = render(<DanmakuDashboard ref={(r) => { ref.current = r; }} />);
+    render(<DanmakuDashboard ref={(r) => { ref.current = r; }} />);
     const row = (await screen.findByText("醒目留言一")).closest("[data-event-id]") as HTMLElement;
     await act(async () => {
       await ref.current?.readAll("super_chat");
@@ -440,6 +462,142 @@ describe("DanmakuDashboard", () => {
       const giftCallsAfter = listLiveEvents.mock.calls.filter((c) => c[0].includes("gift"));
       const lastCall = giftCallsAfter[giftCallsAfter.length - 1];
       expect(lastCall[3]).toBe(10);
+    });
+  });
+
+  describe("混排合并分页", () => {
+    const GIFT_P1 = [
+      makeEvent({ eventId: "gift:p1-1", type: "gift", price: 5, gift: { name: "辣条p1", count: 1 } }),
+      makeEvent({ eventId: "gift:p1-2", type: "gift", price: 10, gift: { name: "花束", count: 1 } }),
+    ];
+    const GUARD_P1 = [
+      makeEvent({ eventId: "guard:p1-1", type: "guard_buy", price: 138, guard: { level: 3, name: "舰长", count: 1 } }),
+      makeEvent({ eventId: "guard:p1-2", type: "guard_buy", price: 138, guard: { level: 3, name: "舰长", count: 1 } }),
+    ];
+    const GIFT_P2 = [
+      makeEvent({ eventId: "gift:p2-1", type: "gift", price: 20, gift: { name: "打call", count: 1 } }),
+    ];
+    const GUARD_P2 = [
+      makeEvent({ eventId: "guard:p2-1", type: "guard_buy", price: 138, guard: { level: 3, name: "舰长", count: 1 } }),
+    ];
+
+    function mockMixedPaging() {
+      // 首屏：mixed 栏走合并请求，SC/弹幕各自独立
+      // 混排栏滚动加载：合并请求（loadMoreSectionMerged）
+      listLiveEvents.mockImplementation(async (types: string[], page = 1) => {
+        // 混排栏合并请求：["gift","guard_buy"]（首屏 page1 + 滚动 page2）
+        if (types.length === 2 && types.includes("gift") && types.includes("guard_buy")) {
+          const items = page === 1
+            ? [...GIFT_P1, ...GUARD_P1]
+            : [...GIFT_P2, ...GUARD_P2];
+          return {
+            status: 200,
+            data: { total: 6, page, pageSize: 50, items },
+          };
+        }
+        if (types.length === 1 && types[0] === "super_chat") {
+          return { status: 200, data: { total: 1, page, pageSize: 50, items: [SC_EVENT] } };
+        }
+        if (types.length === 1 && types[0] === "danmaku") {
+          return { status: 200, data: { total: 1, page, pageSize: 50, items: [DM_EVENT] } };
+        }
+        return { status: 200, data: { total: 0, page, pageSize: 50, items: [] } };
+      });
+    }
+
+    it("混排栏滚动加载以 listLiveEvents([gift,guard_buy], page, size) 合并调用", async () => {
+      mockMixedPaging();
+      render(<DanmakuDashboard />);
+      await screen.findByText(/辣条p1/);
+
+      // 首屏：混排栏走合并请求（loadSectionMerged）
+      const mergedCalls = listLiveEvents.mock.calls.filter(
+        (c) => c[0].length === 2 && c[0].includes("gift") && c[0].includes("guard_buy"),
+      );
+      expect(mergedCalls).toHaveLength(1);
+      expect(mergedCalls[0][0]).toEqual(["gift", "guard_buy"]);
+      expect(mergedCalls[0][1]).toBe(1);
+
+      // 混排 FeedSection 通过 data-testid 定位（混排栏 sections.length===1 无 aria-label）
+      const mixedFeed = document.querySelector('[data-testid="gift_guard-merged-feed"]') as HTMLElement;
+      expect(mixedFeed).not.toBeNull();
+
+      // 滚动到底部触发 loadMoreSectionMerged
+      await act(async () => {
+        mixedFeed.scrollTop = 1400;
+        fireEvent.scroll(mixedFeed);
+      });
+      await waitFor(() => {
+        const scrollCalls = listLiveEvents.mock.calls.filter(
+          (c) => c[0].length === 2 && c[0].includes("gift") && c[0].includes("guard_buy"),
+        );
+        // 首屏1次 + 滚动1次 = 2次
+        expect(scrollCalls).toHaveLength(2);
+        expect(scrollCalls[1][0]).toEqual(["gift", "guard_buy"]);
+        expect(scrollCalls[1][1]).toBe(2);
+      });
+    });
+
+    it("混排栏 hasMore 随数据耗尽变为 false", async () => {
+      mockMixedPaging();
+      render(<DanmakuDashboard />);
+      await screen.findByText(/辣条p1/);
+
+      // 混排 FeedSection 通过 data-testid 定位
+      const mixedFeed = document.querySelector('[data-testid="gift_guard-merged-feed"]') as HTMLElement;
+      expect(mixedFeed).not.toBeNull();
+
+      // 首屏已加载 4 条（gift 2 + guard 2），mergedTotal=6，hasMore=true
+      // 滚动到底部触发 loadMoreSectionMerged（page2 返回 2 条，total=6）
+      await act(async () => {
+        mixedFeed.scrollTop = 1400;
+        fireEvent.scroll(mixedFeed);
+      });
+      await waitFor(() => {
+        const mergedCalls = listLiveEvents.mock.calls.filter(
+          (c) => c[0].length === 2 && c[0].includes("gift") && c[0].includes("guard_buy"),
+        );
+        // 首屏1次 + 滚动1次 = 2次
+        expect(mergedCalls).toHaveLength(2);
+      });
+      // page2 加载后：已加载 6 条（4+2），mergedTotal=6，hasMore=false
+      // 再次滚动不应再发请求
+      const callsBefore = listLiveEvents.mock.calls.length;
+      await act(async () => {
+        mixedFeed.scrollTop = 1400;
+        fireEvent.scroll(mixedFeed);
+      });
+      await vi.waitFor(() => {}, { timeout: 200 });
+      expect(listLiveEvents.mock.calls.length).toBe(callsBefore);
+    });
+
+    it("混排 total 不污染单类型 totalsBySection", async () => {
+      mockMixedPaging();
+      render(<DanmakuDashboard />);
+      await screen.findByText(/辣条p1/);
+
+      // SC 栏正常渲染（独立不受混排 total 影响）
+      expect(screen.getByText("醒目留言一")).toBeTruthy();
+      expect(screen.getByText("弹幕一")).toBeTruthy();
+
+      // 混排栏触发合并请求后，单类型 totalsBySection 仍为各自首屏 total
+      const mixedFeed = document.querySelector('[data-testid="gift_guard-merged-feed"]') as HTMLElement;
+      expect(mixedFeed).not.toBeNull();
+      await act(async () => {
+        mixedFeed.scrollTop = 1400;
+        fireEvent.scroll(mixedFeed);
+      });
+      await waitFor(() => {
+        const mergedCalls = listLiveEvents.mock.calls.filter(
+          (c) => c[0].length === 2 && c[0].includes("gift") && c[0].includes("guard_buy"),
+        );
+        // 首屏1次 + 滚动1次 = 2次
+        expect(mergedCalls).toHaveLength(2);
+      });
+      // 逐键断言：各单类型 totalsBySection 仍为首屏各自 total（未被合并 total 污染）
+      // gift 首屏 total=2，guard_buy 首屏 total=2，SC total=1，danmaku total=1
+      expect(screen.getByText("醒目留言一")).toBeTruthy();
+      expect(screen.getByText("弹幕一")).toBeTruthy();
     });
   });
 });

@@ -326,6 +326,9 @@ components:
             backgroundStart: { type: string }
             backgroundEnd: { type: string }
             fontColor: { type: string }
+        time:
+          type: integer
+          description: SC 悬停时长（秒，仅 super_chat；上游 SUPER_CHAT_MESSAGE payload 标准字段 data.time，如 60/120/180/300/3600 档）；缺失时不携带，前端回退默认展示
         gift:
           type: object
           required: [name, count]

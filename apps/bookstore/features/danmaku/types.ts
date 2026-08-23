@@ -49,6 +49,8 @@ export const LiveEventSchema = z.object({
   /** 金额（元）：SC 直接为元；礼物=金瓜子 combo_total_coin/1000；上船=price/1000 */
   price: z.number().optional(),
   scColors: ScColorsSchema.optional(),
+  /** SC 悬停时长（秒，仅 super_chat）；上游 SUPER_CHAT_MESSAGE payload.data.time，缺失时不携带，前端回退默认 60s */
+  time: z.number().optional(),
   gift: z.object({ name: z.string(), count: z.number().int(), iconUrl: z.string().optional() }).optional(),
   guard: z
     .object({

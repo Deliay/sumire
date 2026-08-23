@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, forwardRef, useImperativeHandle } from "react";
 import { useSession } from "@/features/backdoor/session";
 import { atLeast } from "@/features/backdoor/roleAccess";
@@ -32,6 +33,8 @@ import {
 import { labelForType } from "../format";
 import { mergeEventsByTime } from "../merge";
 import { useLiveEventStream } from "../useLiveEventStream";
+import { isHoverable } from "../hoverTopBar";
+import { useHoverPills } from "../useHoverPills";
 import {
   LiveEventTypeSchema,
   type ColumnConfig,
@@ -40,7 +43,9 @@ import {
   type LiveEventType,
 } from "../types";
 import FeedColumn from "./FeedColumn";
+import type { FeedSectionHandle } from "./FeedSection";
 import GiftFilterControl from "./GiftFilterControl";
+import GiftCardDialog from "./GiftCardDialog";
 
 /** 实时流到达即打「New」标记的事件类型（仅 SC / 上船）。 */
 const NEW_MARK_TYPES: readonly LiveEventType[] = ["super_chat", "guard_buy"];
@@ -111,15 +116,35 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
       })),
     [storedColumns, tier],
   );
+
+  // 悬停胶囊：仅含 SC/上船的类型参与
+  const hoverTypes = useMemo(
+    () => columns.flatMap((c) => c.types).filter((t) => t === "super_chat" || t === "guard_buy"),
+    [columns],
+  );
+  const { pills, add: addPill } = useHoverPills(hoverTypes);
+
+  // FeedSection 引用：用于定位跳转
+  const feedSectionRefs = useRef<Map<string, React.RefObject<FeedSectionHandle | null>>>(new Map());
+  const getFeedSectionRef = useCallback((key: string) => {
+    if (!feedSectionRefs.current.has(key)) {
+      feedSectionRefs.current.set(key, { current: null });
+    }
+    return feedSectionRefs.current.get(key)!;
+  }, []);
   // 分节检索状态：key = `${colId}:${type}`，每种事件类型独立加载/分页/错误
   const [eventsBySection, setEventsBySection] = useState<Record<string, LiveEvent[]>>({});
   const [loadedSections, setLoadedSections] = useState<ReadonlySet<string>>(new Set());
   const [sectionErrors, setSectionErrors] = useState<Record<string, string>>({});
   const [configOpenId, setConfigOpenId] = useState<string | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<LiveEvent | null>(null);
   const [toast, setToast] = useState("");
   const [pagesBySection, setPagesBySection] = useState<Record<string, number>>({});
   const [totalsBySection, setTotalsBySection] = useState<Record<string, number>>({});
   const [loadingMoreBySection, setLoadingMoreBySection] = useState<Record<string, boolean>>({});
+  // 混排栏独立分页状态：key = colId，不污染单类型 totalsBySection/pagesBySection
+  const [mergedTotalByColumn, setMergedTotalByColumn] = useState<Record<string, number>>({});
+  const [mergedPageByColumn, setMergedPageByColumn] = useState<Record<string, number>>({});
   // 实时流到达的 SC/上船事件 eventId → type 集合（读后清除，用于「New」标记）
   const [newIds, setNewIds] = useState<ReadonlyMap<string, LiveEventType>>(new Map());
 
@@ -188,7 +213,6 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
       });
       let status = 0;
       let data: LiveEventsPage | ApiError | null = null;
-      // 礼物请求捕获阈值，响应比对丢弃
       const capturedMinPrice = type === "gift" ? minPriceRef.current : undefined;
       try {
         const res = type === "gift"
@@ -197,26 +221,88 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
         status = res.status;
         data = res.data;
       } catch {
-        // 网络错误/请求异常：与上游非 200 同口径进入错误态，暴露重试入口
         status = 0;
         data = null;
       }
       if (generationRef.current !== generation) return;
-      // 礼物响应：阈值变化则丢弃
       if (type === "gift" && capturedMinPrice !== minPriceRef.current) return;
       if (status === 200 && data && "items" in data) {
         setEventsBySection((prev) => ({ ...prev, [key]: dedupeById(data!.items) }));
         setTotalsBySection((prev) => ({ ...prev, [key]: data!.total }));
         setPagesBySection((prev) => ({ ...prev, [key]: 1 }));
+        // 历史检索的 SC/上船事件加入胶囊
+        for (const event of data.items) {
+          if (isHoverable(event)) addPill(event);
+        }
       } else {
         setSectionErrors((prev) => ({ ...prev, [key]: "检索失败" }));
       }
       setLoadedSections((prev) => new Set(prev).add(key));
     },
-    [],
+    [addPill],
   );
 
-  // 滚动加载下一页历史：append 去重，更新页数与 total。
+  // 混排栏合并请求：按栏合并多 type 一次请求，使用独立的 mergedTotal/mergedPage 状态
+  const loadMoreSectionMerged = useCallback(
+    async (col: ColumnConfig) => {
+      const colId = col.id;
+      const loadingKey = sectionKey(colId, "merged");
+      if (loadingMoreBySection[loadingKey]) return;
+      const currentPage = mergedPageByColumn[colId] ?? 1;
+      const total = mergedTotalByColumn[colId];
+      // 计算当前已加载总条数
+      const currentCount = col.types.reduce((sum, type) => sum + (eventsBySection[sectionKey(colId, type)]?.length ?? 0), 0);
+      // 已加载条数不低于合并 total 视为没有更多
+      if (total !== undefined && currentCount >= total) return;
+      setLoadingMoreBySection((prev) => ({ ...prev, [loadingKey]: true }));
+      const hasGift = col.types.includes("gift");
+      const capturedMinPrice = hasGift ? minPriceRef.current : undefined;
+      let status = 0;
+      let data: LiveEventsPage | ApiError | null = null;
+      try {
+        const res = await listLiveEvents(col.types, currentPage + 1, PAGE_SIZE, hasGift ? capturedMinPrice : undefined);
+        status = res.status;
+        data = res.data;
+      } catch {
+        status = 0;
+        data = null;
+      }
+      if (hasGift && capturedMinPrice !== minPriceRef.current) {
+        setLoadingMoreBySection((prev) => ({ ...prev, [loadingKey]: false }));
+        return;
+      }
+      if (status === 200 && data && "items" in data) {
+        // 按类型分组 append 到各节（渲染用）
+        const byType = new Map<LiveEventType, LiveEvent[]>();
+        for (const event of data.items) {
+          const list = byType.get(event.type) ?? [];
+          list.push(event);
+          byType.set(event.type, list);
+        }
+        for (const type of col.types) {
+          const typeKey = sectionKey(colId, type);
+          const typeItems = byType.get(type) ?? [];
+          if (typeItems.length > 0) {
+            setEventsBySection((prev) => ({
+              ...prev,
+              [typeKey]: dedupeById([...(prev[typeKey] ?? []), ...typeItems]),
+            }));
+          }
+        }
+        // 只更新混排栏独立状态，不污染单类型 totalsBySection
+        setMergedTotalByColumn((prev) => ({ ...prev, [colId]: data!.total }));
+        setMergedPageByColumn((prev) => ({ ...prev, [colId]: currentPage + 1 }));
+        // 历史检索的 SC/上船事件加入胶囊
+        for (const event of data.items) {
+          if (isHoverable(event)) addPill(event);
+        }
+      }
+      setLoadingMoreBySection((prev) => ({ ...prev, [loadingKey]: false }));
+    },
+    [loadingMoreBySection, mergedTotalByColumn, mergedPageByColumn, eventsBySection, addPill],
+  );
+
+  // 单类型栏滚动加载
   const loadMoreSection = useCallback(
     async (col: ColumnConfig, type: LiveEventType) => {
       const key = sectionKey(col.id, type);
@@ -253,22 +339,98 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
         }));
         setTotalsBySection((prev) => ({ ...prev, [key]: data!.total }));
         setPagesBySection((prev) => ({ ...prev, [key]: currentPage + 1 }));
+        // 历史检索的 SC/上船事件加入胶囊
+        for (const event of data.items) {
+          if (isHoverable(event)) addPill(event);
+        }
       }
       setLoadingMoreBySection((prev) => ({ ...prev, [key]: false }));
     },
-    [loadingMoreBySection, pagesBySection, totalsBySection, eventsBySection],
+    [loadingMoreBySection, pagesBySection, totalsBySection, eventsBySection, addPill],
   );
 
-  // 历史首屏：栏位/类型变化时逐节检索
+  // 混排栏首屏合并请求：按栏合并多 type 一次请求，初始化 mergedTotal/mergedPage
+  const loadSectionMerged = useCallback(
+    async (col: ColumnConfig, generation: number) => {
+      const colId = col.id;
+      // 清除所有类型的已加载/错误态
+      for (const type of col.types) {
+        const key = sectionKey(colId, type);
+        setLoadedSections((prev) => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+        setSectionErrors((prev) => {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
+      }
+      const hasGift = col.types.includes("gift");
+      const capturedMinPrice = hasGift ? minPriceRef.current : undefined;
+      let status = 0;
+      let data: LiveEventsPage | ApiError | null = null;
+      try {
+        const res = await listLiveEvents(col.types, 1, PAGE_SIZE, hasGift ? capturedMinPrice : undefined);
+        status = res.status;
+        data = res.data;
+      } catch {
+        status = 0;
+        data = null;
+      }
+      if (generationRef.current !== generation) return;
+      if (hasGift && capturedMinPrice !== minPriceRef.current) return;
+      if (status === 200 && data && "items" in data) {
+        // 按类型分组写入各节
+        const byType = new Map<LiveEventType, LiveEvent[]>();
+        for (const event of data.items) {
+          const list = byType.get(event.type) ?? [];
+          list.push(event);
+          byType.set(event.type, list);
+        }
+        for (const type of col.types) {
+          const typeKey = sectionKey(colId, type);
+          const typeItems = byType.get(type) ?? [];
+          setEventsBySection((prev) => ({ ...prev, [typeKey]: dedupeById(typeItems) }));
+          setTotalsBySection((prev) => ({ ...prev, [typeKey]: typeItems.length }));
+          setPagesBySection((prev) => ({ ...prev, [typeKey]: 1 }));
+        }
+        // 混排栏独立状态
+        setMergedTotalByColumn((prev) => ({ ...prev, [colId]: data!.total }));
+        setMergedPageByColumn((prev) => ({ ...prev, [colId]: 1 }));
+        // 历史检索的 SC/上船事件加入胶囊
+        for (const event of data.items) {
+          if (isHoverable(event)) addPill(event);
+        }
+      } else {
+        // 错误态：所有类型记错误
+        for (const type of col.types) {
+          setSectionErrors((prev) => ({ ...prev, [sectionKey(colId, type)]: "检索失败" }));
+        }
+      }
+      // 标记所有类型已加载
+      for (const type of col.types) {
+        setLoadedSections((prev) => new Set(prev).add(sectionKey(colId, type)));
+      }
+    },
+    [addPill],
+  );
+
+  // 历史首屏：栏位/类型变化时逐节检索；mixed 栏走合并请求
   useEffect(() => {
     generationRef.current += 1;
     const generation = generationRef.current;
     for (const col of columns) {
-      for (const type of col.types) {
-        void loadSection(col, type, generation);
+      if (col.mode === "mixed") {
+        void loadSectionMerged(col, generation);
+      } else {
+        for (const type of col.types) {
+          void loadSection(col, type, generation);
+        }
       }
     }
-  }, [columns, loadSection]);
+  }, [columns, loadSection, loadSectionMerged]);
 
   // 实时流：类型为各栏并集 + online_rank_count（若提供 onOnlineCount），事件分发进所有包含该类型的栏
   const streamTypes = useMemo((): string[] => {
@@ -319,8 +481,12 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
           return next;
         });
       }
+      // 可悬停事件加入胶囊栏
+      if (isHoverable(event)) {
+        addPill(event);
+      }
     },
-    [columns],
+    [columns, addPill],
   );
 
   const streamStatus = useLiveEventStream(streamTypes, handleStreamEvent, onOnlineCount);
@@ -341,11 +507,13 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
         // 网络错误忽略
       }
       if (!data) return;
-      // 模拟SSE发布：逐条延迟调用handleStreamEvent
+      // 模拟SSE发布：逐条延迟调用handleStreamEvent；重置 occurredAt 为当前时刻使胶囊正常展示
+      const now = new Date().toISOString();
       for (const event of data.items) {
         const replayEvent: LiveEvent = {
           ...event,
           eventId: `${event.eventId}${suffix}`,
+          occurredAt: now,
         };
         handleStreamEvent(replayEvent);
         await new Promise((r) => setTimeout(r, 100));
@@ -440,6 +608,25 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
     [columns],
   );
 
+  // 按 eventId 触发 GiftCardDialog 浮层：找到目标事件并打开浮层
+  const handleLocate = useCallback(
+    (eventId: string) => {
+      // 在已加载列表中找到目标事件
+      for (const col of columns) {
+        for (const type of col.types) {
+          const key = sectionKey(col.id, type);
+          const events = eventsBySection[key] ?? [];
+          const targetEvent = events.find((e) => e.eventId === eventId);
+          if (targetEvent) {
+            setSelectedEvent(targetEvent);
+            return;
+          }
+        }
+      }
+    },
+    [columns, eventsBySection],
+  );
+
   // 隐藏钢镚展示过滤：对所有含 SC 的节数据（split + mixed）过滤低价 SC
   // 仅在渲染层过滤，原始 eventsBySection 不变（供去重/分页使用）
   const visibleEventsBySection = useMemo(() => {
@@ -490,7 +677,7 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
         className={
           isFullscreen
             ? `flex min-h-0 flex-1 ${columns.length > 1 ? "flex-row" : "flex-col"}`
-            : `flex h-[calc(100svh-16rem)] gap-4 ${columns.length > 1 ? "flex-row" : "flex-col"}`
+            : `flex h-[calc(100svh-13rem)] gap-4 ${columns.length > 1 ? "flex-row" : "flex-col"}`
         }
       >
         {columns.map((col) => {
@@ -502,6 +689,7 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
                   {
                     type: col.types[0],
                     label: "",
+                    testId: `${col.id}-merged-feed`,
                     events: mixedEventsByColumn[col.id] ?? [],
                     loading: keys.some((k) => !loadedSections.has(k)),
                     error: keys.map((k) => sectionErrors[k]).find((e) => e != null) ?? null,
@@ -511,11 +699,16 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
                           void loadSection(col, type, generationRef.current);
                         }
                       }),
-                    onLoadMore: () => col.types.forEach((type) => void loadMoreSection(col, type)),
-                    hasMore: keys.some(
-                      (k) => (totalsBySection[k] ?? 0) > (eventsBySection[k]?.length ?? 0),
-                    ),
-                    loadingMore: keys.some((k) => loadingMoreBySection[k]),
+                    onLoadMore: () => void loadMoreSectionMerged(col),
+                    hasMore: (() => {
+                      const mergedTotal = mergedTotalByColumn[col.id];
+                      const mergedCount = col.types.reduce(
+                        (sum, type) => sum + (eventsBySection[sectionKey(col.id, type)]?.length ?? 0),
+                        0,
+                      );
+                      return mergedTotal !== undefined ? mergedCount < mergedTotal : false;
+                    })(),
+                    loadingMore: keys.some((k) => loadingMoreBySection[k]) || !!loadingMoreBySection[sectionKey(col.id, "merged")],
                   },
                 ]
               : col.types.map((type) => {
@@ -542,6 +735,23 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
               newIds={newIds}
               mergeEnabled={mergeEnabled}
               freshIds={freshIds}
+              hoverPills={
+                col.types.includes("danmaku")
+                  ? pills
+                  : undefined
+              }
+              onLocate={
+                col.types.includes("danmaku")
+                  ? handleLocate
+                  : undefined
+              }
+              sectionRefs={(() => {
+                const map = new Map<string, React.RefObject<FeedSectionHandle | null>>();
+                for (const type of col.types) {
+                  map.set(type, getFeedSectionRef(sectionKey(col.id, type)));
+                }
+                return map;
+              })()}
               headerExtra={
                 <div className="flex items-center gap-2">
                   {streamStatus === "connecting" && (
@@ -634,6 +844,7 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
           </button>
         </div>
       )}
+      <GiftCardDialog event={selectedEvent} onClose={() => setSelectedEvent(null)} />
     </div>
   );
 });

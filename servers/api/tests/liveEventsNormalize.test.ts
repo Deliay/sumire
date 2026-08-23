@@ -65,6 +65,36 @@ describe("toLiveEvent 四类事件映射（实测样本夹具）", () => {
     });
   });
 
+  it("super_chat：data.time>0 透传为 time 字段（SC 悬停时长秒）", () => {
+    const fixture = clone(superChatFixture) as { payload: { data: Record<string, unknown> } };
+    fixture.payload.data.time = 300;
+    const e = toLiveEvent(fixture);
+    expect(e).not.toBeNull();
+    expect(e?.time).toBe(300);
+  });
+
+  it("super_chat：缺 data.time 时不携带 time 字段", () => {
+    const e = toLiveEvent(clone(superChatFixture));
+    expect(e).not.toBeNull();
+    expect(e?.time).toBeUndefined();
+  });
+
+  it("super_chat：data.time 为 0 或负数时不携带 time 字段", () => {
+    for (const v of [0, -1, -60]) {
+      const fixture = clone(superChatFixture) as { payload: { data: Record<string, unknown> } };
+      fixture.payload.data.time = v;
+      const e = toLiveEvent(fixture);
+      expect(e?.time).toBeUndefined();
+    }
+  });
+
+  it("super_chat：data.time 为字符串时不携带（asNumber 仅收 number）", () => {
+    const fixture = clone(superChatFixture) as { payload: { data: Record<string, unknown> } };
+    fixture.payload.data.time = "300";
+    const e = toLiveEvent(fixture);
+    expect(e?.time).toBeUndefined();
+  });
+
   it("gift：金瓜子 combo_total_coin/1000、连击数取 combo_send.combo_num、eventId 用 batch_combo_id", () => {
     const e = toLiveEvent(clone(giftFixture));
     expect(e).not.toBeNull();

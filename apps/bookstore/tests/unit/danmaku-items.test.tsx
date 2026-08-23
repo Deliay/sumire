@@ -207,14 +207,20 @@ describe("SuperChatItem", () => {
   });
 
   it("拖选留言不触发 onToggleRead（getSelection Range 非折叠）", () => {
-    // SC 留言文字区单击已读依赖 window.getSelection() 判定拖选状态。
-    // jsdom 不支持真实 Selection API，此行为通过 e2e 验证；
-    // 单测仅验证干净单击（isCollapsed=true 默认）能正常触发。
     const onToggleRead = vi.fn();
     render(<SuperChatItem event={sc} onToggleRead={onToggleRead} />);
-    // jsdom 默认 getSelection().isCollapsed = true（无选区），应触发
+    // Mock window.getSelection 返回 Range 非折叠（模拟拖选复制）
+    const origGetSelection = window.getSelection;
+    const mockSelection = { type: "Range", isCollapsed: false };
+    Object.defineProperty(window, "getSelection", {
+      value: () => mockSelection,
+      writable: true,
+      configurable: true,
+    });
     fireEvent.click(screen.getByText("首播加油"));
-    expect(onToggleRead).toHaveBeenCalledTimes(1);
+    expect(onToggleRead).not.toHaveBeenCalled();
+    // 恢复原始 getSelection
+    Object.defineProperty(window, "getSelection", { value: origGetSelection, writable: true, configurable: true });
   });
 
   it("气泡外（非留言区）点击仍触发 onToggleRead", () => {
@@ -272,6 +278,33 @@ describe("SuperChatItem", () => {
     // 留言文本应相同
     expect(withKeyword.textContent).toContain("首播加油");
     expect(withoutKeyword.textContent).toContain("首播加油");
+  });
+
+  it("SC 头部 Sender 点击不触发 onToggleRead（穿透）", () => {
+    const onToggleRead = vi.fn();
+    render(<SuperChatItem event={sc} onToggleRead={onToggleRead} />);
+    // Sender 的 <a> 标签有 stopPropagation，点击不冒泡到根节点
+    const senderLink = screen.getByText("观众A").closest("a");
+    expect(senderLink).toBeTruthy();
+    fireEvent.click(senderLink!);
+    expect(onToggleRead).not.toHaveBeenCalled();
+  });
+
+  it("SC 留言内 BiliVideoLink 点击不触发 onToggleRead（穿透）", () => {
+    const onToggleRead = vi.fn();
+    const scWithLink = makeEvent({
+      eventId: "sc:link",
+      type: "super_chat",
+      content: "看看这个 BV1xw411n7FW",
+      price: 30,
+      scColors: { backgroundStart: "#c9485b", backgroundEnd: "#a12c46", fontColor: "#ffffff" },
+    });
+    render(<SuperChatItem event={scWithLink} onToggleRead={onToggleRead} />);
+    // BiliVideoLink 的 <a> 标签有 stopPropagation
+    const link = screen.getByText(/BV1xw411n7FW/).closest("a");
+    expect(link).toBeTruthy();
+    fireEvent.click(link!);
+    expect(onToggleRead).not.toHaveBeenCalled();
   });
 });
 

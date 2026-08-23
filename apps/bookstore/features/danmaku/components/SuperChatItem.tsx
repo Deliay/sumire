@@ -26,7 +26,10 @@ export default function SuperChatItem({ event, isNew = false, onToggleRead, high
 
   function handleMessageClick(e: React.MouseEvent) {
     const sel = window.getSelection();
-    if (sel && sel.type === "Range" && !sel.isCollapsed) return;
+    if (sel && sel.type === "Range" && !sel.isCollapsed) {
+      e.stopPropagation();
+      return;
+    }
     e.stopPropagation();
     onToggleRead?.(event);
   }

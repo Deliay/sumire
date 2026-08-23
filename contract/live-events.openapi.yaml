@@ -198,8 +198,8 @@ paths:
               properties:
                 type:
                   type: string
-                  enum: [super_chat, guard_buy]
-                  description: 仅支持需要已读管理的类型
+                  enum: [super_chat, guard_buy, gift]
+                  description: 支持需要已读管理的类型（含礼物）
       responses:
         "200":
           description: 水位线已写入。该类型当前无事件时返回 marked=0 且不写水位线；marked 仅统计上游首页（≤100 条）口径。
@@ -212,7 +212,7 @@ paths:
                   ok: { type: boolean, const: true }
                   marked: { type: integer, description: 本次被水位线覆盖为已读的事件数（仅统计上游首页 ≤100 条） }
         "400":
-          description: type 缺失或非法（仅支持 super_chat / guard_buy）
+          description: type 缺失或非法（仅支持 super_chat / guard_buy / gift）
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }

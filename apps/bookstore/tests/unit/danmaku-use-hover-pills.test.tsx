@@ -112,4 +112,69 @@ describe("useHoverPills 胶囊集合", () => {
     unmount();
     vi.runAllTimers();
   });
+
+  describe("历史事件入胶囊 + expiresAt 从 occurredAt 起算", () => {
+    it("历史事件（occurredAt 早于 now 30s，duration 60s）剩余 30s 入列", () => {
+      // FIXED_TIME = 2026-01-01T00:00:00Z
+      // 事件发生在 30s 前
+      const pastTime = new Date(FIXED_TIME - 30000).toISOString();
+      const { result } = renderHook(() => useHoverPills(["super_chat"]));
+      const sc = makeEvent({ type: "super_chat", price: 30, time: 60, occurredAt: pastTime });
+      act(() => result.current.add(sc));
+      expect(result.current.pills).toHaveLength(1);
+      // expiresAt = occurredAtMs + 60000 = (FIXED_TIME - 30000) + 60000 = FIXED_TIME + 30000
+      expect(result.current.pills[0].expiresAt).toBe(FIXED_TIME + 30000);
+    });
+
+    it("历史事件（occurredAt 距今超过 duration）add 时不加入", () => {
+      // 事件发生在 70s 前，duration 默认 60s，已过期
+      const pastTime = new Date(FIXED_TIME - 70000).toISOString();
+      const { result } = renderHook(() => useHoverPills(["super_chat"]));
+      const sc = makeEvent({ type: "super_chat", price: 30, time: 60, occurredAt: pastTime });
+      act(() => result.current.add(sc));
+      // 已过期，不加入
+      expect(result.current.pills).toHaveLength(0);
+    });
+
+    it("历史事件（刚发生，剩余时长大于0）正常入列", () => {
+      // 事件发生在 5s 前
+      const pastTime = new Date(FIXED_TIME - 5000).toISOString();
+      const { result } = renderHook(() => useHoverPills(["super_chat"]));
+      const sc = makeEvent({ type: "super_chat", price: 30, time: 60, occurredAt: pastTime });
+      act(() => result.current.add(sc));
+      expect(result.current.pills).toHaveLength(1);
+      // expiresAt = occurredAtMs + 60000 = (FIXED_TIME - 5000) + 60000 = FIXED_TIME + 55000
+      expect(result.current.pills[0].expiresAt).toBe(FIXED_TIME + 55000);
+    });
+
+    it("实时事件（occurredAt = now）入列后按时倒计时", () => {
+      const { result } = renderHook(() => useHoverPills(["super_chat"]));
+      const sc = makeEvent({ type: "super_chat", price: 30, time: 60, occurredAt: new Date(FIXED_TIME).toISOString() });
+      act(() => result.current.add(sc));
+      expect(result.current.pills).toHaveLength(1);
+      // expiresAt = FIXED_TIME + 60000
+      expect(result.current.pills[0].expiresAt).toBe(FIXED_TIME + 60000);
+      // 50s 后仍在
+      act(() => vi.advanceTimersByTime(50000));
+      expect(result.current.pills).toHaveLength(1);
+      // 61s 后过期
+      act(() => vi.advanceTimersByTime(11000));
+      expect(result.current.pills).toHaveLength(0);
+    });
+
+    it("guard_buy 历史事件也按 occurredAt 起算", () => {
+      // 舰长 duration=60s，事件发生在 40s 前
+      const pastTime = new Date(FIXED_TIME - 40000).toISOString();
+      const { result } = renderHook(() => useHoverPills(["guard_buy"]));
+      const guard = makeEvent({
+        type: "guard_buy",
+        occurredAt: pastTime,
+        sender: { uid: 1, name: "test", nameRomaji: null, face: null, medal: null, guardLevel: 3 },
+      });
+      act(() => result.current.add(guard));
+      expect(result.current.pills).toHaveLength(1);
+      // expiresAt = occurredAtMs + 60000 = (FIXED_TIME - 40000) + 60000 = FIXED_TIME + 20000
+      expect(result.current.pills[0].expiresAt).toBe(FIXED_TIME + 20000);
+    });
+  });
 });

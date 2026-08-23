@@ -140,6 +140,9 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
   const [pagesBySection, setPagesBySection] = useState<Record<string, number>>({});
   const [totalsBySection, setTotalsBySection] = useState<Record<string, number>>({});
   const [loadingMoreBySection, setLoadingMoreBySection] = useState<Record<string, boolean>>({});
+  // 混排栏独立分页状态：key = colId，不污染单类型 totalsBySection/pagesBySection
+  const [mergedTotalByColumn, setMergedTotalByColumn] = useState<Record<string, number>>({});
+  const [mergedPageByColumn, setMergedPageByColumn] = useState<Record<string, number>>({});
   // 实时流到达的 SC/上船事件 eventId → type 集合（读后清除，用于「New」标记）
   const [newIds, setNewIds] = useState<ReadonlyMap<string, LiveEventType>>(new Map());
 
@@ -208,7 +211,6 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
       });
       let status = 0;
       let data: LiveEventsPage | ApiError | null = null;
-      // 礼物请求捕获阈值，响应比对丢弃
       const capturedMinPrice = type === "gift" ? minPriceRef.current : undefined;
       try {
         const res = type === "gift"
@@ -217,12 +219,10 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
         status = res.status;
         data = res.data;
       } catch {
-        // 网络错误/请求异常：与上游非 200 同口径进入错误态，暴露重试入口
         status = 0;
         data = null;
       }
       if (generationRef.current !== generation) return;
-      // 礼物响应：阈值变化则丢弃
       if (type === "gift" && capturedMinPrice !== minPriceRef.current) return;
       if (status === 200 && data && "items" in data) {
         setEventsBySection((prev) => ({ ...prev, [key]: dedupeById(data!.items) }));
@@ -240,21 +240,19 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
     [addPill],
   );
 
-  // 混排栏合并请求：按栏合并多 type 一次请求
+  // 混排栏合并请求：按栏合并多 type 一次请求，使用独立的 mergedTotal/mergedPage 状态
   const loadMoreSectionMerged = useCallback(
     async (col: ColumnConfig) => {
-      const key = sectionKey(col.id, "merged");
-      if (loadingMoreBySection[key]) return;
-      // 取所有类型的最小页码作为合并页码
-      const currentPage = Math.max(...col.types.map((type) => pagesBySection[sectionKey(col.id, type)] ?? 1));
-      // 合并 total：取各类型 total 之和
-      const total = col.types.reduce((sum, type) => sum + (totalsBySection[sectionKey(col.id, type)] ?? 0), 0);
-      // 合并已加载条数
-      const currentCount = col.types.reduce((sum, type) => sum + (eventsBySection[sectionKey(col.id, type)]?.length ?? 0), 0);
+      const colId = col.id;
+      const loadingKey = sectionKey(colId, "merged");
+      if (loadingMoreBySection[loadingKey]) return;
+      const currentPage = mergedPageByColumn[colId] ?? 1;
+      const total = mergedTotalByColumn[colId];
+      // 计算当前已加载总条数
+      const currentCount = col.types.reduce((sum, type) => sum + (eventsBySection[sectionKey(colId, type)]?.length ?? 0), 0);
       // 已加载条数不低于合并 total 视为没有更多
-      if (total > 0 && currentCount >= total) return;
-      setLoadingMoreBySection((prev) => ({ ...prev, [key]: true }));
-      // 该栏可能包含礼物类型，检查阈值
+      if (total !== undefined && currentCount >= total) return;
+      setLoadingMoreBySection((prev) => ({ ...prev, [loadingKey]: true }));
       const hasGift = col.types.includes("gift");
       const capturedMinPrice = hasGift ? minPriceRef.current : undefined;
       let status = 0;
@@ -267,13 +265,12 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
         status = 0;
         data = null;
       }
-      // 礼物响应：阈值变化则丢弃
       if (hasGift && capturedMinPrice !== minPriceRef.current) {
-        setLoadingMoreBySection((prev) => ({ ...prev, [key]: false }));
+        setLoadingMoreBySection((prev) => ({ ...prev, [loadingKey]: false }));
         return;
       }
       if (status === 200 && data && "items" in data) {
-        // 按类型分组写入各节
+        // 按类型分组 append 到各节（渲染用）
         const byType = new Map<LiveEventType, LiveEvent[]>();
         for (const event of data.items) {
           const list = byType.get(event.type) ?? [];
@@ -281,7 +278,7 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
           byType.set(event.type, list);
         }
         for (const type of col.types) {
-          const typeKey = sectionKey(col.id, type);
+          const typeKey = sectionKey(colId, type);
           const typeItems = byType.get(type) ?? [];
           if (typeItems.length > 0) {
             setEventsBySection((prev) => ({
@@ -289,17 +286,18 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
               [typeKey]: dedupeById([...(prev[typeKey] ?? []), ...typeItems]),
             }));
           }
-          setTotalsBySection((prev) => ({ ...prev, [typeKey]: data!.total }));
-          setPagesBySection((prev) => ({ ...prev, [typeKey]: currentPage + 1 }));
         }
+        // 只更新混排栏独立状态，不污染单类型 totalsBySection
+        setMergedTotalByColumn((prev) => ({ ...prev, [colId]: data!.total }));
+        setMergedPageByColumn((prev) => ({ ...prev, [colId]: currentPage + 1 }));
         // 历史检索的 SC/上船事件加入胶囊
         for (const event of data.items) {
           if (isHoverable(event)) addPill(event);
         }
       }
-      setLoadingMoreBySection((prev) => ({ ...prev, [key]: false }));
+      setLoadingMoreBySection((prev) => ({ ...prev, [loadingKey]: false }));
     },
-    [loadingMoreBySection, pagesBySection, totalsBySection, eventsBySection, addPill],
+    [loadingMoreBySection, mergedTotalByColumn, mergedPageByColumn, eventsBySection, addPill],
   );
 
   // 单类型栏滚动加载
@@ -359,6 +357,21 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
       }
     }
   }, [columns, loadSection]);
+
+  // 混排栏：所有类型加载完成后，合并 total 初始化 mergedTotalByColumn
+  useEffect(() => {
+    for (const col of columns) {
+      if (col.mode !== "mixed") continue;
+      const allLoaded = col.types.every((type) => loadedSections.has(sectionKey(col.id, type)));
+      if (!allLoaded) continue;
+      // 已初始化则跳过
+      if (mergedTotalByColumn[col.id] !== undefined) continue;
+      // 合并各类型的 total 作为混排栏 total
+      const total = col.types.reduce((sum, type) => sum + (totalsBySection[sectionKey(col.id, type)] ?? 0), 0);
+      setMergedTotalByColumn((prev) => ({ ...prev, [col.id]: total }));
+      setMergedPageByColumn((prev) => ({ ...prev, [col.id]: 1 }));
+    }
+  }, [columns, loadedSections, totalsBySection, mergedTotalByColumn]);
 
   // 实时流：类型为各栏并集 + online_rank_count（若提供 onOnlineCount），事件分发进所有包含该类型的栏
   const streamTypes = useMemo((): string[] => {
@@ -638,10 +651,15 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
                         }
                       }),
                     onLoadMore: () => void loadMoreSectionMerged(col),
-                    hasMore: keys.some(
-                      (k) => (totalsBySection[k] ?? 0) > (eventsBySection[k]?.length ?? 0),
-                    ),
-                    loadingMore: keys.some((k) => loadingMoreBySection[k]),
+                    hasMore: (() => {
+                      const mergedTotal = mergedTotalByColumn[col.id];
+                      const mergedCount = col.types.reduce(
+                        (sum, type) => sum + (eventsBySection[sectionKey(col.id, type)]?.length ?? 0),
+                        0,
+                      );
+                      return mergedTotal !== undefined ? mergedCount < mergedTotal : false;
+                    })(),
+                    loadingMore: keys.some((k) => loadingMoreBySection[k]) || !!loadingMoreBySection[sectionKey(col.id, "merged")],
                   },
                 ]
               : col.types.map((type) => {

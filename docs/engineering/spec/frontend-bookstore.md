@@ -101,5 +101,6 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 - `handleStreamEvent`：SSE 到达 `isHoverable(event)` 时调用 `addPill(event)`。
 - 历史检索入胶囊：`loadSection` 和 `loadMoreSection`/`loadMoreSectionMerged` 在成功加载后，遍历返回的 `items`，对 `isHoverable(event)` 的事件调用 `addPill(event)`。
 - 混排栏合并请求：`loadMoreSectionMerged(col)` 按栏合并多 type 一次请求（`listLiveEvents(col.types, page, size)`），避免逐类多次请求；单类型栏仍用 `loadMoreSection(col, type)` 逐 type 请求。
+- 混排栏分页口径：`mergedTotalByColumn`/`mergedPageByColumn` 独立存储混排栏的 total 和页码，不污染单类型的 `totalsBySection`/`pagesBySection`；hasMore 用「合并已加载条数 < 合并 total」判定；首屏加载完成后通过 `useEffect` 初始化 `mergedTotalByColumn`（各类型 total 之和）。
 - `handleLocate(eventId)`：优先在 `eventsBySection` 中查找目标所在的节并调用 `FeedSection.locate`；未命中时根据 `eventId` 前缀推断类型（`sc:` → `super_chat`，`guard:` → `guard_buy`），调用第一个包含该类型的 `FeedSection.locate`，让 FeedSection 通过 `onLoadMore` 逐步加载并定位。
 - `FeedColumn` 接收 `hoverPills`、`onLocate`、`sectionRefs` props，悬停胶囊栏挂载于栏头与 `sections.map` 之间。

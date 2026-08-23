@@ -328,6 +328,40 @@ describe("GiftItem", () => {
     );
     expect(cRed.querySelector("span.text-crimson")).toBeTruthy();
   });
+
+  it("admin 单击礼物条目触发 onToggleRead(event)", () => {
+    const onToggleRead = vi.fn();
+    const { container } = render(
+      <GiftItem event={makeEvent({ eventId: "gift:click1", type: "gift", gift: { name: "情书", count: 1 } })} onToggleRead={onToggleRead} />,
+    );
+    fireEvent.click(container.firstElementChild as Element);
+    expect(onToggleRead).toHaveBeenCalledTimes(1);
+    expect(onToggleRead.mock.calls[0][0].eventId).toBe("gift:click1");
+  });
+
+  it("已读时根节点有 opacity-60，title 含「单击切换已读」", () => {
+    const { container } = render(
+      <GiftItem
+        event={makeEvent({ eventId: "gift:read1", type: "gift", read: true, gift: { name: "情书", count: 1 } })}
+        onToggleRead={vi.fn()}
+      />,
+    );
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.className).toContain("opacity-60");
+    expect(root.getAttribute("title")).toContain("单击切换已读");
+  });
+
+  it("未传 onToggleRead（member）单击不触发、无 title、无 cursor-pointer", () => {
+    const onToggleRead = vi.fn();
+    const { container } = render(
+      <GiftItem event={makeEvent({ eventId: "gift:mem1", type: "gift", gift: { name: "情书", count: 1 } })} />,
+    );
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.getAttribute("title")).toBeNull();
+    expect(root.className).not.toContain("cursor-pointer");
+    fireEvent.click(root);
+    expect(onToggleRead).not.toHaveBeenCalled();
+  });
 });
 
 describe("GuardItem", () => {

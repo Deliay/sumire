@@ -199,7 +199,7 @@ const FeedSection = forwardRef<FeedSectionHandle, FeedSectionProps>(function Fee
       case "super_chat":
         return <SuperChatItem event={event} isNew={isNew} onToggleRead={toggleRead} />;
       case "gift":
-        return <GiftItem event={event} />;
+        return <GiftItem event={event} onToggleRead={toggleRead} />;
       case "guard_buy":
         return <GuardItem event={event} isNew={isNew} onToggleRead={toggleRead} />;
     }

@@ -196,18 +196,18 @@ describe("DanmakuDashboard", () => {
     expect(labels).toEqual(["礼物", "上船"]);
   });
 
-  it("admin 双击 SC：乐观置灰并调用 read 接口", async () => {
+  it("admin 单击 SC：乐观置灰并调用 read 接口", async () => {
     render(<DanmakuDashboard />);
     const row = (await screen.findByText("醒目留言一")).closest("[data-event-id]") as HTMLElement;
     expect(row.className).not.toContain("opacity-60");
-    fireEvent.doubleClick(row);
+    fireEvent.click(row);
     // 乐观更新：立即置灰
     expect(row.className).toContain("opacity-60");
     expect(markLiveEventRead).toHaveBeenCalledWith("sc:1");
     await waitFor(() => expect(markLiveEventRead).toHaveBeenCalledTimes(1));
   });
 
-  it("双击已读 SC：调用 unread 接口去除置灰", async () => {
+  it("单击已读 SC：调用 unread 接口去除置灰", async () => {
     listLiveEvents.mockImplementation(async (types: string[]) => {
       const items = [DM_EVENT, GIFT_EVENT, { ...SC_EVENT, read: true }].filter((e) =>
         types.includes(e.type),
@@ -217,7 +217,7 @@ describe("DanmakuDashboard", () => {
     render(<DanmakuDashboard />);
     const row = (await screen.findByText("醒目留言一")).closest("[data-event-id]") as HTMLElement;
     expect(row.className).toContain("opacity-60");
-    fireEvent.doubleClick(row);
+    fireEvent.click(row);
     expect(row.className).not.toContain("opacity-60");
     expect(markLiveEventUnread).toHaveBeenCalledWith("sc:1");
   });
@@ -226,17 +226,17 @@ describe("DanmakuDashboard", () => {
     markLiveEventRead.mockResolvedValue({ status: 500, data: { error: "x" } });
     render(<DanmakuDashboard />);
     const row = (await screen.findByText("醒目留言一")).closest("[data-event-id]") as HTMLElement;
-    fireEvent.doubleClick(row);
+    fireEvent.click(row);
     expect(row.className).toContain("opacity-60"); // 乐观
     await waitFor(() => expect(row.className).not.toContain("opacity-60")); // 回滚
     expect(await screen.findByText(/操作失败/)).toBeTruthy();
   });
 
-  it("member 双击不触发已读交互", async () => {
+  it("member 单击不触发已读交互", async () => {
     currentRole = "member";
     render(<DanmakuDashboard />);
     const row = (await screen.findByText("醒目留言一")).closest("[data-event-id]") as HTMLElement;
-    fireEvent.doubleClick(row);
+    fireEvent.click(row);
     expect(markLiveEventRead).not.toHaveBeenCalled();
     expect(markLiveEventUnread).not.toHaveBeenCalled();
   });

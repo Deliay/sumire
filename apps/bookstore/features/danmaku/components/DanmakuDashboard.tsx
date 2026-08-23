@@ -747,12 +747,12 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
               mergeEnabled={mergeEnabled}
               freshIds={freshIds}
               hoverPills={
-                col.types.includes("super_chat") || col.types.includes("guard_buy")
+                col.types.includes("danmaku")
                   ? pills
                   : undefined
               }
               onLocate={
-                col.types.includes("super_chat") || col.types.includes("guard_buy")
+                col.types.includes("danmaku")
                   ? handleLocate
                   : undefined
               }

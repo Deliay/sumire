@@ -160,22 +160,25 @@ describe("DanmakuDashboard", () => {
     expect(container.querySelectorAll(".text-xs.font-medium.text-ink-dim")).toHaveLength(0);
   });
 
-  it("悬停胶囊栏仅在含 SC/上船类型的栏渲染，纯弹幕栏不渲染", async () => {
+  it("悬停胶囊栏仅在勾选弹幕的栏渲染，不含弹幕的栏不渲染", async () => {
     // 冻结时间使胶囊未过期（事件 occurredAt = 2026-08-16T12:00:00.000Z）
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date("2026-08-16T12:00:05.000Z"));
     render(<DanmakuDashboard />);
     await screen.findByText("醒目留言一");
 
-    // 含 SC/上船的栏应渲染悬停胶囊栏（role="toolbar"）
-    const toolbars = screen.getAllByRole("toolbar", { name: "悬停事件胶囊" });
-    expect(toolbars.length).toBeGreaterThanOrEqual(1);
-
-    // 纯弹幕栏（title="弹幕"）的 section 内不应有悬停胶囊栏
+    // 默认栏位：gift_guard=[gift,guard_buy], sc=[super_chat], danmaku=[danmaku]
+    // 含弹幕的栏（danmaku）应渲染悬停胶囊栏
     const danmakuHeading = screen.getByRole("heading", { name: "弹幕" });
     const danmakuSection = danmakuHeading.closest("section") as HTMLElement;
     expect(danmakuSection).not.toBeNull();
-    expect(danmakuSection.querySelector('[role="toolbar"]')).toBeNull();
+    expect(danmakuSection.querySelector('[role="toolbar"]')).not.toBeNull();
+
+    // 不含弹幕的栏（SC、上船+礼物）不应渲染悬停胶囊栏
+    const scHeading = screen.getByRole("heading", { name: "SC" });
+    const scSection = scHeading.closest("section") as HTMLElement;
+    expect(scSection).not.toBeNull();
+    expect(scSection.querySelector('[role="toolbar"]')).toBeNull();
 
     vi.useRealTimers();
   });

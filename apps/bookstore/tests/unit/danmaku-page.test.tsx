@@ -217,23 +217,23 @@ describe("DanmakuPage 双页头 OnlineCountText", () => {
   it("普通模式页头展示在线人数", async () => {
     render(<DanmakuPage />);
     await screen.findByText("弹幕一");
-    expect(screen.getByText("当前直播间在线 1521 人")).toBeTruthy();
+    expect(screen.getByText("当前有 1521 考子在线")).toBeTruthy();
   });
 
   it("全屏模式页头展示在线人数", async () => {
     render(<DanmakuPage />);
     fireEvent.click(await screen.findByRole("button", { name: "全屏模式" }));
     await screen.findByRole("button", { name: "退出全屏" });
-    expect(screen.getByText("当前直播间在线 1521 人")).toBeTruthy();
+    expect(screen.getByText("当前有 1521 考子在线")).toBeTruthy();
   });
 
   it("onlineCount=null 时双页头均不展示在线人数", async () => {
     mockOnlineCount = null;
     render(<DanmakuPage />);
     await screen.findByText("弹幕一");
-    expect(screen.queryByText(/当前直播间在线/)).toBeNull();
+    expect(screen.queryByText(/考子在线/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "全屏模式" }));
     await screen.findByRole("button", { name: "退出全屏" });
-    expect(screen.queryByText(/当前直播间在线/)).toBeNull();
+    expect(screen.queryByText(/考子在线/)).toBeNull();
   });
 });

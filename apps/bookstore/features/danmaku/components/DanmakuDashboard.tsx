@@ -45,6 +45,7 @@ import {
 import FeedColumn from "./FeedColumn";
 import type { FeedSectionHandle } from "./FeedSection";
 import GiftFilterControl from "./GiftFilterControl";
+import GiftCardDialog from "./GiftCardDialog";
 
 /** 实时流到达即打「New」标记的事件类型（仅 SC / 上船）。 */
 const NEW_MARK_TYPES: readonly LiveEventType[] = ["super_chat", "guard_buy"];
@@ -136,6 +137,7 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
   const [loadedSections, setLoadedSections] = useState<ReadonlySet<string>>(new Set());
   const [sectionErrors, setSectionErrors] = useState<Record<string, string>>({});
   const [configOpenId, setConfigOpenId] = useState<string | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<LiveEvent | null>(null);
   const [toast, setToast] = useState("");
   const [pagesBySection, setPagesBySection] = useState<Record<string, number>>({});
   const [totalsBySection, setTotalsBySection] = useState<Record<string, number>>({});
@@ -606,36 +608,23 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
     [columns],
   );
 
-  // 按 eventId 定位：找到目标事件所在栏+类型的 FeedSection，调用其 locate 方法
-  // F4：即使目标不在已加载列表，也调用第一个包含该类型的 FeedSection.locate
-  // 让 FeedSection.locate 负责加载更多并逐步逼近定位
+  // 按 eventId 触发 GiftCardDialog 浮层：找到目标事件并打开浮层
   const handleLocate = useCallback(
     (eventId: string) => {
-      // 首先尝试在已加载列表中找到目标所在的节
+      // 在已加载列表中找到目标事件
       for (const col of columns) {
         for (const type of col.types) {
           const key = sectionKey(col.id, type);
           const events = eventsBySection[key] ?? [];
-          if (events.some((e) => e.eventId === eventId)) {
-            const ref = getFeedSectionRef(key);
-            ref.current?.locate(eventId);
+          const targetEvent = events.find((e) => e.eventId === eventId);
+          if (targetEvent) {
+            setSelectedEvent(targetEvent);
             return;
           }
         }
       }
-      // 目标不在已加载列表：调用第一个包含该类型的 FeedSection.locate
-      // 让 FeedSection 通过 onLoadMore 逐步加载并定位
-      const eventType = eventId.startsWith("sc:") ? "super_chat" : eventId.startsWith("guard:") ? "guard_buy" : null;
-      if (!eventType) return;
-      for (const col of columns) {
-        if (!col.types.includes(eventType)) continue;
-        const key = sectionKey(col.id, eventType);
-        const ref = getFeedSectionRef(key);
-        ref.current?.locate(eventId);
-        return;
-      }
     },
-    [columns, eventsBySection, getFeedSectionRef],
+    [columns, eventsBySection],
   );
 
   // 隐藏钢镚展示过滤：对所有含 SC 的节数据（split + mixed）过滤低价 SC
@@ -855,6 +844,7 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
           </button>
         </div>
       )}
+      <GiftCardDialog event={selectedEvent} onClose={() => setSelectedEvent(null)} />
     </div>
   );
 });

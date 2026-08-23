@@ -24,7 +24,7 @@ type: Fleeting
 - **上船数据**：`LiveEvent.guard = { level, name, count }`（level 3=舰长/2=提督/1=总督），`guard_buy` 上游无头像（`face: null`）。前端 `format.ts` 有 `guardLevelName`（level→船型名）与 `guardLevelTone(level)`（3→eye 蓝 / 2→flower 紫 / 1→crimson 红）。
 - **SC/上船差异化配色**：SC 走 `SuperChatItem` 渐变（`scColors`）；上船走 `GuardItem` + `guardLevelTone` 船型色。
 
-本期新增「SC/上船 悬停胶囊栏」：在包含 SC 或上船类型的栏内容区顶部提供一个约 48px 悬停带，把 SSE 实时到达的 SC/上船以宽胶囊按金额降序置顶展示，各胶囊按其悬停时长倒计时后移除。**点击胶囊可将信息流滚动定位到该 SC/上船对应记录，并让该记录播放一次闪光视觉提示**。纯前端展示增强 + 契约侧透传一个 SC 字段（`time`）。
+本期新增「SC/上船 悬停胶囊栏」：在包含 SC 或上船类型的栏内容区顶部提供一个约 48px 悬停带，把 SSE 实时到达的 SC/上船以宽胶囊按金额降序置顶展示，各胶囊按其悬停时长倒计时后移除。**点击胶囊可弹出浮层展示该 SC/上船事件的详细信息卡片**。纯前端展示增强 + 契约侧透传一个 SC 字段（`time`）。
 
 ### 1.2 目标
 
@@ -32,12 +32,12 @@ type: Fleeting
 - SSE 实时 SC/上船到达即生成胶囊，多胶囊按金额降序排列（金额相同新者优先）；
 - SC 胶囊悬停时长 = 该事件 `time`（秒）；上船胶囊固定时长 舰长 60s / 提督 5min / 总督 1h；
 - SC 胶囊用 `scColors` 渐变底色 + `fontColor` 文字色；上船胶囊用 `guardLevelTone` 船型强调色；
-- 点击胶囊定位对应记录（按 `eventId` 滚动到可视区）+ 一次性闪光提示，闪光后复位不改变布局；
+- 点击胶囊弹出浮层展示事件详情卡片（发送者头像、昵称、粉丝牌、事件类型、金额/价格、留言内容、发生时间等）；
 - 倒计时到期胶囊移除；既有能力（虚拟化、SSE、已读、栏位配置、gift-min-price、hide-low-sc）零回归。
 
 ### 1.3 范围
 
-- **做**：服务端 `normalizeSuperChat` 透传上游 `data.time` 为 `LiveEvent` 新可选字段 `time`（秒），契约 `contract/live-events.openapi.yaml` 与前端 `types.ts` 同步；新增悬停胶囊栏组件 `HoverTopBar.tsx` + `useHoverPills` 数据钩子；胶囊点击定位（`FeedSection` 暴露按 `eventId` 定位 scrollTo）+ 一次性闪光状态；`FeedColumn`/`DanmakuDashboard` 接线；单元测试。
+- **做**：服务端 `normalizeSuperChat` 透传上游 `data.time` 为 `LiveEvent` 新可选字段 `time`（秒），契约 `contract/live-events.openapi.yaml` 与前端 `types.ts` 同步；新增悬停胶囊栏组件 `HoverTopBar.tsx` + `useHoverPills` 数据钩子；新增 `GiftCardDialog` 浮层组件；胶囊点击弹出浮层；`FeedColumn`/`DanmakuDashboard` 接线；单元测试。
 - **不做**：改变信息流内容/已读/栏位配置；历史 SC 纳入悬停栏（仅 SSE 实时事件驱动）；悬停栏可开关/持久化配置；服务端改 SSE 推送逻辑；列定位到虚拟化未装载的行（虚拟化天然只渲染可视区，目标记录在已加载列表才可精确定位）；编排与基础设施变更。
 
 > 说明：本节点仅产出需求文档与提案。代码与 spec 同步在后续 `feat/danmaku-hover-bar` 开发分支按 TDD 落地，本提案给出实现方案与验收口径。
@@ -55,8 +55,8 @@ graph TD
     BAR --> SC[SC 胶囊 scColors 渐变 + 醒目留言 + 价格]
     BAR --> GB[上船胶囊 guardLevelTone 船型色 + 船型]
     U -->|点击胶囊| BAR
-    BAR -->|eventId| LOCATE[按 eventId 滚动定位 + 闪光]
-    LOCATE --> FEED[FeedSection 信息流/FlashRow]
+    BAR -->|eventId| DIALOG[GiftCardDialog 弹出礼物卡片浮层]
+    DIALOG --> CARD[事件详情卡片]
     CONTRACT[契约暴露 SC time] --> HOOK
 ```
 
@@ -79,8 +79,8 @@ graph TD
 | `apps/bookstore/features/danmaku/hoverTopBar.ts`（新增） | 纯函数 | `isHoverable`/`pillPrice`/`hoverDuration`/`pillKind`/`pillSort` |
 | `apps/bookstore/features/danmaku/useHoverPills.ts`（新增） | 胶囊集合 + 计时 | 单一 interval 扫描过期，金额降序排列 |
 | `apps/bookstore/features/danmaku/components/HoverTopBar.tsx`（新增） | 悬停胶囊栏 | 约 48px 容器；SC/上船胶囊渲染；无胶囊不占位；胶囊点击回调上抛 `eventId` |
-| `apps/bookstore/features/danmaku/components/FeedSection.tsx` | 按 `eventId` 定位 + 闪光 | 暴露 `locate(eventId)`（虚拟化 scrollToIndex）+ 一次性闪光行状态 `flashIds` |
-| `apps/bookstore/features/danmaku/components/FeedColumn.tsx` | 挂载悬停栏 + 定位接线 | 栏头之下、小节之上；胶囊点击转调对应小节定位 |
+| `apps/bookstore/features/danmaku/components/GiftCardDialog.tsx`（新增） | 礼物卡片浮层 | 模态对话框，展示 SC/上船事件详情卡片 |
+| `apps/bookstore/features/danmaku/components/FeedColumn.tsx` | 挂载悬停栏 | 栏头之下、小节之上；胶囊点击触发浮层 |
 
 ## 3. API 设计
 
@@ -114,15 +114,15 @@ sequenceDiagram
     participant DASH as DanmakuDashboard
     participant HOOK as useHoverPills
     participant BAR as HoverTopBar
-    participant FEED as FeedSection
+    participant DIALOG as GiftCardDialog
     STREAM->>DASH: handleStreamEvent(super_chat/guard_buy)
     DASH->>HOOK: add(event) 含 SC/上船类型的栏
     HOOK->>HOOK: 计算 expiresAt SC=time 秒 / 上船=等级固定时长
     HOOK-->>BAR: 胶囊集合（按金额降序）
     Note over HOOK: 单一 interval(500ms) 扫描 expiresAt<now 移除
     BAR->>DASH: onLocate(eventId)（点击胶囊）
-    DASH->>FEED: scrollToEvent(eventId) + flash(eventId)
-    FEED-->>BAR: 定位并入列一次性闪光，复位不改变布局
+    DASH->>DIALOG: 打开 GiftCardDialog 并传入事件数据
+    DIALOG-->>BAR: 展示事件详情卡片，关闭后回到胶囊栏
     Note over HOOK: 到期移除，无胶囊时 BAR 隐藏不占位
 ```
 
@@ -205,21 +205,20 @@ sequenceDiagram
   - 每个胶囊可点击（`cursor-pointer` + `role=button`/`aria-label`），点击调用 `onLocate(eventId)`；胶囊被点击（或当前处于定位命中）时给出一致的按压态；
   - `FeedColumn` 新增可选 `hoverPills?: HoverPill[]` + `onLocate(eventId)` 入参，在 `sections` 含 SC/上船类型时于内容区顶部渲染。
 
-- **技术细节**: SC 语义「醒目留言」为固定四字文案，不随 `content` 变化；头像兜底复用 `Sender` 组件 compact 形态。胶囊用事件数据色（内容色例外，PRD §5.2）。点击回调只上抛 `eventId`，由 `DanmakuDashboard` 转发到对应含该类型的 `FeedSection` 执行定位。
+- **技术细节**: SC 语义「醒目留言」为固定四字文案，不随 `content` 变化；头像兜底复用 `Sender` 组件 compact 形态。胶囊用事件数据色（内容色例外，PRD §5.2）。点击回调只上抛 `eventId`，由 `DanmakuDashboard` 触发 `GiftCardDialog` 打开。
 - **风险点**: ① SC 渐变按 `scColors` 缺失回退中性底色（沿用 `SuperChatItem` 缺省）；② 悬停栏为栏头定高区，不与 `FeedSection` 虚拟化滚动争用，需以 flex 布局保证信息流仍 `min-h-0 flex-1` 可滚动。
 
-#### 实现点 5: 点击胶囊定位 + 一次性闪光（FeedSection locate + FlashRow）
+#### 实现点 5: 点击胶囊弹出礼物卡片浮层（GiftCardDialog）
 
-- **描述**: `FeedSection` 暴露按 `eventId` 定位与闪光的能力：
+- **描述**: 新增 `GiftCardDialog` 组件，点击胶囊后弹出浮层展示该 SC/上船事件的详细信息卡片：
 
-  - **定位**：`FeedSection` 用 `@tanstack/react-virtual` 管理列表。`locate(eventId)` 先尝试 `events.findIndex(e => e.eventId === id)`：
-    - 命中（目标在已加载数组，含被虚拟化回收但仍在数据中的行）→ `scrollToIndex(index, { align })` 滚动到可视区居中；数据中索引对应即滚回，虚拟化天然复用该索引；
-    - 未命中（目标在分页历史中尚未加载）→ 依 `scrollToIndex` 逼近目标所在列表深度并依据既有分页触底加载（`onLoadMore`）将目标引入已加载范围，加载后可再次定位；无法精确定位时落下滚动到对应深度，**不做虚假定位但必须让列表滚动以尝试到达目标**，绝不因目标不在列表就直接放弃（PRD F4/边界）。
-  - **闪光**：`FeedSection` 维护一次性 `flashIds` 集合（`Set<string>`，初始空）；`locate(eventId)` 滚动到位后把 `eventId` 加入 `flashIds`，对应虚拟行渲染时挂一次性闪光样式；用单计时器在约定时长（≤200ms 结束后柔和淡出，总量约 1s：`animate-danmaku-flash` 类）后将该 `eventId` 从 `flashIds` 移除，自动复位。同一行再次点击可再次加入（重新闪光）。
-  - **接线**：`DanmakuDashboard` 的 `handleLocate(eventId)` 把胶囊点击转发到含对应类型的 `FeedSection` 的 `locate` 派生（经 ref/`useImperativeHandle` 或状态 `locateId` + 命中消费）。多类型混排栏需精确路由到包含目标类型的那个 `FeedSection`。
+  - **浮层展示**：`GiftCardDialog` 为模态对话框，居中展示，半透明遮罩背景，圆角边框，阴影效果；
+  - **卡片内容**：展示发送者头像、昵称、粉丝牌、事件类型（SC/上船）、金额/价格、留言内容（如有）、发生时间等完整信息；
+  - **交互**：浮层可通过点击关闭按钮、点击遮罩层或按 Esc 键关闭；
+  - **接线**：`DanmakuDashboard` 的 `handleLocate(eventId)` 改为触发 `GiftCardDialog` 打开，传入对应的事件数据。
 
-- **技术细节**: 闪光只作用于虚拟行内层（不改变行测高/布局），避免虚拟化重测量的跳动；闪光状态不入 `eventId` 去重 key、不影响 `getItemKey`。定位优先用虚拟化 `scrollToIndex`（按已加载索引），避免手算 offset 与虚拟回收冲突；未命中分支复用既有分页 `onLoadMore` 触底加载机制逐步逼近，保证「滚动列表定位到目标」。`flashIds` 为瞬态 UI 状态，刷新即清，不持久化。
-- **风险点**: ① 多类型混排栏内目标 `eventId` 可能经弹幕合并折叠（`merge.ts`）后不存在独立行——SC/上船不在折叠范围（仅弹幕折叠），故命中安全；② 目标在分页历史未加载时，需要依赖 `scrollToIndex` 逼近 + 触底加载循环，可能多次分页才到目标——须防止无限循环（每次 `onLoadMore` 后再按新数据重定位，加载到底无更多时停止并落到目标深度）；③ 闪光动画须尊重 `prefers-reduced-motion`（降级为仅轻微高亮、无位移动画）。
+- **技术细节**: `GiftCardDialog` 使用 React Portal 渲染到 body，避免被父容器 overflow 裁剪；SC 卡片使用 `scColors` 渐变配色，上船卡片使用 `guardLevelTone` 船型强调色；浮层状态由 `DanmakuDashboard` 管理（`selectedEvent` state），关闭时重置为 null。
+- **风险点**: ① 移动端（<640px）浮层需要适配全屏展示；② 浮层打开时应阻止背景滚动（`overflow: hidden` on body）；③ 浮层关闭后焦点应回到触发胶囊（无障碍访问）。
 
 ## 6. 技术决策
 
@@ -234,9 +233,8 @@ sequenceDiagram
 | 计时实现 | 单一 interval 扫描 | 逐胶囊 setTimeout | A | 胶囊多时有定时器堆积风险；统一扫描更稳（PRD §4.1） |
 | 排列顺序 | 金额降序 | 到达时间倒序 | A | 需求「按礼物金额排序」；金额相同新者优先 |
 | 持久化 | 不落 localStorage | 持久化 | A | 悬停胶囊为时点展示，刷新即清符合「当下有效」语义，无持久化价值 |
-| 点击定位机制 | 虚拟化 `scrollToIndex`（未命中走触底分页逼近）+ 一次性 `flashIds` | 原生 scrollIntoView + 持久高亮 | A | 虚拟列表须用 `scrollToIndex` 规避虚拟回收冲突、并对分页未加载目标滚动列表逼近；`flashIds` 一次性复位比持久高亮更不干扰；原生 scrollIntoView 对虚拟未装载行无效 |
-| 目标不在已加载列表 | 滚动列表逼近定位（scrollToIndex + 复用 onLoadMore 触底加载） | 静默放弃 | A | 需求要求「目标不在已加载列表时滚动列表定位到目标」；静默放弃无法达成定位意图，明确不做 |
-| 定位与闪光作用层级 | 虚拟行内层（不改行高） | 外层容器 | A | 内层闪光不触及虚拟化测高，避免定位时布局跳动 |
+| 点击胶囊交互 | 弹出浮层展示礼物卡片 | 滚动定位并闪光 | A | 弹出浮层展示事件详情卡片，提供更丰富的信息展示，符合用户需求 |
+| 浮层设计 | 模态对话框 + 半透明遮罩 | 非模态浮层 | A | 模态对话框提供更好的聚焦体验，半透明遮罩保持上下文可见性 |
 | 多类型混排栏定位路由 | 按 `eventId` 的类型路由到含该类型的 `FeedSection` | 仅当前小节/仅首个小节 | A | 目标在任一含该类型的节内都应可定位；F3/F4 覆盖 SC 与上船所在节 |
 
 ### 6.2 依赖与约束
@@ -260,14 +258,14 @@ apps/bookstore/features/danmaku/types.ts      # 修改：LiveEvent 增可选 tim
 apps/bookstore/features/danmaku/hoverTopBar.ts            # 新增：纯函数
 apps/bookstore/features/danmaku/useHoverPills.ts          # 新增：胶囊集合 + 倒计时
 apps/bookstore/features/danmaku/components/HoverTopBar.tsx # 新增：悬停胶囊栏
+apps/bookstore/features/danmaku/components/GiftCardDialog.tsx # 新增：礼物卡片浮层
 apps/bookstore/features/danmaku/components/FeedColumn.tsx  # 修改：挂载悬停栏 + onLocate 接线
-apps/bookstore/features/danmaku/components/FeedSection.tsx  # 修改：按 eventId 定位 + 一次性闪光 flashIds
-apps/bookstore/features/danmaku/components/DanmakuDashboard.tsx # 修改：handleLocate 路由到对应小节
+apps/bookstore/features/danmaku/components/DanmakuDashboard.tsx # 修改：handleLocate 触发 GiftCardDialog
 apps/bookstore/tests/unit/
     ├── danmaku-hover-top-bar.test.ts         # 新增：纯函数
     ├── danmaku-use-hover-pills.test.tsx      # 新增：胶囊 add/到期/排序/interval
     ├── danmaku-hover-top-bar.test.tsx        # 新增（或并入）：组件渲染/空状态/配色/点击回调
-    └── danmaku-feed-flash.test.tsx           # 新增：locate scrollToIndex + flashIds 闪光复位
+    └── danmaku-gift-card-dialog.test.tsx    # 新增：GiftCardDialog 浮层渲染/关闭/事件数据展示
 servers/api/tests/liveEventsNormalize.test.ts # 更新：SC 透传 time 断言
 ```
 
@@ -314,7 +312,7 @@ servers/api/tests/liveEventsNormalize.test.ts # 更新：SC 透传 time 断言
 - [ ] SSE 实时 SC/上船到达即生成胶囊，多胶囊按金额降序排列（同额新者优先）
 - [ ] SC 胶囊渐变底色 + 醒目留言 + 价格，悬停时长 = `time` 秒；上船胶囊船型强调色 + 船型，悬停时长 舰长60/提督300/总督3600 秒
 - [ ] 胶囊到期自动移除、全部清零悬停栏不占位；虚拟化/已读/SSE/栏位配置等既有能力零回归
-- [ ] 点击任一 SC/上船胶囊，信息流滚动定位到对应 `eventId` 记录并播放一次性闪光，闪光后复位不改变布局；目标不在当前可视/已加载列表时，列表滚动定位到目标（含未加载走分页逼近），不盲目放弃
+- [ ] 点击任一 SC/上船胶囊，弹出 GiftCardDialog 浮层展示事件详情卡片（发送者头像、昵称、粉丝牌、事件类型、金额/价格、留言内容、发生时间等）
 - [ ] 单元测试全绿，`pnpm lint && pnpm test && pnpm build` 全绿
 
 ## 11. 相关文档

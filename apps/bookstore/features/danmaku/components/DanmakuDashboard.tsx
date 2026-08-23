@@ -90,7 +90,7 @@ export interface DanmakuDashboardHandle {
 
 /** 单栏检索：进入 loading（移出已加载），失败记错误态，成功写入去重后条目。
  * 按「栏 + 类型」分别加载（一个分栏勾选的每种事件类型各自独立请求）。 */
-function sectionKey(colId: string, type: LiveEventType): string {
+function sectionKey(colId: string, type: string): string {
   return `${colId}:${type}`;
 }
 

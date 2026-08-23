@@ -4,7 +4,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useHoverPills } from "@/features/danmaku/useHoverPills";
-import type { LiveEvent } from "@/features/danmaku/types";
+import type { LiveEvent, LiveEventType } from "@/features/danmaku/types";
 
 function makeEvent(overrides: Partial<LiveEvent> & { type: LiveEvent["type"] }): LiveEvent {
   return {
@@ -97,7 +97,7 @@ describe("useHoverPills 胶囊集合", () => {
   it("types 变化时重建 add 回调", () => {
     const { result, rerender } = renderHook(
       ({ types }) => useHoverPills(types),
-      { initialProps: { types: ["super_chat"] as const } }
+      { initialProps: { types: ["super_chat"] as readonly LiveEventType[] } }
     );
     const guard = makeEvent({ type: "guard_buy", sender: { uid: 1, name: "", nameRomaji: null, face: null, medal: null, guardLevel: 3 } });
     act(() => result.current.add(guard));

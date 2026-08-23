@@ -11,7 +11,7 @@ interface SuperChatItemProps {
   event: LiveEvent;
   /** 实时流到达的「New」标记。 */
   isNew?: boolean;
-  /** 双击切换已读（admin 及以上传入；member 不渲染已读交互，与后端 403 口径一致）。 */
+  /** 单击切换已读（admin 及以上传入；member 不渲染已读交互，与后端 403 口径一致）。 */
   onToggleRead?: (event: LiveEvent) => void;
   /** 搜索关键词，非空时留言高亮（检索场景）。 */
   highlightKeyword?: string;
@@ -19,15 +19,26 @@ interface SuperChatItemProps {
 
 /**
  * SC 条目（提案 K6）：两行——Sender + 金额；留言气泡按 scColors 渐变底色与文字色渲染。
- * 已读置灰；可交互时双击切换已读。实时流到达的 SC 带「New」标记。
+ * 已读置灰；可交互时单击切换已读。实时流到达的 SC 带「New」标记。
  */
 export default function SuperChatItem({ event, isNew = false, onToggleRead, highlightKeyword }: SuperChatItemProps) {
   const colors = event.scColors;
+
+  function handleMessageClick(e: React.MouseEvent) {
+    const sel = window.getSelection();
+    if (sel && sel.type === "Range" && !sel.isCollapsed) {
+      e.stopPropagation();
+      return;
+    }
+    e.stopPropagation();
+    onToggleRead?.(event);
+  }
+
   return (
     <div
       data-event-id={event.eventId}
-      onDoubleClick={onToggleRead ? () => onToggleRead(event) : undefined}
-      title={onToggleRead ? "双击切换已读" : undefined}
+      onClick={onToggleRead ? () => onToggleRead(event) : undefined}
+      title={onToggleRead ? "单击切换已读" : undefined}
       className={`flex gap-2.5 px-3 py-2 transition-opacity duration-150 ${
         event.read ? "opacity-60" : ""
       } ${onToggleRead ? "cursor-pointer" : ""}`}
@@ -50,7 +61,7 @@ export default function SuperChatItem({ event, isNew = false, onToggleRead, high
         {event.content !== undefined && (
           <p
             className="rounded-md px-2 py-1.5 text-sm break-words select-text cursor-text"
-            onDoubleClick={(e) => e.stopPropagation()}
+            onClick={onToggleRead ? handleMessageClick : undefined}
             style={
               colors
                 ? {

@@ -51,7 +51,7 @@ kuroshiro+kuromoji（懒加载字典）→ 失败则 OpenCC 简→日汉字重�
 | GET `/api/live-events/stream` | member+ | SSE，见下；`type=gift` 同样展开为 `["gift", "gift_v2"]` |
 | POST `/api/live-events/read` | admin+ | body `{eventId}`；前缀须 dm/sc/gift/guard 否则 400（防摧毁水位线）；幂等 upsert |
 | POST `/api/live-events/unread` | admin+ | 同上，写显式 unread 覆盖水位线 |
-| POST `/api/live-events/read-all` | admin+ | type 仅 `super_chat`/`guard_buy`；水位线语义 |
+| POST `/api/live-events/read-all` | admin+ | type 支持 `super_chat`/`guard_buy`/`gift`；`gift` 走 `toUpstreamTypes` 展开为 `["gift", "gift_v2"]`；水位线语义 |
 
 ## SSE（/api/live-events/stream）
 

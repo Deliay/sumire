@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { LiveEvent, LiveEventType } from "../types";
 import { mergeDanmaku, type MergedDanmaku } from "../merge";
@@ -10,12 +10,20 @@ import SuperChatItem from "./SuperChatItem";
 import GiftItem from "./GiftItem";
 import GuardItem from "./GuardItem";
 
+/** FeedSection 暴露给父组件的 imperative handle。 */
+export interface FeedSectionHandle {
+  /** 按 eventId 定位到目标行并触发闪光。 */
+  locate: (eventId: string) => void;
+}
+
 /** 滚动接近容器底部（px）时触发滚动加载。 */
 const LOAD_MORE_OFFSET_PX = 200;
 
 interface FeedSectionProps {
   /** 分栏内小节标题（多类型上下分栏时展示；单类型整栏不展示标签）。 */
   label?: string;
+  /** 测试标识（仅测试用，渲染为 data-testid）。 */
+  testId?: string;
   events: LiveEvent[];
   canManage: boolean;
   onToggleRead?: (event: LiveEvent) => void;
@@ -46,22 +54,26 @@ interface FeedSectionProps {
  * 供 FeedColumn 在多类型栏位上下分栏时逐类型渲染；单类型栏位整栏仅一个小节。
  * 滚动接近尾部时触发 `onLoadMore` 分页加载历史（count 随 SSE/分页动态增长）。
  */
-export default function FeedSection({
-  label,
-  events,
-  canManage,
-  onToggleRead,
-  newIds = new Map(),
-  mergeEnabled = false,
-  freshIds = new Set(),
-  emptyText = "暂无事件",
-  loading = false,
-  error = null,
-  onRetry,
-  onLoadMore,
-  hasMore = false,
-  loadingMore = false,
-}: FeedSectionProps) {
+const FeedSection = forwardRef<FeedSectionHandle, FeedSectionProps>(function FeedSection(
+  {
+    label,
+    testId,
+    events,
+    canManage,
+    onToggleRead,
+    newIds = new Map(),
+    mergeEnabled = false,
+    freshIds = new Set(),
+    emptyText = "暂无事件",
+    loading = false,
+    error = null,
+    onRetry,
+    onLoadMore,
+    hasMore = false,
+    loadingMore = false,
+  },
+  ref,
+) {
   const { containerRef, showBackToTop, isAtTop, handleScroll, scrollToTop } = useAnchoredFeed();
 
   // 合并开关开启时相邻/重复弹幕折叠为一行（展示计数）；关闭时逐条渲染（count 恒 1，无「×N」）。
@@ -80,6 +92,78 @@ export default function FeedSection({
     getItemKey: (index) => rows[index]?.event.eventId ?? index,
     initialRect: { width: 360, height: 600 },
   });
+
+  // 闪光动画：按 eventId 定位后高亮目标行约 1s
+  const [flashIds, setFlashIds] = useState<ReadonlySet<string>>(new Set());
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearFlashRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    clearFlashRef.current = () => {
+      flashTimerRef.current = null;
+      setFlashIds(new Set());
+    };
+  });
+  useEffect(() => {
+    return () => {
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    };
+  }, []);
+
+  // F4 定位目标：维护待定位的 eventId，events 变化后重试直到命中或 hasMore=false
+  const locateTargetRef = useRef<string | null>(null);
+  const locateRetryCountRef = useRef(0);
+
+  // 定位命中后的闪光逻辑
+  const flashLocated = useCallback((eventId: string) => {
+    setFlashIds((prev) => new Set(prev).add(eventId));
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    flashTimerRef.current = setTimeout(() => clearFlashRef.current(), 1000);
+  }, []);
+
+  // 尝试定位到目标：在已加载的 rows 中查找
+  const tryLocate = useCallback(
+    (eventId: string) => {
+      const index = rows.findIndex((row) => row.event.eventId === eventId);
+      if (index >= 0) {
+        virtualizer.scrollToIndex(index, { align: "center" });
+        flashLocated(eventId);
+        locateTargetRef.current = null;
+        locateRetryCountRef.current = 0;
+        return true;
+      }
+      return false;
+    },
+    [rows, virtualizer, flashLocated],
+  );
+
+  // events 变化后重试定位（onLoadMore 加载新数据后触发）
+  useEffect(() => {
+    const target = locateTargetRef.current;
+    if (!target) return;
+    if (tryLocate(target)) return;
+    // 未命中：如果还有更多数据可加载且未超过重试上限，继续加载
+    if (hasMore && onLoadMore && locateRetryCountRef.current < 50) {
+      locateRetryCountRef.current += 1;
+      onLoadMore();
+    }
+    // hasMore=false 或超过重试上限：停止，不做更多操作
+  }, [rows, tryLocate, hasMore, onLoadMore]);
+
+  const locate = useCallback(
+    (eventId: string) => {
+      // 首先尝试直接定位
+      if (tryLocate(eventId)) return;
+      // 未命中：设置目标，等待 onLoadMore 加载后重试
+      locateTargetRef.current = eventId;
+      locateRetryCountRef.current = 0;
+      if (onLoadMore && hasMore) {
+        onLoadMore();
+      }
+    },
+    [tryLocate, onLoadMore, hasMore],
+  );
+
+  useImperativeHandle(ref, () => ({ locate }), [locate]);
 
   // 滚动接近容器底部时触发下一页历史加载；加载中/无更多/空列表时不触发。
   // 仅当容器可滚动（scrollHeight > clientHeight）且贴近底部时自动加载：
@@ -115,7 +199,7 @@ export default function FeedSection({
       case "super_chat":
         return <SuperChatItem event={event} isNew={isNew} onToggleRead={toggleRead} />;
       case "gift":
-        return <GiftItem event={event} />;
+        return <GiftItem event={event} onToggleRead={toggleRead} />;
       case "guard_buy":
         return <GuardItem event={event} isNew={isNew} onToggleRead={toggleRead} />;
     }
@@ -138,6 +222,7 @@ export default function FeedSection({
           }}
           className="min-h-0 flex-1 overflow-y-auto"
           aria-label={label ? `${label}信息流` : undefined}
+          data-testid={testId}
         >
           {loading && events.length === 0 ? (
             <div className="m-3 min-h-32 animate-pulse rounded-md border border-vine/50 bg-soft" aria-busy="true" />
@@ -180,7 +265,9 @@ export default function FeedSection({
                       className={
                         freshIds.has(row.event.eventId)
                           ? "animate-danmaku-enter"
-                          : undefined
+                          : flashIds.has(row.event.eventId)
+                            ? "animate-danmaku-flash"
+                            : undefined
                       }
                     >
                       {renderItem(row)}
@@ -217,4 +304,6 @@ export default function FeedSection({
       </div>
     </div>
   );
-}
+});
+
+export default FeedSection;

@@ -39,7 +39,7 @@ vi.mock("@/features/danmaku/useLiveEventStream", () => ({
   },
 }));
 
-import DanmakuDashboard from "@/features/danmaku/components/DanmakuDashboard";
+import DanmakuDashboard, { type DanmakuDashboardHandle } from "@/features/danmaku/components/DanmakuDashboard";
 
 const SENDER: LiveEvent["sender"] = { uid: 1, name: "观众A", nameRomaji: null, face: null, medal: null, guardLevel: null };
 
@@ -139,54 +139,75 @@ describe("DanmakuDashboard", () => {
     expect(await screen.findByText("弹幕一")).toBeTruthy();
     expect(screen.getByText("醒目留言一")).toBeTruthy();
     expect(screen.getByText(/辣条/)).toBeTruthy();
-    // 每节（栏 + 类型）独立检索请求：礼物 | 上船+SC | 弹幕
+    // mixed 栏走合并请求：["gift","guard_buy"] 一次；SC / 弹幕 各自独立
     const calledTypes = listLiveEvents.mock.calls.map((c) => c[0]);
-    expect(calledTypes).toContainEqual(["gift"]);
-    expect(calledTypes).toContainEqual(["guard_buy"]);
+    expect(calledTypes).toContainEqual(["gift", "guard_buy"]);
     expect(calledTypes).toContainEqual(["super_chat"]);
     expect(calledTypes).toContainEqual(["danmaku"]);
   });
 
-  it("默认 wide 渲染 礼物 | 上船+SC(分节) | 弹幕 三栏标题", async () => {
+  it("默认 wide 渲染 礼物+上船(混排) | SC | 弹幕 三栏标题", async () => {
     render(<DanmakuDashboard />);
-    expect(await screen.findByRole("heading", { name: "礼物" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "上船 + SC" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "礼物 + 上船" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "SC" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "弹幕" })).toBeTruthy();
   });
 
-  it("上船+SC 栏分节：SC 与上船事件分别渲染", async () => {
+  it("上船+礼物混排栏：guard_buy 与 gift 按时间混排", async () => {
     const { container } = render(<DanmakuDashboard />);
     await screen.findByText("醒目留言一");
-    // 上船事件按分节渲染
-    expect(screen.getByText(/上船 · 舰长/)).toBeTruthy();
-    expect(container.querySelectorAll(".text-xs.font-medium.text-ink-dim")).toHaveLength(2);
+    // 默认 gift_guard 栏为 mixed 模式：礼物与上船混排，无分栏标签
+    expect(container.querySelectorAll(".text-xs.font-medium.text-ink-dim")).toHaveLength(0);
   });
 
-  it("配置面板保持上船+SC 分栏：渲染两小节并持久化 mode=split", async () => {
+  it("悬停胶囊栏仅在勾选弹幕的栏渲染，不含弹幕的栏不渲染", async () => {
+    // 冻结时间使胶囊未过期（事件 occurredAt = 2026-08-16T12:00:00.000Z）
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-08-16T12:00:05.000Z"));
+    render(<DanmakuDashboard />);
+    await screen.findByText("醒目留言一");
+
+    // 默认栏位：gift_guard=[gift,guard_buy], sc=[super_chat], danmaku=[danmaku]
+    // 含弹幕的栏（danmaku）应渲染悬停胶囊栏
+    const danmakuHeading = screen.getByRole("heading", { name: "弹幕" });
+    const danmakuSection = danmakuHeading.closest("section") as HTMLElement;
+    expect(danmakuSection).not.toBeNull();
+    expect(danmakuSection.querySelector('[role="toolbar"]')).not.toBeNull();
+
+    // 不含弹幕的栏（SC、上船+礼物）不应渲染悬停胶囊栏
+    const scHeading = screen.getByRole("heading", { name: "SC" });
+    const scSection = scHeading.closest("section") as HTMLElement;
+    expect(scSection).not.toBeNull();
+    expect(scSection.querySelector('[role="toolbar"]')).toBeNull();
+
+    vi.useRealTimers();
+  });
+
+  it("配置面板切换混排/分栏：渲染小节并持久化 mode", async () => {
     const { container } = render(<DanmakuDashboard />);
     await screen.findByText("醒目留言一");
-    fireEvent.click(screen.getByRole("button", { name: /配置「上船/ }));
+    fireEvent.click(screen.getByRole("button", { name: /配置「礼物 \+ 上船」栏/ }));
     fireEvent.click(screen.getByRole("radio", { name: "分栏" }));
 
     expect(screen.getByRole("radio", { name: "分栏" })).toBeTruthy();
     const labels = [...container.querySelectorAll(".text-xs.font-medium.text-ink-dim")].map(
       (n) => n.textContent,
     );
-    expect(labels).toEqual(["上船", "SC"]);
+    expect(labels).toEqual(["礼物", "上船"]);
   });
 
-  it("admin 双击 SC：乐观置灰并调用 read 接口", async () => {
+  it("admin 单击 SC：乐观置灰并调用 read 接口", async () => {
     render(<DanmakuDashboard />);
     const row = (await screen.findByText("醒目留言一")).closest("[data-event-id]") as HTMLElement;
     expect(row.className).not.toContain("opacity-60");
-    fireEvent.doubleClick(row);
+    fireEvent.click(row);
     // 乐观更新：立即置灰
     expect(row.className).toContain("opacity-60");
     expect(markLiveEventRead).toHaveBeenCalledWith("sc:1");
     await waitFor(() => expect(markLiveEventRead).toHaveBeenCalledTimes(1));
   });
 
-  it("双击已读 SC：调用 unread 接口去除置灰", async () => {
+  it("单击已读 SC：调用 unread 接口去除置灰", async () => {
     listLiveEvents.mockImplementation(async (types: string[]) => {
       const items = [DM_EVENT, GIFT_EVENT, { ...SC_EVENT, read: true }].filter((e) =>
         types.includes(e.type),
@@ -196,7 +217,7 @@ describe("DanmakuDashboard", () => {
     render(<DanmakuDashboard />);
     const row = (await screen.findByText("醒目留言一")).closest("[data-event-id]") as HTMLElement;
     expect(row.className).toContain("opacity-60");
-    fireEvent.doubleClick(row);
+    fireEvent.click(row);
     expect(row.className).not.toContain("opacity-60");
     expect(markLiveEventUnread).toHaveBeenCalledWith("sc:1");
   });
@@ -205,27 +226,28 @@ describe("DanmakuDashboard", () => {
     markLiveEventRead.mockResolvedValue({ status: 500, data: { error: "x" } });
     render(<DanmakuDashboard />);
     const row = (await screen.findByText("醒目留言一")).closest("[data-event-id]") as HTMLElement;
-    fireEvent.doubleClick(row);
+    fireEvent.click(row);
     expect(row.className).toContain("opacity-60"); // 乐观
     await waitFor(() => expect(row.className).not.toContain("opacity-60")); // 回滚
     expect(await screen.findByText(/操作失败/)).toBeTruthy();
   });
 
-  it("member 双击不触发已读交互，也无全部已读按钮", async () => {
+  it("member 单击不触发已读交互", async () => {
     currentRole = "member";
     render(<DanmakuDashboard />);
     const row = (await screen.findByText("醒目留言一")).closest("[data-event-id]") as HTMLElement;
-    fireEvent.doubleClick(row);
+    fireEvent.click(row);
     expect(markLiveEventRead).not.toHaveBeenCalled();
     expect(markLiveEventUnread).not.toHaveBeenCalled();
-    expect(screen.queryByRole("button", { name: /全部已读/ })).toBeNull();
   });
 
-  it("「标记全部已读」后该类型事件整体置灰", async () => {
-    render(<DanmakuDashboard />);
+  it("经 ref 调用 readAll(\"super_chat\") 后该类型事件整体置灰", async () => {
+    const ref = { current: null as DanmakuDashboardHandle | null };
+    render(<DanmakuDashboard ref={(r) => { ref.current = r; }} />);
     const row = (await screen.findByText("醒目留言一")).closest("[data-event-id]") as HTMLElement;
-    fireEvent.click(await screen.findByRole("button", { name: /SC 全部已读/ }));
-    fireEvent.click(screen.getByRole("button", { name: /确认全部已读/ }));
+    await act(async () => {
+      await ref.current?.readAll("super_chat");
+    });
     await waitFor(() => expect(markAllLiveEventsRead).toHaveBeenCalledWith("super_chat"));
     await waitFor(() => expect(row.className).toContain("opacity-60"));
   });
@@ -333,7 +355,7 @@ describe("DanmakuDashboard", () => {
     expect(screen.getByText(/辣条/)).toBeTruthy();
 
     // 打开配置面板：全部四类勾选
-    fireEvent.click(screen.getByRole("button", { name: /配置「SC/ }));
+    fireEvent.click(screen.getByRole("button", { name: /配置「SC \+ 上船 \+ 礼物 \+ 弹幕」栏/ }));
     const checkboxes = screen.getAllByRole("checkbox");
     expect(checkboxes).toHaveLength(4);
     for (const cb of checkboxes) expect((cb as HTMLInputElement).checked).toBe(true);
@@ -440,6 +462,142 @@ describe("DanmakuDashboard", () => {
       const giftCallsAfter = listLiveEvents.mock.calls.filter((c) => c[0].includes("gift"));
       const lastCall = giftCallsAfter[giftCallsAfter.length - 1];
       expect(lastCall[3]).toBe(10);
+    });
+  });
+
+  describe("混排合并分页", () => {
+    const GIFT_P1 = [
+      makeEvent({ eventId: "gift:p1-1", type: "gift", price: 5, gift: { name: "辣条p1", count: 1 } }),
+      makeEvent({ eventId: "gift:p1-2", type: "gift", price: 10, gift: { name: "花束", count: 1 } }),
+    ];
+    const GUARD_P1 = [
+      makeEvent({ eventId: "guard:p1-1", type: "guard_buy", price: 138, guard: { level: 3, name: "舰长", count: 1 } }),
+      makeEvent({ eventId: "guard:p1-2", type: "guard_buy", price: 138, guard: { level: 3, name: "舰长", count: 1 } }),
+    ];
+    const GIFT_P2 = [
+      makeEvent({ eventId: "gift:p2-1", type: "gift", price: 20, gift: { name: "打call", count: 1 } }),
+    ];
+    const GUARD_P2 = [
+      makeEvent({ eventId: "guard:p2-1", type: "guard_buy", price: 138, guard: { level: 3, name: "舰长", count: 1 } }),
+    ];
+
+    function mockMixedPaging() {
+      // 首屏：mixed 栏走合并请求，SC/弹幕各自独立
+      // 混排栏滚动加载：合并请求（loadMoreSectionMerged）
+      listLiveEvents.mockImplementation(async (types: string[], page = 1) => {
+        // 混排栏合并请求：["gift","guard_buy"]（首屏 page1 + 滚动 page2）
+        if (types.length === 2 && types.includes("gift") && types.includes("guard_buy")) {
+          const items = page === 1
+            ? [...GIFT_P1, ...GUARD_P1]
+            : [...GIFT_P2, ...GUARD_P2];
+          return {
+            status: 200,
+            data: { total: 6, page, pageSize: 50, items },
+          };
+        }
+        if (types.length === 1 && types[0] === "super_chat") {
+          return { status: 200, data: { total: 1, page, pageSize: 50, items: [SC_EVENT] } };
+        }
+        if (types.length === 1 && types[0] === "danmaku") {
+          return { status: 200, data: { total: 1, page, pageSize: 50, items: [DM_EVENT] } };
+        }
+        return { status: 200, data: { total: 0, page, pageSize: 50, items: [] } };
+      });
+    }
+
+    it("混排栏滚动加载以 listLiveEvents([gift,guard_buy], page, size) 合并调用", async () => {
+      mockMixedPaging();
+      render(<DanmakuDashboard />);
+      await screen.findByText(/辣条p1/);
+
+      // 首屏：混排栏走合并请求（loadSectionMerged）
+      const mergedCalls = listLiveEvents.mock.calls.filter(
+        (c) => c[0].length === 2 && c[0].includes("gift") && c[0].includes("guard_buy"),
+      );
+      expect(mergedCalls).toHaveLength(1);
+      expect(mergedCalls[0][0]).toEqual(["gift", "guard_buy"]);
+      expect(mergedCalls[0][1]).toBe(1);
+
+      // 混排 FeedSection 通过 data-testid 定位（混排栏 sections.length===1 无 aria-label）
+      const mixedFeed = document.querySelector('[data-testid="gift_guard-merged-feed"]') as HTMLElement;
+      expect(mixedFeed).not.toBeNull();
+
+      // 滚动到底部触发 loadMoreSectionMerged
+      await act(async () => {
+        mixedFeed.scrollTop = 1400;
+        fireEvent.scroll(mixedFeed);
+      });
+      await waitFor(() => {
+        const scrollCalls = listLiveEvents.mock.calls.filter(
+          (c) => c[0].length === 2 && c[0].includes("gift") && c[0].includes("guard_buy"),
+        );
+        // 首屏1次 + 滚动1次 = 2次
+        expect(scrollCalls).toHaveLength(2);
+        expect(scrollCalls[1][0]).toEqual(["gift", "guard_buy"]);
+        expect(scrollCalls[1][1]).toBe(2);
+      });
+    });
+
+    it("混排栏 hasMore 随数据耗尽变为 false", async () => {
+      mockMixedPaging();
+      render(<DanmakuDashboard />);
+      await screen.findByText(/辣条p1/);
+
+      // 混排 FeedSection 通过 data-testid 定位
+      const mixedFeed = document.querySelector('[data-testid="gift_guard-merged-feed"]') as HTMLElement;
+      expect(mixedFeed).not.toBeNull();
+
+      // 首屏已加载 4 条（gift 2 + guard 2），mergedTotal=6，hasMore=true
+      // 滚动到底部触发 loadMoreSectionMerged（page2 返回 2 条，total=6）
+      await act(async () => {
+        mixedFeed.scrollTop = 1400;
+        fireEvent.scroll(mixedFeed);
+      });
+      await waitFor(() => {
+        const mergedCalls = listLiveEvents.mock.calls.filter(
+          (c) => c[0].length === 2 && c[0].includes("gift") && c[0].includes("guard_buy"),
+        );
+        // 首屏1次 + 滚动1次 = 2次
+        expect(mergedCalls).toHaveLength(2);
+      });
+      // page2 加载后：已加载 6 条（4+2），mergedTotal=6，hasMore=false
+      // 再次滚动不应再发请求
+      const callsBefore = listLiveEvents.mock.calls.length;
+      await act(async () => {
+        mixedFeed.scrollTop = 1400;
+        fireEvent.scroll(mixedFeed);
+      });
+      await vi.waitFor(() => {}, { timeout: 200 });
+      expect(listLiveEvents.mock.calls.length).toBe(callsBefore);
+    });
+
+    it("混排 total 不污染单类型 totalsBySection", async () => {
+      mockMixedPaging();
+      render(<DanmakuDashboard />);
+      await screen.findByText(/辣条p1/);
+
+      // SC 栏正常渲染（独立不受混排 total 影响）
+      expect(screen.getByText("醒目留言一")).toBeTruthy();
+      expect(screen.getByText("弹幕一")).toBeTruthy();
+
+      // 混排栏触发合并请求后，单类型 totalsBySection 仍为各自首屏 total
+      const mixedFeed = document.querySelector('[data-testid="gift_guard-merged-feed"]') as HTMLElement;
+      expect(mixedFeed).not.toBeNull();
+      await act(async () => {
+        mixedFeed.scrollTop = 1400;
+        fireEvent.scroll(mixedFeed);
+      });
+      await waitFor(() => {
+        const mergedCalls = listLiveEvents.mock.calls.filter(
+          (c) => c[0].length === 2 && c[0].includes("gift") && c[0].includes("guard_buy"),
+        );
+        // 首屏1次 + 滚动1次 = 2次
+        expect(mergedCalls).toHaveLength(2);
+      });
+      // 逐键断言：各单类型 totalsBySection 仍为首屏各自 total（未被合并 total 污染）
+      // gift 首屏 total=2，guard_buy 首屏 total=2，SC total=1，danmaku total=1
+      expect(screen.getByText("醒目留言一")).toBeTruthy();
+      expect(screen.getByText("弹幕一")).toBeTruthy();
     });
   });
 });

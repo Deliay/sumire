@@ -199,7 +199,7 @@ describe("SuperChatItem", () => {
 
   it("留言文字区干净单击触发 onToggleRead 一次（stopPropagation 防重复）", () => {
     const onToggleRead = vi.fn();
-    const { container } = render(<SuperChatItem event={sc} onToggleRead={onToggleRead} />);
+    render(<SuperChatItem event={sc} onToggleRead={onToggleRead} />);
     // 点击留言文字区
     fireEvent.click(screen.getByText("首播加油"));
     expect(onToggleRead).toHaveBeenCalledTimes(1);

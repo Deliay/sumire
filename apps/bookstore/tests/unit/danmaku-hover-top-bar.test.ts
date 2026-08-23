@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { isHoverable, pillPrice, hoverDuration, pillKind, pillSort, SC_DEFAULT_SECONDS } from "@/features/danmaku/hoverTopBar";
+import type { HoverPill } from "@/features/danmaku/hoverTopBar";
 import type { LiveEvent } from "@/features/danmaku/types";
 
 function makeEvent(overrides: Partial<LiveEvent> & { type: LiveEvent["type"] }): LiveEvent {
@@ -69,15 +70,15 @@ describe("pillKind 胶囊类型", () => {
 
 describe("pillSort 排序", () => {
   it("金额降序", () => {
-    const a = { price: 30 } as any;
-    const b = { price: 100 } as any;
+    const a = { price: 30 } as HoverPill;
+    const b = { price: 100 } as HoverPill;
     expect(pillSort(a, b)).toBeGreaterThan(0);
     expect(pillSort(b, a)).toBeLessThan(0);
   });
 
   it("金额相同 → arrivedAt 降序（新者优先）", () => {
-    const a = { price: 30, arrivedAt: 1000 } as any;
-    const b = { price: 30, arrivedAt: 2000 } as any;
+    const a = { price: 30, arrivedAt: 1000 } as HoverPill;
+    const b = { price: 30, arrivedAt: 2000 } as HoverPill;
     expect(pillSort(a, b)).toBeGreaterThan(0);
     expect(pillSort(b, a)).toBeLessThan(0);
   });

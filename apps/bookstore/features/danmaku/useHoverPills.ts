@@ -7,7 +7,9 @@ import { isHoverable, pillPrice, hoverDuration, pillKind, pillSort, type HoverPi
 export function useHoverPills(types: readonly LiveEventType[]) {
   const [pills, setPills] = useState<HoverPill[]>([]);
   const typesRef = useRef(types);
-  typesRef.current = types;
+  useEffect(() => {
+    typesRef.current = types;
+  }, [types]);
 
   const add = useCallback((event: LiveEvent) => {
     if (!isHoverable(event)) return;

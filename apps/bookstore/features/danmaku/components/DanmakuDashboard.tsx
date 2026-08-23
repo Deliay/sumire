@@ -465,8 +465,11 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
   );
 
   // 按 eventId 定位：找到目标事件所在栏+类型的 FeedSection，调用其 locate 方法
+  // F4：即使目标不在已加载列表，也调用第一个包含该类型的 FeedSection.locate
+  // 让 FeedSection.locate 负责加载更多并逐步逼近定位
   const handleLocate = useCallback(
     (eventId: string) => {
+      // 首先尝试在已加载列表中找到目标所在的节
       for (const col of columns) {
         for (const type of col.types) {
           const key = sectionKey(col.id, type);
@@ -477,6 +480,17 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
             return;
           }
         }
+      }
+      // 目标不在已加载列表：调用第一个包含该类型的 FeedSection.locate
+      // 让 FeedSection 通过 onLoadMore 逐步加载并定位
+      const eventType = eventId.startsWith("sc:") ? "super_chat" : eventId.startsWith("guard:") ? "guard_buy" : null;
+      if (!eventType) return;
+      for (const col of columns) {
+        if (!col.types.includes(eventType)) continue;
+        const key = sectionKey(col.id, eventType);
+        const ref = getFeedSectionRef(key);
+        ref.current?.locate(eventId);
+        return;
       }
     },
     [columns, eventsBySection, getFeedSectionRef],

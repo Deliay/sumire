@@ -75,3 +75,28 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 - SideNav `NAV_ITEMS` 已注册「弹幕检索」为一级导航项（全角色可见），选中态通过最长前缀匹配（`pathname.startsWith(href)` + href 长度降序）判定。
 - 只读口径：检索页不挂载已读交互，不调用 `markLiveEventRead` 等写接口。
 - `features/backdoor/api.ts` 的 `request()` 扩展 `signal` 选项（`fetch({ signal })`），保持既有调用零影响。
+
+## 悬停胶囊栏（features/danmaku）
+
+### 纯函数与 Hook
+
+- `hoverTopBar.ts`：悬停胶囊栏纯函数——`isHoverable(event)` 仅 `super_chat`/`guard_buy` 为 true；`pillPrice(event)` 取 `event.price`，缺失返回 0；`hoverDuration(event)` SC 取 `event.time`（>0 才取，缺失/非法/非正回退 `SC_DEFAULT_SECONDS=60`），上船按 `sender.guardLevel`（3→60s，2→300s，1→3600s，缺/未知→60s）；`pillKind(event)` SC→"sc"，其余→"guard"；`pillSort(a,b)` 金额降序，金额相同 arrivedAt 降序（新者优先）。
+- `useHoverPills.ts`：胶囊集合 hook——`pills` state + 单一 `setInterval(500ms)` 统一扫描过期；`add(event)` 以 `eventId` 为 key 覆盖（刷新 arrivedAt/expiresAt）；`types` 变化/卸载清理 interval；输出按 `pillSort` 排序。
+
+### 组件
+
+- `HoverTopBar.tsx`：悬停胶囊栏组件——`{ pills: HoverPill[]; onLocate: (eventId: string) => void }` 入参；`pills.length === 0` 返回 null（不占位）；容器 `h-12`（48px）铺满、`flex items-center gap-2 overflow-x-auto px-3 py-1.5`；SC 胶囊用 `scColors` 渐变底色 + 字体色，内容 Sender compact + 「醒目留言」+ `formatPrice`；上船胶囊用 `guardLevelTone(level)` 的 chip/text token + 头像 + `guardLevelName(level) ?? guard.name`；每个胶囊 `role="button"` + `aria-label` + `cursor-pointer` + `transition-colors duration-150`，点击触发 `onLocate(pill.eventId)`。
+
+### FeedSection 定位与闪光
+
+- `FeedSection` 通过 `forwardRef` + `useImperativeHandle` 暴露 `locate(eventId)` 方法。
+- `FeedSectionHandle` 接口：`{ locate: (eventId: string) => void }`。
+- 定位逻辑：命中已加载目标时 `virtualizer.scrollToIndex(index, { align: "center" })` 并加入 `flashIds`；未命中时设置 `locateTargetRef`，触发 `onLoadMore` 逐步加载，events 变化后重试定位（`useEffect` 依赖 `rows`），直到命中或 `hasMore=false` 停止（最多重试 50 次防无限循环）。
+- 闪光逻辑：`flashIds` state + 单计时器（约 1s）自动清除；虚拟行内层挂 `animate-danmaku-flash`（1s 背景闪光，尊重 `prefers-reduced-motion`）。
+
+### DanmakuDashboard 接线
+
+- `hoverTypes`：从 `columns.flatMap(c => c.types)` 过滤 `super_chat`/`guard_buy`，传入 `useHoverPills(hoverTypes)`。
+- `handleStreamEvent`：SSE 到达 `isHoverable(event)` 时调用 `addPill(event)`。
+- `handleLocate(eventId)`：优先在 `eventsBySection` 中查找目标所在的节并调用 `FeedSection.locate`；未命中时根据 `eventId` 前缀推断类型（`sc:` → `super_chat`，`guard:` → `guard_buy`），调用第一个包含该类型的 `FeedSection.locate`，让 FeedSection 通过 `onLoadMore` 逐步加载并定位。
+- `FeedColumn` 接收 `hoverPills`、`onLocate`、`sectionRefs` props，悬停胶囊栏挂载于栏头与 `sections.map` 之间。

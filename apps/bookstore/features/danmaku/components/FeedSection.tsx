@@ -106,21 +106,58 @@ const FeedSection = forwardRef<FeedSectionHandle, FeedSectionProps>(function Fee
     };
   }, []);
 
-  const locate = useCallback(
+  // F4 定位目标：维护待定位的 eventId，events 变化后重试直到命中或 hasMore=false
+  const locateTargetRef = useRef<string | null>(null);
+  const locateRetryCountRef = useRef(0);
+
+  // 定位命中后的闪光逻辑
+  const flashLocated = useCallback((eventId: string) => {
+    setFlashIds((prev) => new Set(prev).add(eventId));
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    flashTimerRef.current = setTimeout(() => clearFlashRef.current(), 1000);
+  }, []);
+
+  // 尝试定位到目标：在已加载的 rows 中查找
+  const tryLocate = useCallback(
     (eventId: string) => {
-      // 在已加载的 rows 中查找目标 eventId
       const index = rows.findIndex((row) => row.event.eventId === eventId);
       if (index >= 0) {
         virtualizer.scrollToIndex(index, { align: "center" });
-        setFlashIds((prev) => new Set(prev).add(eventId));
-        if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
-        flashTimerRef.current = setTimeout(() => clearFlashRef.current(), 1000);
-      } else if (onLoadMore && hasMore) {
-        // 目标未命中：逐步加载更多，每次加载后重新尝试定位
+        flashLocated(eventId);
+        locateTargetRef.current = null;
+        locateRetryCountRef.current = 0;
+        return true;
+      }
+      return false;
+    },
+    [rows, virtualizer, flashLocated],
+  );
+
+  // events 变化后重试定位（onLoadMore 加载新数据后触发）
+  useEffect(() => {
+    const target = locateTargetRef.current;
+    if (!target) return;
+    if (tryLocate(target)) return;
+    // 未命中：如果还有更多数据可加载且未超过重试上限，继续加载
+    if (hasMore && onLoadMore && locateRetryCountRef.current < 50) {
+      locateRetryCountRef.current += 1;
+      onLoadMore();
+    }
+    // hasMore=false 或超过重试上限：停止，不做更多操作
+  }, [rows, tryLocate, hasMore, onLoadMore]);
+
+  const locate = useCallback(
+    (eventId: string) => {
+      // 首先尝试直接定位
+      if (tryLocate(eventId)) return;
+      // 未命中：设置目标，等待 onLoadMore 加载后重试
+      locateTargetRef.current = eventId;
+      locateRetryCountRef.current = 0;
+      if (onLoadMore && hasMore) {
         onLoadMore();
       }
     },
-    [rows, virtualizer, onLoadMore, hasMore],
+    [tryLocate, onLoadMore, hasMore],
   );
 
   useImperativeHandle(ref, () => ({ locate }), [locate]);

@@ -436,8 +436,8 @@ test.describe("backdoor danmaku 弹幕看板", () => {
     await expect(page.getByText("检索失败")).toHaveCount(0);
   });
 
-  test("danmaku-toggle-read: 双击 SC 置灰且刷新后保持，再次双击取消已读", async ({ page }) => {
-    const events = [scEvent("sc:100", "双击我标记已读"), scEvent("sc:101", "保持未读的参照")];
+  test("danmaku-toggle-read: 单击 SC 置灰且刷新后保持，再次单击取消已读", async ({ page }) => {
+    const events = [scEvent("sc:100", "单击我标记已读"), scEvent("sc:101", "保持未读的参照")];
     const stub = await stubLiveEvents(page, events);
     await gotoDanmaku(page, getAccounts().admin);
 
@@ -446,8 +446,8 @@ test.describe("backdoor danmaku 弹幕看板", () => {
     await expect(target).toBeVisible();
     await expect(target).not.toHaveClass(/opacity-60/);
 
-    // 双击置灰（F3 起留言文本双击被隔离以便选中复制，直接在条目容器上派发 dblclick）
-    await target.dispatchEvent("dblclick");
+    // 单击置灰（F3 起留言文本单击已读，直接在条目容器上派发 click）
+    await target.dispatchEvent("click");
     await expect(target).toHaveClass(/opacity-60/);
     await expect.poll(() => stub.writes.filter((u) => u.endsWith("/read")).length).toBe(1);
 
@@ -457,8 +457,8 @@ test.describe("backdoor danmaku 弹幕看板", () => {
     await expect(page.locator('[data-event-id="sc:100"]')).toHaveClass(/opacity-60/);
     await expect(page.locator('[data-event-id="sc:101"]')).not.toHaveClass(/opacity-60/);
 
-    // 再次双击取消已读，刷新后同样保持
-    await page.locator('[data-event-id="sc:100"]').dispatchEvent("dblclick");
+    // 再次单击取消已读，刷新后同样保持
+    await page.locator('[data-event-id="sc:100"]').dispatchEvent("click");
     await expect(page.locator('[data-event-id="sc:100"]')).not.toHaveClass(/opacity-60/);
     await expect.poll(() => stub.writes.filter((u) => u.endsWith("/unread")).length).toBe(1);
     await page.reload();
@@ -492,6 +492,56 @@ test.describe("backdoor danmaku 弹幕看板", () => {
     await page.reload();
     await expect(page.locator('[data-event-id="sc:200"]')).toHaveClass(/opacity-60/);
     await expect(page.locator('[data-event-id="sc:201"]')).toHaveClass(/opacity-60/);
+  });
+
+  test("danmaku-gift-toggle-read: 单击礼物条目置灰且刷新后保持，再次单击取消已读", async ({ page }) => {
+    const events = [giftEvent("gift:100", "小花花"), giftEvent("gift:101", "棒棒糖")];
+    const stub = await stubLiveEvents(page, events);
+    await gotoDanmaku(page, getAccounts().admin);
+
+    const target = page.locator('[data-event-id="gift:100"]');
+    const other = page.locator('[data-event-id="gift:101"]');
+    await expect(target).toBeVisible();
+    await expect(target).not.toHaveClass(/opacity-60/);
+
+    // 单击礼物条目置灰
+    await target.dispatchEvent("click");
+    await expect(target).toHaveClass(/opacity-60/);
+    await expect.poll(() => stub.writes.filter((u) => u.endsWith("/read")).length).toBe(1);
+
+    // 刷新后保持
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "弹幕看板" })).toBeVisible();
+    await expect(page.locator('[data-event-id="gift:100"]')).toHaveClass(/opacity-60/);
+    await expect(page.locator('[data-event-id="gift:101"]')).not.toHaveClass(/opacity-60/);
+
+    // 再次单击取消已读
+    await page.locator('[data-event-id="gift:100"]').dispatchEvent("click");
+    await expect(page.locator('[data-event-id="gift:100"]')).not.toHaveClass(/opacity-60/);
+    await expect.poll(() => stub.writes.filter((u) => u.endsWith("/unread")).length).toBe(1);
+
+    // 参照条全程未读
+    await expect(other).not.toHaveClass(/opacity-60/);
+  });
+
+  test("danmaku-gift-read-all: 「礼物 全部已读」二次确认后礼物条目整体置灰", async ({ page }) => {
+    const events = [giftEvent("gift:200", "小花花"), giftEvent("gift:201", "棒棒糖")];
+    const stub = await stubLiveEvents(page, events);
+    await gotoDanmaku(page, getAccounts().admin);
+
+    await expect(page.locator('[data-event-id="gift:200"]')).toBeVisible();
+
+    // 首次点击仅进入二次确认态
+    await page.getByRole("button", { name: "礼物 全部已读" }).click();
+    const confirm = page.getByRole("button", { name: "确认全部已读？" });
+    await expect(confirm).toBeVisible();
+    expect(stub.writes.filter((u) => u.endsWith("/read-all"))).toHaveLength(0);
+
+    // 二次确认 → 礼物条目整体置灰
+    await confirm.click();
+    await expect.poll(() => stub.writes.filter((u) => u.endsWith("/read-all")).length).toBe(1);
+    await expect(page.locator('[data-event-id="gift:200"]')).toHaveClass(/opacity-60/);
+    await expect(page.locator('[data-event-id="gift:201"]')).toHaveClass(/opacity-60/);
   });
 
   test("danmaku-enter-animation: 实时事件入场挂载 animate-danmaku-enter 且动画真实运行", async ({
@@ -530,7 +580,7 @@ test.describe("backdoor danmaku 弹幕看板", () => {
     await expect(page.locator('[data-event-id="dm:anim"]')).toBeVisible();
   });
 
-  test("danmaku-member-readonly: member 账号不见已读交互（无双击置灰、无全部已读按钮）", async ({
+  test("danmaku-member-readonly: member 账号不见已读交互（无单击置灰、无全部已读按钮）", async ({
     page,
   }) => {
     const events = [scEvent("sc:300", "member 只读醒目留言"), guardEvent("guard:300")];
@@ -544,9 +594,9 @@ test.describe("backdoor danmaku 弹幕看板", () => {
     await expect(page.getByRole("button", { name: "SC 全部已读" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "上船 全部已读" })).toHaveCount(0);
 
-    // 无双击已读交互：无提示 title，双击不产生写请求、不置灰
-    await expect(sc).not.toHaveAttribute("title", "双击切换已读");
-    await sc.dispatchEvent("dblclick");
+    // 无单击已读交互：无提示 title，单击不产生写请求、不置灰
+    await expect(sc).not.toHaveAttribute("title", "单击切换已读");
+    await sc.dispatchEvent("click");
     await page.waitForTimeout(500);
     expect(stub.writes).toHaveLength(0);
     await expect(sc).not.toHaveClass(/opacity-60/);

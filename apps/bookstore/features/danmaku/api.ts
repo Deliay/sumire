@@ -15,7 +15,7 @@ export interface LiveEventsPage {
 }
 
 /** 「全部已读」仅支持需要已读管理的类型（契约口径）。 */
-export type ReadAllType = "super_chat" | "guard_buy";
+export type ReadAllType = "super_chat" | "guard_buy" | "gift";
 
 /** 检索历史直播事件（member 及以上）。type 以重复查询参数传递。 */
 export async function listLiveEvents(

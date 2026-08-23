@@ -10,6 +10,7 @@ import type { ReadAllType } from "../api";
 const READ_ALL_LABELS: Record<ReadAllType, string> = {
   super_chat: "SC 全部已读",
   guard_buy: "上船 全部已读",
+  gift: "礼物 全部已读",
 };
 
 /** 「标记全部已读」二次确认超时（ms），超时未确认自动复位。 */
@@ -41,7 +42,7 @@ export default function MarkReadButtonGroup({
   const isNarrow = useMediaQuery("(max-width: 639px)");
   const [measureRef, containerWidth] = useContainerWidth<HTMLDivElement>("parent");
 
-  const itemCount = (canManage ? 2 : 0) + 1; // readAll buttons + 隐藏钢镚
+  const itemCount = (canManage ? 3 : 0) + 1; // readAll buttons + 隐藏钢镚
   const neededWidth = itemCount * FLAT_ITEM_WIDTH_PX;
   const shouldCollapse = isNarrow || (containerWidth !== undefined && containerWidth < neededWidth);
 
@@ -76,7 +77,7 @@ export default function MarkReadButtonGroup({
     confirmTimerRef.current = setTimeout(() => setConfirming(null), CONFIRM_TIMEOUT_MS);
   }
 
-  const readAllTypes: ReadAllType[] = canManage ? ["guard_buy", "super_chat"] : [];
+  const readAllTypes: ReadAllType[] = canManage ? ["guard_buy", "super_chat", "gift"] : [];
 
   return (
     <div className="flex items-center gap-2" ref={measureRef}>

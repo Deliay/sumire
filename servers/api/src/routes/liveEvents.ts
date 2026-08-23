@@ -9,7 +9,7 @@ export const LIVE_EVENT_TYPES: readonly LiveEventType[] = ["danmaku", "super_cha
 /** 直接透传、不做 toLiveEvent 归一化的类型。 */
 export const PASSTHROUGH_TYPES: readonly string[] = ["online_rank_count"];
 /** 「全部已读」仅支持需要已读管理的类型（契约口径）。 */
-const READ_ALL_TYPES: readonly string[] = ["super_chat", "guard_buy"];
+const READ_ALL_TYPES: readonly string[] = ["super_chat", "guard_buy", "gift"];
 
 const HEARTBEAT_MS = 30_000;
 const BACKOFF_INITIAL_MS = 1_000;
@@ -297,7 +297,7 @@ export function createLiveEventsRouter(deps: LiveEventsRouterDeps): Router {
     }
     let firstPage;
     try {
-      firstPage = await deps.upstream.fetchRange([type], 1, READ_ALL_PAGE_SIZE);
+      firstPage = await deps.upstream.fetchRange(toUpstreamTypes([type]), 1, READ_ALL_PAGE_SIZE);
     } catch (err) {
       upstreamUnavailable(res, err);
       return;

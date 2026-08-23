@@ -11,6 +11,7 @@ import type { UpstreamEnvelope, UpstreamPage } from "../src/liveEvents/upstream"
 import danmakuFixture from "./fixtures/live-events/danmaku.json";
 import superChatFixture from "./fixtures/live-events/super_chat.json";
 import guardBuyFixture from "./fixtures/live-events/guard_buy.json";
+import giftFixture from "./fixtures/live-events/gift.json";
 import giftV2Fixture from "./fixtures/live-events/gift_v2.json";
 
 function clone<T>(value: T): T {
@@ -501,6 +502,32 @@ describe("POST /api/live-events/read-all（水位线）", () => {
     expect(r.status).toBe(200);
     expect(r.body).toEqual({ ok: true, marked: 0 });
     expect(rows.find((row) => row.eventId === "watermark:guard_buy")).toBeUndefined();
+  });
+
+  it("type=gift → 200，fetchRange 展开为 ['gift', 'gift_v2']，水位线写 watermark:gift", async () => {
+    const gift2 = clone(giftFixture);
+    gift2.occurredAt = "2026-08-16T13:30:00.000Z";
+    (gift2.payload.data as Record<string, unknown>).combo_id = "gift:combo:new:1";
+    const upstream = stubUpstream(pageOf([gift2, clone(giftFixture)]));
+    const { app, store } = buildApp(upstream);
+    const cookie = await sessionCookie(store, "admin");
+    const r = await call(app, { method: "POST", path: "/api/live-events/read-all", body: { type: "gift" }, cookie });
+    expect(r.status).toBe(200);
+    expect(r.body).toEqual({ ok: true, marked: 2 });
+    expect(upstream.fetchRange).toHaveBeenCalledWith(["gift", "gift_v2"], 1, 100);
+    const wm = rows.find((row) => row.eventId === "watermark:gift");
+    expect(wm?.type).toBe("gift");
+    expect(wm?.readBefore?.toISOString()).toBe("2026-08-16T13:30:00.000Z");
+  });
+
+  it("type=gift 上游无事件 → 200 marked=0 且不写水位线", async () => {
+    const upstream = stubUpstream(pageOf([]));
+    const { app, store } = buildApp(upstream);
+    const cookie = await sessionCookie(store, "admin");
+    const r = await call(app, { method: "POST", path: "/api/live-events/read-all", body: { type: "gift" }, cookie });
+    expect(r.status).toBe(200);
+    expect(r.body).toEqual({ ok: true, marked: 0 });
+    expect(rows.find((row) => row.eventId === "watermark:gift")).toBeUndefined();
   });
 });
 

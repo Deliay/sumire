@@ -50,7 +50,7 @@ describe("MarkReadButtonGroup", () => {
     vi.unstubAllGlobals();
   });
 
-  it("admin 平铺渲染三项：SC 全部已读、上船 全部已读、隐藏钢镚", () => {
+  it("admin 平铺渲染四项：SC 全部已读、上船 全部已读、礼物 全部已读、隐藏钢镚", () => {
     // 宽视口 + 容器足够宽 → 平铺
     mockParentWidth(600);
     render(
@@ -58,6 +58,7 @@ describe("MarkReadButtonGroup", () => {
     );
     expect(screen.getByRole("button", { name: /SC 全部已读/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /上船 全部已读/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /礼物 全部已读/ })).toBeTruthy();
     expect(screen.getByRole("switch", { name: "隐藏钢镚" })).toBeTruthy();
   });
 
@@ -96,6 +97,17 @@ describe("MarkReadButtonGroup", () => {
     fireEvent.click(screen.getByRole("button", { name: /上船 全部已读/ }));
     fireEvent.click(screen.getByRole("button", { name: /确认全部已读/ }));
     expect(onReadAll).toHaveBeenCalledWith("guard_buy");
+  });
+
+  it("礼物全部已读二次确认后触发 onReadAll(gift)", () => {
+    mockParentWidth(600);
+    const onReadAll = vi.fn();
+    render(
+      <MarkReadButtonGroup hideLowSc={false} onToggleHideLowSc={vi.fn()} onReadAll={onReadAll} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /礼物 全部已读/ }));
+    fireEvent.click(screen.getByRole("button", { name: /确认全部已读/ }));
+    expect(onReadAll).toHaveBeenCalledWith("gift");
   });
 
   it("隐藏钢镚 switch aria-checked 反映状态", () => {
@@ -138,6 +150,7 @@ describe("MarkReadButtonGroup", () => {
     // 平铺按钮不可见
     expect(screen.queryByRole("button", { name: /SC 全部已读/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /上船 全部已读/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /礼物 全部已读/ })).toBeNull();
     expect(screen.queryByRole("switch", { name: "隐藏钢镚" })).toBeNull();
     // 折叠触发钮
     const trigger = screen.getByRole("button", { name: "标记已读" });
@@ -150,6 +163,7 @@ describe("MarkReadButtonGroup", () => {
     // dropdown 内容
     expect(screen.getByText("SC 全部已读")).toBeTruthy();
     expect(screen.getByText("上船 全部已读")).toBeTruthy();
+    expect(screen.getByText("礼物 全部已读")).toBeTruthy();
     expect(screen.getByText("隐藏钢镚")).toBeTruthy();
   });
 
@@ -192,12 +206,13 @@ describe("MarkReadButtonGroup", () => {
     expect(screen.getByText("隐藏钢镚")).toBeTruthy();
     expect(screen.queryByText("SC 全部已读")).toBeNull();
     expect(screen.queryByText("上船 全部已读")).toBeNull();
+    expect(screen.queryByText("礼物 全部已读")).toBeNull();
   });
 
   it("wide 视口父容器宽度不足时折叠为 dropdown", () => {
     stubMatchMedia({ "(max-width: 639px)": false, "(min-width: 1024px)": true });
-    // admin 有 3 项 × 120px = 360px 所需宽度；父容器 200px（不足）
-    mockParentWidth(200);
+    // admin 有 4 项 × 120px = 480px 所需宽度；父容器 400px（不足）
+    mockParentWidth(400);
     render(
       <MarkReadButtonGroup hideLowSc={false} onToggleHideLowSc={vi.fn()} onReadAll={vi.fn()} />,
     );
@@ -208,7 +223,7 @@ describe("MarkReadButtonGroup", () => {
 
   it("wide 视口父容器宽度足够时平铺渲染", () => {
     stubMatchMedia({ "(max-width: 639px)": false, "(min-width: 1024px)": true });
-    // admin 有 3 项 × 120px = 360px 所需宽度；父容器 600px（足够）
+    // admin 有 4 项 × 120px = 480px 所需宽度；父容器 600px（足够）
     mockParentWidth(600);
     render(
       <MarkReadButtonGroup hideLowSc={false} onToggleHideLowSc={vi.fn()} onReadAll={vi.fn()} />,
@@ -216,6 +231,7 @@ describe("MarkReadButtonGroup", () => {
     // 宽视口且父容器宽 → 平铺
     expect(screen.getByRole("button", { name: /SC 全部已读/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /上船 全部已读/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /礼物 全部已读/ })).toBeTruthy();
     expect(screen.getByRole("switch", { name: "隐藏钢镚" })).toBeTruthy();
   });
 
@@ -234,7 +250,7 @@ describe("MarkReadButtonGroup", () => {
 
   it("平铺时内容宽度 < 所需宽度不会错误折叠（父容器足够宽）", () => {
     stubMatchMedia({ "(max-width: 639px)": false, "(min-width: 1024px)": true });
-    // 父容器 600px（远大于 360px 所需），即使组件自身内容宽度小也不折叠
+    // 父容器 600px（远大于 480px 所需），即使组件自身内容宽度小也不折叠
     mockParentWidth(600);
     render(
       <MarkReadButtonGroup hideLowSc={false} onToggleHideLowSc={vi.fn()} onReadAll={vi.fn()} />,

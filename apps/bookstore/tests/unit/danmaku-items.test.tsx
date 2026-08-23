@@ -166,12 +166,18 @@ describe("SuperChatItem", () => {
     expect(container.firstElementChild?.className).toContain("opacity-60");
   });
 
-  it("双击切换已读：未读→read", () => {
+  it("单击切换已读：未读→read", () => {
     const onToggleRead = vi.fn();
     const { container } = render(<SuperChatItem event={sc} onToggleRead={onToggleRead} />);
-    fireEvent.doubleClick(container.firstElementChild as Element);
+    fireEvent.click(container.firstElementChild as Element);
     expect(onToggleRead).toHaveBeenCalledTimes(1);
     expect(onToggleRead.mock.calls[0][0].eventId).toBe("sc:1");
+  });
+
+  it("title 为「单击切换已读」", () => {
+    const { container } = render(<SuperChatItem event={sc} onToggleRead={vi.fn()} />);
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.getAttribute("title")).toBe("单击切换已读");
   });
 
   it("member 角色（无 onToggleRead）不渲染已读交互", () => {
@@ -179,7 +185,7 @@ describe("SuperChatItem", () => {
     const root = container.firstElementChild as HTMLElement;
     expect(root.className).not.toContain("cursor-pointer");
     expect(root.className).not.toContain("select-none");
-    fireEvent.doubleClick(root); // 不应抛错
+    fireEvent.click(root); // 不应抛错
   });
 
   it("留言气泡可选中复制（select-text cursor-text），容器不带 select-none", () => {
@@ -191,14 +197,37 @@ describe("SuperChatItem", () => {
     expect((container.firstElementChild as HTMLElement).className).not.toContain("select-none");
   });
 
-  it("气泡上双击不触发已读切换（dblclick 隔离），气泡外双击仍触发", () => {
+  it("留言文字区干净单击触发 onToggleRead 一次（stopPropagation 防重复）", () => {
+    const onToggleRead = vi.fn();
+    render(<SuperChatItem event={sc} onToggleRead={onToggleRead} />);
+    // 点击留言文字区
+    fireEvent.click(screen.getByText("首播加油"));
+    expect(onToggleRead).toHaveBeenCalledTimes(1);
+    expect(onToggleRead.mock.calls[0][0].eventId).toBe("sc:1");
+  });
+
+  it("拖选留言不触发 onToggleRead（getSelection Range 非折叠）", () => {
+    const onToggleRead = vi.fn();
+    render(<SuperChatItem event={sc} onToggleRead={onToggleRead} />);
+    // Mock window.getSelection 返回 Range 非折叠（模拟拖选复制）
+    const origGetSelection = window.getSelection;
+    const mockSelection = { type: "Range", isCollapsed: false };
+    Object.defineProperty(window, "getSelection", {
+      value: () => mockSelection,
+      writable: true,
+      configurable: true,
+    });
+    fireEvent.click(screen.getByText("首播加油"));
+    expect(onToggleRead).not.toHaveBeenCalled();
+    // 恢复原始 getSelection
+    Object.defineProperty(window, "getSelection", { value: origGetSelection, writable: true, configurable: true });
+  });
+
+  it("气泡外（非留言区）点击仍触发 onToggleRead", () => {
     const onToggleRead = vi.fn();
     const { container } = render(<SuperChatItem event={sc} onToggleRead={onToggleRead} />);
-    // 气泡上双击：隔离，不冒泡到条目容器
-    fireEvent.doubleClick(screen.getByText("首播加油"));
-    expect(onToggleRead).not.toHaveBeenCalled();
-    // 气泡外（条目容器）双击：照常切换已读
-    fireEvent.doubleClick(container.firstElementChild as Element);
+    // 点击根容器非留言区域
+    fireEvent.click(container.firstElementChild as Element);
     expect(onToggleRead).toHaveBeenCalledTimes(1);
   });
 
@@ -249,6 +278,33 @@ describe("SuperChatItem", () => {
     // 留言文本应相同
     expect(withKeyword.textContent).toContain("首播加油");
     expect(withoutKeyword.textContent).toContain("首播加油");
+  });
+
+  it("SC 头部 Sender 点击不触发 onToggleRead（穿透）", () => {
+    const onToggleRead = vi.fn();
+    render(<SuperChatItem event={sc} onToggleRead={onToggleRead} />);
+    // Sender 的 <a> 标签有 stopPropagation，点击不冒泡到根节点
+    const senderLink = screen.getByText("观众A").closest("a");
+    expect(senderLink).toBeTruthy();
+    fireEvent.click(senderLink!);
+    expect(onToggleRead).not.toHaveBeenCalled();
+  });
+
+  it("SC 留言内 BiliVideoLink 点击不触发 onToggleRead（穿透）", () => {
+    const onToggleRead = vi.fn();
+    const scWithLink = makeEvent({
+      eventId: "sc:link",
+      type: "super_chat",
+      content: "看看这个 BV1xw411n7FW",
+      price: 30,
+      scColors: { backgroundStart: "#c9485b", backgroundEnd: "#a12c46", fontColor: "#ffffff" },
+    });
+    render(<SuperChatItem event={scWithLink} onToggleRead={onToggleRead} />);
+    // BiliVideoLink 的 <a> 标签有 stopPropagation
+    const link = screen.getByText(/BV1xw411n7FW/).closest("a");
+    expect(link).toBeTruthy();
+    fireEvent.click(link!);
+    expect(onToggleRead).not.toHaveBeenCalled();
   });
 });
 
@@ -327,6 +383,40 @@ describe("GiftItem", () => {
       <GiftItem event={makeEvent({ eventId: "gift:g4", type: "gift", price: 520, gift: { name: "a", count: 1 } })} />,
     );
     expect(cRed.querySelector("span.text-crimson")).toBeTruthy();
+  });
+
+  it("admin 单击礼物条目触发 onToggleRead(event)", () => {
+    const onToggleRead = vi.fn();
+    const { container } = render(
+      <GiftItem event={makeEvent({ eventId: "gift:click1", type: "gift", gift: { name: "情书", count: 1 } })} onToggleRead={onToggleRead} />,
+    );
+    fireEvent.click(container.firstElementChild as Element);
+    expect(onToggleRead).toHaveBeenCalledTimes(1);
+    expect(onToggleRead.mock.calls[0][0].eventId).toBe("gift:click1");
+  });
+
+  it("已读时根节点有 opacity-60，title 含「单击切换已读」", () => {
+    const { container } = render(
+      <GiftItem
+        event={makeEvent({ eventId: "gift:read1", type: "gift", read: true, gift: { name: "情书", count: 1 } })}
+        onToggleRead={vi.fn()}
+      />,
+    );
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.className).toContain("opacity-60");
+    expect(root.getAttribute("title")).toContain("单击切换已读");
+  });
+
+  it("未传 onToggleRead（member）单击不触发、无 title、无 cursor-pointer", () => {
+    const onToggleRead = vi.fn();
+    const { container } = render(
+      <GiftItem event={makeEvent({ eventId: "gift:mem1", type: "gift", gift: { name: "情书", count: 1 } })} />,
+    );
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.getAttribute("title")).toBeNull();
+    expect(root.className).not.toContain("cursor-pointer");
+    fireEvent.click(root);
+    expect(onToggleRead).not.toHaveBeenCalled();
   });
 });
 
@@ -416,14 +506,20 @@ describe("GuardItem", () => {
     expect(screen.getByText("上船 · 舰长")).toBeTruthy();
   });
 
-  it("已读置灰 + 双击切换", () => {
+  it("已读置灰 + 单击切换", () => {
     const onToggleRead = vi.fn();
     const { container } = render(
       <GuardItem event={{ ...guard, read: true }} onToggleRead={onToggleRead} />,
     );
     expect(container.firstElementChild?.className).toContain("opacity-60");
-    fireEvent.doubleClick(container.firstElementChild as Element);
+    fireEvent.click(container.firstElementChild as Element);
     expect(onToggleRead).toHaveBeenCalledTimes(1);
+  });
+
+  it("GuardItem title 为「单击切换已读」", () => {
+    const { container } = render(<GuardItem event={guard} onToggleRead={vi.fn()} />);
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.getAttribute("title")).toBe("单击切换已读");
   });
 
   it("isNew=true 渲染「New」标记，isNew 缺省/为 false 不渲染", () => {

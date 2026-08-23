@@ -1,5 +1,5 @@
 ---
-description: 弹幕看板「已读功能优化」技术提案——礼物条目纳入已读（补齐 GiftItem onToggleRead）；SC / 礼物 / 上船已读切换双击改单击；SC 留言文字区响应单击已读并区分拖选；B 站视频链接点击/hover 预览与用户头像昵称跳转为穿透元素 stopPropagation 防已读吞掉
+description: 弹幕看板「已读功能优化」技术提案——礼物条目纳入已读（补齐 GiftItem onToggleRead，含礼物全部已读：契约/后端 READ_ALL_TYPES 支持 gift 且 read-all 走 toUpstreamTypes 展开 gift+gift_v2、前端按钮组新增礼物全部已读）；SC / 礼物 / 上船已读切换双击改单击；SC 留言文字区响应单击已读并区分拖选；B 站视频链接点击/hover 预览与用户头像昵称跳转为穿透元素 stopPropagation 防已读吞掉
 type: Fleeting
 ---
 
@@ -28,15 +28,16 @@ type: Fleeting
 ### 1.2 目标
 
 - `GiftItem` 支持单条已读切换（乐观更新、失败回滚口径复用 `DanmakuDashboard.toggleRead`）；
+- 新增「礼物全部已读」：契约 `read-all` type 枚举加 `gift`、后端 `READ_ALL_TYPES` 同步、`read-all` 对礼物走 `toUpstreamTypes` 展开（`gift`+`gift_v2`）取并集最新写入水位线、前端按钮组新增入口；
 - SC / 礼物 / 上船已读触发由 `onDoubleClick` 改为 `onClick`，`title` 改「单击切换已读」；
 - SC 留言文字区（含罗马音）响应单击已读，拖选复制不触发；
 - SC 内 B 站视频链接点击/hover、用户头像昵称点击穿透 B 站，不被已读吞掉；
-- 既有能力（New、全部已读、隐藏钢镚、虚拟化、栏位）零回归。
+- 既有能力（New、隐藏钢镚、虚拟化、栏位、SSE）零回归。
 
 ### 1.3 范围
 
-- **做**：`GiftItem` 增 `onToggleRead` 并在 `FeedSection.renderItem` 接线；`SuperChatItem`/`GuardItem` 双击改单击；SC 留言文字区单击已读 + 拖选区分；`title` 文案更新；`DanmakuDashboard.toggleRead` 不做逻辑改动（已支持任意 type 的单条已读）；单元测试。
-- **不做**：契约/服务端/数据库变更；礼物「全部已读」（`ReadAllType` 仍仅 super_chat/guard_buy，本期不加 gift）；SC 内读接口新增；SC 留言可复制能力移除；SC 悬停胶囊栏的已读交互（本就纯展示）；编排与基础设施变更。
+- **做**：`GiftItem` 增 `onToggleRead` 并在 `FeedSection.renderItem` 接线；`SuperChatItem`/`GuardItem` 双击改单击；SC 留言文字区单击已读 + 拖选区分；`title` 文案更新；`DanmakuDashboard.toggleRead` 不做逻辑改动（已支持任意 type 的单条已读）；**礼物全部已读**——契约 `read-all` 的 `type` 枚举加 `gift`、后端 `READ_ALL_TYPES` 同步且 `read-all` 对 gift 走 `toUpstreamTypes`（`["gift","gift_v2"]`）取并集最新、前端 `ReadAllType` 与 `MarkReadButtonGroup` 新增「礼物 全部已读」入口；单元测试（前端 + 后端）。
+- **不做**：数据库结构变更（`live_event_reads` 水文线按任意 `type` 已然支持 gift，无需迁移）；SC 内读接口新增；SC 留言可复制能力移除；SC 悬停胶囊栏的已读交互（本就纯展示）；编排与基础设施变更。
 
 > 说明：本节点仅产出需求文档与提案。代码与 spec 同步在后续 `feat/danmaku-read-optimization` 开发分支按 TDD 落地，本提案给出实现方案与验收口径。
 
@@ -54,6 +55,8 @@ graph TD
     PENETRATE -->|stopPropagation| BILI[B 站视频 / 用户空间]
     TEXT --> TOGGLE
     GIFT[GiftItem 接线 onToggleRead] --> TOGGLE
+    GRP[MarkReadButtonGroup 礼物全部已读] --> READALL[read-all type=gift]
+    READALL --> API2[(契约枚举加 gift<br/>后端 READ_ALL_TYPES + toUpstreamTypes)]
 ```
 
 ### 2.2 技术栈
@@ -75,14 +78,35 @@ graph TD
 | `features/danmaku/components/FeedSection.tsx` | 礼物已读接线 | `renderItem` 的 gift 分支传入 `toggleRead` |
 | `features/danmaku/components/BiliVideoLink.tsx` / `Sender.tsx` | 穿透元素保持 | 维持/必要时增强 `stopPropagation`，不被单击已读吞掉 |
 | `features/danmaku/components/DanmakuDashboard.tsx` | 已读逻辑（不变/微调注释） | `toggleRead` 现按 `eventId`，天然支持 gift |
+| `servers/api/src/routes/liveEvents.ts` | 礼物全部已读支持 | `READ_ALL_TYPES` 加 `gift`；`read-all` 对 gift 走 `toUpstreamTypes` 展开 |
+| `contract/live-events.openapi.yaml` | read-all type 枚举 | 加 `gift` |
+| `features/danmaku/api.ts` | `ReadAllType` | 加 `"gift"` |
+| `features/danmaku/components/MarkReadButtonGroup.tsx` | 礼物全部已读入口 | `READ_ALL_LABELS`/`readAllTypes` 加 `gift`，折叠判定计数同步 |
 
 ## 3. API 设计
 
-无契约 / 接口变更。礼物单条已读复用既有 `markLiveEventRead(eventId)` / `markLiveEventUnread(eventId)`（`/api/live-events/read`、`/api/live-events/unread`，均按事件 id、不分类型、admin+）。礼物「全部已读」不在本期（`ReadAllType = "super_chat" | "guard_buy"` 保持不变）。
+### 3.1 契约变更（read-all type 枚举加 gift）
+
+`contract/live-events.openapi.yaml` 的 `/api/live-events/read-all` 请求体 `type` 枚举由 `[super_chat, guard_buy]` 扩展为 `[super_chat, guard_buy, gift]`：
+
+```yaml
+type:
+  type: string
+  enum: [super_chat, guard_buy, gift]
+  description: 支持需要已读管理的类型（含礼物）
+```
+
+后端 `servers/api/src/routes/liveEvents.ts` 的 `READ_ALL_TYPES` 同步为 `["super_chat", "guard_buy", "gift"]`，并对 `read-all` 的 `fetchRange` 使用前以 `toUpstreamTypes([type])` 展开（礼物 → `["gift","gift_v2"]`），保证按上游两来源并集取最新事件写入水位线（检索/SSE 已统一展开，read-all 补齐前者遗漏）。
+
+### 3.2 其余接口
+
+- 单条已读复用既有 `markLiveEventRead(eventId)` / `markLiveEventUnread(eventId)`（type 无关，admin+）；
+- 礼物全部已读复用既有 `markAllLiveEventsRead(type)`（`ReadAllType` 前端加 `"gift"`）；
+- 无新增端点；检索/SSE/搜索端点语义不变。
 
 ## 4. 数据模型
 
-无数据库 / 契约 / 前端类型变更。已读状态字段 `LiveEvent.read` 为既有字段，礼物事件照常携带。新增仅组件 props（`GiftItem` 增可选 `onToggleRead?: (event) => void`）。
+无数据库结构变更。已读状态字段 `LiveEvent.read` 为既有字段，礼物事件照常携带；礼物水位线复用 `db/liveEventReads.ts` 的 `watermark:{type}`（按任意 `type`、`$max` 只前进），`typeFromEventId` 已含 `gift`，无需迁移。前端 `ReadAllType` 加 `"gift"`；`GiftItem` 增可选 `onToggleRead?: (event) => void`。
 
 ## 5. 技术实现方案
 
@@ -94,12 +118,18 @@ sequenceDiagram
     participant ITEM as SC/礼物/上船条目
     participant DASH as DanmakuDashboard.toggleRead
     participant API as markLiveEvent(Read|Unread)
+    participant GRP as MarkReadButtonGroup
+    participant API2 as read-all
     U->>ITEM: 单击条目（非拖选、非穿透元素）
     ITEM->>DASH: onToggleRead(event)（读当前 read 翻转）
     DASH->>API: markLiveEventRead/Unread(eventId)（乐观更新）
     API-->>DASH: 200 → 保持；非 200 → 回滚 + toast
     Note over ITEM: 单击 SC 留言文字区亦走此（拖选则不触发）
     Note over ITEM: 穿透元素（视频链接/头像昵称）stopPropagation→B 站，不进已读
+    U->>GRP: 礼物全部已读（二次确认）
+    GRP->>API2: markAllLiveEventsRead("gift")
+    API2->>API2: toUpstreamTypes(["gift"]) → gift+gift_v2 并集取最新 → 写 watermark:gift
+    API2-->>DASH: 200 → 礼物全置已读、清 New
 ```
 
 ### 5.2 关键实现点
@@ -171,6 +201,16 @@ sequenceDiagram
 - **技术细节**: `toggleRead` 已在 `renderItem` 定义 `const toggleRead = canManage ? onToggleRead : undefined;`（member 下 undefined，天然满足「member 无已读交互」）。`DanmakuDashboard.toggleRead` 按 `eventId` 定位 `updateEvent`，对 gift 类型无需改动。
 - **风险点**: 礼物条目内 `Sender`（头像昵称）为穿透元素，须确认其 `stopPropagation` 使单击不触发礼物已读（复用实现点 3 的 `Sender` 处理）。
 
+#### 实现点 5: 礼物全部已读（契约 + 后端 read-all + 前端按钮组）
+
+- **描述**: 顶层「标记已读」按钮组新增「礼物 全部已读」，后端与契约同步支持 `gift`：
+
+  - **契约**：`read-all` 的 `type` 枚举加 `gift`。
+  - **后端**：`READ_ALL_TYPES = ["super_chat","guard_buy","gift"]`；`read-all` 处理中把 `fetchRange([type], 1, READ_ALL_PAGE_SIZE)` 改为 `fetchRange(toUpstreamTypes([type]), 1, READ_ALL_PAGE_SIZE)`（礼物展开为 `["gift","gift_v2"]`，与检索/SSE 口径一致）；水位线写入沿用 `markAllRead(type, ...)`（`watermark:gift`），`typeFromEventId`/数据模型无需改动。
+  - **前端**：`ReadAllType` 加 `"gift"`；`MarkReadButtonGroup` 的 `READ_ALL_LABELS` 加 `gift: "礼物 全部已读"`、`readAllTypes` 在 `canManage` 时含 `"gift"`，折叠判定 `itemCount` 由 `2` 增为 `3`（readAll 按钮数）；`DanmakuDashboard.handleReadAll` 已按 `e.type === type` 置已读，天然支持 gift。
+- **技术细节**: `toUpstreamTypes` 若不展开，仅查 `gift` 会漏掉 `gift_v2` 来源的更高水位（gift_v2 是主来源），故 read-all 必须展开；`READ_ALL_PAGE_SIZE` 上限 100，与 SC/上船一致（水位线口径「首页最新」）。
+- **风险点**: ① 上游若 `gift`/`gift_v2` 分页去重未合并，并集取最新以 `fetchRange` 返回各来源首页共同取 max `occurredAt`，与既有 read-all 相同口径；② member 不可见入口（沿用 `canManage` 门控）；③ 折叠判定随按钮数增大需在窄屏及时折叠，`itemCount` 更新别遗漏。
+
 ## 6. 技术决策
 
 ### 6.1 决策列表
@@ -180,7 +220,8 @@ sequenceDiagram
 | 已读触发事件 | `onClick`（单击） | 保留 `onDoubleClick` | A | PRD 口径要求单击已读，减轻手势负担 |
 | SC 留言段已读路由 | 留言段自担单击已读 + `stopPropagation` 防根节点重复 toggle | 根节点统一已读，留言段仅依赖穿透元素 stopPropagation | A | 减弱「文字区点中即 toggle」的被吞风险、根节点与留言段职责清晰；留言段 `e.stopPropagation()` 保证一次单击仅 toggle 一次 |
 | 拖选 vs 单击已读区分 | 检测 `getSelection()` Range 非折叠 → 不触发 | 移除 SC 文字可复制 | A | 尽量保留可复制能力（PRD 澄清 A 口径）；若评审同意移除可简化 |
-| 礼物全部已读 | 本期不做（`ReadAllType` 不变） | 加 gift 全部已读（需服务端/契约） | A | PRD 范围仅「礼物支持已读功能」；全部已读留待后续 |
+| 礼物全部已读 | 本期纳入（契约 + 后端 + 前端） | 本期不做 | A（评审决定） | 评审明确「礼物全部已读也需要加上」；礼物与 SC/上船同为需答谢类，处理动线一致 |
+| 礼物 read-all 上游展开 | `toUpstreamTypes` 展开 `gift`+`gift_v2` | 仅查 `gift` | A | gift_v2 为礼物主来源，不展开会漏高水位 |
 | 双击语义 | 视为两次单击（交替往返） | 特判为一次 | A | 单击已读后双击无独立语义，等价往返可接受，实现简单 |
 
 ### 6.2 依赖与约束
@@ -189,6 +230,8 @@ sequenceDiagram
 |------|------|------|
 | 依赖 | `GiftItem`/`SuperChatItem`/`GuardItem`/`Sender`/`BiliVideoLink` 条目组件 | 改造基底 |
 | 依赖 | `DanmakuDashboard.toggleRead` + `markLiveEventRead/Unread` | 已读逻辑复用，type 无关已支持 gift |
+| 依赖 | `markAllLiveEventsRead` + `db/liveEventReads.markAllRead`（任意 type 水位线） | 礼物全部已读，数据模型已支持 |
+| 依赖 | `toUpstreamTypes`（gift → gift+gift_v2） | read-all 展开复用 |
 | 约束 | Tailwind token 色、禁硬编码色值 | `frontend-rules.md` |
 | 约束 | 静态导出（GitHub Pages） | 全部客户端行为；已读状态来自服务端，无障碍 |
 | 约束 | 动效克制 ≤200ms + `prefers-reduced-motion` 降级 | `frontend-rules.md`、`03-backdoor-design.md` |
@@ -198,20 +241,27 @@ sequenceDiagram
 ## 7. 项目结构
 
 ```
+contract/live-events.openapi.yaml            # 修改：read-all type 枚举加 gift
+servers/api/src/routes/liveEvents.ts         # 修改：READ_ALL_TYPES 加 gift；read-all 对 gift 走 toUpstreamTypes 展开
+apps/bookstore/features/danmaku/api.ts       # 修改：ReadAllType 加 "gift"
 apps/bookstore/features/danmaku/components/
     ├── SuperChatItem.tsx      # 修改：双击→单击；留言文字区单击已读 + 拖选区分；stopPropagation 防重复 toggle
     ├── GiftItem.tsx           # 修改：新增 onToggleRead + 单击 + 置灰 + title「单击切换已读」
     ├── GuardItem.tsx          # 修改：双击→单击 + title 更新
     ├── Sender.tsx             # 保持不变/微调：保持 stopPropagation 穿透（如无回归无需改）
     ├── BiliVideoLink.tsx      # 保持不变/微调：保持 hover/click stopPropagation 穿透
+    ├── MarkReadButtonGroup.tsx# 修改：READ_ALL_LABELS/readAllTypes 加 gift、itemCount 2→3
     └── FeedSection.tsx        # 修改：renderItem gift 分支传入 toggleRead
 apps/bookstore/tests/unit/
     ├── danmaku-items.test.tsx               # 更新/新增：SC 单击已读、拖选不触发、穿透元素不 toggle；Gift 单击已读 + 置灰；Guard 单击已读
-    ├── danmaku-dashboard.test.tsx           # 更新（如需）：toggleRead 对 gift 类型转发断言
+    ├── danmaku-dashboard.test.tsx           # 更新（如需）：toggleRead 对 gift 类型转发断言；readAll 对 gift
+    ├── danmaku-mark-read-button-group.test.tsx # 更新：礼物「全部已读」入口渲染/二次确认/折叠计数/角色可见性
     └── danmaku-sender.test.tsx              # 更新（如需）：穿透 stopPropagation 断言
+servers/api/tests/
+    └── liveEventsReadAll.test.ts            # 新增/更新：read-all type=gift 合法 + 非法 type 400 + gift 展开 upstream 断言
 ```
 
-契约（`contract/`）、服务端（`servers/api`）、编排（`infra/aspire`）零变更。
+服务端、编排（`infra/aspire`）无新增资源；仅契约枚举 + 后端白名单/上游展开 + 前端类型/按钮组改动。
 
 ## 8. 测试策略
 
@@ -221,15 +271,19 @@ apps/bookstore/tests/unit/
   - `SuperChatItem`：单击根节点切换已读（event 透传）；单击留言文字区切换已读且不重复触发（仅一次 toggle）；拖选文字（mock `getSelection` 为 Range 非折叠）不触发；穿透元素（`BiliVideoLink`、`Sender`）点击不触发已读；member（无 `onToggleRead`）无已读交互、`title` 无「单击切换已读」；
   - `GiftItem`：admin+ 单击切换已读、已读置灰 `opacity-60`、`title` 提示；member 无已读交互；`Sender` 穿透点击不 toggle；
   - `GuardItem`：单击切换已读、置灰、`title`「单击切换已读」；双击等价（两次单击往返可接受）；
-  - `FeedSection.renderItem`：gift 分支在 `canManage` 时传入 `onToggleRead`（可经 render 断言不再缺 prop）。
-- API 测试：无变更，既有 `live-events.read/unread` 测试保持绿（本就 type 无关）。
-- e2e：无契约变更；既有弹幕看板 e2e 若断言「双击已读」需适配为「单击已读」。
+  - `MarkReadButtonGroup`：admin 下平铺含「礼物 全部已读」、二次确认、折叠为 dropdown 可操作、`itemCount` 3；member 仅隐藏钢镚；
+  - `FeedSection.renderItem`：gift 分支在 `canManage` 时传入 `onToggleRead`。
+- 单元测试（后端）：
+  - `liveEventsReadAll`：`type=gift` 200 且 `upstream.fetchRange` 收到展开类型 `["gift","gift_v2"]` 并写 `watermark:gift`；`type=danmaku` 等 400；无事件时 `marked=0` 且不写水位线。
+- API 测试（黑盒，后续开发分支）：既有 `live-events` read-all 用例补充 gift。
+- e2e：无契约破坏（枚举扩容兼容）；既有弹幕看板 e2e 若断言「双击已读」需适配为「单击已读」。
 
 ### 8.2 测试类型
 
 | 类型 | 工具 | 覆盖范围 |
 |------|------|---------|
-| 单元测试 | Vitest + Testing Library | 单击已读、拖选区分、穿透元素、礼物接线 |
+| 单元测试（前端） | Vitest + Testing Library | 单击已读、拖选区分、穿透元素、礼物单条/全部已读接线、按钮组 |
+| 单元测试（后端） | Vitest | read-all gift 白名单 + upstream 展开 + 水位线写入 |
 
 ## 9. 部署方案
 
@@ -251,13 +305,15 @@ apps/bookstore/tests/unit/
 - [ ] SC / 上船条目已读由双击改为单击；`title` 更新为「单击切换已读」；双击不再作为独立手势
 - [ ] SC 留言文字区（含罗马音）单击切换已读、且与根节点不重复触发（一次单击 = 一次已读切换）；拖选文字复制不触发已读
 - [ ] SC 内 B 站视频链接单击新开视频、hover 出预览，均不触发已读；SC 内用户头像/昵称单击新开空间、不触发已读（穿透生效，任意含 SC 的栏位一致）
-- [ ] 既有 New 标记、全部已读、隐藏钢镚、虚拟化、栏位配置、SSE 零回归
-- [ ] 单元测试全绿，`pnpm lint && pnpm test && pnpm build` 全绿
+- [ ] 「标记已读」按钮组新增「礼物 全部已读」（admin+，二次确认与折叠一致），触发后礼物类型事件全置已读、New 清零；契约 `read-all` 枚举含 `gift`，后端 `READ_ALL_TYPES` 支持且对 gift 展开 `gift`+`gift_v2` 取并集最新写 `watermark:gift`；member 不可见入口
+- [ ] 既有 New 标记、隐藏钢镚、虚拟化、栏位配置、SSE 零回归
+- [ ] 单元测试（前端/后端）全绿，`pnpm lint && pnpm test && pnpm build`（前后端）全绿
 
 ## 11. 相关文档
 
 - 关联 PRD：`docs/product/requirements/draft/2026-08-23-danmaku-read-optimization-prd.md`
 - 产品 Spec（现态）：`docs/product/spec/danmaku.md`
+- 契约：`contract/live-events.openapi.yaml`
 - 弹幕看板 v3 提案：`docs/engineering/proposals/2026-08-22-danmaku-board-v3-proposal.md`
 - 悬停胶囊栏提案：`docs/engineering/proposals/2026-08-23-danmaku-hover-bar-proposal.md`
 - 开发规范：`docs/engineering/frontend-rules.md`、`docs/engineering/backend-rules.md`

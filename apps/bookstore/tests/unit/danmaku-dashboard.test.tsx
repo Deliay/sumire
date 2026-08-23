@@ -139,10 +139,9 @@ describe("DanmakuDashboard", () => {
     expect(await screen.findByText("弹幕一")).toBeTruthy();
     expect(screen.getByText("醒目留言一")).toBeTruthy();
     expect(screen.getByText(/辣条/)).toBeTruthy();
-    // 每节（栏 + 类型）独立检索请求：礼物+上船(mixed) | SC | 弹幕
+    // mixed 栏走合并请求：["gift","guard_buy"] 一次；SC / 弹幕 各自独立
     const calledTypes = listLiveEvents.mock.calls.map((c) => c[0]);
-    expect(calledTypes).toContainEqual(["gift"]);
-    expect(calledTypes).toContainEqual(["guard_buy"]);
+    expect(calledTypes).toContainEqual(["gift", "guard_buy"]);
     expect(calledTypes).toContainEqual(["super_chat"]);
     expect(calledTypes).toContainEqual(["danmaku"]);
   });
@@ -460,22 +459,18 @@ describe("DanmakuDashboard", () => {
     ];
 
     function mockMixedPaging() {
-      // 首屏：各类型独立加载（loadSection 按类型逐个调用）
+      // 首屏：mixed 栏走合并请求，SC/弹幕各自独立
       // 混排栏滚动加载：合并请求（loadMoreSectionMerged）
       listLiveEvents.mockImplementation(async (types: string[], page = 1) => {
-        // 混排栏合并请求：["gift","guard_buy"]（滚动加载 page2）
+        // 混排栏合并请求：["gift","guard_buy"]（首屏 page1 + 滚动 page2）
         if (types.length === 2 && types.includes("gift") && types.includes("guard_buy")) {
+          const items = page === 1
+            ? [...GIFT_P1, ...GUARD_P1]
+            : [...GIFT_P2, ...GUARD_P2];
           return {
             status: 200,
-            data: { total: 6, page, pageSize: 50, items: [...GIFT_P2, ...GUARD_P2] },
+            data: { total: 6, page, pageSize: 50, items },
           };
-        }
-        // 单类型首屏请求（loadSection）— total > items 以模拟分页数据（hasMore=true）
-        if (types.length === 1 && types[0] === "gift" && page === 1) {
-          return { status: 200, data: { total: 3, page: 1, pageSize: 50, items: GIFT_P1 } };
-        }
-        if (types.length === 1 && types[0] === "guard_buy" && page === 1) {
-          return { status: 200, data: { total: 3, page: 1, pageSize: 50, items: GUARD_P1 } };
         }
         if (types.length === 1 && types[0] === "super_chat") {
           return { status: 200, data: { total: 1, page, pageSize: 50, items: [SC_EVENT] } };
@@ -492,15 +487,13 @@ describe("DanmakuDashboard", () => {
       render(<DanmakuDashboard />);
       await screen.findByText(/辣条p1/);
 
-      // 首屏：混排栏各类型独立加载
-      const singleGiftCalls = listLiveEvents.mock.calls.filter(
-        (c) => c[0].length === 1 && c[0][0] === "gift",
+      // 首屏：混排栏走合并请求（loadSectionMerged）
+      const mergedCalls = listLiveEvents.mock.calls.filter(
+        (c) => c[0].length === 2 && c[0].includes("gift") && c[0].includes("guard_buy"),
       );
-      const singleGuardCalls = listLiveEvents.mock.calls.filter(
-        (c) => c[0].length === 1 && c[0][0] === "guard_buy",
-      );
-      expect(singleGiftCalls).toHaveLength(1);
-      expect(singleGuardCalls).toHaveLength(1);
+      expect(mergedCalls).toHaveLength(1);
+      expect(mergedCalls[0][0]).toEqual(["gift", "guard_buy"]);
+      expect(mergedCalls[0][1]).toBe(1);
 
       // 混排 FeedSection 通过 data-testid 定位（混排栏 sections.length===1 无 aria-label）
       const mixedFeed = document.querySelector('[data-testid="gift_guard-merged-feed"]') as HTMLElement;
@@ -512,12 +505,13 @@ describe("DanmakuDashboard", () => {
         fireEvent.scroll(mixedFeed);
       });
       await waitFor(() => {
-        const mixedCalls = listLiveEvents.mock.calls.filter(
+        const scrollCalls = listLiveEvents.mock.calls.filter(
           (c) => c[0].length === 2 && c[0].includes("gift") && c[0].includes("guard_buy"),
         );
-        expect(mixedCalls).toHaveLength(1);
-        expect(mixedCalls[0][0]).toEqual(["gift", "guard_buy"]);
-        expect(mixedCalls[0][1]).toBe(2);
+        // 首屏1次 + 滚动1次 = 2次
+        expect(scrollCalls).toHaveLength(2);
+        expect(scrollCalls[1][0]).toEqual(["gift", "guard_buy"]);
+        expect(scrollCalls[1][1]).toBe(2);
       });
     });
 
@@ -530,17 +524,18 @@ describe("DanmakuDashboard", () => {
       const mixedFeed = document.querySelector('[data-testid="gift_guard-merged-feed"]') as HTMLElement;
       expect(mixedFeed).not.toBeNull();
 
-      // 首屏已加载 4 条（gift 2 + guard 2），mergedTotal=4，hasMore=false
+      // 首屏已加载 4 条（gift 2 + guard 2），mergedTotal=6，hasMore=true
       // 滚动到底部触发 loadMoreSectionMerged（page2 返回 2 条，total=6）
       await act(async () => {
         mixedFeed.scrollTop = 1400;
         fireEvent.scroll(mixedFeed);
       });
       await waitFor(() => {
-        const mixedCalls = listLiveEvents.mock.calls.filter(
+        const mergedCalls = listLiveEvents.mock.calls.filter(
           (c) => c[0].length === 2 && c[0].includes("gift") && c[0].includes("guard_buy"),
         );
-        expect(mixedCalls).toHaveLength(1);
+        // 首屏1次 + 滚动1次 = 2次
+        expect(mergedCalls).toHaveLength(2);
       });
       // page2 加载后：已加载 6 条（4+2），mergedTotal=6，hasMore=false
       // 再次滚动不应再发请求
@@ -570,10 +565,11 @@ describe("DanmakuDashboard", () => {
         fireEvent.scroll(mixedFeed);
       });
       await waitFor(() => {
-        const mixedCalls = listLiveEvents.mock.calls.filter(
+        const mergedCalls = listLiveEvents.mock.calls.filter(
           (c) => c[0].length === 2 && c[0].includes("gift") && c[0].includes("guard_buy"),
         );
-        expect(mixedCalls).toHaveLength(1);
+        // 首屏1次 + 滚动1次 = 2次
+        expect(mergedCalls).toHaveLength(2);
       });
       // 逐键断言：各单类型 totalsBySection 仍为首屏各自 total（未被合并 total 污染）
       // gift 首屏 total=2，guard_buy 首屏 total=2，SC total=1，danmaku total=1

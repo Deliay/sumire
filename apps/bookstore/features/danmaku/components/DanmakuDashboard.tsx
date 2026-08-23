@@ -347,31 +347,88 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
     [loadingMoreBySection, pagesBySection, totalsBySection, eventsBySection, addPill],
   );
 
-  // 历史首屏：栏位/类型变化时逐节检索
+  // 混排栏首屏合并请求：按栏合并多 type 一次请求，初始化 mergedTotal/mergedPage
+  const loadSectionMerged = useCallback(
+    async (col: ColumnConfig, generation: number) => {
+      const colId = col.id;
+      // 清除所有类型的已加载/错误态
+      for (const type of col.types) {
+        const key = sectionKey(colId, type);
+        setLoadedSections((prev) => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+        setSectionErrors((prev) => {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
+      }
+      const hasGift = col.types.includes("gift");
+      const capturedMinPrice = hasGift ? minPriceRef.current : undefined;
+      let status = 0;
+      let data: LiveEventsPage | ApiError | null = null;
+      try {
+        const res = await listLiveEvents(col.types, 1, PAGE_SIZE, hasGift ? capturedMinPrice : undefined);
+        status = res.status;
+        data = res.data;
+      } catch {
+        status = 0;
+        data = null;
+      }
+      if (generationRef.current !== generation) return;
+      if (hasGift && capturedMinPrice !== minPriceRef.current) return;
+      if (status === 200 && data && "items" in data) {
+        // 按类型分组写入各节
+        const byType = new Map<LiveEventType, LiveEvent[]>();
+        for (const event of data.items) {
+          const list = byType.get(event.type) ?? [];
+          list.push(event);
+          byType.set(event.type, list);
+        }
+        for (const type of col.types) {
+          const typeKey = sectionKey(colId, type);
+          const typeItems = byType.get(type) ?? [];
+          setEventsBySection((prev) => ({ ...prev, [typeKey]: dedupeById(typeItems) }));
+          setTotalsBySection((prev) => ({ ...prev, [typeKey]: typeItems.length }));
+          setPagesBySection((prev) => ({ ...prev, [typeKey]: 1 }));
+        }
+        // 混排栏独立状态
+        setMergedTotalByColumn((prev) => ({ ...prev, [colId]: data!.total }));
+        setMergedPageByColumn((prev) => ({ ...prev, [colId]: 1 }));
+        // 历史检索的 SC/上船事件加入胶囊
+        for (const event of data.items) {
+          if (isHoverable(event)) addPill(event);
+        }
+      } else {
+        // 错误态：所有类型记错误
+        for (const type of col.types) {
+          setSectionErrors((prev) => ({ ...prev, [sectionKey(colId, type)]: "检索失败" }));
+        }
+      }
+      // 标记所有类型已加载
+      for (const type of col.types) {
+        setLoadedSections((prev) => new Set(prev).add(sectionKey(colId, type)));
+      }
+    },
+    [addPill],
+  );
+
+  // 历史首屏：栏位/类型变化时逐节检索；mixed 栏走合并请求
   useEffect(() => {
     generationRef.current += 1;
     const generation = generationRef.current;
     for (const col of columns) {
-      for (const type of col.types) {
-        void loadSection(col, type, generation);
+      if (col.mode === "mixed") {
+        void loadSectionMerged(col, generation);
+      } else {
+        for (const type of col.types) {
+          void loadSection(col, type, generation);
+        }
       }
     }
-  }, [columns, loadSection]);
-
-  // 混排栏：所有类型加载完成后，合并 total 初始化 mergedTotalByColumn
-  useEffect(() => {
-    for (const col of columns) {
-      if (col.mode !== "mixed") continue;
-      const allLoaded = col.types.every((type) => loadedSections.has(sectionKey(col.id, type)));
-      if (!allLoaded) continue;
-      // 已初始化则跳过
-      if (mergedTotalByColumn[col.id] !== undefined) continue;
-      // 合并各类型的 total 作为混排栏 total
-      const total = col.types.reduce((sum, type) => sum + (totalsBySection[sectionKey(col.id, type)] ?? 0), 0);
-      setMergedTotalByColumn((prev) => ({ ...prev, [col.id]: total }));
-      setMergedPageByColumn((prev) => ({ ...prev, [col.id]: 1 }));
-    }
-  }, [columns, loadedSections, totalsBySection, mergedTotalByColumn]);
+  }, [columns, loadSection, loadSectionMerged]);
 
   // 实时流：类型为各栏并集 + online_rank_count（若提供 onOnlineCount），事件分发进所有包含该类型的栏
   const streamTypes = useMemo((): string[] => {
@@ -448,11 +505,13 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
         // 网络错误忽略
       }
       if (!data) return;
-      // 模拟SSE发布：逐条延迟调用handleStreamEvent
+      // 模拟SSE发布：逐条延迟调用handleStreamEvent；重置 occurredAt 为当前时刻使胶囊正常展示
+      const now = new Date().toISOString();
       for (const event of data.items) {
         const replayEvent: LiveEvent = {
           ...event,
           eventId: `${event.eventId}${suffix}`,
+          occurredAt: now,
         };
         handleStreamEvent(replayEvent);
         await new Promise((r) => setTimeout(r, 100));
@@ -688,12 +747,12 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
               mergeEnabled={mergeEnabled}
               freshIds={freshIds}
               hoverPills={
-                col.types.includes("super_chat") || col.types.includes("guard_buy")
+                col.types.includes("danmaku")
                   ? pills
                   : undefined
               }
               onLocate={
-                col.types.includes("super_chat") || col.types.includes("guard_buy")
+                col.types.includes("danmaku")
                   ? handleLocate
                   : undefined
               }

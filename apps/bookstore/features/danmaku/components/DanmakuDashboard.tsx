@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, forwardRef, useImperativeHandle } from "react";
 import { useSession } from "@/features/backdoor/session";
 import { atLeast } from "@/features/backdoor/roleAccess";
@@ -32,6 +33,8 @@ import {
 import { labelForType } from "../format";
 import { mergeEventsByTime } from "../merge";
 import { useLiveEventStream } from "../useLiveEventStream";
+import { isHoverable } from "../hoverTopBar";
+import { useHoverPills } from "../useHoverPills";
 import {
   LiveEventTypeSchema,
   type ColumnConfig,
@@ -40,6 +43,7 @@ import {
   type LiveEventType,
 } from "../types";
 import FeedColumn from "./FeedColumn";
+import type { FeedSectionHandle } from "./FeedSection";
 import GiftFilterControl from "./GiftFilterControl";
 
 /** 实时流到达即打「New」标记的事件类型（仅 SC / 上船）。 */
@@ -111,6 +115,22 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
       })),
     [storedColumns, tier],
   );
+
+  // 悬停胶囊：仅含 SC/上船的类型参与
+  const hoverTypes = useMemo(
+    () => columns.flatMap((c) => c.types).filter((t) => t === "super_chat" || t === "guard_buy"),
+    [columns],
+  );
+  const { pills, add: addPill } = useHoverPills(hoverTypes);
+
+  // FeedSection 引用：用于定位跳转
+  const feedSectionRefs = useRef<Map<string, React.RefObject<FeedSectionHandle | null>>>(new Map());
+  const getFeedSectionRef = useCallback((key: string) => {
+    if (!feedSectionRefs.current.has(key)) {
+      feedSectionRefs.current.set(key, { current: null });
+    }
+    return feedSectionRefs.current.get(key)!;
+  }, []);
   // 分节检索状态：key = `${colId}:${type}`，每种事件类型独立加载/分页/错误
   const [eventsBySection, setEventsBySection] = useState<Record<string, LiveEvent[]>>({});
   const [loadedSections, setLoadedSections] = useState<ReadonlySet<string>>(new Set());
@@ -319,8 +339,12 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
           return next;
         });
       }
+      // 可悬停事件加入胶囊栏
+      if (isHoverable(event)) {
+        addPill(event);
+      }
     },
-    [columns],
+    [columns, addPill],
   );
 
   const streamStatus = useLiveEventStream(streamTypes, handleStreamEvent, onOnlineCount);
@@ -440,6 +464,24 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
     [columns],
   );
 
+  // 按 eventId 定位：找到目标事件所在栏+类型的 FeedSection，调用其 locate 方法
+  const handleLocate = useCallback(
+    (eventId: string) => {
+      for (const col of columns) {
+        for (const type of col.types) {
+          const key = sectionKey(col.id, type);
+          const events = eventsBySection[key] ?? [];
+          if (events.some((e) => e.eventId === eventId)) {
+            const ref = getFeedSectionRef(key);
+            ref.current?.locate(eventId);
+            return;
+          }
+        }
+      }
+    },
+    [columns, eventsBySection, getFeedSectionRef],
+  );
+
   // 隐藏钢镚展示过滤：对所有含 SC 的节数据（split + mixed）过滤低价 SC
   // 仅在渲染层过滤，原始 eventsBySection 不变（供去重/分页使用）
   const visibleEventsBySection = useMemo(() => {
@@ -542,6 +584,23 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
               newIds={newIds}
               mergeEnabled={mergeEnabled}
               freshIds={freshIds}
+              hoverPills={
+                col.types.includes("super_chat") || col.types.includes("guard_buy")
+                  ? pills
+                  : undefined
+              }
+              onLocate={
+                col.types.includes("super_chat") || col.types.includes("guard_buy")
+                  ? handleLocate
+                  : undefined
+              }
+              sectionRefs={(() => {
+                const map = new Map<string, React.RefObject<FeedSectionHandle | null>>();
+                for (const type of col.types) {
+                  map.set(type, getFeedSectionRef(sectionKey(col.id, type)));
+                }
+                return map;
+              })()}
               headerExtra={
                 <div className="flex items-center gap-2">
                   {streamStatus === "connecting" && (

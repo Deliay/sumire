@@ -33,7 +33,7 @@ export default function DashboardLayout({
       />
       <div className="flex flex-1 flex-col lg:flex-row">
         <SideNav role={session.me.role} />
-        <main className="flex-1 px-5 py-8 lg:px-8">{children}</main>
+        <main className="flex-1 px-5 py-8 lg:px-8 lg:overflow-x-hidden">{children}</main>
       </div>
     </div>
   );

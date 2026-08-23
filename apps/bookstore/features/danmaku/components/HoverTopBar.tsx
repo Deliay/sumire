@@ -43,8 +43,7 @@ function ScPill({ event, onLocate }: { event: LiveEvent; onLocate: (eventId: str
   return (
     <button
       type="button"
-      role="button"
-      aria-label={`定位醒目留言 ${event.sender.name}`}
+      aria-label={`查看醒目留言 ${event.sender.name} 的详情`}
       onClick={() => onLocate(event.eventId)}
       className="flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-150 hover:brightness-110"
       style={
@@ -56,7 +55,7 @@ function ScPill({ event, onLocate }: { event: LiveEvent; onLocate: (eventId: str
           : undefined
       }
     >
-      <Sender sender={event.sender} compact variant="avatar-name" />
+      <Sender sender={event.sender} compact variant="avatar" />
       <span>醒目留言</span>
       {event.price !== undefined && <span>{formatPrice(event.price)}</span>}
     </button>
@@ -71,12 +70,11 @@ function GuardPill({ event, onLocate }: { event: LiveEvent; onLocate: (eventId: 
   return (
     <button
       type="button"
-      role="button"
-      aria-label={`定位上船 ${guardLevelName(level) ?? guard?.name ?? "上船"} ${event.sender.name}`}
+      aria-label={`查看上船 ${guardLevelName(level) ?? guard?.name ?? "上船"} ${event.sender.name} 的详情`}
       onClick={() => onLocate(event.eventId)}
       className={`flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-150 hover:brightness-110 ${tone.chip} ${tone.text}`}
     >
-      <Sender sender={event.sender} compact variant="avatar-name" guardLevel={level} />
+      <Sender sender={event.sender} compact variant="avatar" guardLevel={level} /> {guardLevelName(level)}
     </button>
   );
 }

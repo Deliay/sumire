@@ -150,5 +150,40 @@ describe("Sender 公共组件", () => {
       expect(screen.queryByText(/堇色信笺/)).toBeNull();
       expect(screen.queryByText("舰长")).toBeNull();
     });
+
+    it("variant='avatar' 仅展示头像，隐藏昵称/罗马音/牌子/船型标签/挂件", () => {
+      const { container } = render(<Sender sender={FULL_SENDER} variant="avatar" />);
+      // 头像存在
+      const img = container.querySelector("img");
+      expect(img?.getAttribute("src")).toBe(FULL_SENDER.face);
+      // 隐藏昵称
+      expect(screen.queryByText("测试用户")).toBeNull();
+      // 隐藏罗马音
+      expect(screen.queryByText("tesuto")).toBeNull();
+      // 隐藏牌子
+      expect(screen.queryByText(/堇色信笺/)).toBeNull();
+      // 隐藏船型标签
+      expect(screen.queryByText("舰长")).toBeNull();
+      // 隐藏挂件
+      expect(document.querySelector('[src*="guard-badge"]')).toBeNull();
+    });
+
+    it("variant='avatar' 无头像时渲染兜底首字，不渲染昵称", () => {
+      const noFaceSender = { ...FULL_SENDER, face: null };
+      const { container } = render(<Sender sender={noFaceSender} variant="avatar" />);
+      expect(container.querySelector("img")).toBeNull();
+      expect(screen.getByText("测")).toBeTruthy();
+      expect(screen.queryByText("测试用户")).toBeNull();
+    });
+
+    it("variant='avatar' 无牌子的用户也正常渲染", () => {
+      const noMedalSender = { ...FULL_SENDER, medal: null, guardLevel: null };
+      const { container } = render(<Sender sender={noMedalSender} variant="avatar" />);
+      const img = container.querySelector("img");
+      expect(img?.getAttribute("src")).toBe(FULL_SENDER.face);
+      expect(screen.queryByText("测试用户")).toBeNull();
+      expect(screen.queryByText(/堇色信笺/)).toBeNull();
+      expect(screen.queryByText("舰长")).toBeNull();
+    });
   });
 });

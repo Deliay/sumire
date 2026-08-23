@@ -85,15 +85,16 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 
 ### 组件
 
-- `Sender.tsx`：公共发送者组件支持 `variant` 属性——`"full"`（默认）：头像+昵称+粉丝牌+船型标签；`"avatar-name"`：仅头像+昵称，适用于悬停胶囊等紧凑场景。
-- `HoverTopBar.tsx`：悬停胶囊栏组件——`{ pills: HoverPill[]; onLocate: (eventId: string) => void }` 入参；`pills.length === 0` 返回 null（不占位）；容器 `h-12`（48px）铺满、`flex items-center gap-2 overflow-x-auto px-3 py-1.5`；SC 胶囊用 `scColors` 渐变底色 + 字体色，内容 Sender variant="avatar-name" compact + 「醒目留言」+ `formatPrice`；上船胶囊用 `guardLevelTone(level)` 的 chip/text token + Sender variant="avatar-name" compact；每个胶囊 `role="button"` + `aria-label` + `cursor-pointer` + `transition-colors duration-150`，点击触发 `onLocate(pill.eventId)`。
+- `Sender.tsx`：公共发送者组件支持 `variant` 属性——`"full"`（默认）：头像+昵称+粉丝牌+船型标签；`"avatar-name"`：仅头像+昵称；`"avatar"`：仅头像，适用于悬停胶囊等紧凑场景。
+- `HoverTopBar.tsx`：悬停胶囊栏组件——`{ pills: HoverPill[]; onLocate: (eventId: string) => void }` 入参；`pills.length === 0` 返回 null（不占位）；容器 `h-12`（48px）铺满、`flex items-center gap-2 overflow-x-auto px-3 py-1.5`；SC 胶囊用 `scColors` 渐变底色 + 字体色，内容 Sender variant="avatar" compact + 「醒目留言」+ `formatPrice`；上船胶囊用 `guardLevelTone(level)` 的 chip/text token + Sender variant="avatar" compact + `guardLevelName(level)` 文本；每个胶囊 `role="button"` + `aria-label` + `cursor-pointer` + `transition-colors duration-150`，点击触发 `onLocate(pill.eventId)` 弹出 GiftCardDialog 浮层。
+- `GiftCardDialog.tsx`：礼物卡片浮层组件——模态对话框，居中展示，半透明遮罩背景，圆角边框，阴影效果；展示发送者头像、昵称、粉丝牌、事件类型（SC/上船）、金额/价格、留言内容（如有）、发生时间等完整信息；SC 卡片使用 `scColors` 渐变配色，上船卡片使用 `guardLevelTone` 船型强调色；可通过点击关闭按钮、点击遮罩层或按 Esc 键关闭。
 
-### FeedSection 定位与闪光
+### GiftCardDialog 浮层
 
-- `FeedSection` 通过 `forwardRef` + `useImperativeHandle` 暴露 `locate(eventId)` 方法。
-- `FeedSectionHandle` 接口：`{ locate: (eventId: string) => void }`。
-- 定位逻辑：命中已加载目标时 `virtualizer.scrollToIndex(index, { align: "center" })` 并加入 `flashIds`；未命中时设置 `locateTargetRef`，触发 `onLoadMore` 逐步加载，events 变化后重试定位（`useEffect` 依赖 `rows`），直到命中或 `hasMore=false` 停止（最多重试 50 次防无限循环）。
-- 闪光逻辑：`flashIds` state + 单计时器（约 1s）自动清除；虚拟行内层挂 `animate-danmaku-flash`（1s 背景闪光，尊重 `prefers-reduced-motion`）。
+- `GiftCardDialog` 为模态对话框组件，点击胶囊后弹出展示事件详情卡片。
+- 卡片内容：发送者头像、昵称、粉丝牌、事件类型（SC/上船）、金额/价格、留言内容（如有）、发生时间等完整信息。
+- SC 卡片使用 `scColors` 渐变配色，上船卡片使用 `guardLevelTone` 船型强调色。
+- 交互：可通过点击关闭按钮、点击遮罩层或按 Esc 键关闭；打开时阻止背景滚动；关闭后焦点回到触发胶囊（无障碍访问）。
 
 ### DanmakuDashboard 接线
 
@@ -102,5 +103,5 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 - 历史检索入胶囊：`loadSection` 和 `loadMoreSection`/`loadMoreSectionMerged` 在成功加载后，遍历返回的 `items`，对 `isHoverable(event)` 的事件调用 `addPill(event)`。
 - 混排栏合并请求：`loadMoreSectionMerged(col)` 按栏合并多 type 一次请求（`listLiveEvents(col.types, page, size)`），避免逐类多次请求；单类型栏仍用 `loadMoreSection(col, type)` 逐 type 请求。
 - 混排栏分页口径：`mergedTotalByColumn`/`mergedPageByColumn` 独立存储混排栏的 total 和页码，不污染单类型的 `totalsBySection`/`pagesBySection`；hasMore 用「合并已加载条数 < 合并 total」判定；首屏加载完成后通过 `useEffect` 初始化 `mergedTotalByColumn`（各类型 total 之和）。
-- `handleLocate(eventId)`：优先在 `eventsBySection` 中查找目标所在的节并调用 `FeedSection.locate`；未命中时根据 `eventId` 前缀推断类型（`sc:` → `super_chat`，`guard:` → `guard_buy`），调用第一个包含该类型的 `FeedSection.locate`，让 FeedSection 通过 `onLoadMore` 逐步加载并定位。
+- `handleLocate(eventId)`：根据 `eventId` 在 `eventsBySection` 中查找目标事件，找到后触发 `GiftCardDialog` 打开并传入事件数据。
 - `FeedColumn` 接收 `hoverPills`、`onLocate`、`sectionRefs` props，悬停胶囊栏挂载于栏头与 `sections.map` 之间。

@@ -12,7 +12,7 @@ interface SenderProps {
    * - "full"（默认）：头像 + 昵称 + 粉丝牌 + 船型标签，适用于条目组件
    * - "avatar-name"：仅头像 + 昵称，适用于悬停胶囊等紧凑场景
    */
-  variant?: "full" | "avatar-name";
+  variant?: "full" | "avatar-name" | "avatar";
   /**
    * 头像挂件等级覆盖（guard_buy 条目用：事件携带的船型等级，如 buyer 的 sender.guardLevel 缺省时，
    * 仍按所购船型在头像上渲染挂件）；传 undefined 时回退 sender.guardLevel。
@@ -29,6 +29,7 @@ export default function Sender({ sender, compact = false, variant = "full", guar
   const badgeLevel = guardLevel !== undefined ? guardLevel : sender.guardLevel;
   const badge = badgeLevel != null ? guardBadgeAsset(badgeLevel) : null;
   const showExtras = variant === "full";
+  const showName = variant !== "avatar";
   return (
     <span className="flex min-w-0 items-center gap-2">
       <a
@@ -77,24 +78,26 @@ export default function Sender({ sender, compact = false, variant = "full", guar
           )}
 
         </span>
-        <span className="flex min-w-0 flex-col justify-center">
-          <span
-            className={`truncate ${
-              compact ? "text-xs text-ink-dim" : "text-sm font-medium text-ink"
-            }`}
-          >
-            {sender.name}
-          </span>
-          {showExtras && sender.nameRomaji && (
+        {showName && (
+          <span className="flex min-w-0 flex-col justify-center">
             <span
-              className={`truncate text-ink-dim ${
-                compact ? "text-[10px]" : "text-xs"
+              className={`truncate ${
+                compact ? "text-xs text-ink-dim" : "text-sm font-medium text-ink"
               }`}
             >
-              {sender.nameRomaji}
+              {sender.name}
             </span>
-          )}
-        </span>
+            {showExtras && sender.nameRomaji && (
+              <span
+                className={`truncate text-ink-dim ${
+                  compact ? "text-[10px]" : "text-xs"
+                }`}
+              >
+                {sender.nameRomaji}
+              </span>
+            )}
+          </span>
+        )}
       </a>
       {showExtras && sender.medal && (
         <span

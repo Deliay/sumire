@@ -16,8 +16,11 @@ function makeEvent(overrides: Partial<LiveEvent> & { type: LiveEvent["type"] }):
   };
 }
 
+const FIXED_TIME = new Date("2026-01-01T00:00:00Z").getTime();
+
 beforeEach(() => {
   vi.useFakeTimers();
+  vi.setSystemTime(FIXED_TIME);
 });
 
 afterEach(() => {

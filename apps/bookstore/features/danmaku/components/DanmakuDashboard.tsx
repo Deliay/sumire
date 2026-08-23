@@ -228,15 +228,81 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
         setEventsBySection((prev) => ({ ...prev, [key]: dedupeById(data!.items) }));
         setTotalsBySection((prev) => ({ ...prev, [key]: data!.total }));
         setPagesBySection((prev) => ({ ...prev, [key]: 1 }));
+        // 历史检索的 SC/上船事件加入胶囊
+        for (const event of data.items) {
+          if (isHoverable(event)) addPill(event);
+        }
       } else {
         setSectionErrors((prev) => ({ ...prev, [key]: "检索失败" }));
       }
       setLoadedSections((prev) => new Set(prev).add(key));
     },
-    [],
+    [addPill],
   );
 
-  // 滚动加载下一页历史：append 去重，更新页数与 total。
+  // 混排栏合并请求：按栏合并多 type 一次请求
+  const loadMoreSectionMerged = useCallback(
+    async (col: ColumnConfig) => {
+      const key = sectionKey(col.id, "merged");
+      if (loadingMoreBySection[key]) return;
+      // 取所有类型的最小页码作为合并页码
+      const currentPage = Math.max(...col.types.map((type) => pagesBySection[sectionKey(col.id, type)] ?? 1));
+      // 合并 total：取各类型 total 之和
+      const total = col.types.reduce((sum, type) => sum + (totalsBySection[sectionKey(col.id, type)] ?? 0), 0);
+      // 合并已加载条数
+      const currentCount = col.types.reduce((sum, type) => sum + (eventsBySection[sectionKey(col.id, type)]?.length ?? 0), 0);
+      // 已加载条数不低于合并 total 视为没有更多
+      if (total > 0 && currentCount >= total) return;
+      setLoadingMoreBySection((prev) => ({ ...prev, [key]: true }));
+      // 该栏可能包含礼物类型，检查阈值
+      const hasGift = col.types.includes("gift");
+      const capturedMinPrice = hasGift ? minPriceRef.current : undefined;
+      let status = 0;
+      let data: LiveEventsPage | ApiError | null = null;
+      try {
+        const res = await listLiveEvents(col.types, currentPage + 1, PAGE_SIZE, hasGift ? capturedMinPrice : undefined);
+        status = res.status;
+        data = res.data;
+      } catch {
+        status = 0;
+        data = null;
+      }
+      // 礼物响应：阈值变化则丢弃
+      if (hasGift && capturedMinPrice !== minPriceRef.current) {
+        setLoadingMoreBySection((prev) => ({ ...prev, [key]: false }));
+        return;
+      }
+      if (status === 200 && data && "items" in data) {
+        // 按类型分组写入各节
+        const byType = new Map<LiveEventType, LiveEvent[]>();
+        for (const event of data.items) {
+          const list = byType.get(event.type) ?? [];
+          list.push(event);
+          byType.set(event.type, list);
+        }
+        for (const type of col.types) {
+          const typeKey = sectionKey(col.id, type);
+          const typeItems = byType.get(type) ?? [];
+          if (typeItems.length > 0) {
+            setEventsBySection((prev) => ({
+              ...prev,
+              [typeKey]: dedupeById([...(prev[typeKey] ?? []), ...typeItems]),
+            }));
+          }
+          setTotalsBySection((prev) => ({ ...prev, [typeKey]: data!.total }));
+          setPagesBySection((prev) => ({ ...prev, [typeKey]: currentPage + 1 }));
+        }
+        // 历史检索的 SC/上船事件加入胶囊
+        for (const event of data.items) {
+          if (isHoverable(event)) addPill(event);
+        }
+      }
+      setLoadingMoreBySection((prev) => ({ ...prev, [key]: false }));
+    },
+    [loadingMoreBySection, pagesBySection, totalsBySection, eventsBySection, addPill],
+  );
+
+  // 单类型栏滚动加载
   const loadMoreSection = useCallback(
     async (col: ColumnConfig, type: LiveEventType) => {
       const key = sectionKey(col.id, type);
@@ -273,10 +339,14 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
         }));
         setTotalsBySection((prev) => ({ ...prev, [key]: data!.total }));
         setPagesBySection((prev) => ({ ...prev, [key]: currentPage + 1 }));
+        // 历史检索的 SC/上船事件加入胶囊
+        for (const event of data.items) {
+          if (isHoverable(event)) addPill(event);
+        }
       }
       setLoadingMoreBySection((prev) => ({ ...prev, [key]: false }));
     },
-    [loadingMoreBySection, pagesBySection, totalsBySection, eventsBySection],
+    [loadingMoreBySection, pagesBySection, totalsBySection, eventsBySection, addPill],
   );
 
   // 历史首屏：栏位/类型变化时逐节检索
@@ -567,7 +637,7 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
                           void loadSection(col, type, generationRef.current);
                         }
                       }),
-                    onLoadMore: () => col.types.forEach((type) => void loadMoreSection(col, type)),
+                    onLoadMore: () => void loadMoreSectionMerged(col),
                     hasMore: keys.some(
                       (k) => (totalsBySection[k] ?? 0) > (eventsBySection[k]?.length ?? 0),
                     ),

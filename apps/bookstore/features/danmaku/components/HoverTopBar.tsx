@@ -56,7 +56,7 @@ function ScPill({ event, onLocate }: { event: LiveEvent; onLocate: (eventId: str
           : undefined
       }
     >
-      <Sender sender={event.sender} compact />
+      <Sender sender={event.sender} compact variant="avatar-name" />
       <span>醒目留言</span>
       {event.price !== undefined && <span>{formatPrice(event.price)}</span>}
     </button>
@@ -67,18 +67,16 @@ function GuardPill({ event, onLocate }: { event: LiveEvent; onLocate: (eventId: 
   const guard = event.guard;
   const level = guard?.level ?? event.sender.guardLevel ?? 2;
   const tone = guardLevelTone(level);
-  const shipName = guardLevelName(level) ?? guard?.name ?? "上船";
 
   return (
     <button
       type="button"
       role="button"
-      aria-label={`定位上船 ${shipName} ${event.sender.name}`}
+      aria-label={`定位上船 ${guardLevelName(level) ?? guard?.name ?? "上船"} ${event.sender.name}`}
       onClick={() => onLocate(event.eventId)}
       className={`flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-150 hover:brightness-110 ${tone.chip} ${tone.text}`}
     >
-      <Sender sender={event.sender} compact guardLevel={level} />
-      <span>{shipName}</span>
+      <Sender sender={event.sender} compact variant="avatar-name" guardLevel={level} />
     </button>
   );
 }

@@ -15,16 +15,22 @@ export function useHoverPills(types: readonly LiveEventType[]) {
     if (!isHoverable(event)) return;
     if (!typesRef.current.includes(event.type)) return;
 
+    // 从事件发生时间起算剩余悬停时长
     const now = Date.now();
     const duration = hoverDuration(event);
+    const occurredAtMs = new Date(event.occurredAt).getTime();
+
     const pill: HoverPill = {
       eventId: event.eventId,
       kind: pillKind(event),
       price: pillPrice(event),
-      arrivedAt: now,
-      expiresAt: now + duration * 1000,
+      arrivedAt: occurredAtMs,
+      expiresAt: occurredAtMs + duration * 1000,
       event,
     };
+
+    // 如果已过期则不加入
+    if (pill.expiresAt <= now) return;
 
     setPills((prev) => {
       const filtered = prev.filter((p) => p.eventId !== pill.eventId);

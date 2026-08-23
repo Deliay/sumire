@@ -688,7 +688,7 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
         className={
           isFullscreen
             ? `flex min-h-0 flex-1 ${columns.length > 1 ? "flex-row" : "flex-col"}`
-            : `flex h-[calc(100svh-16rem)] gap-4 ${columns.length > 1 ? "flex-row" : "flex-col"}`
+            : `flex h-[calc(100svh-13rem)] gap-4 ${columns.length > 1 ? "flex-row" : "flex-col"}`
         }
       >
         {columns.map((col) => {

@@ -56,7 +56,7 @@ function ScPill({ event, onLocate }: { event: LiveEvent; onLocate: (eventId: str
           : undefined
       }
     >
-      <Sender sender={event.sender} compact variant="avatar-name" />
+      <Sender sender={event.sender} compact variant="avatar" />
       <span>醒目留言</span>
       {event.price !== undefined && <span>{formatPrice(event.price)}</span>}
     </button>
@@ -76,7 +76,7 @@ function GuardPill({ event, onLocate }: { event: LiveEvent; onLocate: (eventId: 
       onClick={() => onLocate(event.eventId)}
       className={`flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-150 hover:brightness-110 ${tone.chip} ${tone.text}`}
     >
-      <Sender sender={event.sender} compact variant="avatar-name" guardLevel={level} />
+      <Sender sender={event.sender} compact variant="avatar" guardLevel={level} /> {guardLevelName(level)}
     </button>
   );
 }

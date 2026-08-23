@@ -85,7 +85,7 @@
 
 ### 胶囊展示
 
-- 用户信息：仅头像 + 昵称（Sender variant="avatar-name"），不显示粉丝团牌子、船型标签等非必要元素。
+- 用户信息：仅头像（Sender variant="avatar"），不显示昵称、粉丝团牌子、船型标签等非必要元素。
 - SC 胶囊：头像+昵称 + 「醒目留言」四字 + 金额（`formatPrice`）；底色用 `scColors.backgroundStart→End` 渐变、文字色用 `scColors.fontColor`；`scColors` 缺失时回退中性底色。
 - 上船胶囊：头像+昵称；船型强调色用 `guardLevelTone(level)`（舰长蓝/提督紫/总督红）。
 - 金额降序排列；金额相同则新事件优先（arrivedAt 降序）。

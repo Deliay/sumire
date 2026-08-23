@@ -85,8 +85,8 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 
 ### 组件
 
-- `Sender.tsx`：公共发送者组件支持 `variant` 属性——`"full"`（默认）：头像+昵称+粉丝牌+船型标签；`"avatar-name"`：仅头像+昵称，适用于悬停胶囊等紧凑场景。
-- `HoverTopBar.tsx`：悬停胶囊栏组件——`{ pills: HoverPill[]; onLocate: (eventId: string) => void }` 入参；`pills.length === 0` 返回 null（不占位）；容器 `h-12`（48px）铺满、`flex items-center gap-2 overflow-x-auto px-3 py-1.5`；SC 胶囊用 `scColors` 渐变底色 + 字体色，内容 Sender variant="avatar-name" compact + 「醒目留言」+ `formatPrice`；上船胶囊用 `guardLevelTone(level)` 的 chip/text token + Sender variant="avatar-name" compact；每个胶囊 `role="button"` + `aria-label` + `cursor-pointer` + `transition-colors duration-150`，点击触发 `onLocate(pill.eventId)`。
+- `Sender.tsx`：公共发送者组件支持 `variant` 属性——`"full"`（默认）：头像+昵称+粉丝牌+船型标签；`"avatar-name"`：仅头像+昵称；`"avatar"`：仅头像，适用于悬停胶囊等紧凑场景。
+- `HoverTopBar.tsx`：悬停胶囊栏组件——`{ pills: HoverPill[]; onLocate: (eventId: string) => void }` 入参；`pills.length === 0` 返回 null（不占位）；容器 `h-12`（48px）铺满、`flex items-center gap-2 overflow-x-auto px-3 py-1.5`；SC 胶囊用 `scColors` 渐变底色 + 字体色，内容 Sender variant="avatar" compact + 「醒目留言」+ `formatPrice`；上船胶囊用 `guardLevelTone(level)` 的 chip/text token + Sender variant="avatar" compact + `guardLevelName(level)` 文本；每个胶囊 `role="button"` + `aria-label` + `cursor-pointer` + `transition-colors duration-150`，点击触发 `onLocate(pill.eventId)`。
 
 ### FeedSection 定位与闪光
 

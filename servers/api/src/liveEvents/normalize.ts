@@ -30,6 +30,8 @@ export interface LiveEvent {
   emote?: { url: string; name?: string; width?: number; height?: number };
   price?: number;
   scColors?: { backgroundStart: string; backgroundEnd: string; fontColor: string };
+  /** SC 悬停时长（秒，仅 super_chat）；上游 SUPER_CHAT_MESSAGE payload.data.time，缺失时不携带，前端回退默认 60s */
+  time?: number;
   gift?: { name: string; count: number; iconUrl?: string };
   guard?: { level: number; name: string; count: number };
   read: boolean;
@@ -188,6 +190,7 @@ function normalizeSuperChat(payload: Record<string, unknown>, occurredAt: string
   const bgStart = asString(data.background_color_start);
   const bgEnd = asString(data.background_color_end);
   const fontColor = asString(data.message_font_color);
+  const time = asNumber(data.time);
 
   return {
     eventId: `sc:${id}`,
@@ -199,6 +202,7 @@ function normalizeSuperChat(payload: Record<string, unknown>, occurredAt: string
     ...(bgStart && bgEnd && fontColor
       ? { scColors: { backgroundStart: bgStart, backgroundEnd: bgEnd, fontColor } }
       : {}),
+    ...(time !== undefined && time > 0 ? { time } : {}),
     read: false,
   };
 }

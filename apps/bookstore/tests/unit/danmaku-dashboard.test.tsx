@@ -442,4 +442,123 @@ describe("DanmakuDashboard", () => {
       expect(lastCall[3]).toBe(10);
     });
   });
+
+  describe("混排合并分页", () => {
+    const GIFT_P1 = [
+      makeEvent({ eventId: "gift:p1-1", type: "gift", price: 5, gift: { name: "辣条p1", count: 1 } }),
+      makeEvent({ eventId: "gift:p1-2", type: "gift", price: 10, gift: { name: "花束", count: 1 } }),
+    ];
+    const GUARD_P1 = [
+      makeEvent({ eventId: "guard:p1-1", type: "guard_buy", price: 138, guard: { level: 3, name: "舰长", count: 1 } }),
+      makeEvent({ eventId: "guard:p1-2", type: "guard_buy", price: 138, guard: { level: 3, name: "舰长", count: 1 } }),
+    ];
+    const GIFT_P2 = [
+      makeEvent({ eventId: "gift:p2-1", type: "gift", price: 20, gift: { name: "打call", count: 1 } }),
+    ];
+    const GUARD_P2 = [
+      makeEvent({ eventId: "guard:p2-1", type: "guard_buy", price: 138, guard: { level: 3, name: "舰长", count: 1 } }),
+    ];
+
+    function mockMixedPaging() {
+      // 首屏：各类型独立加载（loadSection 按类型逐个调用）
+      // 混排栏滚动加载：合并请求（loadMoreSectionMerged）
+      listLiveEvents.mockImplementation(async (types: string[], page = 1) => {
+        // 混排栏合并请求：["gift","guard_buy"]（滚动加载 page2）
+        if (types.length === 2 && types.includes("gift") && types.includes("guard_buy")) {
+          return {
+            status: 200,
+            data: { total: 6, page, pageSize: 50, items: [...GIFT_P2, ...GUARD_P2] },
+          };
+        }
+        // 单类型首屏请求（loadSection）
+        if (types.length === 1 && types[0] === "gift" && page === 1) {
+          return { status: 200, data: { total: 2, page: 1, pageSize: 50, items: GIFT_P1 } };
+        }
+        if (types.length === 1 && types[0] === "guard_buy" && page === 1) {
+          return { status: 200, data: { total: 2, page: 1, pageSize: 50, items: GUARD_P1 } };
+        }
+        if (types.length === 1 && types[0] === "super_chat") {
+          return { status: 200, data: { total: 1, page, pageSize: 50, items: [SC_EVENT] } };
+        }
+        if (types.length === 1 && types[0] === "danmaku") {
+          return { status: 200, data: { total: 1, page, pageSize: 50, items: [DM_EVENT] } };
+        }
+        return { status: 200, data: { total: 0, page, pageSize: 50, items: [] } };
+      });
+    }
+
+    it("混排栏滚动加载以 listLiveEvents([gift,guard_buy], page, size) 合并调用", async () => {
+      mockMixedPaging();
+      const { container } = render(<DanmakuDashboard />);
+      await screen.findByText(/辣条p1/);
+
+      // 首屏：混排栏各类型独立加载
+      const singleGiftCalls = listLiveEvents.mock.calls.filter(
+        (c) => c[0].length === 1 && c[0][0] === "gift",
+      );
+      const singleGuardCalls = listLiveEvents.mock.calls.filter(
+        (c) => c[0].length === 1 && c[0][0] === "guard_buy",
+      );
+      expect(singleGiftCalls).toHaveLength(1);
+      expect(singleGuardCalls).toHaveLength(1);
+
+      // 滚动到底部触发 loadMoreSectionMerged
+      const mixedFeed = container.querySelector('[aria-label="礼物 + 上船信息流"]') as HTMLElement;
+      if (mixedFeed) {
+        await act(async () => {
+          mixedFeed.scrollTop = 1400;
+          fireEvent.scroll(mixedFeed);
+        });
+        await waitFor(() => {
+          const mixedCalls = listLiveEvents.mock.calls.filter(
+            (c) => c[0].length === 2 && c[0].includes("gift") && c[0].includes("guard_buy"),
+          );
+          expect(mixedCalls).toHaveLength(1);
+          expect(mixedCalls[0][0]).toEqual(["gift", "guard_buy"]);
+          expect(mixedCalls[0][1]).toBe(1);
+        });
+      }
+    });
+
+    it("混排栏 hasMore 随数据耗尽变为 false", async () => {
+      mockMixedPaging();
+      const { container } = render(<DanmakuDashboard />);
+      await screen.findByText(/辣条p1/);
+
+      // 首屏已加载 4 条（gift 2 + guard 2），mergedTotal=6，hasMore=true
+      // 滚动到底部触发 loadMoreSectionMerged（page2 返回 2 条，total=6）
+      const mixedFeed = container.querySelector('[aria-label="礼物 + 上船信息流"]') as HTMLElement;
+      if (mixedFeed) {
+        await act(async () => {
+          mixedFeed.scrollTop = 1400;
+          fireEvent.scroll(mixedFeed);
+        });
+        await waitFor(() => {
+          const mixedCalls = listLiveEvents.mock.calls.filter(
+            (c) => c[0].length === 2 && c[0].includes("gift") && c[0].includes("guard_buy"),
+          );
+          expect(mixedCalls.length).toBeGreaterThanOrEqual(1);
+        });
+        // page2 加载后：已加载 6 条（4+2），mergedTotal=6，hasMore=false
+        // 再次滚动不应再发请求
+        const callsBefore = listLiveEvents.mock.calls.length;
+        await act(async () => {
+          mixedFeed.scrollTop = 1400;
+          fireEvent.scroll(mixedFeed);
+        });
+        await vi.waitFor(() => {}, { timeout: 200 });
+        expect(listLiveEvents.mock.calls.length).toBe(callsBefore);
+      }
+    });
+
+    it("混排 total 不污染单类型 totalsBySection", async () => {
+      mockMixedPaging();
+      render(<DanmakuDashboard />);
+      await screen.findByText(/辣条p1/);
+
+      // SC 栏正常渲染（独立不受混排 total 影响）
+      expect(screen.getByText("醒目留言一")).toBeTruthy();
+      expect(screen.getByText("弹幕一")).toBeTruthy();
+    });
+  });
 });

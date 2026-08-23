@@ -160,6 +160,26 @@ describe("DanmakuDashboard", () => {
     expect(container.querySelectorAll(".text-xs.font-medium.text-ink-dim")).toHaveLength(0);
   });
 
+  it("悬停胶囊栏仅在含 SC/上船类型的栏渲染，纯弹幕栏不渲染", async () => {
+    // 冻结时间使胶囊未过期（事件 occurredAt = 2026-08-16T12:00:00.000Z）
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-08-16T12:00:05.000Z"));
+    render(<DanmakuDashboard />);
+    await screen.findByText("醒目留言一");
+
+    // 含 SC/上船的栏应渲染悬停胶囊栏（role="toolbar"）
+    const toolbars = screen.getAllByRole("toolbar", { name: "悬停事件胶囊" });
+    expect(toolbars.length).toBeGreaterThanOrEqual(1);
+
+    // 纯弹幕栏（title="弹幕"）的 section 内不应有悬停胶囊栏
+    const danmakuHeading = screen.getByRole("heading", { name: "弹幕" });
+    const danmakuSection = danmakuHeading.closest("section") as HTMLElement;
+    expect(danmakuSection).not.toBeNull();
+    expect(danmakuSection.querySelector('[role="toolbar"]')).toBeNull();
+
+    vi.useRealTimers();
+  });
+
   it("配置面板切换混排/分栏：渲染小节并持久化 mode", async () => {
     const { container } = render(<DanmakuDashboard />);
     await screen.findByText("醒目留言一");

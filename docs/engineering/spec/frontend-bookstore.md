@@ -39,6 +39,8 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 - `dateUtils.ts`：一律本地时区构造 Date，禁止 `new Date("YYYY-MM-DD")`（UTC 解析陷阱）；`parseTimeStr` 容错 "9:5"→"09:05"。
 - 首页 `WeeklySchedule`（features/home）：客户端组件，本周一~周日 `listPlans(from,to)`，仅计划不合并历史。
 - 周表图（`weeklyImage/`）：`WeeklyImageDialog` 打开时一次性拉全量计划，`weekUtils.ts` 自实现 ISO-8601 周算法；`layout.ts` 同日多场「 / 」拼单行、40px shrink-to-fit 至 22px 截断加「…」、行坐标常量与 `public/assets/original/AGENTS.md` 一致；`renderer.ts` Canvas 2× 离屏超采样（3330×2160）+ `imageSmoothingQuality: "high"` 缩回 1665×1080 输出 PNG dataURL。
+- 周表图片自定义（`scheme.ts`/`storage.ts`）：`DefaultScheme`/`WeekScheme` 类型 + Zod schema（全局对齐/字号/颜色 + 7 天 `DaySettings`）；`createDefaultScheme()` 默认左对齐 40px #b4a6bf；`resolveEffectiveScheme(week, store)` 按周取方案、Zod 非法回退默认；`buildDaySchedulesText`/`resolveDayText` 变量求值；`ensureWeekScheme` 深拷贝附周归属。`storage.ts` localStorage 读写 + 内存 Map 兜底（隐私模式），`loadDefault`/`saveDefault`/`loadWeek`/`saveWeek`/`deleteWeek`/`hasWeek`。
+- `WeeklyImageDialog` 扩展：状态 `scheme`/`editingDefault`，打开时按当前周加载有效方案；切换编辑默认方案模式时切换 scheme 来源；全局设置（对齐三选、字号 16-60、颜色色板+文本）+ 按天设置（七天折叠面板，每项内容模板 + 插入 `{schedules}` 按钮 + 覆盖对齐/字号/颜色）；任一变更自动保存（非编辑默认模式时 `ensureWeekScheme` + `saveWeek`，编辑默认模式时 `saveDefault`）；`useEffect` 依赖 `scheme` 引用变化驱动重绘。
 - 输入框 `autoComplete="off"`：DatePicker/TimePicker 关闭浏览器自动填充联想。
 
 ## 弹幕前端（features/danmaku）

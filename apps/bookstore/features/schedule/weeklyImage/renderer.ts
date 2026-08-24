@@ -7,7 +7,6 @@ export const CANVAS_WIDTH = 1665;
 export const CANVAS_HEIGHT = 1080;
 export const TEXT_COLOR = "#342a40";
 export const FONT_STACK = '"Noto Serif SC", serif';
-const FONT_SPEC = `600 40px ${FONT_STACK}`;
 
 /**
  * 根据对齐方式计算文本绘制的 x 坐标。
@@ -44,9 +43,13 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 /** 等待周表字体就绪；失败则降级为已加载 serif 族并告警。 */
-async function ensureFont(): Promise<void> {
+async function ensureFont(fontSizes: number[]): Promise<void> {
   try {
-    await document.fonts.load(FONT_SPEC);
+    // 预加载所有需要的字号
+    const uniqueSizes = [...new Set(fontSizes)];
+    await Promise.all(
+      uniqueSizes.map((size) => document.fonts.load(`600 ${size}px ${FONT_STACK}`))
+    );
   } catch {
     console.warn("周表字体加载失败，降级为系统衬线字体");
   }
@@ -61,7 +64,8 @@ export async function renderWeekImage(
   baseImageUrl: string,
   instructions: DrawInstruction[],
 ): Promise<string> {
-  const [img] = await Promise.all([loadImage(baseImageUrl), ensureFont()]);
+  const fontSizes = instructions.map((ins) => ins.fontSize);
+  const [img] = await Promise.all([loadImage(baseImageUrl), ensureFont(fontSizes)]);
 
   // 离屏 canvas 2× 分辨率
   const offscreen = document.createElement("canvas");

@@ -12,10 +12,12 @@ import {
   type DefaultScheme,
   type WeekScheme,
   type TextAlign,
+  type DaySettings,
 } from "./scheme";
 import { loadDefault, saveDefault, loadWeek, saveWeek } from "./storage";
 
 const DEFAULT_BASE_IMAGE_URL = "/assets/original/weekly-schedules-raw.jpg";
+const WEEKDAY_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
 
 let measureCache: Measure | null = null;
 
@@ -57,6 +59,7 @@ export default function WeeklyImageDialog({
   const [retryNonce, setRetryNonce] = useState(0);
   const [editingDefault, setEditingDefault] = useState(false);
   const [scheme, setScheme] = useState<DefaultScheme | WeekScheme>(() => createDefaultScheme());
+  const [expandedDays, setExpandedDays] = useState<Set<number>>(new Set());
 
   // 打开时一次性拉全量计划（切换周不重发请求）
   useEffect(() => {
@@ -72,18 +75,20 @@ export default function WeeklyImageDialog({
     };
   }, [open]);
 
-  // 切周时重置 scheme
-  const prevWeekRef = useRef(week);
+  // 打开时加载当前周的有效方案
+  const prevWeekRef = useRef<string>("");
   useEffect(() => {
     if (!open) return;
-    if (prevWeekRef.current !== week) {
-      prevWeekRef.current = week;
+    const weekKey = `${week.year}-${week.week}`;
+    if (prevWeekRef.current !== weekKey) {
+      prevWeekRef.current = weekKey;
       const store = {
         getWeek: loadWeek,
         getDefault: loadDefault,
       };
       const effective = resolveEffectiveScheme(week, store);
       setScheme(effective);
+      setEditingDefault(false);
     }
   }, [open, week]);
 
@@ -110,6 +115,28 @@ export default function WeeklyImageDialog({
     };
   }, [open, week, plans, retryNonce, renderImage, baseImageUrl, scheme]);
 
+  // 切换编辑默认方案模式
+  const handleToggleEditingDefault = useCallback(() => {
+    setEditingDefault((prev) => {
+      const newEditing = !prev;
+      if (newEditing) {
+        // 进入编辑默认方案模式：加载默认方案
+        const defaultScheme = loadDefault();
+        setScheme(defaultScheme);
+      } else {
+        // 退出编辑默认方案模式：重新加载当前周的有效方案
+        const store = {
+          getWeek: loadWeek,
+          getDefault: loadDefault,
+        };
+        const effective = resolveEffectiveScheme(week, store);
+        setScheme(effective);
+      }
+      return newEditing;
+    });
+  }, [week]);
+
+  // 全局设置变更
   const handleGlobalChange = useCallback(
     (updates: Partial<DefaultScheme["global"]>) => {
       setScheme((prev) => {
@@ -117,26 +144,77 @@ export default function WeeklyImageDialog({
           ...prev,
           global: { ...prev.global, ...updates },
         };
-        if (!editingDefault) {
+        if (editingDefault) {
+          saveDefault(newScheme);
+          return newScheme;
+        } else {
           const weekScheme = ensureWeekScheme(newScheme, week);
           saveWeek(weekScheme);
           return weekScheme;
-        } else {
-          saveDefault(newScheme);
-          return newScheme;
         }
       });
     },
     [editingDefault, week]
   );
 
+  // 按天设置变更
+  const handleDayChange = useCallback(
+    (dayIndex: number, updates: Partial<DaySettings>) => {
+      setScheme((prev) => {
+        const newDays = [...prev.days];
+        newDays[dayIndex] = { ...newDays[dayIndex], ...updates };
+        const newScheme = {
+          ...prev,
+          days: newDays,
+        };
+        if (editingDefault) {
+          saveDefault(newScheme);
+          return newScheme;
+        } else {
+          const weekScheme = ensureWeekScheme(newScheme, week);
+          saveWeek(weekScheme);
+          return weekScheme;
+        }
+      });
+    },
+    [editingDefault, week]
+  );
 
+  // 切换展开/折叠某天
+  const toggleDayExpanded = useCallback((dayIndex: number) => {
+    setExpandedDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(dayIndex)) {
+        next.delete(dayIndex);
+      } else {
+        next.add(dayIndex);
+      }
+      return next;
+    });
+  }, []);
+
+  // 插入 {schedules} 变量
+  const insertScheduleVariable = useCallback((dayIndex: number) => {
+    setScheme((prev) => {
+      const day = prev.days[dayIndex];
+      const newContent = day.content.includes("{schedules}")
+        ? day.content
+        : day.content + "{schedules}";
+      const newDays = [...prev.days];
+      newDays[dayIndex] = { ...day, content: newContent };
+      const newScheme = {
+        ...prev,
+        days: newDays,
+      };
+      return newScheme;
+    });
+  }, []);
 
   if (!open) return null;
 
   const label = formatWeekLabel(week.year, week.week);
   const loading = dataUrl === "" && error === "";
-  const isDefaultScheme = !("week" in scheme);
+  const isDefaultScheme = editingDefault || !("week" in scheme);
 
   return (
     <div
@@ -148,7 +226,7 @@ export default function WeeklyImageDialog({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-2xl rounded-xl border border-vine/50 bg-raised p-6 shadow-xl">
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl border border-vine/50 bg-raised p-6 shadow-xl">
         <div className="flex items-center justify-between">
           <h2 id="weekly-image-title" className="font-serif text-xl font-semibold text-ink">
             生成周表图片
@@ -219,7 +297,7 @@ export default function WeeklyImageDialog({
               </span>
               <button
                 type="button"
-                onClick={() => setEditingDefault(!editingDefault)}
+                onClick={handleToggleEditingDefault}
                 className={`rounded-md px-3 py-1 text-xs transition-colors ${
                   editingDefault
                     ? "bg-flower text-white"
@@ -231,6 +309,7 @@ export default function WeeklyImageDialog({
             </div>
           </div>
 
+          {/* 全局设置 */}
           <div className="mt-3 space-y-3">
             <div className="flex items-center gap-4">
               <span className="text-sm text-ink-dim">对齐</span>
@@ -259,7 +338,14 @@ export default function WeeklyImageDialog({
                 min={16}
                 max={60}
                 value={scheme.global.fontSize}
-                onChange={(e) => handleGlobalChange({ fontSize: Number(e.target.value) })}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "") return;
+                  const num = Number(val);
+                  if (num >= 16 && num <= 60) {
+                    handleGlobalChange({ fontSize: num });
+                  }
+                }}
                 className="w-16 rounded border border-vine/50 px-2 py-1 text-sm text-ink"
               />
             </div>
@@ -279,6 +365,129 @@ export default function WeeklyImageDialog({
                 className="w-20 rounded border border-vine/50 px-2 py-1 text-sm text-ink"
               />
             </div>
+          </div>
+
+          {/* 按天设置 */}
+          <div className="mt-4 space-y-2">
+            <h3 className="text-sm font-medium text-ink">按天设置</h3>
+            {WEEKDAY_LABELS.map((label, dayIndex) => {
+              const day = scheme.days[dayIndex];
+              const isExpanded = expandedDays.has(dayIndex);
+              const hasOverrides = day.align !== undefined || day.fontSize !== undefined || day.color !== undefined;
+              
+              return (
+                <div key={dayIndex} className="rounded-md border border-vine/30 bg-night/50">
+                  <button
+                    type="button"
+                    onClick={() => toggleDayExpanded(dayIndex)}
+                    className="flex w-full items-center justify-between px-3 py-2 text-sm"
+                  >
+                    <span className="text-ink">
+                      {label}
+                      {hasOverrides && (
+                        <span className="ml-2 text-xs text-flower">(已自定义)</span>
+                      )}
+                    </span>
+                    <span className="text-ink-dim">{isExpanded ? "▲" : "▼"}</span>
+                  </button>
+                  
+                  {isExpanded && (
+                    <div className="border-t border-vine/20 px-3 py-3 space-y-3">
+                      {/* 内容编辑 */}
+                      <div>
+                        <label className="block text-xs text-ink-dim mb-1">内容模板</label>
+                        <div className="flex gap-2">
+                          <textarea
+                            value={day.content}
+                            onChange={(e) => handleDayChange(dayIndex, { content: e.target.value })}
+                            className="flex-1 rounded border border-vine/50 bg-raised px-2 py-1 text-sm text-ink resize-none"
+                            rows={2}
+                            placeholder="输入内容模板，使用 {schedules} 插入计划"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => insertScheduleVariable(dayIndex)}
+                            className="self-end rounded border border-vine/50 px-2 py-1 text-xs text-ink-dim hover:text-ink"
+                          >
+                            插入 {"{schedules}"}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 覆盖对齐 */}
+                      <div className="flex items-center gap-4">
+                        <span className="text-xs text-ink-dim">对齐覆盖</span>
+                        <div className="flex gap-1">
+                          {([undefined, "left", "center", "right"] as (TextAlign | undefined)[]).map((align) => (
+                            <button
+                              key={align ?? "default"}
+                              type="button"
+                              onClick={() => handleDayChange(dayIndex, { align })}
+                              className={`rounded px-2 py-1 text-xs transition-colors ${
+                                day.align === align
+                                  ? "bg-flower text-white"
+                                  : "border border-vine/50 text-ink-dim hover:text-ink"
+                              }`}
+                            >
+                              {align === undefined ? "沿用" : align === "left" ? "左" : align === "center" ? "居中" : "右"}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* 覆盖字号 */}
+                      <div className="flex items-center gap-4">
+                        <span className="text-xs text-ink-dim">字号覆盖</span>
+                        <input
+                          type="number"
+                          min={16}
+                          max={60}
+                          value={day.fontSize ?? ""}
+                          placeholder={String(scheme.global.fontSize)}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === "") {
+                              handleDayChange(dayIndex, { fontSize: undefined });
+                              return;
+                            }
+                            const num = Number(val);
+                            if (num >= 16 && num <= 60) {
+                              handleDayChange(dayIndex, { fontSize: num });
+                            }
+                          }}
+                          className="w-16 rounded border border-vine/50 px-2 py-1 text-sm text-ink"
+                        />
+                      </div>
+
+                      {/* 覆盖颜色 */}
+                      <div className="flex items-center gap-4">
+                        <span className="text-xs text-ink-dim">颜色覆盖</span>
+                        <input
+                          type="color"
+                          value={day.color ?? scheme.global.color}
+                          onChange={(e) => handleDayChange(dayIndex, { color: e.target.value })}
+                          className="h-6 w-6 rounded border border-vine/50"
+                        />
+                        <input
+                          type="text"
+                          value={day.color ?? ""}
+                          placeholder={scheme.global.color}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === "") {
+                              handleDayChange(dayIndex, { color: undefined });
+                            } else {
+                              handleDayChange(dayIndex, { color: val });
+                            }
+                          }}
+                          className="w-20 rounded border border-vine/50 px-2 py-1 text-sm text-ink"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

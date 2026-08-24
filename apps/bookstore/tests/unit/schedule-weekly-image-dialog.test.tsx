@@ -78,6 +78,15 @@ describe("WeeklyImageDialog", () => {
     expect(screen.getByText("颜色")).toBeTruthy();
   });
 
+  it("显示按天设置面板", async () => {
+    render(
+      <WeeklyImageDialog open onClose={() => {}} renderImage={renderImage} baseImageUrl="/x.jpg" />,
+    );
+    await waitFor(() => expect(screen.getByText("按天设置")).toBeTruthy());
+    expect(screen.getByText("周一")).toBeTruthy();
+    expect(screen.getByText("周日")).toBeTruthy();
+  });
+
   it("切换对齐方式触发重绘", async () => {
     render(
       <WeeklyImageDialog open onClose={() => {}} renderImage={renderImage} baseImageUrl="/x.jpg" />,
@@ -97,5 +106,15 @@ describe("WeeklyImageDialog", () => {
     
     fireEvent.click(screen.getByText("编辑默认方案"));
     expect(screen.getByText("编辑默认方案").closest("button")?.classList.contains("bg-flower")).toBeTruthy();
+  });
+
+  it("展开按天设置面板", async () => {
+    render(
+      <WeeklyImageDialog open onClose={() => {}} renderImage={renderImage} baseImageUrl="/x.jpg" />,
+    );
+    await waitFor(() => expect(screen.getByText("周一")).toBeTruthy());
+    
+    fireEvent.click(screen.getByText("周一"));
+    await waitFor(() => expect(screen.getByText("内容模板")).toBeTruthy());
   });
 });

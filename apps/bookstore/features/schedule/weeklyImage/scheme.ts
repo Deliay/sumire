@@ -35,7 +35,7 @@ export type WeekScheme = z.infer<typeof WeekSchemeSchema>;
 export function createDefaultScheme(): DefaultScheme {
   return {
     version: 1,
-    global: { align: "left", fontSize: 40, color: "#b4a6bf" },
+    global: { align: "left", fontSize: 40, color: "#5b4b68" },
     days: Array(7).fill({ content: "{schedules}" }),
   };
 }

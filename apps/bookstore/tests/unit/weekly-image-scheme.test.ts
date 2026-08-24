@@ -17,7 +17,7 @@ describe("scheme", () => {
       expect(scheme.version).toBe(1);
       expect(scheme.global.align).toBe("left");
       expect(scheme.global.fontSize).toBe(40);
-      expect(scheme.global.color).toBe("#b4a6bf");
+      expect(scheme.global.color).toBe("#5b4b68");
       expect(scheme.days).toHaveLength(7);
       for (const day of scheme.days) {
         expect(day.content).toBe("{schedules}");

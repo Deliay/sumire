@@ -32,7 +32,7 @@ type: Permanent
 |----|-----------------|---------------------------|
 | 对齐方式 | 恒左对齐（`layout.ts:70` `x=ROW_X`、`renderer.ts:54` 直绘） | 全局/按天可选 左/中/右；`renderer` 按 `align`+`textWidth` 计算绘点并 `clamp` 防越界 |
 | 字号 | 固定 `BASE_FONT_SIZE=40` 起 shrink | 用户设定字号（16–60px，默认 40）作 shrink 基准，触底 `MIN_FONT_SIZE=22` 截断保持不变 |
-| 颜色 | 固定 `TEXT_COLOR="#342a40"` | 用户设定颜色（默认应援色 `#b4a6bf`），`renderer` `fillStyle` 用之 |
+| 颜色 | 固定 `TEXT_COLOR="#342a40"` | 用户设定颜色（默认色 `#5b4b68`），`renderer` `fillStyle` 用之 |
 | 全局/按天 | 无 | 全局设置（对齐/字号/颜色）为 7 日默认；单日三项可部分覆盖（留空=沿用全局） |
 | 按天内容 | 计划自动拼接（`layout.ts:66`） | 每日编辑框 + 插入 `{schedules}` 变量；`resolveDayText` 替换为自动拼接文案；空文案该日不绘制 |
 | 方案留存 | 无概念，周表图仅预览 | 默认方案 + 按周方案，localStorage 持久化；无周方案回退默认，任一编辑自动新建本周方案；切周按各周方案渲染 |
@@ -60,14 +60,14 @@ type: Permanent
    export interface WeekScheme extends DefaultScheme { week: { year: number; week: number }; }
    ```
    Zod schema：`TextAlignSchema = z.enum(["left","center","right"])`；`color` 用 `z.string()`（长度/格式白名单 ≤ 20 字符即可，取值约束见渲染）；`days` 数组 `z.array(...).length(7)`。
-2. **`createDefaultScheme()`**：`global = { align:"left", fontSize:40, color:"#b4a6bf" }`，`days[i] = { content:"{schedules}" }`。
+2. **`createDefaultScheme()`**：`global = { align:"left", fontSize:40, color:"#5b4b68" }`，`days[i] = { content:"{schedules}" }`。
 3. **`resolveEffectiveScheme(week, store)`**：`store.getWeek(week) ?? store.getDefault()`（store 见步骤 2）。
 4. **`buildDaySchedulesText(plans)`**：抽出现态 `layout.ts:66` 的拼接逻辑为纯函数——同日多场按 `startTime` 升序以 `" / "` 连接成 `HH:mm 标题`；空数组返回 `""`。
 5. **`resolveDayText(template, schedules)`**：`{schedules}` 用 `split`/`join` 替换（非正则防特殊字符）；模板无 `{schedules}` 原样返回；`schedules=""` 时替换为空串。
 6. **`ensureWeekScheme(base, week)`**：以 `base` 为基底用 `structuredClone` 复制并附 `week` 归属（供自动新建周方案用）。
 
 **测试先行** 新增 `apps/bookstore/tests/unit/weekly-image-scheme.test.ts`：
-- `createDefaultScheme`：左对齐、40px、`#b4a6bf`、每日 `{schedules}`；`days.length===7`；
+- `createDefaultScheme`：左对齐、40px、`#5b4b68`、每日 `{schedules}`；`days.length===7`；
 - `resolveEffectiveScheme`：有周方案优先、无则默认、Zod 非法输入回退内置默认（`safeParse` 失败路径）；
 - `resolveDayText`：`{schedules}` 替换、无变量原样、空计划空串、`schedules` 为空串时替换为空串、多 `{schedules}`/边界；
 - `buildDaySchedulesText`：同日多场升序 ` / ` 拼接、空数组 `""`；
@@ -110,7 +110,7 @@ type: Permanent
 - 内容为空串 → 该日不产出指令；
 - 文案含 `{schedules}` 求值正确；自定义文案（`今日直播：{schedules}`）求值正确；
 - 大字超出区域 → shrink/截断仍生效（`textWidth` 实测、`fontSize >= 22`）；
-- `scheme` 缺省 → 回退默认（`align="left"`、`color="#b4a6bf"`、`fontSize=40`）；指令含 `align`/`color`/`textWidth` 字段。
+- `scheme` 缺省 → 回退默认（`align="left"`、`color="#5b4b68"`、`fontSize=40`）；指令含 `align`/`color`/`textWidth` 字段。
 
 **验证**：`pnpm -C apps/bookstore test -- weekly-image-layout` 全绿；`pnpm -C apps/bookstore test -- schedule-weekly-image-dialog`（既有 `layoutWeek` 调用经缺省回退不回归）绿。
 
@@ -134,7 +134,7 @@ type: Permanent
 
 1. **状态**：`scheme`（`useState<DefaultScheme>`，初始 `resolveEffectiveScheme(当前周)`）、`editingDefault`（`useState<boolean>`，是否编辑默认方案）、`week`（既有）；`plans` 沿用。
 2. **有效方案**：`effective = resolveEffectiveScheme(week)`；方案标识 `<div>` 显示「默认方案」/「{year} 年第 {week} 周方案」徽标 + 「编辑默认方案」切换按钮（`editingDefault` 显式高亮）。
-3. **全局设置**：对齐三选（左/中/右 segmented 控件）、字号（输入 + 增减，16–60）、颜色（色板 + 输入，默认 `#b4a6bf`）。
+3. **全局设置**：对齐三选（左/中/右 segmented 控件）、字号（输入 + 增减，16–60）、颜色（色板 + 输入，默认 `#5b4b68`）。
 4. **按天设置**：七日折叠面板（label 周一~周日），每项：内容编辑框 + 「插入 {schedules}」按钮（光标处插入）+ 覆盖对齐/字号/颜色三项（留空 = 沿用全局）。
 5. **自动新建**：任一变更 handler（全局或某日）在 `editingDefault === false` 时先 `ensureWeekScheme`（首次以当前有效方案为基底 `structuredClone` 复制为本周 `WeekScheme`），写 `storage.saveWeek`，更新 state；`editingDefault === true` 时写 `storage.saveDefault` 且不触发建周。
 6. **重绘**：`useEffect` 依赖加入 `scheme`（对象引用），按 `layoutWeek(plans, monday, canvasMeasure(), effective)` + `renderImage` 重绘；切周时 `scheme` 重置为对应周有效方案。
@@ -156,7 +156,7 @@ type: Permanent
 1. **e2e 适配**（SKILL: z-test，`tests/e2e/`）：既有公开展示/后台直播计划 e2e 不涉本次 `weeklyImage` 弹层设置 → 默认回退（无周方案用默认）保证既有断言零回归；如需可补一条极小的 Playwright「打开生成周表图片弹层 → 切换对齐 → 预览更新」用例（后台弹层交互，以单测为主，e2e 仅回归守卫）；
 2. **Spec 同步**（根 AGENTS.md 强制要求，同一 PR 内、按开发分支落地时同步）：更新 `docs/product/spec/schedule-admin.md`（周表图片弹层现态：对齐/字号/颜色全局与按天设置、`{schedules}` 变量、默认方案 + 按周方案 localStorage 留存与回退）、`docs/engineering/spec/frontend-bookstore.md`（`scheme.ts`/`storage.ts`/`layout.ts`/`renderer.ts`/`WeeklyImageDialog.tsx` 现态与功能口径）；PRD 与提案为时点文档，不改原文；
 3. 检查 `apps/bookstore/AGENTS.md`「周表 / 直播计划约定」段落是否需同步新口径；
-4. 核对提案 §10 验收标准与 PRD §1.3 成功标准逐条通过（对齐切换、字号/颜色默认 `#b4a6bf`、全局/按天区分与部分覆盖、按天编辑 + `{schedules}` 求值、按周方案回退与自动新建、刷新回显、非法回退、`pnpm lint && pnpm test && pnpm build` 全绿）；
+4. 核对提案 §10 验收标准与 PRD §1.3 成功标准逐条通过（对齐切换、字号/颜色默认 `#5b4b68`、全局/按天区分与部分覆盖、按天编辑 + `{schedules}` 求值、按周方案回退与自动新建、刷新回显、非法回退、`pnpm lint && pnpm test && pnpm build` 全绿）；
 5. 推送 `feat/weekly-image-customization` 并提 PR 至 `prd/weekly-image-customization`，结束流程等待 review。
 
 ## 4. 依赖与风险

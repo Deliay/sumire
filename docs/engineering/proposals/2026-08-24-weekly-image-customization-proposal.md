@@ -95,13 +95,13 @@ interface DefaultScheme {
   global: {
     align: TextAlign;                    // 默认 "left"
     fontSize: number;                    // 默认 40
-    color: string;                       // 默认 "#b4a6bf"
+    color: string;                       // 默认 "#5b4b68"
   };
   days: DaySettings[];                   // 长度 7，索引 0=周一…6=周日
 }
 ```
 
-内置默认（`createDefaultScheme()`）：`global = { align:"left", fontSize:40, color:"#b4a6bf" }`，`days[i] = { content:"{schedules}" }`。
+内置默认（`createDefaultScheme()`）：`global = { align:"left", fontSize:40, color:"#5b4b68" }`，`days[i] = { content:"{schedules}" }`。
 
 ### 4.2 WeekScheme（按周方案）
 
@@ -238,7 +238,7 @@ apps/bookstore/
 ### 8.1 测试覆盖要求
 
 - `weekly-image-scheme.test.ts`：
-  - `createDefaultScheme`（左对齐、40px、`#b4a6bf`、每日 `{schedules}`）；
+  - `createDefaultScheme`（左对齐、40px、`#5b4b68`、每日 `{schedules}`）；
   - `resolveEffectiveScheme`：有周方案优先、无则默认、Zod 非法回退内置默认；
   - `resolveDayText`：`{schedules}` 替换、无变量原样、空计划空串、多变量/边界；
   - `buildDaySchedulesText`：同日多场升序 ` / ` 拼接；
@@ -276,7 +276,7 @@ apps/bookstore/
 
 - [ ] 技术方案评审通过
 - [ ] 对齐（左/中/右）可切换且预览即时更新，右/中不越界
-- [ ] 字号可调（16–60）、颜色可调，默认颜色 `#b4a6bf`，字号/颜色对预览立即生效
+- [ ] 字号可调（16–60）、颜色可调，默认颜色 `#5b4b68`，字号/颜色对预览立即生效
 - [ ] 全局与按天设置区分生效，单天可部分覆盖（仅颜色等）
 - [ ] 按天可编辑文案并插入 `{schedules}`，默认 `{schedules}`，替换求值正确
 - [ ] 方案按周保存：无周方案回退默认，任一编辑自动新建本周方案，不影响默认与其他周；删除回退默认

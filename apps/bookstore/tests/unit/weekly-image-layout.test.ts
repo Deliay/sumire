@@ -14,7 +14,7 @@ describe("layout", () => {
       const instructions = layoutWeek(plans, "2026-08-24", mockMeasure);
       expect(instructions).toHaveLength(1);
       expect(instructions[0].align).toBe("left");
-      expect(instructions[0].color).toBe("#b4a6bf");
+      expect(instructions[0].color).toBe("#5b4b68");
     });
 
     it("should use scheme global align", () => {
@@ -127,6 +127,41 @@ describe("layout", () => {
       const instructions = layoutWeek([], "2026-08-24", mockMeasure);
       // No instructions for empty plans, but we can test the type
       expect(Array.isArray(instructions)).toBe(true);
+    });
+
+    it("should render custom text on a day with no schedules", () => {
+      const scheme: DefaultScheme = {
+        version: 1,
+        global: { align: "left", fontSize: 40, color: "#b4a6bf" },
+        days: [
+          { content: "休馆日" },
+          ...Array(6).fill({ content: "{schedules}" }),
+        ],
+      };
+      // 计划只在周二（2026-08-25），周一无日程但模板为纯自定义文本
+      const plans: StreamPlan[] = [
+        { date: "2026-08-25", startTime: "10:00", title: "Stream A" },
+      ];
+      const instructions = layoutWeek(plans, "2026-08-24", mockMeasure, scheme);
+      const custom = instructions.find((i) => i.dayIndex === 0);
+      expect(custom).toBeDefined();
+      expect(custom?.text).toBe("休馆日");
+    });
+
+    it("should strip empty schedules from template but keep custom text", () => {
+      const scheme: DefaultScheme = {
+        version: 1,
+        global: { align: "left", fontSize: 40, color: "#b4a6bf" },
+        days: [
+          { content: "{schedules}休馆" },
+          ...Array(6).fill({ content: "{schedules}" }),
+        ],
+      };
+      // 周一无日程：{schedules} 替换为空串，仅保留「休馆」
+      const instructions = layoutWeek([], "2026-08-24", mockMeasure, scheme);
+      const custom = instructions.find((i) => i.dayIndex === 0);
+      expect(custom).toBeDefined();
+      expect(custom?.text).toBe("休馆");
     });
   });
 });

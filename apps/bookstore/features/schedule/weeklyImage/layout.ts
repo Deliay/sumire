@@ -71,19 +71,20 @@ export function layoutWeek(
   }
 
   const instructions: DrawInstruction[] = [];
-  for (const [dayIndex, dayPlans] of [...byDay.entries()].sort((a, b) => a[0] - b[0])) {
+  for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+    const dayPlans = byDay.get(dayIndex) ?? [];
     const dayPlan = scheme.days[dayIndex];
     const schedules = buildDaySchedulesText(dayPlans);
     const content = resolveDayText(dayPlan.content, schedules);
-    
+
     if (content === "") continue;
-    
+
     const effectiveFontSize = dayPlan.fontSize ?? scheme.global.fontSize;
     const { text: fitted, fontSize } = fitToWidth(content, ROW_WIDTH, measure, effectiveFontSize);
     const textWidth = measure(fitted, fontSize);
     const align = dayPlan.align ?? scheme.global.align;
     const color = dayPlan.color ?? scheme.global.color;
-    
+
     instructions.push({
       dayIndex,
       x: ROW_X,

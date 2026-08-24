@@ -467,9 +467,13 @@ export default function WeeklyImageDialog({
                     type="button"
                     onClick={() => handleDateChange({ align })}
                     className={`rounded px-2 py-1 text-xs transition-colors ${
-                      (scheme.date?.align ?? (align === undefined ? "left" : undefined)) === align
-                        ? "bg-flower text-white"
-                        : "border border-vine/50 text-ink-dim hover:text-ink"
+                      align === undefined
+                        ? scheme.date?.align === undefined
+                          ? "bg-flower text-white"
+                          : "border border-vine/50 text-ink-dim hover:text-ink"
+                        : scheme.date?.align === align
+                          ? "bg-flower text-white"
+                          : "border border-vine/50 text-ink-dim hover:text-ink"
                     }`}
                   >
                     {align === undefined ? "沿用" : align === "left" ? "左" : align === "center" ? "居中" : "右"}

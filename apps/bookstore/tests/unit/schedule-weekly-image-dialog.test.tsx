@@ -165,6 +165,49 @@ describe("WeeklyImageDialog", () => {
     await waitFor(() => expect(screen.getByLabelText("日期格式")).toHaveValue("{yyyy}年{mm}月{dd}日"));
   });
 
+  it("日期设置对齐按钮选中态正确", async () => {
+    render(
+      <WeeklyImageDialog open onClose={() => {}} renderImage={renderImage} baseImageUrl="/x.jpg" />,
+    );
+    await waitFor(() => expect(screen.getByText("日期设置")).toBeTruthy());
+    
+    // 找到日期设置区块中的对齐按钮（第二个「对齐」标签后的按钮）
+    const alignLabels = screen.getAllByText("对齐");
+    const dateAlignSection = alignLabels[1].closest("div");
+    const alignButtons = dateAlignSection?.querySelectorAll("button");
+    
+    expect(alignButtons).toBeDefined();
+    expect(alignButtons?.length).toBe(4);
+    
+    // 默认状态下，「沿用」按钮应高亮（scheme.date?.align === undefined）
+    const defaultButton = alignButtons![0]; // 「沿用」
+    expect(defaultButton.classList.contains("bg-flower")).toBeTruthy();
+    expect(defaultButton.classList.contains("text-white")).toBeTruthy();
+    
+    // 其他按钮不应高亮
+    expect(alignButtons![1].classList.contains("bg-flower")).toBeFalsy(); // 「左」
+    expect(alignButtons![2].classList.contains("bg-flower")).toBeFalsy(); // 「居中」
+    expect(alignButtons![3].classList.contains("bg-flower")).toBeFalsy(); // 「右」
+    
+    // 点击「居中」按钮
+    fireEvent.click(alignButtons![2]);
+    
+    // 现在「居中」按钮应高亮
+    await waitFor(() => {
+      expect(alignButtons![0].classList.contains("bg-flower")).toBeFalsy(); // 「沿用」不再高亮
+      expect(alignButtons![2].classList.contains("bg-flower")).toBeTruthy(); // 「居中」高亮
+    });
+    
+    // 点击「沿用」按钮
+    fireEvent.click(alignButtons![0]);
+    
+    // 现在「沿用」按钮应重新高亮
+    await waitFor(() => {
+      expect(alignButtons![0].classList.contains("bg-flower")).toBeTruthy(); // 「沿用」高亮
+      expect(alignButtons![2].classList.contains("bg-flower")).toBeFalsy(); // 「居中」不再高亮
+    });
+  });
+
   it("切换对齐方式触发重绘", async () => {
     render(
       <WeeklyImageDialog open onClose={() => {}} renderImage={renderImage} baseImageUrl="/x.jpg" />,

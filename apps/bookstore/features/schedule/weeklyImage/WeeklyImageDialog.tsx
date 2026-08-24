@@ -1,10 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { listPlans, type StreamPlan } from "../api";
 import { getISOWeek, getWeekRange, shiftWeek, formatWeekLabel, type ISOWeek } from "./weekUtils";
 import { layoutWeek, type DrawInstruction, type Measure } from "./layout";
 import { renderWeekImage } from "./renderer";
+import {
+  createDefaultScheme,
+  resolveEffectiveScheme,
+  ensureWeekScheme,
+  type DefaultScheme,
+  type WeekScheme,
+  type TextAlign,
+} from "./scheme";
+import { loadDefault, saveDefault, loadWeek, saveWeek } from "./storage";
 
 const DEFAULT_BASE_IMAGE_URL = "/assets/original/weekly-schedules-raw.jpg";
 
@@ -46,6 +55,8 @@ export default function WeeklyImageDialog({
   const [dataUrl, setDataUrl] = useState("");
   const [error, setError] = useState("");
   const [retryNonce, setRetryNonce] = useState(0);
+  const [editingDefault, setEditingDefault] = useState(false);
+  const [scheme, setScheme] = useState<DefaultScheme | WeekScheme>(() => createDefaultScheme());
 
   // 打开时一次性拉全量计划（切换周不重发请求）
   useEffect(() => {
@@ -61,12 +72,27 @@ export default function WeeklyImageDialog({
     };
   }, [open]);
 
+  // 切周时重置 scheme
+  const prevWeekRef = useRef(week);
+  useEffect(() => {
+    if (!open) return;
+    if (prevWeekRef.current !== week) {
+      prevWeekRef.current = week;
+      const store = {
+        getWeek: loadWeek,
+        getDefault: loadDefault,
+      };
+      const effective = resolveEffectiveScheme(week, store);
+      setScheme(effective);
+    }
+  }, [open, week]);
+
   // 计划就绪后按当前周布局并绘制（切换周 / 计划变化 / 重试时重跑）
   useEffect(() => {
     if (!open || plans === null) return;
     let active = true;
     const { monday } = getWeekRange(week.year, week.week);
-    const instructions = layoutWeek(plans, monday, canvasMeasure());
+    const instructions = layoutWeek(plans, monday, canvasMeasure(), scheme);
     void (async () => {
       try {
         const url = await renderImage(baseImageUrl, instructions);
@@ -82,12 +108,35 @@ export default function WeeklyImageDialog({
     return () => {
       active = false;
     };
-  }, [open, week, plans, retryNonce, renderImage, baseImageUrl]);
+  }, [open, week, plans, retryNonce, renderImage, baseImageUrl, scheme]);
+
+  const handleGlobalChange = useCallback(
+    (updates: Partial<DefaultScheme["global"]>) => {
+      setScheme((prev) => {
+        const newScheme = {
+          ...prev,
+          global: { ...prev.global, ...updates },
+        };
+        if (!editingDefault) {
+          const weekScheme = ensureWeekScheme(newScheme, week);
+          saveWeek(weekScheme);
+          return weekScheme;
+        } else {
+          saveDefault(newScheme);
+          return newScheme;
+        }
+      });
+    },
+    [editingDefault, week]
+  );
+
+
 
   if (!open) return null;
 
   const label = formatWeekLabel(week.year, week.week);
   const loading = dataUrl === "" && error === "";
+  const isDefaultScheme = !("week" in scheme);
 
   return (
     <div
@@ -160,6 +209,78 @@ export default function WeeklyImageDialog({
         </div>
 
         <p className="mt-3 text-center text-xs text-ink-dim">长按保存图片，或右键另存为</p>
+
+        {/* 设置面板 */}
+        <div className="mt-4 border-t border-vine/30 pt-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-ink">
+                {isDefaultScheme ? "默认方案" : `${scheme.week.year} 年第 ${scheme.week.week} 周方案`}
+              </span>
+              <button
+                type="button"
+                onClick={() => setEditingDefault(!editingDefault)}
+                className={`rounded-md px-3 py-1 text-xs transition-colors ${
+                  editingDefault
+                    ? "bg-flower text-white"
+                    : "border border-vine/50 text-ink-dim hover:text-ink"
+                }`}
+              >
+                编辑默认方案
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-3 space-y-3">
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-ink-dim">对齐</span>
+              <div className="flex gap-1">
+                {(["left", "center", "right"] as TextAlign[]).map((align) => (
+                  <button
+                    key={align}
+                    type="button"
+                    onClick={() => handleGlobalChange({ align })}
+                    className={`rounded px-2 py-1 text-xs transition-colors ${
+                      scheme.global.align === align
+                        ? "bg-flower text-white"
+                        : "border border-vine/50 text-ink-dim hover:text-ink"
+                    }`}
+                  >
+                    {align === "left" ? "左" : align === "center" ? "居中" : "右"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-ink-dim">字号</span>
+              <input
+                type="number"
+                min={16}
+                max={60}
+                value={scheme.global.fontSize}
+                onChange={(e) => handleGlobalChange({ fontSize: Number(e.target.value) })}
+                className="w-16 rounded border border-vine/50 px-2 py-1 text-sm text-ink"
+              />
+            </div>
+
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-ink-dim">颜色</span>
+              <input
+                type="color"
+                value={scheme.global.color}
+                onChange={(e) => handleGlobalChange({ color: e.target.value })}
+                className="h-8 w-8 rounded border border-vine/50"
+              />
+              <input
+                type="text"
+                value={scheme.global.color}
+                onChange={(e) => handleGlobalChange({ color: e.target.value })}
+                className="w-20 rounded border border-vine/50 px-2 py-1 text-sm text-ink"
+              />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

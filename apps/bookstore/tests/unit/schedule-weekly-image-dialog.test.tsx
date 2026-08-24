@@ -7,12 +7,15 @@ vi.mock("@/features/schedule/api", () => ({
 }));
 
 import WeeklyImageDialog from "@/features/schedule/weeklyImage/WeeklyImageDialog";
+import { clearMemoryCache } from "@/features/schedule/weeklyImage/storage";
 
 const renderImage = vi.fn();
 
 beforeEach(() => {
   renderImage.mockReset();
   renderImage.mockResolvedValue("data:image/png;base64,abc123");
+  localStorage.clear();
+  clearMemoryCache();
 });
 
 afterEach(() => {
@@ -57,5 +60,42 @@ describe("WeeklyImageDialog", () => {
     renderImage.mockResolvedValue("data:image/png;base64,ok");
     fireEvent.click(screen.getByText("重试"));
     await waitFor(() => expect(screen.getByAltText("周表图片")).toBeTruthy());
+  });
+
+  it("显示默认方案标识", async () => {
+    render(
+      <WeeklyImageDialog open onClose={() => {}} renderImage={renderImage} baseImageUrl="/x.jpg" />,
+    );
+    await waitFor(() => expect(screen.getByText("默认方案")).toBeTruthy());
+  });
+
+  it("显示设置面板", async () => {
+    render(
+      <WeeklyImageDialog open onClose={() => {}} renderImage={renderImage} baseImageUrl="/x.jpg" />,
+    );
+    await waitFor(() => expect(screen.getByText("对齐")).toBeTruthy());
+    expect(screen.getByText("字号")).toBeTruthy();
+    expect(screen.getByText("颜色")).toBeTruthy();
+  });
+
+  it("切换对齐方式触发重绘", async () => {
+    render(
+      <WeeklyImageDialog open onClose={() => {}} renderImage={renderImage} baseImageUrl="/x.jpg" />,
+    );
+    await waitFor(() => expect(renderImage).toHaveBeenCalled());
+    renderImage.mockClear();
+    
+    fireEvent.click(screen.getByText("居中"));
+    await waitFor(() => expect(renderImage).toHaveBeenCalled());
+  });
+
+  it("编辑默认方案模式", async () => {
+    render(
+      <WeeklyImageDialog open onClose={() => {}} renderImage={renderImage} baseImageUrl="/x.jpg" />,
+    );
+    await waitFor(() => expect(screen.getByText("默认方案")).toBeTruthy());
+    
+    fireEvent.click(screen.getByText("编辑默认方案"));
+    expect(screen.getByText("编辑默认方案").closest("button")?.classList.contains("bg-flower")).toBeTruthy();
   });
 });

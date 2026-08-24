@@ -1,12 +1,37 @@
 "use client";
 
 import type { DrawInstruction } from "./layout";
+import type { TextAlign } from "./scheme";
 
 export const CANVAS_WIDTH = 1665;
 export const CANVAS_HEIGHT = 1080;
 export const TEXT_COLOR = "#342a40";
 export const FONT_STACK = '"Noto Serif SC", serif';
-const FONT_SPEC = `600 40px ${FONT_STACK}`;
+
+/**
+ * 根据对齐方式计算文本绘制的 x 坐标。
+ * left: x
+ * center: x + (width - textWidth) / 2
+ * right: x + width - textWidth
+ * 并 clamp 到 [x, x + width - textWidth] 防越界。
+ */
+export function computeTextX(align: TextAlign, x: number, width: number, textWidth: number): number {
+  const minX = x;
+  const maxX = x + width - textWidth;
+  
+  if (textWidth > width) {
+    return minX;
+  }
+  
+  switch (align) {
+    case "left":
+      return minX;
+    case "center":
+      return x + (width - textWidth) / 2;
+    case "right":
+      return maxX;
+  }
+}
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -18,9 +43,13 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 /** 等待周表字体就绪；失败则降级为已加载 serif 族并告警。 */
-async function ensureFont(): Promise<void> {
+async function ensureFont(fontSizes: number[]): Promise<void> {
   try {
-    await document.fonts.load(FONT_SPEC);
+    // 预加载所有需要的字号
+    const uniqueSizes = [...new Set(fontSizes)];
+    await Promise.all(
+      uniqueSizes.map((size) => document.fonts.load(`600 ${size}px ${FONT_STACK}`))
+    );
   } catch {
     console.warn("周表字体加载失败，降级为系统衬线字体");
   }
@@ -35,7 +64,8 @@ export async function renderWeekImage(
   baseImageUrl: string,
   instructions: DrawInstruction[],
 ): Promise<string> {
-  const [img] = await Promise.all([loadImage(baseImageUrl), ensureFont()]);
+  const fontSizes = instructions.map((ins) => ins.fontSize);
+  const [img] = await Promise.all([loadImage(baseImageUrl), ensureFont(fontSizes)]);
 
   // 离屏 canvas 2× 分辨率
   const offscreen = document.createElement("canvas");
@@ -46,12 +76,13 @@ export async function renderWeekImage(
 
   offCtx.scale(2, 2);
   offCtx.drawImage(img, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-  offCtx.fillStyle = TEXT_COLOR;
   offCtx.textBaseline = "middle";
   for (const ins of instructions) {
     offCtx.font = `600 ${ins.fontSize}px ${FONT_STACK}`;
+    offCtx.fillStyle = ins.color;
     const centerY = ins.y + ins.height / 2;
-    offCtx.fillText(ins.text, ins.x, centerY);
+    const x = computeTextX(ins.align, ins.x, ins.width, ins.textWidth);
+    offCtx.fillText(ins.text, x, centerY);
   }
 
   // 目标 canvas 1× 分辨率，使用高质量平滑缩回

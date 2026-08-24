@@ -13,6 +13,15 @@ export const DaySettingsSchema = z.object({
 });
 export type DaySettings = z.infer<typeof DaySettingsSchema>;
 
+export const DateSchemeConfigSchema = z.object({
+  format: z.string(),
+  content: z.string(),
+  align: TextAlignSchema.optional(),
+  fontSize: z.number().min(14).max(30).optional(),
+  color: z.string().max(20).optional(),
+});
+export type DateSchemeConfig = z.infer<typeof DateSchemeConfigSchema>;
+
 export const DefaultSchemeSchema = z.object({
   version: z.literal(1),
   global: z.object({
@@ -21,6 +30,7 @@ export const DefaultSchemeSchema = z.object({
     color: z.string().max(20),
   }),
   days: z.array(DaySettingsSchema).length(7),
+  date: DateSchemeConfigSchema.optional(),
 });
 export type DefaultScheme = z.infer<typeof DefaultSchemeSchema>;
 
@@ -37,6 +47,67 @@ export function createDefaultScheme(): DefaultScheme {
     version: 1,
     global: { align: "left", fontSize: 40, color: "#5b4b68" },
     days: Array(7).fill({ content: "{schedules}" }),
+  };
+}
+
+export function createDefaultDateConfig(): DateSchemeConfig {
+  return {
+    format: "{yyyy}年{mm}月{dd}日",
+    content: "{开始日期} ~ {结束日期}",
+  };
+}
+
+export function formatDate(dateStr: string, format: string): string {
+  const [yearStr, monthStr, dayStr] = dateStr.split("-");
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+
+  const twoDigitYear = String(year).padStart(2, "0").slice(-2);
+
+  return format
+    .replaceAll("{yyyy}", String(year))
+    .replaceAll("{yy}", twoDigitYear)
+    .replaceAll("{mm}", monthStr)
+    .replaceAll("{m}", String(month))
+    .replaceAll("{dd}", dayStr)
+    .replaceAll("{d}", String(day));
+}
+
+export function buildDateContent(template: string, startStr: string, endStr: string): string {
+  if (template === "") return "";
+  return template
+    .replaceAll("{开始日期}", startStr)
+    .replaceAll("{结束日期}", endStr);
+}
+
+export function resolveDateConfig(scheme: DefaultScheme): {
+  format: string;
+  content: string;
+  align: TextAlign;
+  fontSize: number;
+  color: string;
+} {
+  const date = scheme.date;
+  const defaultConfig = createDefaultDateConfig();
+
+  let format = defaultConfig.format;
+  let content = defaultConfig.content;
+
+  if (date) {
+    const parsed = DateSchemeConfigSchema.safeParse(date);
+    if (parsed.success) {
+      format = parsed.data.format;
+      content = parsed.data.content;
+    }
+  }
+
+  return {
+    format,
+    content,
+    align: date?.align ?? scheme.global.align,
+    fontSize: date?.fontSize ?? 20,
+    color: date?.color ?? scheme.global.color,
   };
 }
 

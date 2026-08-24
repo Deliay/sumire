@@ -75,9 +75,9 @@ describe("WeeklyImageDialog", () => {
     render(
       <WeeklyImageDialog open onClose={() => {}} renderImage={renderImage} baseImageUrl="/x.jpg" />,
     );
-    await waitFor(() => expect(screen.getByText("对齐")).toBeTruthy());
-    expect(screen.getByText("字号")).toBeTruthy();
-    expect(screen.getByText("颜色")).toBeTruthy();
+    await waitFor(() => expect(screen.getAllByText("对齐").length).toBeGreaterThan(0));
+    expect(screen.getAllByText("字号").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("颜色").length).toBeGreaterThan(0);
   });
 
   it("显示按天设置面板", async () => {
@@ -89,6 +89,82 @@ describe("WeeklyImageDialog", () => {
     expect(screen.getByText("周日")).toBeTruthy();
   });
 
+  it("显示日期设置面板", async () => {
+    render(
+      <WeeklyImageDialog open onClose={() => {}} renderImage={renderImage} baseImageUrl="/x.jpg" />,
+    );
+    await waitFor(() => expect(screen.getByText("日期设置")).toBeTruthy());
+    expect(screen.getByText("日期格式")).toBeTruthy();
+    expect(screen.getByText("日期内容")).toBeTruthy();
+  });
+
+  it("日期设置变更触发重绘", async () => {
+    render(
+      <WeeklyImageDialog open onClose={() => {}} renderImage={renderImage} baseImageUrl="/x.jpg" />,
+    );
+    await waitFor(() => expect(renderImage).toHaveBeenCalled());
+    renderImage.mockClear();
+    
+    const formatInput = screen.getByLabelText("日期格式");
+    fireEvent.change(formatInput, { target: { value: "{yy}/{mm}/{dd}" } });
+    await waitFor(() => expect(renderImage).toHaveBeenCalled());
+  });
+
+  it("日期设置随方案回显", async () => {
+    render(
+      <WeeklyImageDialog open onClose={() => {}} renderImage={renderImage} baseImageUrl="/x.jpg" />,
+    );
+    await waitFor(() => expect(screen.getByLabelText("日期格式")).toHaveValue("{yyyy}年{mm}月{dd}日"));
+    expect(screen.getByLabelText("日期内容")).toHaveValue("{开始日期} ~ {结束日期}");
+  });
+
+  it("编辑默认方案模式下改日期调用 saveDefault", async () => {
+    render(
+      <WeeklyImageDialog open onClose={() => {}} renderImage={renderImage} baseImageUrl="/x.jpg" />,
+    );
+    await waitFor(() => expect(screen.getByText("默认方案")).toBeTruthy());
+    
+    // 进入编辑默认方案模式
+    fireEvent.click(screen.getByText("编辑默认方案"));
+    
+    // 修改日期格式
+    const formatInput = screen.getByLabelText("日期格式");
+    fireEvent.change(formatInput, { target: { value: "{yy}/{mm}/{dd}" } });
+    
+    // 验证 saveDefault 被调用
+    const saved = loadDefault();
+    expect(saved.date?.format).toBe("{yy}/{mm}/{dd}");
+  });
+
+  it("非编辑默认方案模式下改日期调用 saveWeek", async () => {
+    render(
+      <WeeklyImageDialog open onClose={() => {}} renderImage={renderImage} baseImageUrl="/x.jpg" />,
+    );
+    await waitFor(() => expect(screen.getByText("默认方案")).toBeTruthy());
+    
+    // 修改日期格式（不进入编辑默认方案模式）
+    const formatInput = screen.getByLabelText("日期格式");
+    fireEvent.change(formatInput, { target: { value: "{yy}/{mm}/{dd}" } });
+    
+    // 验证周方案被保存
+    const wk = getISOWeek(new Date());
+    const saved = loadWeek(wk);
+    expect(saved).not.toBeNull();
+    expect(saved?.date?.format).toBe("{yy}/{mm}/{dd}");
+  });
+
+  it("旧版本 scheme（无 date 字段）打开弹层不崩溃", async () => {
+    // 保存一个没有 date 字段的旧版本方案
+    const oldScheme = createDefaultScheme();
+    delete (oldScheme as DefaultScheme & { date?: unknown }).date;
+    saveDefault(oldScheme);
+    
+    render(
+      <WeeklyImageDialog open onClose={() => {}} renderImage={renderImage} baseImageUrl="/x.jpg" />,
+    );
+    await waitFor(() => expect(screen.getByLabelText("日期格式")).toHaveValue("{yyyy}年{mm}月{dd}日"));
+  });
+
   it("切换对齐方式触发重绘", async () => {
     render(
       <WeeklyImageDialog open onClose={() => {}} renderImage={renderImage} baseImageUrl="/x.jpg" />,
@@ -96,7 +172,10 @@ describe("WeeklyImageDialog", () => {
     await waitFor(() => expect(renderImage).toHaveBeenCalled());
     renderImage.mockClear();
     
-    fireEvent.click(screen.getByText("居中"));
+    // 点击全局设置中的「居中」按钮（不是日期设置中的）
+    const centerButtons = screen.getAllByText("居中");
+    // 全局设置中的居中按钮在日期设置之前
+    fireEvent.click(centerButtons[0]);
     await waitFor(() => expect(renderImage).toHaveBeenCalled());
   });
 

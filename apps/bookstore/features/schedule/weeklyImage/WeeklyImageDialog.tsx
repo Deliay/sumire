@@ -7,12 +7,14 @@ import { layoutWeek, type DrawInstruction, type Measure } from "./layout";
 import { renderWeekImage } from "./renderer";
 import {
   createDefaultScheme,
+  createDefaultDateConfig,
   resolveEffectiveScheme,
   ensureWeekScheme,
   type DefaultScheme,
   type WeekScheme,
   type TextAlign,
   type DaySettings,
+  type DateSchemeConfig,
 } from "./scheme";
 import { loadDefault, saveDefault, loadWeek, saveWeek, deleteWeek } from "./storage";
 
@@ -218,6 +220,29 @@ export default function WeeklyImageDialog({
     });
   }, [editingDefault, week]);
 
+  // 日期设置变更
+  const handleDateChange = useCallback(
+    (updates: Partial<DateSchemeConfig>) => {
+      setScheme((prev) => {
+        const currentDate = prev.date ?? createDefaultDateConfig();
+        const newDate = { ...currentDate, ...updates };
+        const newScheme = {
+          ...prev,
+          date: newDate,
+        };
+        if (editingDefault) {
+          saveDefault(newScheme);
+          return newScheme;
+        } else {
+          const weekScheme = ensureWeekScheme(newScheme, week);
+          saveWeek(weekScheme);
+          return weekScheme;
+        }
+      });
+    },
+    [editingDefault, week]
+  );
+
   // 非默认方案场景：恢复为默认方案（删除本周方案，回退默认）
   const handleResetToDefault = useCallback(() => {
     deleteWeek(week);
@@ -400,6 +425,102 @@ export default function WeeklyImageDialog({
                 type="text"
                 value={scheme.global.color}
                 onChange={(e) => handleGlobalChange({ color: e.target.value })}
+                className="w-20 rounded border border-vine/50 px-2 py-1 text-sm text-ink"
+              />
+            </div>
+          </div>
+
+          {/* 日期设置 */}
+          <div className="mt-4 space-y-3">
+            <h3 className="text-sm font-medium text-ink">日期设置</h3>
+            
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-ink-dim">日期格式</span>
+              <input
+                type="text"
+                aria-label="日期格式"
+                value={(scheme.date?.format ?? createDefaultDateConfig().format)}
+                onChange={(e) => handleDateChange({ format: e.target.value })}
+                className="flex-1 rounded border border-vine/50 px-2 py-1 text-sm text-ink"
+                placeholder="{yyyy}年{mm}月{dd}日"
+              />
+            </div>
+
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-ink-dim">日期内容</span>
+              <input
+                type="text"
+                aria-label="日期内容"
+                value={(scheme.date?.content ?? createDefaultDateConfig().content)}
+                onChange={(e) => handleDateChange({ content: e.target.value })}
+                className="flex-1 rounded border border-vine/50 px-2 py-1 text-sm text-ink"
+                placeholder="{开始日期} ~ {结束日期}"
+              />
+            </div>
+
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-ink-dim">对齐</span>
+              <div className="flex gap-1">
+                {([undefined, "left", "center", "right"] as (TextAlign | undefined)[]).map((align) => (
+                  <button
+                    key={align ?? "default"}
+                    type="button"
+                    onClick={() => handleDateChange({ align })}
+                    className={`rounded px-2 py-1 text-xs transition-colors ${
+                      (scheme.date?.align ?? (align === undefined ? "left" : undefined)) === align
+                        ? "bg-flower text-white"
+                        : "border border-vine/50 text-ink-dim hover:text-ink"
+                    }`}
+                  >
+                    {align === undefined ? "沿用" : align === "left" ? "左" : align === "center" ? "居中" : "右"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-ink-dim">字号</span>
+              <input
+                type="number"
+                min={14}
+                max={30}
+                value={scheme.date?.fontSize ?? ""}
+                placeholder="20"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "") {
+                    handleDateChange({ fontSize: undefined });
+                    return;
+                  }
+                  const num = Number(val);
+                  if (num >= 14 && num <= 30) {
+                    handleDateChange({ fontSize: num });
+                  }
+                }}
+                className="w-16 rounded border border-vine/50 px-2 py-1 text-sm text-ink"
+              />
+            </div>
+
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-ink-dim">颜色</span>
+              <input
+                type="color"
+                value={scheme.date?.color ?? scheme.global.color}
+                onChange={(e) => handleDateChange({ color: e.target.value })}
+                className="h-8 w-8 rounded border border-vine/50"
+              />
+              <input
+                type="text"
+                value={scheme.date?.color ?? ""}
+                placeholder={scheme.global.color}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "") {
+                    handleDateChange({ color: undefined });
+                  } else {
+                    handleDateChange({ color: val });
+                  }
+                }}
                 className="w-20 rounded border border-vine/50 px-2 py-1 text-sm text-ink"
               />
             </div>

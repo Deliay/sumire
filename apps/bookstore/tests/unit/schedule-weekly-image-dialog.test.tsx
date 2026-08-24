@@ -7,7 +7,9 @@ vi.mock("@/features/schedule/api", () => ({
 }));
 
 import WeeklyImageDialog from "@/features/schedule/weeklyImage/WeeklyImageDialog";
-import { clearMemoryCache } from "@/features/schedule/weeklyImage/storage";
+import { clearMemoryCache, loadDefault, loadWeek, saveDefault } from "@/features/schedule/weeklyImage/storage";
+import { createDefaultScheme } from "@/features/schedule/weeklyImage/scheme";
+import { getISOWeek } from "@/features/schedule/weeklyImage/weekUtils";
 
 const renderImage = vi.fn();
 
@@ -146,5 +148,45 @@ describe("WeeklyImageDialog", () => {
       const textarea = screen.getByPlaceholderText("输入内容模板，使用 {schedules} 插入计划");
       expect(textarea).toHaveValue("{schedules}");
     });
+  });
+
+  it("周方案场景「恢复为默认方案」删除本周方案回退默认", async () => {
+    render(
+      <WeeklyImageDialog open onClose={() => {}} renderImage={renderImage} baseImageUrl="/x.jpg" />,
+    );
+    await waitFor(() => expect(screen.getByText("周一")).toBeTruthy());
+
+    // 通过编辑制造周方案（触发 ensureWeekScheme + saveWeek）
+    fireEvent.click(screen.getByText("周一"));
+    await waitFor(() => expect(screen.getByText("内容模板")).toBeTruthy());
+    const textarea = screen.getByPlaceholderText("输入内容模板，使用 {schedules} 插入计划");
+    fireEvent.change(textarea, { target: { value: "自定义" } });
+
+    // 此时应处于周方案模式，出现「恢复为默认方案」
+    const resetBtn = screen.getByText("恢复为默认方案");
+    fireEvent.click(resetBtn);
+
+    const wk = getISOWeek(new Date());
+    expect(loadWeek(wk)).toBeNull();
+  });
+
+  it("编辑默认方案场景「恢复预设方案」重置默认方案为预设", async () => {
+    const custom = createDefaultScheme();
+    custom.global = { ...custom.global, color: "#123456", align: "center" };
+    saveDefault(custom);
+    expect(loadDefault().global.color).toBe("#123456");
+
+    render(
+      <WeeklyImageDialog open onClose={() => {}} renderImage={renderImage} baseImageUrl="/x.jpg" />,
+    );
+    await waitFor(() => expect(screen.getByText("周一")).toBeTruthy());
+
+    // 进入编辑默认方案模式
+    fireEvent.click(screen.getByText("编辑默认方案"));
+    fireEvent.click(screen.getByText("恢复预设方案"));
+
+    // 默认方案被重置为预设值
+    expect(loadDefault().global.color).toBe("#5b4b68");
+    expect(loadDefault().global.align).toBe("left");
   });
 });

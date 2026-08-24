@@ -14,7 +14,7 @@ import {
   type TextAlign,
   type DaySettings,
 } from "./scheme";
-import { loadDefault, saveDefault, loadWeek, saveWeek } from "./storage";
+import { loadDefault, saveDefault, loadWeek, saveWeek, deleteWeek } from "./storage";
 
 const DEFAULT_BASE_IMAGE_URL = "/assets/original/weekly-schedules-raw.jpg";
 const WEEKDAY_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
@@ -218,6 +218,19 @@ export default function WeeklyImageDialog({
     });
   }, [editingDefault, week]);
 
+  // 非默认方案场景：恢复为默认方案（删除本周方案，回退默认）
+  const handleResetToDefault = useCallback(() => {
+    deleteWeek(week);
+    setScheme(loadDefault());
+  }, [week]);
+
+  // 编辑默认方案场景：恢复预设方案（撤销对默认方案的所有改动）
+  const handleResetDefaultToPreset = useCallback(() => {
+    const preset = createDefaultScheme();
+    saveDefault(preset);
+    setScheme(preset);
+  }, []);
+
   if (!open) return null;
 
   const label = formatWeekLabel(week.year, week.week);
@@ -314,6 +327,23 @@ export default function WeeklyImageDialog({
               >
                 编辑默认方案
               </button>
+              {editingDefault ? (
+                <button
+                  type="button"
+                  onClick={handleResetDefaultToPreset}
+                  className="rounded-md border border-vine/50 px-3 py-1 text-xs text-ink-dim hover:text-ink"
+                >
+                  恢复预设方案
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleResetToDefault}
+                  className="rounded-md border border-vine/50 px-3 py-1 text-xs text-ink-dim hover:text-ink"
+                >
+                  恢复为默认方案
+                </button>
+              )}
             </div>
           </div>
 

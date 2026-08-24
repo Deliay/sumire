@@ -117,4 +117,34 @@ describe("WeeklyImageDialog", () => {
     fireEvent.click(screen.getByText("周一"));
     await waitFor(() => expect(screen.getByText("内容模板")).toBeTruthy());
   });
+
+  it("插入 {schedules} 变量后重开回显", async () => {
+    const { unmount } = render(
+      <WeeklyImageDialog open onClose={() => {}} renderImage={renderImage} baseImageUrl="/x.jpg" />,
+    );
+    await waitFor(() => expect(screen.getByText("周一")).toBeTruthy());
+    
+    // 展开周一设置
+    fireEvent.click(screen.getByText("周一"));
+    await waitFor(() => expect(screen.getByText("内容模板")).toBeTruthy());
+    
+    // 点击插入 {schedules} 按钮
+    fireEvent.click(screen.getByText("插入 {schedules}"));
+    
+    // 关闭弹层
+    unmount();
+    
+    // 重新打开弹层
+    render(
+      <WeeklyImageDialog open onClose={() => {}} renderImage={renderImage} baseImageUrl="/x.jpg" />,
+    );
+    await waitFor(() => expect(screen.getByText("周一")).toBeTruthy());
+    
+    // 展开周一设置，验证 {schedules} 变量已保存
+    fireEvent.click(screen.getByText("周一"));
+    await waitFor(() => {
+      const textarea = screen.getByPlaceholderText("输入内容模板，使用 {schedules} 插入计划");
+      expect(textarea).toHaveValue("{schedules}");
+    });
+  });
 });

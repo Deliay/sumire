@@ -206,9 +206,17 @@ export default function WeeklyImageDialog({
         ...prev,
         days: newDays,
       };
+      // 持久化
+      if (editingDefault) {
+        saveDefault(newScheme);
+      } else {
+        const weekScheme = ensureWeekScheme(newScheme, week);
+        saveWeek(weekScheme);
+        return weekScheme;
+      }
       return newScheme;
     });
-  }, []);
+  }, [editingDefault, week]);
 
   if (!open) return null;
 

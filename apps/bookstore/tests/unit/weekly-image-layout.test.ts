@@ -9,7 +9,7 @@ describe("layout", () => {
   describe("layoutWeek with scheme", () => {
     it("should use default scheme when not provided", () => {
       const plans: StreamPlan[] = [
-        { date: "2026-08-24", startTime: "10:00", title: "Stream A" },
+        { id: "1", date: "2026-08-24", startTime: "10:00", title: "Stream A", createdAt: "2026-08-01T00:00:00Z" },
       ];
       const instructions = layoutWeek(plans, "2026-08-24", mockMeasure);
       expect(instructions).toHaveLength(1);
@@ -24,7 +24,7 @@ describe("layout", () => {
         days: Array(7).fill({ content: "{schedules}" }),
       };
       const plans: StreamPlan[] = [
-        { date: "2026-08-24", startTime: "10:00", title: "Stream A" },
+        { id: "2", date: "2026-08-24", startTime: "10:00", title: "Stream A", createdAt: "2026-08-01T00:00:00Z" },
       ];
       const instructions = layoutWeek(plans, "2026-08-24", mockMeasure, scheme);
       expect(instructions[0].align).toBe("center");
@@ -40,7 +40,7 @@ describe("layout", () => {
         ],
       };
       const plans: StreamPlan[] = [
-        { date: "2026-08-24", startTime: "10:00", title: "Stream A" },
+        { id: "3", date: "2026-08-24", startTime: "10:00", title: "Stream A", createdAt: "2026-08-01T00:00:00Z" },
       ];
       const instructions = layoutWeek(plans, "2026-08-24", mockMeasure, scheme);
       expect(instructions[0].align).toBe("right");
@@ -56,7 +56,7 @@ describe("layout", () => {
         ],
       };
       const plans: StreamPlan[] = [
-        { date: "2026-08-24", startTime: "10:00", title: "Stream A" },
+        { id: "4", date: "2026-08-24", startTime: "10:00", title: "Stream A", createdAt: "2026-08-01T00:00:00Z" },
       ];
       const instructions = layoutWeek(plans, "2026-08-24", mockMeasure, scheme);
       expect(instructions[0].color).toBe("#ff0000");
@@ -72,7 +72,7 @@ describe("layout", () => {
         ],
       };
       const plans: StreamPlan[] = [
-        { date: "2026-08-24", startTime: "10:00", title: "Stream A" },
+        { id: "5", date: "2026-08-24", startTime: "10:00", title: "Stream A", createdAt: "2026-08-01T00:00:00Z" },
       ];
       const instructions = layoutWeek(plans, "2026-08-24", mockMeasure, scheme);
       expect(instructions[0].fontSize).toBe(30);
@@ -88,7 +88,7 @@ describe("layout", () => {
         ],
       };
       const plans: StreamPlan[] = [
-        { date: "2026-08-24", startTime: "10:00", title: "Stream A" },
+        { id: "6", date: "2026-08-24", startTime: "10:00", title: "Stream A", createdAt: "2026-08-01T00:00:00Z" },
       ];
       const instructions = layoutWeek(plans, "2026-08-24", mockMeasure, scheme);
       expect(instructions).toHaveLength(0);
@@ -104,7 +104,7 @@ describe("layout", () => {
         ],
       };
       const plans: StreamPlan[] = [
-        { date: "2026-08-24", startTime: "10:00", title: "Stream A" },
+        { id: "7", date: "2026-08-24", startTime: "10:00", title: "Stream A", createdAt: "2026-08-01T00:00:00Z" },
       ];
       const instructions = layoutWeek(plans, "2026-08-24", mockMeasure, scheme);
       expect(instructions[0].text).toContain("Today: 10:00 Stream A");
@@ -117,7 +117,7 @@ describe("layout", () => {
         days: Array(7).fill({ content: "{schedules}" }),
       };
       const plans: StreamPlan[] = [
-        { date: "2026-08-24", startTime: "10:00", title: "Very Long Stream Title That Exceeds Width" },
+        { id: "8", date: "2026-08-24", startTime: "10:00", title: "Very Long Stream Title That Exceeds Width", createdAt: "2026-08-01T00:00:00Z" },
       ];
       const instructions = layoutWeek(plans, "2026-08-24", mockMeasure, scheme);
       expect(instructions[0].fontSize).toBeLessThan(40);
@@ -140,7 +140,7 @@ describe("layout", () => {
       };
       // 计划只在周二（2026-08-25），周一无日程但模板为纯自定义文本
       const plans: StreamPlan[] = [
-        { date: "2026-08-25", startTime: "10:00", title: "Stream A" },
+        { id: "9", date: "2026-08-25", startTime: "10:00", title: "Stream A", createdAt: "2026-08-01T00:00:00Z" },
       ];
       const instructions = layoutWeek(plans, "2026-08-24", mockMeasure, scheme);
       const custom = instructions.find((i) => i.dayIndex === 0);

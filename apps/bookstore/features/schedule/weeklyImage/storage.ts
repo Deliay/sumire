@@ -45,7 +45,7 @@ function loadFromStorage<T>(key: string, schema: z.ZodType<T>): T | null {
   return null;
 }
 
-function saveToStorage<T>(key: string, value: T): void {
+function saveToStorage<T extends DefaultScheme | WeekScheme>(key: string, value: T): void {
   const storage = getStorage();
   try {
     storage?.setItem(key, JSON.stringify(value));

@@ -174,7 +174,7 @@ test.describe("弹幕投票", () => {
     await page.getByRole("button", { name: "清空投票" }).click();
     await page.getByRole("button", { name: "确认清空" }).click();
     await expect(page.getByText("已处理 0 条弹幕，其中 0 条匹配")).toBeVisible();
-    await expect(page.queryByText("唱歌")).toBeNull();
-    await expect(page.queryByText("游戏")).toBeNull();
+    await expect(page.getByText("唱歌")).toHaveCount(0);
+    await expect(page.getByText("游戏")).toHaveCount(0);
   });
 });

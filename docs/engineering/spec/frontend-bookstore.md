@@ -78,6 +78,59 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 - 只读口径：检索页不挂载已读交互，不调用 `markLiveEventRead` 等写接口。
 - `features/backdoor/api.ts` 的 `request()` 扩展 `signal` 选项（`fetch({ signal })`），保持既有调用零影响。
 
+## 弹幕工具（features/danmaku-tools）
+
+纯前端模块，契约/服务端/编排零变更。
+
+### 数据模型（vote/types.ts）
+
+- `voteOptionSchema`：`{ id: string, name: string, keyword: string, count: number }`，id 由 `crypto.randomUUID()` 生成。
+- `voteStateSchema`：`{ options: VoteOption[], processed: number, matched: number, voterUids: number[] }`，sender.uid 为 number。
+- `EMPTY_VOTE_STATE`：全零空态常量。
+
+### 匹配纯函数（vote/match.ts）
+
+- `matchVote(content, options)`：恰好单命中返回选项 id，0 或 ≥2 返回 null（≥2 为互斥兜底）。
+- `hasKeywordConflict(keyword, existing)`：双向子串判定 `existing.some(o => o.keyword.includes(keyword) || keyword.includes(o.keyword))`。
+
+### 持久化（vote/store.ts）
+
+- key 常量 `VOTE_STORAGE_KEY = "danmaku-tools.vote"`；`getStorage()` SSR 守卫。
+- `loadVoteState()`：JSON.parse + voteStateSchema.safeParse，任一失败回退 `EMPTY_VOTE_STATE` 拷贝。
+- `saveVoteState(state)`：JSON.stringify 写入；存储不可用时静默跳过。
+- `clearVoteState()`：removeItem。
+
+### 投票状态机 hook（vote/useDanmakuVote.ts）
+
+- 状态：`state: VoteState` + `voting: boolean` + `hint: string | null` + `hydrated: boolean`。
+- 挂载后经 `useEffect(() => setState(loadVoteState()), [])` 恢复持久化数据（避免 hydration 不一致）；`hydrated` 标记防止初始空态覆盖已有持久化数据。
+- `voterSetRef`：`useRef(new Set<number>())` 随 `state.voterUids` 重建；事件回调中经 ref 查改，杜绝闭包旧值。
+- `optionsRef`：`useRef<VoteOption[]>` 随 `state.options` 同步，供 EventSource 回调读最新选项。
+- 持久化 effect：`hydrated` 为 true 时 `saveVoteState(state)` 回写。
+- `addOption(name, keyword)`：trim 后校验空值 + `hasKeywordConflict`；voting 中拒绝（双保险）。
+- `removeOption(id)`：voting 中拒绝；删除已计票选项时 matched 保持原值。
+- `start()`：空选项拒绝；`new EventSource(...)` withCredentials；`es.onmessage` 解析 LiveEventSchema，type !== "danmaku" 忽略；content === undefined 跳过匹配；`matchVote` 命中且 uid 未投票则计票。
+- `stop()`：`es.close()`，统计保留。
+- `clear()`：先 stop，再重置 EMPTY_VOTE_STATE + clearVoteState()。
+- 卸载清理：`useEffect` return 中 `es.close()`。
+
+### 渲染组件
+
+- `ToolCard.tsx`：名称 + 简介，整卡 Link 包裹跳转；卡片样式沿用 `bg-raised/border-vine`。
+- `VoteOptionsEditor.tsx`：选项列表行（名称 + 关键字 + 删除按钮）+ 新增表单 + hint 提示区（`role="alert"`）；voting 中全部 disabled。
+- `VoteControlBar.tsx`：「开始投票/停止投票」双态按钮——开始态 `bg-primary`，停止态 `bg-crimson`（本期确立警示色用法）；旁置「清空投票」次按钮。
+- `VoteStatsTable.tsx`：统计文案 + 语义化 `<table>`（`<caption>` + aria-label）；占比 = count/总票数，总票数为 0 显示 0%。
+- `ClearVoteDialog.tsx`：仿 GiftCardDialog 模式——`fixed inset-0 z-50` 遮罩、`role="dialog" aria-modal`、Esc 关闭、点击遮罩取消、body 锁滚动、打开后焦点落于「取消」按钮；「确认清空」按钮用 `crimson`。
+
+### 页面
+
+- `app/backdoor/(dashboard)/danmaku-tools/page.tsx`：工具列表页，Server Component；卡片栅格 `grid gap-4 sm:grid-cols-2 lg:grid-cols-3`。
+- `app/backdoor/(dashboard)/danmaku-tools/vote/page.tsx`：`"use client"`；`useDanmakuVote()` 下传分区渲染；`lg:grid-cols-2` 左右两栏；ClearVoteDialog 由页面持有 open 状态。
+
+### 导航
+
+- SideNav `NAV_ITEMS` 追加 `{ href: "/backdoor/danmaku-tools", label: "弹幕工具", roles: ["superadmin", "admin", "member"] }`；选中态最长前缀匹配，`/backdoor/danmaku-tools/vote` 命中「弹幕工具」而非「弹幕看板」。
+
 ## 悬停胶囊栏（features/danmaku）
 
 ### 纯函数与 Hook

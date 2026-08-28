@@ -38,9 +38,9 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 - `mergeEntries.ts`：plan/history 归一化为 `CalendarEntry`；历史按 startDate **本地时区**归开播当日；缺 title/startDate 丢弃、未来历史剔除；按 date+startTime 升序混排、不去重。
 - `dateUtils.ts`：一律本地时区构造 Date，禁止 `new Date("YYYY-MM-DD")`（UTC 解析陷阱）；`parseTimeStr` 容错 "9:5"→"09:05"。
 - 首页 `WeeklySchedule`（features/home）：客户端组件，本周一~周日 `listPlans(from,to)`，仅计划不合并历史。
-- 周表图（`weeklyImage/`）：`WeeklyImageDialog` 打开时一次性拉全量计划，`weekUtils.ts` 自实现 ISO-8601 周算法；`layout.ts` 同日多场「 / 」拼单行、40px shrink-to-fit 至 22px 截断加「…」、行坐标常量与 `public/assets/original/AGENTS.md` 一致；`renderer.ts` Canvas 2× 离屏超采样（3330×2160）+ `imageSmoothingQuality: "high"` 缩回 1665×1080 输出 PNG dataURL。
-- 周表图片自定义（`scheme.ts`/`storage.ts`）：`DefaultScheme`/`WeekScheme` 类型 + Zod schema（全局对齐/字号/颜色 + 7 天 `DaySettings`）；`createDefaultScheme()` 默认左对齐 40px #5b4b68；`resolveEffectiveScheme(week, store)` 按周取方案、Zod 非法回退默认；`buildDaySchedulesText`/`resolveDayText` 变量求值；`ensureWeekScheme` 深拷贝附周归属。`storage.ts` localStorage 读写 + 内存 Map 兜底（隐私模式），`loadDefault`/`saveDefault`/`loadWeek`/`saveWeek`/`deleteWeek`/`hasWeek`。
-- `WeeklyImageDialog` 扩展：状态 `scheme`/`editingDefault`，打开时按当前周加载有效方案；切换编辑默认方案模式时切换 scheme 来源；全局设置（对齐三选、字号 16-60、颜色色板+文本）+ 按天设置（七天折叠面板，每项内容模板 + 插入 `{schedules}` 按钮 + 覆盖对齐/字号/颜色）；任一变更自动保存（非编辑默认模式时 `ensureWeekScheme` + `saveWeek`，编辑默认模式时 `saveDefault`）；`useEffect` 依赖 `scheme` 引用变化驱动重绘。
+- 周表图（`weeklyImage/`）：`WeeklyImageDialog` 打开时一次性拉全量计划，`weekUtils.ts` 自实现 ISO-8601 周算法；`layout.ts` 同日多场「 / 」拼单行、40px shrink-to-fit 至 22px 截断加「…」、行坐标常量与 `public/assets/original/AGENTS.md` 一致；日期区域坐标 `DATE_X=640`/`DATE_Y=80`/`DATE_WIDTH=451`/`DATE_HEIGHT=40`，日期指令 `dayIndex=-1` 标记非按天指令，**仅当 `dateConfig.enabled === true` 时才产出日期指令**，`fitToWidth` 参数化下限 `DATECONFIG_MIN_FONT_SIZE=14` 支持日期区更小字号；`renderer.ts` Canvas 2× 离屏超采样（3330×2160）+ `imageSmoothingQuality: "high"` 缩回 1665×1080 输出 PNG dataURL。
+- 周表图片自定义（`scheme.ts`/`storage.ts`）：`DefaultScheme`/`WeekScheme` 类型 + Zod schema（全局对齐/字号/颜色 + 7 天 `DaySettings` + 可选 `DateSchemeConfig`）；`DateSchemeConfig` 含 enabled（是否启用日期范围渲染，默认 false）、format（日期格式模板）、content（日期内容模板）、align/fontSize/color（独立于全局）；`createDefaultScheme()` 默认左对齐 40px #5b4b68；`createDefaultDateConfig()` 默认 enabled=false + `{yyyy}年{mm}月{dd}日` + `{开始日期} ~ {结束日期}`；`resolveEffectiveScheme(week, store)` 按周取方案、Zod 非法回退默认；`resolveDateConfig(scheme)` 返回日期配置（缺省回退 enabled=false + 默认格式/内容/字号 20/全局对齐与颜色）；`formatDate(dateStr, format)` 替换 `{yyyy}/{yy}/{mm}/{m}/{dd}/{d}` 变量；`buildDateContent(template, startStr, endStr)` 替换 `{开始日期}/{结束日期}`；`buildDaySchedulesText`/`resolveDayText` 变量求值；`ensureWeekScheme` 深拷贝附周归属。`storage.ts` localStorage 读写 + 内存 Map 兜底（隐私模式），`loadDefault`/`saveDefault`/`loadWeek`/`saveWeek`/`deleteWeek`/`hasWeek`。
+- `WeeklyImageDialog` 扩展：状态 `scheme`/`editingDefault`，打开时按当前周加载有效方案；切换编辑默认方案模式时切换 scheme 来源；全局设置（对齐三选、字号 16-60、颜色色板+文本）+ 日期设置（启用日期范围勾选框默认不勾选、日期格式/内容模板、对齐沿用/左/中/右、字号 14-30 默认 20、颜色）+ 按天设置（七天折叠面板，每项内容模板 + 插入 `{schedules}` 按钮 + 覆盖对齐/字号/颜色）；任一变更自动保存（非编辑默认模式时 `ensureWeekScheme` + `saveWeek`，编辑默认模式时 `saveDefault`）；`useEffect` 依赖 `scheme` 引用变化驱动重绘。
 - 输入框 `autoComplete="off"`：DatePicker/TimePicker 关闭浏览器自动填充联想。
 
 ## 弹幕前端（features/danmaku）
@@ -77,6 +77,59 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 - SideNav `NAV_ITEMS` 已注册「弹幕检索」为一级导航项（全角色可见），选中态通过最长前缀匹配（`pathname.startsWith(href)` + href 长度降序）判定。
 - 只读口径：检索页不挂载已读交互，不调用 `markLiveEventRead` 等写接口。
 - `features/backdoor/api.ts` 的 `request()` 扩展 `signal` 选项（`fetch({ signal })`），保持既有调用零影响。
+
+## 弹幕工具（features/danmaku-tools）
+
+纯前端模块，契约/服务端/编排零变更。
+
+### 数据模型（vote/types.ts）
+
+- `voteOptionSchema`：`{ id: string, name: string, keyword: string, count: number }`，id 由 `crypto.randomUUID()` 生成。
+- `voteStateSchema`：`{ options: VoteOption[], processed: number, matched: number, voterUids: number[] }`，sender.uid 为 number。
+- `EMPTY_VOTE_STATE`：全零空态常量。
+
+### 匹配纯函数（vote/match.ts）
+
+- `matchVote(content, options)`：恰好单命中返回选项 id，0 或 ≥2 返回 null（≥2 为互斥兜底）。
+- `hasKeywordConflict(keyword, existing)`：双向子串判定 `existing.some(o => o.keyword.includes(keyword) || keyword.includes(o.keyword))`。
+
+### 持久化（vote/store.ts）
+
+- key 常量 `VOTE_STORAGE_KEY = "danmaku-tools.vote"`；`getStorage()` SSR 守卫。
+- `loadVoteState()`：JSON.parse + voteStateSchema.safeParse，任一失败回退 `EMPTY_VOTE_STATE` 拷贝。
+- `saveVoteState(state)`：JSON.stringify 写入；存储不可用时静默跳过。
+- `clearVoteState()`：removeItem。
+
+### 投票状态机 hook（vote/useDanmakuVote.ts）
+
+- 状态：`state: VoteState` + `voting: boolean` + `hint: string | null` + `hydrated: boolean`。
+- 挂载后经 `useEffect(() => setState(loadVoteState()), [])` 恢复持久化数据（避免 hydration 不一致）；`hydrated` 标记防止初始空态覆盖已有持久化数据。
+- `voterSetRef`：`useRef(new Set<number>())` 随 `state.voterUids` 重建；事件回调中经 ref 查改，杜绝闭包旧值。
+- `optionsRef`：`useRef<VoteOption[]>` 随 `state.options` 同步，供 EventSource 回调读最新选项。
+- 持久化 effect：`hydrated` 为 true 时 `saveVoteState(state)` 回写。
+- `addOption(name, keyword)`：trim 后校验空值 + `hasKeywordConflict`；voting 中拒绝（双保险）。
+- `removeOption(id)`：voting 中拒绝；删除已计票选项时 matched 保持原值。
+- `start()`：空选项拒绝；`new EventSource(...)` withCredentials；`es.onmessage` 解析 LiveEventSchema，type !== "danmaku" 忽略；content === undefined 跳过匹配；`matchVote` 命中且 uid 未投票则计票。
+- `stop()`：`es.close()`，统计保留。
+- `clear()`：先 stop，再重置 EMPTY_VOTE_STATE + clearVoteState()。
+- 卸载清理：`useEffect` return 中 `es.close()`。
+
+### 渲染组件
+
+- `ToolCard.tsx`：名称 + 简介，整卡 Link 包裹跳转；卡片样式沿用 `bg-raised/border-vine`。
+- `VoteOptionsEditor.tsx`：选项列表行（名称 + 关键字 + 删除按钮）+ 新增表单 + hint 提示区（`role="alert"`）；voting 中全部 disabled。
+- `VoteControlBar.tsx`：「开始投票/停止投票」双态按钮——开始态 `bg-primary`，停止态 `bg-crimson`（本期确立警示色用法）；旁置「清空投票」次按钮。
+- `VoteStatsTable.tsx`：统计文案 + 语义化 `<table>`（`<caption>` + aria-label）；占比 = count/总票数，总票数为 0 显示 0%。
+- `ClearVoteDialog.tsx`：仿 GiftCardDialog 模式——`fixed inset-0 z-50` 遮罩、`role="dialog" aria-modal`、Esc 关闭、点击遮罩取消、body 锁滚动、打开后焦点落于「取消」按钮；「确认清空」按钮用 `crimson`。
+
+### 页面
+
+- `app/backdoor/(dashboard)/danmaku-tools/page.tsx`：工具列表页，Server Component；卡片栅格 `grid gap-4 sm:grid-cols-2 lg:grid-cols-3`。
+- `app/backdoor/(dashboard)/danmaku-tools/vote/page.tsx`：`"use client"`；`useDanmakuVote()` 下传分区渲染；`lg:grid-cols-2` 左右两栏；ClearVoteDialog 由页面持有 open 状态。
+
+### 导航
+
+- SideNav `NAV_ITEMS` 追加 `{ href: "/backdoor/danmaku-tools", label: "弹幕工具", roles: ["superadmin", "admin", "member"] }`；选中态最长前缀匹配，`/backdoor/danmaku-tools/vote` 命中「弹幕工具」而非「弹幕看板」。
 
 ## 悬停胶囊栏（features/danmaku）
 

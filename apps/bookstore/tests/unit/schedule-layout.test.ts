@@ -23,7 +23,7 @@ const plan = (date: string, startTime: string, title: string, id = title): Strea
 const charMeasure: Measure = (text, fontSize) => text.length * fontSize;
 
 describe("layoutWeek", () => {
-  it("无计划（或不在该周）输出空指令", () => {
+  it("无计划（或不在该周）输出空指令（默认 enabled: false）", () => {
     expect(layoutWeek([], "2026-08-10", charMeasure)).toEqual([]);
     expect(layoutWeek([plan("2026-08-02", "20:00", "x")], "2026-08-10", charMeasure)).toEqual([]);
   });

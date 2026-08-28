@@ -228,6 +228,7 @@ describe("scheme", () => {
 
     it("should handle invalid date config gracefully", () => {
       const scheme = createDefaultScheme();
+      // @ts-expect-error -- intentionally invalid date config for testing
       (scheme as DefaultScheme & { date?: unknown }).date = { invalid: true };
       const config = resolveDateConfig(scheme);
       expect(config.enabled).toBe(false);
@@ -267,6 +268,7 @@ describe("scheme", () => {
         global: { align: "left", fontSize: 40, color: "#b4a6bf" },
         days: [{ content: "{schedules}" }],
         date: {
+          enabled: true,
           format: "{yyyy}年{mm}月{dd}日",
           content: "{开始日期} ~ {结束日期}",
           fontSize: 25,

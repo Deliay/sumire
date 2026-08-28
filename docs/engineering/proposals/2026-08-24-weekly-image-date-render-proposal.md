@@ -1,5 +1,5 @@
 ---
-description: 周表图片日期渲染技术提案——在 WeeklyImageDialog 方案体系中新增日期区域渲染；scheme 增加可选 date 配置（格式/内容/字号/对齐/颜色），layout 产出日期绘制指令复用 renderer 的通用指令管线，旧版本 scheme 无 date 字段时回退内置默认
+description: 周表图片日期渲染技术提案——在 WeeklyImageDialog 方案体系中新增日期区域渲染；scheme 增加可选 date 配置（含 enabled 开关/格式/内容/字号/对齐/颜色），layout 依据 enabled 开关决定是否产出日期绘制指令，旧版本 scheme 无 date 字段时回退内置默认（enabled: false）
 type: Fleeting
 ---
 
@@ -7,7 +7,7 @@ type: Fleeting
 
 **功能名称**: 周表图片日期渲染（Weekly Image Date Render）
 **关联 PRD**: `docs/product/requirements/draft/2026-08-24-weekly-image-date-render-prd.md`
-**技术提案版本**: v1.0
+**技术提案版本**: v1.1
 **创建日期**: 2026-08-24
 **作者**: sumire workflow
 **feat-branch**: `feat/weekly-image-date-render`
@@ -16,23 +16,25 @@ type: Fleeting
 
 ### 1.1 背景
 
-在上一迭代（`weekly-image-customization`，已上线 merge 进 main）建立的方案体系之上，本次在官方底图顶部**日期绘制区域**渲染该周的日期范围。
+在上一迭代（`weekly-image-customization`，已上线 merge 进 main）建立的方案体系之上，本次在官方底图顶部**日期绘制区域**可选渲染该周的日期范围。
 
 - 官方底图日期区域坐标已在 `feat/weekly-image-date-area` 分支确定：左上角 `(640,80)`，可用 `451×40`（见 `public/assets/original/AGENTS.md`）；
 - 现态 `.weeklyImage/scheme.ts` 定义 `DefaultScheme`/`WeekScheme`（含全局与按天设置），`layout.ts` 产出 `DrawInstruction[]`，`renderer.ts` 已按 `align`/`fontSize`/`color`/`textWidth` **通用地**绘制任意指令（`computeTextX` + `fillText`）；
 - 本次把日期区域作为一条**额外的 `DrawInstruction`** 并入既有指令管线，配合顶层（周头）区域，尽量少的改动。
+- **日期范围默认不渲染**，用户需勾选「启用日期范围」开关后才渲染。
 
 ### 1.2 目标
 
-- 生成周表图片时在日期区域渲染该周日期范围（周一~周日）；
+- 生成周表图片时可选在日期区域渲染该周日期范围（周一~周日）；
+- **日期范围默认不渲染**，需勾选启用；
 - 支持日期**格式**模板（`{yyyy}`/`{yy}`/`{mm}`/`{m}`/`{dd}`/`{d}`）与日期**内容**模板（`{开始日期}`/`{结束日期}`）；
 - 日期区域独立支持字号（更小默认值）、对齐、颜色；
-- 日期配置并入既有方案体系（默认 + 按周）持久化，向后兼容旧版本 scheme。
+- 日期配置（含启用开关）并入既有方案体系（默认 + 按周）持久化，向后兼容旧版本 scheme。
 
 ### 1.3 范围
 
-- **做**：扩展 `scheme.ts`（新增 `DateSchemeConfig` 类型/Zod/默认与解析、日期格式化与内容拼装纯函数）；扩展 `layout.ts`（产出日期 `DrawInstruction`；新增日期区域常量与日期字号默认）；适度扩展 `layout.ts` 入参以取到周一与周日；`WeeklyImageDialog.tsx` 增加「日期设置」区块并纳入方案编辑/持久化；补/更新单元测试。
-- **不做**：后端接口/契约/数据模型变更；底图与各区域坐标变更（坐标采用既有已确定值）；导出尺寸变更；日期区域开关（本期不提供显式隐藏）；`listPlans` 与计划 CRUD 变更。
+- **做**：扩展 `scheme.ts`（新增 `DateSchemeConfig` 类型/Zod/默认与解析，含 `enabled` 开关；日期格式化与内容拼装纯函数）；扩展 `layout.ts`（依据 `enabled` 开关决定是否产出日期 `DrawInstruction`；新增日期区域常量与日期字号默认）；适度扩展 `layout.ts` 入参以取到周一与周日；`WeeklyImageDialog.tsx` 增加「日期设置」区块（含启用勾选框）并纳入方案编辑/持久化；补/更新单元测试。
+- **不做**：后端接口/契约/数据模型变更；底图与各区域坐标变更（坐标采用既有已确定值）；导出尺寸变更；`listPlans` 与计划 CRUD 变更。
 
 ## 2. 技术架构
 
@@ -79,18 +81,19 @@ graph TD
 
 ```ts
 interface DateSchemeConfig {
-  format: string;          // 日期格式模板，默认 "{yyyy}年{mm}月{dd}日"
-  content: string;         // 日期内容模板，默认 "{开始日期} ~ {结束日期}"
-  align?: TextAlign;       // 空=沿用全局；默认随全局
-  fontSize?: number;       // 空=沿用内置更小默认；默认 20
-  color?: string;          // 空=沿用全局默认色
+  enabled: boolean;         // 是否启用日期范围渲染，默认 false（不渲染）
+  format: string;           // 日期格式模板，默认 "{yyyy}年{mm}月{dd}日"
+  content: string;          // 日期内容模板，默认 "{开始日期} ~ {结束日期}"
+  align?: TextAlign;        // 空=沿用全局；默认随全局
+  fontSize?: number;        // 空=沿用内置更小默认；默认 20
+  color?: string;           // 空=沿用全局默认色
 }
 ```
 
 - `DefaultScheme.date?: DateSchemeConfig`（可选，解析时缺失回退内置默认）；
 - `WeekScheme` 继承 `DefaultScheme`，`date` 同样可选。
 
-内置日期默认（`createDefaultDateConfig()`）：`{ format:"{yyyy}年{mm}月{dd}日", content:"{开始日期} ~ {结束日期}", align: undefined, fontSize: undefined, color: undefined }`；解析回退时字号用更小默认 `DATECONFIG_DEFAULT_FONT_SIZE = 20`，对齐/颜色沿用全局值。
+内置日期默认（`createDefaultDateConfig()`）：`{ enabled: false, format:"{yyyy}年{mm}月{dd}日", content:"{开始日期} ~ {结束日期}", align: undefined, fontSize: undefined, color: undefined }`；解析回退时 `enabled` 默认 `false`（不渲染），字号用更小默认 `DATECONFIG_DEFAULT_FONT_SIZE = 20`，对齐/颜色沿用全局值。
 
 ### 4.2 localStorage
 
@@ -137,8 +140,9 @@ sequenceDiagram
 
 #### 实现点 3: layout 产出日期指令（`layout.ts`）
 
-- **描述**: 新增日期区域常量并让 `layoutWeek` 额外产出**一条**日期 `DrawInstruction`：
+- **描述**: 新增日期区域常量并让 `layoutWeek` 依据 `enabled` 开关决定是否额外产出**一条**日期 `DrawInstruction`：
   - `DATE_X = 640`、`DATE_Y = 80`、`DATE_WIDTH = 451`、`DATE_HEIGHT = 40`、`DATECONFIG_DEFAULT_FONT_SIZE = 20`、`DATECONFIG_MAX_FONT_SIZE = 30`（更小字号上限，防字过大）；
+  - **仅当 `dateConfig.enabled === true` 时**才计算并产出日期指令；
   - 计算周范围：入参 `monday` 已知，周日 = `monday + 6 天`（复用既有日期算术，或由 `getWeekRange` 传入）；
   - 生成：`startStr = formatDate(monday, dateConfig.format)`；`endStr = formatDate(sunday, dateConfig.format)`；`text = buildDateContent(dateConfig.content, startStr, endStr)`；`text === ""` 则不产出该指令；
   - 对齐/字号/颜色取 `resolveDateConfig` 结果；`fitToWidth` 以日期字号为基准 shrink-to-fit 到 `MIN_FONT_SIZE` 防溢出（复用既有函数）；
@@ -155,7 +159,7 @@ sequenceDiagram
 
 - **描述**: 在既有方案设置面板新增「日期设置」区块：
   - **状态**：`scheme.date` 复用 `scheme` state，不新增独立 state；
-  - **控件**：日期格式模板文本输入框（默认 `{yyyy}年{mm}月{dd}日`）、日期内容模板文本输入框（默认 `{开始日期} ~ {结束日期}`）、字号（默认 20，更小默认）、对齐三选、颜色色板；均为可编辑项；
+  - **控件**：启用日期范围勾选框（默认不勾选，`enabled: false`）、日期格式模板文本输入框（默认 `{yyyy}年{mm}月{dd}日`）、日期内容模板文本输入框（默认 `{开始日期} ~ {结束日期}`）、字号（默认 20，更小默认）、对齐三选、颜色色板；启用勾选框未勾选时，日期格式/内容/字号/对齐/颜色控件可选禁用或隐藏；
   - **编辑/持久化**：日期各变更复用 `handleGlobalChange`/新增 `handleDateChange`，按既有 `editingDefault` 分支写入默认方案或自动 `ensureWeek` 写入本周方案（与全局/按天设置同一套规则）；
   - **重绘**：既有 `useEffect` 依赖项已含 `scheme`，日期变更触发重算指令并重绘预览，无需新增依赖。
 - **技术细节**: 日期编辑更新 `scheme.date` 采用不可变更新；`date` 缺失时初始化用 `createDefaultDateConfig()` 填充以便表单可编辑。
@@ -245,11 +249,12 @@ apps/bookstore/
 ## 10. 验收标准
 
 - [ ] 技术方案评审通过
-- [ ] 生成的周表图顶部日期区域渲染出该周日期范围（周一~周日，默认 `2026年08月31日 ~ 2026年09月06日` 形式）
+- [ ] 生成的周表图默认不渲染日期范围（`enabled: false`）
+- [ ] 勾选「启用日期范围」后，顶部日期区域渲染出该周日期范围（周一~周日，默认 `2026年08月31日 ~ 2026年09月06日` 形式）
 - [ ] 日期格式/内容模板可编辑，各变量替换正确，预览即时更新
 - [ ] 日期区域字号（默认 20px）、对齐、颜色可独立设置，导出生效，不越界
-- [ ] 日期配置按周保存：无周方案回退默认，任一编辑自动新建本周方案，不影响默认与其他周；刷新/切周回显正确
-- [ ] 旧版本 scheme（无 `date` 字段）数据安全回退内置日期默认，不崩溃
+- [ ] 日期配置（含启用开关）按周保存：无周方案回退默认，任一编辑自动新建本周方案，不影响默认与其他周；刷新/切周回显正确
+- [ ] 旧版本 scheme（无 `date` 字段）数据安全回退内置日期默认（`enabled: false`），不崩溃
 - [ ] 单测全绿：`pnpm lint && pnpm test && pnpm build` 全绿
 
 ## 11. 相关文档

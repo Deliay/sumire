@@ -14,9 +14,26 @@ describe("layout", () => {
   const mockMeasure = (text: string, fontSize: number) => text.length * fontSize * 0.6;
 
   describe("layoutWeek with date instruction", () => {
-    it("should produce date instruction with dayIndex=-1", () => {
+    it("should not produce date instruction when enabled is false (default)", () => {
       const plans: StreamPlan[] = [];
       const instructions = layoutWeek(plans, "2026-08-25", mockMeasure);
+      const dateInstruction = instructions.find((i) => i.dayIndex === -1);
+      expect(dateInstruction).toBeUndefined();
+    });
+
+    it("should produce date instruction when enabled is true", () => {
+      const scheme: DefaultScheme = {
+        version: 1,
+        global: { align: "left", fontSize: 40, color: "#5b4b68" },
+        days: Array(7).fill({ content: "{schedules}" }),
+        date: {
+          enabled: true,
+          format: "{yyyy}年{mm}月{dd}日",
+          content: "{开始日期} ~ {结束日期}",
+        },
+      };
+      const plans: StreamPlan[] = [];
+      const instructions = layoutWeek(plans, "2026-08-25", mockMeasure, scheme);
       const dateInstruction = instructions.find((i) => i.dayIndex === -1);
       expect(dateInstruction).toBeDefined();
       expect(dateInstruction?.x).toBe(DATE_X);
@@ -25,36 +42,67 @@ describe("layout", () => {
       expect(dateInstruction?.height).toBe(DATE_HEIGHT);
     });
 
-    it("should use default date content for default scheme", () => {
+    it("should use default date content when enabled is true", () => {
+      const scheme: DefaultScheme = {
+        version: 1,
+        global: { align: "left", fontSize: 40, color: "#5b4b68" },
+        days: Array(7).fill({ content: "{schedules}" }),
+        date: {
+          enabled: true,
+          format: "{yyyy}年{mm}月{dd}日",
+          content: "{开始日期} ~ {结束日期}",
+        },
+      };
       const plans: StreamPlan[] = [];
-      const instructions = layoutWeek(plans, "2026-08-25", mockMeasure);
+      const instructions = layoutWeek(plans, "2026-08-25", mockMeasure, scheme);
       const dateInstruction = instructions.find((i) => i.dayIndex === -1);
       expect(dateInstruction?.text).toContain("2026年08月25日");
       expect(dateInstruction?.text).toContain("2026年08月31日");
       expect(dateInstruction?.text).toContain("~");
     });
 
-    it("should use date fontSize default 20", () => {
-      const plans: StreamPlan[] = [];
-      const instructions = layoutWeek(plans, "2026-08-25", mockMeasure);
-      const dateInstruction = instructions.find((i) => i.dayIndex === -1);
-      expect(dateInstruction?.fontSize).toBe(20);
-    });
-
-    it("should use global align and color for date", () => {
-      const plans: StreamPlan[] = [];
-      const instructions = layoutWeek(plans, "2026-08-25", mockMeasure);
-      const dateInstruction = instructions.find((i) => i.dayIndex === -1);
-      expect(dateInstruction?.align).toBe("left");
-      expect(dateInstruction?.color).toBe("#5b4b68");
-    });
-
-    it("should use date config overrides", () => {
+    it("should use date fontSize default 20 when enabled is true", () => {
       const scheme: DefaultScheme = {
         version: 1,
         global: { align: "left", fontSize: 40, color: "#5b4b68" },
         days: Array(7).fill({ content: "{schedules}" }),
         date: {
+          enabled: true,
+          format: "{yyyy}年{mm}月{dd}日",
+          content: "{开始日期} ~ {结束日期}",
+        },
+      };
+      const plans: StreamPlan[] = [];
+      const instructions = layoutWeek(plans, "2026-08-25", mockMeasure, scheme);
+      const dateInstruction = instructions.find((i) => i.dayIndex === -1);
+      expect(dateInstruction?.fontSize).toBe(20);
+    });
+
+    it("should use global align and color for date when enabled is true", () => {
+      const scheme: DefaultScheme = {
+        version: 1,
+        global: { align: "left", fontSize: 40, color: "#5b4b68" },
+        days: Array(7).fill({ content: "{schedules}" }),
+        date: {
+          enabled: true,
+          format: "{yyyy}年{mm}月{dd}日",
+          content: "{开始日期} ~ {结束日期}",
+        },
+      };
+      const plans: StreamPlan[] = [];
+      const instructions = layoutWeek(plans, "2026-08-25", mockMeasure, scheme);
+      const dateInstruction = instructions.find((i) => i.dayIndex === -1);
+      expect(dateInstruction?.align).toBe("left");
+      expect(dateInstruction?.color).toBe("#5b4b68");
+    });
+
+    it("should use date config overrides when enabled is true", () => {
+      const scheme: DefaultScheme = {
+        version: 1,
+        global: { align: "left", fontSize: 40, color: "#5b4b68" },
+        days: Array(7).fill({ content: "{schedules}" }),
+        date: {
+          enabled: true,
           format: "{yy}/{mm}/{dd}",
           content: "{开始日期} to {结束日期}",
           align: "center",
@@ -73,9 +121,19 @@ describe("layout", () => {
       expect(dateInstruction?.color).toBe("#ff0000");
     });
 
-    it("should produce date instruction even with no plans", () => {
+    it("should produce date instruction even with no plans when enabled is true", () => {
+      const scheme: DefaultScheme = {
+        version: 1,
+        global: { align: "left", fontSize: 40, color: "#5b4b68" },
+        days: Array(7).fill({ content: "{schedules}" }),
+        date: {
+          enabled: true,
+          format: "{yyyy}年{mm}月{dd}日",
+          content: "{开始日期} ~ {结束日期}",
+        },
+      };
       const plans: StreamPlan[] = [];
-      const instructions = layoutWeek(plans, "2026-08-25", mockMeasure);
+      const instructions = layoutWeek(plans, "2026-08-25", mockMeasure, scheme);
       const dateInstruction = instructions.find((i) => i.dayIndex === -1);
       expect(dateInstruction).toBeDefined();
     });
@@ -86,6 +144,7 @@ describe("layout", () => {
         global: { align: "left", fontSize: 40, color: "#5b4b68" },
         days: Array(7).fill({ content: "{schedules}" }),
         date: {
+          enabled: true,
           format: "{yyyy}年{mm}月{dd}日",
           content: "",
         },
@@ -97,16 +156,36 @@ describe("layout", () => {
     });
 
     it("should handle cross-year week", () => {
+      const scheme: DefaultScheme = {
+        version: 1,
+        global: { align: "left", fontSize: 40, color: "#5b4b68" },
+        days: Array(7).fill({ content: "{schedules}" }),
+        date: {
+          enabled: true,
+          format: "{yyyy}年{mm}月{dd}日",
+          content: "{开始日期} ~ {结束日期}",
+        },
+      };
       const plans: StreamPlan[] = [];
-      const instructions = layoutWeek(plans, "2026-12-28", mockMeasure);
+      const instructions = layoutWeek(plans, "2026-12-28", mockMeasure, scheme);
       const dateInstruction = instructions.find((i) => i.dayIndex === -1);
       expect(dateInstruction?.text).toContain("2026年12月28日");
       expect(dateInstruction?.text).toContain("2027年01月03日");
     });
 
     it("should handle cross-month week", () => {
+      const scheme: DefaultScheme = {
+        version: 1,
+        global: { align: "left", fontSize: 40, color: "#5b4b68" },
+        days: Array(7).fill({ content: "{schedules}" }),
+        date: {
+          enabled: true,
+          format: "{yyyy}年{mm}月{dd}日",
+          content: "{开始日期} ~ {结束日期}",
+        },
+      };
       const plans: StreamPlan[] = [];
-      const instructions = layoutWeek(plans, "2026-08-31", mockMeasure);
+      const instructions = layoutWeek(plans, "2026-08-31", mockMeasure, scheme);
       const dateInstruction = instructions.find((i) => i.dayIndex === -1);
       expect(dateInstruction?.text).toContain("2026年08月31日");
       expect(dateInstruction?.text).toContain("2026年09月06日");
@@ -118,6 +197,7 @@ describe("layout", () => {
         global: { align: "left", fontSize: 40, color: "#5b4b68" },
         days: Array(7).fill({ content: "{schedules}" }),
         date: {
+          enabled: true,
           format: "{yyyy}年{mm}月{dd}日",
           content: "{开始日期} ~ {结束日期} (非常长的额外文本用于测试shrink)",
         },

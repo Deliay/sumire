@@ -172,6 +172,7 @@ describe("scheme", () => {
   describe("createDefaultDateConfig", () => {
     it("should return default date config", () => {
       const config = createDefaultDateConfig();
+      expect(config.enabled).toBe(false);
       expect(config.format).toBe("{yyyy}年{mm}月{dd}日");
       expect(config.content).toBe("{开始日期} ~ {结束日期}");
       expect(config.align).toBeUndefined();
@@ -184,6 +185,7 @@ describe("scheme", () => {
     it("should return defaults when scheme has no date", () => {
       const scheme = createDefaultScheme();
       const config = resolveDateConfig(scheme);
+      expect(config.enabled).toBe(false);
       expect(config.format).toBe("{yyyy}年{mm}月{dd}日");
       expect(config.content).toBe("{开始日期} ~ {结束日期}");
       expect(config.align).toBe("left");
@@ -194,6 +196,7 @@ describe("scheme", () => {
     it("should use date config when present", () => {
       const scheme = createDefaultScheme();
       scheme.date = {
+        enabled: true,
         format: "{yy}/{mm}/{dd}",
         content: "{开始日期} to {结束日期}",
         align: "center",
@@ -201,6 +204,7 @@ describe("scheme", () => {
         color: "#ff0000",
       };
       const config = resolveDateConfig(scheme);
+      expect(config.enabled).toBe(true);
       expect(config.format).toBe("{yy}/{mm}/{dd}");
       expect(config.content).toBe("{开始日期} to {结束日期}");
       expect(config.align).toBe("center");
@@ -211,10 +215,12 @@ describe("scheme", () => {
     it("should fallback to global when date partial", () => {
       const scheme = createDefaultScheme();
       scheme.date = {
+        enabled: true,
         format: "{yyyy}",
         content: "{开始日期}",
       };
       const config = resolveDateConfig(scheme);
+      expect(config.enabled).toBe(true);
       expect(config.align).toBe("left");
       expect(config.fontSize).toBe(20);
       expect(config.color).toBe("#5b4b68");
@@ -224,6 +230,7 @@ describe("scheme", () => {
       const scheme = createDefaultScheme();
       (scheme as DefaultScheme & { date?: unknown }).date = { invalid: true };
       const config = resolveDateConfig(scheme);
+      expect(config.enabled).toBe(false);
       expect(config.format).toBe("{yyyy}年{mm}月{dd}日");
       expect(config.content).toBe("{开始日期} ~ {结束日期}");
     });

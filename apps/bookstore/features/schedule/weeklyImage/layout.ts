@@ -92,28 +92,30 @@ export function layoutWeek(
 
   const instructions: DrawInstruction[] = [];
 
-  // 日期指令
+  // 日期指令（仅当 enabled 为 true 时产出）
   const dateConfig = resolveDateConfig(scheme);
-  const sunday = getSunday(monday);
-  const startStr = formatDate(monday, dateConfig.format);
-  const endStr = formatDate(sunday, dateConfig.format);
-  const dateText = buildDateContent(dateConfig.content, startStr, endStr);
+  if (dateConfig.enabled) {
+    const sunday = getSunday(monday);
+    const startStr = formatDate(monday, dateConfig.format);
+    const endStr = formatDate(sunday, dateConfig.format);
+    const dateText = buildDateContent(dateConfig.content, startStr, endStr);
 
-  if (dateText !== "") {
-    const { text: fitted, fontSize } = fitToWidth(dateText, DATE_WIDTH, measure, dateConfig.fontSize, DATECONFIG_MIN_FONT_SIZE);
-    const textWidth = measure(fitted, fontSize);
-    instructions.push({
-      dayIndex: -1,
-      x: DATE_X,
-      y: DATE_Y,
-      width: DATE_WIDTH,
-      height: DATE_HEIGHT,
-      text: fitted,
-      fontSize,
-      align: dateConfig.align,
-      color: dateConfig.color,
-      textWidth,
-    });
+    if (dateText !== "") {
+      const { text: fitted, fontSize } = fitToWidth(dateText, DATE_WIDTH, measure, dateConfig.fontSize, DATECONFIG_MIN_FONT_SIZE);
+      const textWidth = measure(fitted, fontSize);
+      instructions.push({
+        dayIndex: -1,
+        x: DATE_X,
+        y: DATE_Y,
+        width: DATE_WIDTH,
+        height: DATE_HEIGHT,
+        text: fitted,
+        fontSize,
+        align: dateConfig.align,
+        color: dateConfig.color,
+        textWidth,
+      });
+    }
   }
 
   // 每日指令

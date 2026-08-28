@@ -94,8 +94,30 @@ describe("WeeklyImageDialog", () => {
       <WeeklyImageDialog open onClose={() => {}} renderImage={renderImage} baseImageUrl="/x.jpg" />,
     );
     await waitFor(() => expect(screen.getByText("日期设置")).toBeTruthy());
+    expect(screen.getByLabelText("启用日期范围")).toBeTruthy();
     expect(screen.getByText("日期格式")).toBeTruthy();
     expect(screen.getByText("日期内容")).toBeTruthy();
+  });
+
+  it("默认不勾选启用日期范围", async () => {
+    render(
+      <WeeklyImageDialog open onClose={() => {}} renderImage={renderImage} baseImageUrl="/x.jpg" />,
+    );
+    await waitFor(() => expect(screen.getByLabelText("启用日期范围")).not.toBeChecked());
+  });
+
+  it("勾选启用日期范围后日期指令产出", async () => {
+    render(
+      <WeeklyImageDialog open onClose={() => {}} renderImage={renderImage} baseImageUrl="/x.jpg" />,
+    );
+    await waitFor(() => expect(renderImage).toHaveBeenCalled());
+    renderImage.mockClear();
+    
+    // 勾选启用日期范围
+    fireEvent.click(screen.getByLabelText("启用日期范围"));
+    
+    // 验证重绘被触发
+    await waitFor(() => expect(renderImage).toHaveBeenCalled());
   });
 
   it("日期设置变更触发重绘", async () => {

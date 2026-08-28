@@ -14,6 +14,7 @@ export const DaySettingsSchema = z.object({
 export type DaySettings = z.infer<typeof DaySettingsSchema>;
 
 export const DateSchemeConfigSchema = z.object({
+  enabled: z.boolean(),
   format: z.string(),
   content: z.string(),
   align: TextAlignSchema.optional(),
@@ -52,6 +53,7 @@ export function createDefaultScheme(): DefaultScheme {
 
 export function createDefaultDateConfig(): DateSchemeConfig {
   return {
+    enabled: false,
     format: "{yyyy}年{mm}月{dd}日",
     content: "{开始日期} ~ {结束日期}",
   };
@@ -82,6 +84,7 @@ export function buildDateContent(template: string, startStr: string, endStr: str
 }
 
 export function resolveDateConfig(scheme: DefaultScheme): {
+  enabled: boolean;
   format: string;
   content: string;
   align: TextAlign;
@@ -91,18 +94,21 @@ export function resolveDateConfig(scheme: DefaultScheme): {
   const date = scheme.date;
   const defaultConfig = createDefaultDateConfig();
 
+  let enabled = defaultConfig.enabled;
   let format = defaultConfig.format;
   let content = defaultConfig.content;
 
   if (date) {
     const parsed = DateSchemeConfigSchema.safeParse(date);
     if (parsed.success) {
+      enabled = parsed.data.enabled;
       format = parsed.data.format;
       content = parsed.data.content;
     }
   }
 
   return {
+    enabled,
     format,
     content,
     align: date?.align ?? scheme.global.align,

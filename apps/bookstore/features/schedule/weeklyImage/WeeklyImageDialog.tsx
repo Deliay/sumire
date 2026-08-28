@@ -435,6 +435,19 @@ export default function WeeklyImageDialog({
             <h3 className="text-sm font-medium text-ink">日期设置</h3>
             
             <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  aria-label="启用日期范围"
+                  checked={scheme.date?.enabled ?? createDefaultDateConfig().enabled}
+                  onChange={(e) => handleDateChange({ enabled: e.target.checked })}
+                  className="h-4 w-4 rounded border-vine/50"
+                />
+                <span className="text-sm text-ink-dim">启用日期范围</span>
+              </label>
+            </div>
+            
+            <div className="flex items-center gap-4">
               <span className="text-sm text-ink-dim">日期格式</span>
               <input
                 type="text"

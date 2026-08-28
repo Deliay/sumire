@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 
 interface ClearVoteDialogProps {
   open: boolean;
@@ -13,6 +13,8 @@ export default function ClearVoteDialog({
   onConfirm,
   onCancel,
 }: ClearVoteDialogProps) {
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === "Escape") onCancel();
@@ -24,6 +26,8 @@ export default function ClearVoteDialog({
     if (!open) return;
     document.body.style.overflow = "hidden";
     document.addEventListener("keydown", handleKeyDown);
+    // 打开后焦点落于取消按钮
+    cancelButtonRef.current?.focus();
     return () => {
       document.body.style.overflow = "";
       document.removeEventListener("keydown", handleKeyDown);
@@ -56,6 +60,7 @@ export default function ClearVoteDialog({
         </p>
         <div className="mt-6 flex justify-end gap-2">
           <button
+            ref={cancelButtonRef}
             type="button"
             onClick={onCancel}
             className="rounded-md border border-vine/50 px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-raised"

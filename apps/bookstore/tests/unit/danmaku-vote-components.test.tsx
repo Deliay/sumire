@@ -95,7 +95,6 @@ describe("VoteControlBar", () => {
         onStart={vi.fn()}
         onStop={vi.fn()}
         onClear={vi.fn()}
-        hint={null}
       />,
     );
     expect(screen.getByText("开始投票")).toBeTruthy();
@@ -108,7 +107,6 @@ describe("VoteControlBar", () => {
         onStart={vi.fn()}
         onStop={vi.fn()}
         onClear={vi.fn()}
-        hint={null}
       />,
     );
     expect(screen.getByText("停止投票")).toBeTruthy();
@@ -121,7 +119,6 @@ describe("VoteControlBar", () => {
         onStart={vi.fn()}
         onStop={vi.fn()}
         onClear={vi.fn()}
-        hint={null}
       />,
     );
     const startButton = screen.getByText("开始投票");
@@ -133,7 +130,6 @@ describe("VoteControlBar", () => {
         onStart={vi.fn()}
         onStop={vi.fn()}
         onClear={vi.fn()}
-        hint={null}
       />,
     );
     const stopButton = screen.getByText("停止投票");
@@ -148,7 +144,6 @@ describe("VoteControlBar", () => {
         onStart={vi.fn()}
         onStop={vi.fn()}
         onClear={onClear}
-        hint={null}
       />,
     );
     fireEvent.click(screen.getByText("清空投票"));

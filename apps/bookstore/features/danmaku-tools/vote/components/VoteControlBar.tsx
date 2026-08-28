@@ -5,7 +5,6 @@ interface VoteControlBarProps {
   onStart: () => void;
   onStop: () => void;
   onClear: () => void;
-  hint: string | null;
 }
 
 export default function VoteControlBar({
@@ -13,7 +12,6 @@ export default function VoteControlBar({
   onStart,
   onStop,
   onClear,
-  hint,
 }: VoteControlBarProps) {
   return (
     <div className="flex flex-col gap-4">
@@ -43,12 +41,6 @@ export default function VoteControlBar({
           清空投票
         </button>
       </div>
-
-      {hint && (
-        <div role="alert" className="text-sm text-crimson">
-          {hint}
-        </div>
-      )}
     </div>
   );
 }

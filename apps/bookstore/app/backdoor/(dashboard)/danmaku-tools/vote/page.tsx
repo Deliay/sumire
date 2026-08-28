@@ -57,7 +57,6 @@ export default function VotePage() {
             onStart={start}
             onStop={stop}
             onClear={handleClear}
-            hint={null}
           />
         </div>
 

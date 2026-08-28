@@ -322,7 +322,13 @@ describe("useDanmakuVote", () => {
       matched: 0,
       voterUids: [],
     });
-    expect(window.localStorage.getItem("danmaku-tools.vote")).toBeNull();
+    const saved = JSON.parse(window.localStorage.getItem("danmaku-tools.vote")!);
+    expect(saved).toEqual({
+      options: [],
+      processed: 0,
+      matched: 0,
+      voterUids: [],
+    });
   });
 
   it("卸载：close 被调", async () => {
@@ -352,5 +358,33 @@ describe("useDanmakuVote", () => {
     const saved = JSON.parse(window.localStorage.getItem("danmaku-tools.vote")!);
     expect(saved.options).toHaveLength(1);
     expect(saved.options[0].name).toBe("选项A");
+  });
+
+  it("clear 后继续操作仍持久化", async () => {
+    const { useDanmakuVote } = await loadHook();
+    const { result } = renderHook(() => useDanmakuVote());
+
+    act(() => {
+      result.current.addOption("选项A", "唱歌");
+    });
+    act(() => {
+      result.current.clear();
+    });
+
+    const afterClear = JSON.parse(window.localStorage.getItem("danmaku-tools.vote")!);
+    expect(afterClear).toEqual({
+      options: [],
+      processed: 0,
+      matched: 0,
+      voterUids: [],
+    });
+
+    act(() => {
+      result.current.addOption("选项B", "游戏");
+    });
+
+    const saved = JSON.parse(window.localStorage.getItem("danmaku-tools.vote")!);
+    expect(saved.options).toHaveLength(1);
+    expect(saved.options[0].name).toBe("选项B");
   });
 });

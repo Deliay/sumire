@@ -138,8 +138,6 @@ export function useDanmakuVote() {
     stop();
     setState({ ...EMPTY_VOTE_STATE });
     voterSetRef.current.clear();
-    // 先设置 hydrated 为 false，防止 useEffect 再次保存空态
-    setHydrated(false);
     clearVoteState();
     setHint(null);
   }

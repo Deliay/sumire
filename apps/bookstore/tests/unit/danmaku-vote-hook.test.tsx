@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { StrictMode } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 
@@ -386,5 +387,81 @@ describe("useDanmakuVote", () => {
     const saved = JSON.parse(window.localStorage.getItem("danmaku-tools.vote")!);
     expect(saved.options).toHaveLength(1);
     expect(saved.options[0].name).toBe("选项B");
+  });
+});
+
+// StrictMode 回归：验证 updater 纯净（无 voterSetRef 副作用），dev 模式双调用不影响计票
+describe("useDanmakuVote (StrictMode)", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    MockEventSource.instances = [];
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://localhost:4000");
+    vi.stubGlobal("EventSource", MockEventSource);
+    vi.stubGlobal("crypto", { randomUUID: () => "test-uuid" });
+  });
+
+  afterEach(() => {
+    MockEventSource.instances = [];
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  async function loadHook() {
+    return await import("@/features/danmaku-tools/vote/useDanmakuVote");
+  }
+
+  it("StrictMode 下首次投票 count 正常 +1", async () => {
+    const { useDanmakuVote } = await loadHook();
+    const { result } = renderHook(() => useDanmakuVote(), {
+      wrapper: ({ children }) => (
+        <StrictMode>{children}</StrictMode>
+      ),
+    });
+
+    act(() => {
+      result.current.addOption("选项A", "唱歌");
+    });
+    act(() => {
+      result.current.start();
+    });
+
+    const es = MockEventSource.instances[0];
+    act(() => {
+      es.emit(makeDanmakuEvent("dm:1", 100, "大家来唱歌吧"));
+    });
+
+    // StrictMode 双调用 updater 不应导致计票丢失
+    expect(result.current.state.processed).toBe(1);
+    expect(result.current.state.matched).toBe(1);
+    expect(result.current.state.options[0].count).toBe(1);
+    expect(result.current.state.voterUids).toContain(100);
+  });
+
+  it("StrictMode 下同一 uid 重复弹幕不重复计票", async () => {
+    const { useDanmakuVote } = await loadHook();
+    const { result } = renderHook(() => useDanmakuVote(), {
+      wrapper: ({ children }) => (
+        <StrictMode>{children}</StrictMode>
+      ),
+    });
+
+    act(() => {
+      result.current.addOption("选项A", "唱歌");
+    });
+    act(() => {
+      result.current.start();
+    });
+
+    const es = MockEventSource.instances[0];
+    act(() => {
+      es.emit(makeDanmakuEvent("dm:1", 100, "大家来唱歌吧"));
+      es.emit(makeDanmakuEvent("dm:2", 100, "再唱一次"));
+    });
+
+    expect(result.current.state.processed).toBe(2);
+    expect(result.current.state.matched).toBe(1);
+    expect(result.current.state.options[0].count).toBe(1);
+    expect(result.current.state.voterUids).toHaveLength(1);
   });
 });

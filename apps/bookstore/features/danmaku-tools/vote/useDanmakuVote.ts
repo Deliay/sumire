@@ -100,23 +100,28 @@ export function useDanmakuVote() {
         const event = parsed.data;
         if (event.type !== "danmaku") return;
 
+        // 在 setState 之外计算匹配结果和去重状态，保证 updater 纯净（StrictMode 安全）
+        const matchedId =
+          event.content !== undefined
+            ? matchVote(event.content, optionsRef.current)
+            : null;
+        const isNewVoter =
+          matchedId !== null && !voterSetRef.current.has(event.sender.uid);
+        if (isNewVoter) {
+          voterSetRef.current.add(event.sender.uid);
+        }
+
         setState((prev) => {
           const newState = { ...prev, processed: prev.processed + 1 };
-          if (event.content === undefined) return newState;
-
-          const matchedId = matchVote(event.content, optionsRef.current);
-          if (matchedId && !voterSetRef.current.has(event.sender.uid)) {
-            voterSetRef.current.add(event.sender.uid);
-            return {
-              ...newState,
-              matched: newState.matched + 1,
-              voterUids: [...newState.voterUids, event.sender.uid],
-              options: newState.options.map((o) =>
-                o.id === matchedId ? { ...o, count: o.count + 1 } : o,
-              ),
-            };
-          }
-          return newState;
+          if (!isNewVoter || matchedId === null) return newState;
+          return {
+            ...newState,
+            matched: newState.matched + 1,
+            voterUids: [...newState.voterUids, event.sender.uid],
+            options: newState.options.map((o) =>
+              o.id === matchedId ? { ...o, count: o.count + 1 } : o,
+            ),
+          };
         });
       } catch {
         // 非法帧静默忽略

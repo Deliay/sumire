@@ -19,6 +19,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/backdoor/schedule", label: "直播计划", roles: ["superadmin", "admin", "member"] },
   { href: "/backdoor/danmaku", label: "弹幕看板", roles: ["superadmin", "admin", "member"] },
   { href: "/backdoor/danmaku/search", label: "弹幕检索", roles: ["superadmin", "admin", "member"] },
+  { href: "/backdoor/danmaku-tools", label: "弹幕工具", roles: ["superadmin", "admin", "member"] },
   { href: "/backdoor/users", label: "用户管理", roles: ["superadmin"] },
 ];
 

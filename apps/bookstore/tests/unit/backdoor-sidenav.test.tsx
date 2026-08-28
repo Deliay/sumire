@@ -32,12 +32,13 @@ describe("SideNav 按角色渲染", () => {
     expect(screen.queryByText("增加用户")).toBeNull();
   });
 
-  it("成员可见仪表盘/直播计划/弹幕看板/弹幕检索（无用户管理）", () => {
+  it("成员可见仪表盘/直播计划/弹幕看板/弹幕检索/弹幕工具（无用户管理）", () => {
     render(<SideNav role="member" />);
     expect(screen.getByText("仪表盘")).toBeTruthy();
     expect(screen.getByText("直播计划")).toBeTruthy();
     expect(screen.getByText("弹幕看板")).toBeTruthy();
     expect(screen.getByText("弹幕检索")).toBeTruthy();
+    expect(screen.getByText("弹幕工具")).toBeTruthy();
     expect(screen.queryByText("增加用户")).toBeNull();
     expect(screen.queryByText("用户管理")).toBeNull();
   });
@@ -97,5 +98,12 @@ describe("SideNav 选中态", () => {
     renderWithRole("/backdoor/danmaku/search/extra");
     expect(screen.getByText("弹幕检索").closest("a")).toHaveClass("border-primary");
     expect(screen.getByText("弹幕看板").closest("a")).toHaveClass("border-transparent");
+  });
+
+  it("/backdoor/danmaku-tools/vote 仅「弹幕工具」选中", () => {
+    renderWithRole("/backdoor/danmaku-tools/vote");
+    expect(screen.getByText("弹幕工具").closest("a")).toHaveClass("border-primary");
+    expect(screen.getByText("弹幕看板").closest("a")).toHaveClass("border-transparent");
+    expect(screen.getByText("弹幕检索").closest("a")).toHaveClass("border-transparent");
   });
 });

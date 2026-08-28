@@ -228,7 +228,8 @@ describe("scheme", () => {
 
     it("should handle invalid date config gracefully", () => {
       const scheme = createDefaultScheme();
-      (scheme as DefaultScheme & { date?: unknown }).date = { invalid: true } as any;
+      // @ts-expect-error -- intentionally invalid date config for testing
+      (scheme as DefaultScheme & { date?: unknown }).date = { invalid: true };
       const config = resolveDateConfig(scheme);
       expect(config.enabled).toBe(false);
       expect(config.format).toBe("{yyyy}年{mm}月{dd}日");

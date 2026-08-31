@@ -33,11 +33,11 @@ components:
     LiveStatus:
       type: object
       required: [live]
-      description: 归一化直播状态。live 为唯一强保证字段；title/startedAt 为防御式可选，上游缺字段时为 null
+      description: 归一化直播状态。live 为唯一强保证字段；title/startedAt 为防御式可选，上游缺字段时为 null。上游实测结构 `{ roomId, title, liveStatus, liveSessionId, createdAt }`，服务端取 `liveStatus`（boolean）为 live，`title` 透传，`createdAt` 归入 startedAt（缺字段时为 null）
       properties:
         live:
           type: boolean
-          description: 是否直播中（归一化唯一强保证字段）
+          description: 是否直播中（归一化唯一强保证字段；上游 liveStatus/live/is_live 布尔，或 live_status/status 的 0/1 数字语义）
         title:
           type: string
           description: 当前直播标题；上游未提供或非字符串时为 null

@@ -103,6 +103,21 @@ describe("normalizeLiveStatus", () => {
     expect(normalizeLiveStatus({ data: { live_status: 0 } })).toEqual({ live: false, title: null, startedAt: null });
   });
 
+  it("兼容实测上游结构（liveStatus 布尔 + createdAt）", () => {
+    const upstream = {
+      roomId: 1727076670,
+      title: "一个普通的早上",
+      liveStatus: false,
+      liveSessionId: "b75f6f54-5f29-48fa-8eac-f1534d48b48d",
+      createdAt: "2026-08-30T03:31:20.967Z",
+    };
+    expect(normalizeLiveStatus(upstream)).toEqual({
+      live: false,
+      title: "一个普通的早上",
+      startedAt: "2026-08-30T03:31:20.967Z",
+    });
+  });
+
   it("无法确定 live 布尔时返回 null", () => {
     expect(normalizeLiveStatus(null)).toBeNull();
     expect(normalizeLiveStatus("x")).toBeNull();

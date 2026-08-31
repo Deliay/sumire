@@ -21,7 +21,7 @@
 ## GET /api/live/status（公开）
 
 - 上游：`GET {LIVE_STATUS_UPSTREAM_URL}`（缺省 `http://vtuber.internal.fffdan.com/api/b/live/1727076670/state/current`，房间号服务端内置固定，不暴露参数防 SSRF）；`AbortSignal.timeout(5000)`，`fetchFn` 可注入。
-- 防御式归一化（`routes/liveStatus.ts` `normalizeLiveStatus`，无 zod 手写类型守卫）：`live` 布尔为唯一强保证字段（兼容顶层/嵌套 `live`/`live_status`/`is_live`/`status` 的 boolean 与 0/1 数字语义）；`title`/`startedAt` 防御式可选，上游缺字段时为 `null`。无法确定 `live` 布尔视为上游失败。
+- 防御式归一化（`routes/liveStatus.ts` `normalizeLiveStatus`，无 zod 手写类型守卫）：`live` 布尔为唯一强保证字段（兼容顶层/嵌套 `live`/`live_status`/`is_live`/`liveStatus` 的 boolean 与 `live_status`/`status` 的 0/1 数字语义）；`title`/`startedAt` 防御式可选，上游缺字段时为 `null`。无法确定 `live` 布尔视为上游失败。上游**实测**结构 `{ roomId, title, liveStatus, liveSessionId, createdAt }`：`liveStatus` 布尔 → `live`，`title` 透传，`createdAt` 归入 `startedAt`。
 - Redis 缓存键 `live-status:latest`，TTL **30s**；**上游失败 stale-if-error 重读缓存，仍无则降级 200 + `{ok:false, status:null}`，永不 5xx**。
 - 缓存抽象 `infra/liveStatusCache.ts`（Redis 实现 + 内存实现）；装配挂载两段式路径 `/api/live/status`（与既有 kebab-case 域根的层次差异按 PRD 实现）。
 - 上游真实响应结构经实测后归一化口径回写本文件与契约。

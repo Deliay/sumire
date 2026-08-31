@@ -46,7 +46,7 @@ function extractLive(input: unknown): boolean | null {
   for (const candidate of candidates) {
     if (typeof candidate !== "object" || candidate === null) continue;
     const o = candidate as Record<string, unknown>;
-    for (const key of ["live", "is_live"]) {
+    for (const key of ["live", "is_live", "liveStatus"]) {
       if (typeof o[key] === "boolean") return o[key] as boolean;
     }
     for (const key of ["live_status", "status"]) {
@@ -77,9 +77,9 @@ export function normalizeLiveStatus(input: unknown): LiveStatus | null {
     (room ? pickStr(room, ["title"]) : null) ??
     (data ? pickStr(data, ["title"]) : null);
   const startedAt =
-    pickStr(o, ["startedAt", "startTime", "live_start_time", "liveStartTime"]) ??
-    (room ? pickStr(room, ["startedAt", "startTime", "live_start_time", "liveStartTime"]) : null) ??
-    (data ? pickStr(data, ["startedAt", "startTime", "live_start_time", "liveStartTime"]) : null);
+    pickStr(o, ["startedAt", "startTime", "live_start_time", "liveStartTime", "createdAt"]) ??
+    (room ? pickStr(room, ["startedAt", "startTime", "live_start_time", "liveStartTime", "createdAt"]) : null) ??
+    (data ? pickStr(data, ["startedAt", "startTime", "live_start_time", "liveStartTime", "createdAt"]) : null);
   return { live, title, startedAt };
 }
 

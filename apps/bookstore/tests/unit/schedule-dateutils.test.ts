@@ -6,6 +6,7 @@ import {
   shiftMonth,
   toDateStr,
   monthRange,
+  monthGridRange,
   parseTimeStr,
 } from "@/features/schedule/dateUtils";
 
@@ -75,6 +76,21 @@ describe("monthRange", () => {
     expect(monthRange(2026, 2)).toEqual({ from: "2026-02-01", to: "2026-02-28" });
     expect(monthRange(2024, 2)).toEqual({ from: "2024-02-01", to: "2024-02-29" }); // 闰年
     expect(monthRange(2026, 8)).toEqual({ from: "2026-08-01", to: "2026-08-31" });
+  });
+});
+
+describe("monthGridRange", () => {
+  it("返回月视图展示网格首格~末格（跨月补位）", () => {
+    expect(monthGridRange(2026, 8)).toEqual({ from: "2026-07-27", to: "2026-09-06" });
+  });
+
+  it("跨年：1 月首格落在上年 12 月，12 月末格落在次年 1 月", () => {
+    expect(monthGridRange(2027, 1).from).toBe("2026-12-28");
+    expect(monthGridRange(2026, 12).to).toBe("2027-01-10");
+  });
+
+  it("月初恰为周一时首格即当月 1 日（无月初补位）", () => {
+    expect(monthGridRange(2026, 6).from).toBe("2026-06-01");
   });
 });
 

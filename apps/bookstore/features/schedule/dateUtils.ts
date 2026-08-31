@@ -77,6 +77,15 @@ export function monthRange(y: number, m: number): { from: string; to: string } {
   return { from: toDateStr(y, m, 1), to: toDateStr(y, m, daysInMonth(y, m)) };
 }
 
+/**
+ * 月视图实际展示网格的 from/to 区间（YYYY-MM-DD，含首末），即 6 行 x 7 列首格~末格，
+ * 覆盖月初/月末跨月补位日期（如 2026-08 → 2026-07-27 ~ 2026-09-06）。复用 monthGrid。
+ */
+export function monthGridRange(y: number, m: number): { from: string; to: string } {
+  const cells = monthGrid(y, m);
+  return { from: cells[0].dateStr, to: cells[41].dateStr };
+}
+
 export function shiftMonth(y: number, m: number, delta: number): { y: number; m: number } {
   const total = y * 12 + (m - 1) + delta;
   return { y: Math.floor(total / 12), m: (total % 12) + 1 };

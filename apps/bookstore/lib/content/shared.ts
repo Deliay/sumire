@@ -22,3 +22,7 @@ export const assetOriginalUrl = (asset: Asset): string =>
 
 export const assetThumbnailUrl = (asset: Asset): string =>
   `${BASE_PATH}/assets/thumbnails/${asset.id}.webp`;
+
+/** 原图的全分辨率 webp 版（保留透明通道，由转换脚本产出并随仓库提交），用于首页立绘等大图展示。 */
+export const assetOriginalWebpUrl = (asset: Asset): string =>
+  `${BASE_PATH}/assets/original/${asset.id}.webp`;

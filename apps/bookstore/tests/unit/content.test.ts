@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   assetOriginalUrl,
+  assetOriginalWebpUrl,
   assetThumbnailUrl,
 } from "@/lib/content/shared";
 import {
@@ -59,5 +60,8 @@ describe("content layer", () => {
     const asset = getAssets()[0];
     expect(assetOriginalUrl(asset)).toBe(`/assets/original/${asset.file}`);
     expect(assetThumbnailUrl(asset)).toBe(`/assets/thumbnails/${asset.id}.webp`);
+    expect(assetOriginalWebpUrl(asset)).toBe(
+      `/assets/original/${asset.id}.webp`,
+    );
   });
 });

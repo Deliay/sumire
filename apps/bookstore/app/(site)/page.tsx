@@ -4,7 +4,7 @@ import LiveStatus from "@/features/home/LiveStatus";
 import TodaySchedule from "@/features/home/TodaySchedule";
 import { API_CONFIGURED } from "@/features/backdoor/api";
 import { getAssetById, getProfile, getSite } from "@/lib/content";
-import { assetThumbnailUrl } from "@/lib/content/shared";
+import { assetOriginalWebpUrl } from "@/lib/content/shared";
 
 export default function Home() {
   const profile = getProfile();
@@ -21,10 +21,10 @@ export default function Home() {
       {/* 立绘：移动端顶部 10% 起 90% 高全宽并向右偏移 25% 宽；桌面端右 10% 起 90% 高右半宽、不偏移。作为衬底不参与布局流。 */}
       <div className="pointer-events-none absolute inset-x-0 top-[10%] h-[90%] lg:left-auto lg:right-[10%] lg:w-1/2">
         <Image
-          src={assetThumbnailUrl(heroAsset)}
+          src={assetOriginalWebpUrl(heroAsset)}
           alt={heroAsset.title}
-          width={1000}
-          height={2000}
+          width={2000}
+          height={4000}
           priority
           className="ml-[25%] h-full w-full object-cover object-top lg:ml-0"
         />

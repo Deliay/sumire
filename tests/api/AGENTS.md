@@ -52,6 +52,24 @@ cd tests/api && API_BASE_URL=http://localhost:<api-port> \
 - 已读状态持久化在 MongoDB（`live_event_reads`），用例均只断言操作后的当前状态，可重复运行；
 - SSE 心跳用例需真实等待 30s 心跳，单用例超时 45s。
 
+### live-status 用例（含 stub 上游）
+
+`src/live-status.test.ts` 依赖 API 的直播状态上游指向本机 stub（测试进程内起 HTTP stub 于固定端口，默认 `9878`，与 9876/9877 隔离）：
+
+```bash
+# 起 Aspire 时把 api 直播状态上游指向 stub（含完整路径，测试端口非默认需一致）
+cd infra/aspire && LIVE_STATUS_UPSTREAM_URL=http://127.0.0.1:9878/api/b/live/1727076670/state/current aspire start
+aspire describe api --output json && aspire describe redis --output json
+cd tests/api && API_BASE_URL=http://localhost:<api-port> \
+  REDIS_URL=<redis-connection-string> \
+  LIVE_STATUS_STUB_PORT=9878 \
+  pnpm vitest run src/live-status.test.ts
+```
+
+- `REDIS_URL` 用于用例间清理缓存（缺失则跳过清理，缓存相关用例可能串扰）；
+- `LIVE_STATUS_STUB_PORT` 缺省 `9878`，须与 Aspire 启动时注入的 `LIVE_STATUS_UPSTREAM_URL` 端口一致；
+- stub 上游模拟直播状态信封（live/offline/invalid/hang 等模式），与契约口径一致；API 归一化返回 `{ ok, status }`。
+
 ## 目录
 
 - `src/client.ts`：fetch 封装、`CookieJar`（解析/回带 sumire_sid）、登录/建号助手、就绪轮询

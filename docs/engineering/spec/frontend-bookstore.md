@@ -6,9 +6,10 @@ Next.js 15 App Router，`output: "export"` 全静态导出（部署 GitHub Pages
 
 - `next.config.ts`：`basePath` 由 `NEXT_PUBLIC_BASE_PATH` 注入；`images.unoptimized`（缩略图构建期预生成）。
 - 根布局加载三套 Google Fonts（Noto Serif SC / Noto Sans SC / Cormorant Garamond），metadata 模板 `%s · 堇色书屋`。
-- **API 配置口径**：`API_CONFIGURED = NEXT_PUBLIC_API_BASE_URL !== ""`（`features/backdoor/api.ts`）是全局唯一判定，控制三处：`/calendar` 路由存在性、NavBar「日历」入口、首页「本周日程」区块。
+- **API 配置口径**：`API_CONFIGURED = NEXT_PUBLIC_API_BASE_URL !== ""`（`features/backdoor/api.ts`）是全局唯一判定，控制多处：`/calendar` 路由存在性、NavBar「日历」入口、首页「直播状态 / 今日日程」组件存在性。
 - 未配置时双保险：`app/backdoor/layout.tsx` 直接渲染站点 404（不挂载 SessionProvider、不发请求），且 `api.ts` 的 `request()` 短路返回 `{status:0}` 不 fetch——杜绝静态站向主站自身发 `/api/*`。
 - `app/globals.css` 的 `@theme` 中定义 `--animate-pulse: pulse 3.2s cubic-bezier(0.4, 0, 0.6, 1) infinite`，覆盖 Tailwind v4 内置 2s 周期，全站 4 处骨架统一降速；`prefers-reduced-motion` 兜底不变。
+- `@theme` 另定义 `--text-*` 字阶 token（`--text-display` 4rem / `--text-h1` 2.5rem / `--text-h2` 1.625rem / `--text-body` 1.0625rem / `--text-small` 0.9375rem / `--text-tiny` 0.8125rem），body 默认字号取 `--text-body`，整体较旧版本上调一档；页面标题类（`text-6xl/7xl` 等内置字阶）替换为字阶 token。
 
 ## 路由结构
 
@@ -37,11 +38,19 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 - 月视图周表头与 42 格拆为两个并列网格，格子网格 `grid-rows-6` 六行 `1fr` 等高，`DayCell` 含 `h-full min-h-16 overflow-hidden`。
 - `mergeEntries.ts`：plan/history 归一化为 `CalendarEntry`；历史按 startDate **本地时区**归开播当日；缺 title/startDate 丢弃、未来历史剔除；按 date+startTime 升序混排、不去重。
 - `dateUtils.ts`：一律本地时区构造 Date，禁止 `new Date("YYYY-MM-DD")`（UTC 解析陷阱）；`parseTimeStr` 容错 "9:5"→"09:05"。
-- 首页 `WeeklySchedule`（features/home）：客户端组件，本周一~周日 `listPlans(from,to)`，仅计划不合并历史。
 - 周表图（`weeklyImage/`）：`WeeklyImageDialog` 打开时一次性拉全量计划，`weekUtils.ts` 自实现 ISO-8601 周算法；`layout.ts` 同日多场「 / 」拼单行、40px shrink-to-fit 至 22px 截断加「…」、行坐标常量与 `public/assets/original/AGENTS.md` 一致；日期区域坐标 `DATE_X=640`/`DATE_Y=80`/`DATE_WIDTH=451`/`DATE_HEIGHT=40`，日期指令 `dayIndex=-1` 标记非按天指令，**仅当 `dateConfig.enabled === true` 时才产出日期指令**，`fitToWidth` 参数化下限 `DATECONFIG_MIN_FONT_SIZE=14` 支持日期区更小字号；`renderer.ts` Canvas 2× 离屏超采样（3330×2160）+ `imageSmoothingQuality: "high"` 缩回 1665×1080 输出 PNG dataURL。
 - 周表图片自定义（`scheme.ts`/`storage.ts`）：`DefaultScheme`/`WeekScheme` 类型 + Zod schema（全局对齐/字号/颜色 + 7 天 `DaySettings` + 可选 `DateSchemeConfig`）；`DateSchemeConfig` 含 enabled（是否启用日期范围渲染，默认 false）、format（日期格式模板）、content（日期内容模板）、align/fontSize/color（独立于全局）；`createDefaultScheme()` 默认左对齐 40px #5b4b68；`createDefaultDateConfig()` 默认 enabled=false + `{yyyy}年{mm}月{dd}日` + `{开始日期} ~ {结束日期}`；`resolveEffectiveScheme(week, store)` 按周取方案、Zod 非法回退默认；`resolveDateConfig(scheme)` 返回日期配置（缺省回退 enabled=false + 默认格式/内容/字号 20/全局对齐与颜色）；`formatDate(dateStr, format)` 替换 `{yyyy}/{yy}/{mm}/{m}/{dd}/{d}` 变量；`buildDateContent(template, startStr, endStr)` 替换 `{开始日期}/{结束日期}`；`buildDaySchedulesText`/`resolveDayText` 变量求值；`ensureWeekScheme` 深拷贝附周归属。`storage.ts` localStorage 读写 + 内存 Map 兜底（隐私模式），`loadDefault`/`saveDefault`/`loadWeek`/`saveWeek`/`deleteWeek`/`hasWeek`。
 - `WeeklyImageDialog` 扩展：状态 `scheme`/`editingDefault`，打开时按当前周加载有效方案；切换编辑默认方案模式时切换 scheme 来源；全局设置（对齐三选、字号 16-60、颜色色板+文本）+ 日期设置（启用日期范围勾选框默认不勾选、日期格式/内容模板、对齐沿用/左/中/右、字号 14-30 默认 20、颜色）+ 按天设置（七天折叠面板，每项内容模板 + 插入 `{schedules}` 按钮 + 覆盖对齐/字号/颜色）；任一变更自动保存（非编辑默认模式时 `ensureWeekScheme` + `saveWeek`，编辑默认模式时 `saveDefault`）；`useEffect` 依赖 `scheme` 引用变化驱动重绘。
 - 输入框 `autoComplete="off"`：DatePicker/TimePicker 关闭浏览器自动填充联想。
+
+## 首页一屏封面页（features/home + app/(site)/page.tsx）
+
+- 首页 `app/(site)/page.tsx`：`h-svh overflow-hidden` 相对定位封面页，**一屏不可滚动**。立绘桌面 `absolute right-0 top-0 h-1/2 w-1/2`（移动端 `inset-x-0 w-full`），`Image` `object-cover object-top` 顶部锚定裁剪（不变形）；文案块 `absolute bottom-left` 留 padding；直播状态 + 今日日程纵向排布于左侧；Footer 以 `floating` 形态 `absolute bottom-right` 右下贴边。
+- `features/home/api.ts`：`getLiveStatus()`（复用 `features/backdoor/api.ts` 的 `API_BASE_URL`/`API_CONFIGURED` 口径，未配置短路 `{ok:false, status:null}`，任何失败静默降级）。
+- `features/home/LiveStatus.tsx`（Client）：`API_CONFIGURED` 守卫（未配置返回 null 不留占位）；固定尺寸骨架防 CLS；三态渲染——「直播中」（状态点 + `animate-pulse`）/「未开播」/降级中性态；整体 `<a href={site.links.live} target="_blank" rel="noopener noreferrer">` 点击跳直播间（liveUrl 由服务端 props 自 `site.links.live` 传入）。样式基于被移除的 ColorChip 药丸语言改造。
+- `features/home/TodaySchedule.tsx`（Client）：`API_CONFIGURED` 守卫；`listPlans(today, today)`（本地时区当天，与日历页口径一致，不混入历史）；渲染「今日日程」标题 + 当天计划 `HH:mm 主题`；无计划/失败展示「今日暂无安排」空态；固定尺寸骨架。
+- 已删除：`features/home/ColorChip.tsx`（应援色复制按钮）、`features/home/EntryCard.tsx`（入口卡）；`WeeklySchedule.tsx` 不再由首页挂载（保留文件但无引用）。
+- 内容 `content/profile.yaml` 扩展字段：`bookAnimeTypes`（书籍/动漫类型）、`musicTypes`（音乐类型）、`gameGenre`（游戏偏好类型），`/about` 喜好区块同步展示。
 
 ## 弹幕前端（features/danmaku）
 

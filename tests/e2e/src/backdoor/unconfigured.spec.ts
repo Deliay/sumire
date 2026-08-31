@@ -51,9 +51,12 @@ test.describe("backdoor 未配置形态 404", () => {
     });
   }
 
-  test("/ 主页未配置时无本周日程入口", async ({ page }) => {
+  test("/ 主页未配置时无本周日程入口与直播状态/今日日程组件", async ({ page }) => {
     await page.goto(`${STATIC_BASE}/`);
     await expect(page.getByRole("heading", { name: "本周日程" })).toHaveCount(0);
     await expect(page.getByRole("link", { name: /查看完整日历/ })).toHaveCount(0);
+    // 未配置形态不渲染直播状态 / 今日日程组件
+    await expect(page.getByRole("link", { name: /直播中|未开播|直播状态/ })).toHaveCount(0);
+    await expect(page.getByText("今日暂无安排")).toHaveCount(0);
   });
 });

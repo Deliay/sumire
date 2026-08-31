@@ -80,7 +80,7 @@ let addSpy: ReturnType<typeof vi.spyOn>;
 let removeSpy: ReturnType<typeof vi.spyOn>;
 
 function countListeners(spy: ReturnType<typeof vi.spyOn>, type: string): number {
-  return spy.mock.calls.filter((c) => c[0] === type).length;
+  return spy.mock.calls.filter((c: unknown[]) => c[0] === type).length;
 }
 
 beforeEach(() => {

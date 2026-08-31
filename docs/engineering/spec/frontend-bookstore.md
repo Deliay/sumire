@@ -13,7 +13,7 @@ Next.js 15 App Router，`output: "export"` 全静态导出（部署 GitHub Pages
 
 ## 路由结构
 
-- `app/(site)/`：公开页路由组（`/`、`/about`、`/assets`、`/calendar`），共享布局 NavBar + main + Footer。
+- `app/(site)/`：公开页路由组（`/`、`/about`、`/assets`、`/calendar`）。**页脚按页面形态分派**：`(site)/layout.tsx` 仅渲染 NavBar + `<main>`（不渲染 Footer）；非首页（`/about` `/assets` `/calendar`，位于子路由组 `app/(site)/(content)/`）经 `(content)/layout.tsx` 渲染流式单行 `Footer`；首页 `page.tsx`（100svh 封面页）在页内右下角贴边渲染 `Footer floating`——确保首页单 footer 且不可滚动。
 - `app/backdoor/`：后台路由区——`login`、`change-password`（独立卡片，无后台布局）、`(dashboard)/`（布局 = TopBar + SideNav + 内容区；子页 `page`、`users`、`schedule`、`danmaku`）。
 - `app/not-found.tsx` 复用 `components/NotFoundPage.tsx`。
 
@@ -45,7 +45,7 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 
 ## 首页一屏封面页（features/home + app/(site)/page.tsx）
 
-- 首页 `app/(site)/page.tsx`：`h-svh overflow-hidden` 相对定位封面页，**一屏不可滚动**。立绘桌面 `absolute right-0 top-0 h-1/2 w-1/2`（移动端 `inset-x-0 w-full`），`Image` `object-cover object-top` 顶部锚定裁剪（不变形）；文案块 `absolute bottom-left` 留 padding；直播状态 + 今日日程纵向排布于左侧；Footer 以 `floating` 形态 `absolute bottom-right` 右下贴边。
+- 首页 `app/(site)/page.tsx`：`relative flex h-svh flex-col overflow-hidden` **一屏不可滚动**的流式分区封面页——立绘作为 **absolute 衬底**（桌面 `absolute right-0 top-0 h-1/2 w-1/2`、移动端 `inset-x-0 top-0 h-1/2`），`Image` `object-cover object-top` 顶部锚定裁剪（不变形），`pointer-events-none` 不遮挡交互；左列内容（直播状态 + 今日日程组件 + 文案块）以 `flex flex-1 flex-col justify-end` 纵向流式排布，靠布局自然避让（不叠固定偏移魔法数）；Footer 以 `floating` 形态在页内底部一行 `flex justify-end` 右下贴边。
 - `features/home/api.ts`：`getLiveStatus()`（复用 `features/backdoor/api.ts` 的 `API_BASE_URL`/`API_CONFIGURED` 口径，未配置短路 `{ok:false, status:null}`，任何失败静默降级）。
 - `features/home/LiveStatus.tsx`（Client）：`API_CONFIGURED` 守卫（未配置返回 null 不留占位）；固定尺寸骨架防 CLS；三态渲染——「直播中」（状态点 + `animate-pulse`）/「未开播」/降级中性态；整体 `<a href={site.links.live} target="_blank" rel="noopener noreferrer">` 点击跳直播间（liveUrl 由服务端 props 自 `site.links.live` 传入）。样式基于被移除的 ColorChip 药丸语言改造。
 - `features/home/TodaySchedule.tsx`（Client）：`API_CONFIGURED` 守卫；`listPlans(today, today)`（本地时区当天，与日历页口径一致，不混入历史）；渲染「今日日程」标题 + 当天计划 `HH:mm 主题`；无计划/失败展示「今日暂无安排」空态；固定尺寸骨架。

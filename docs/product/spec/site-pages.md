@@ -5,7 +5,7 @@
 ## 全局
 
 - 站点定位：枝堇Sumire（VirtuaReal 二十八期）非官方粉丝站，应援色 `#b4a6bf`；素材版权归主播及所属社团所有，内容以官方公开信息为准。
-- 页面骨架：固定顶部 NavBar（雾面玻璃，全屏宽）+ 内容区 + Footer（单行：免责声明移动端隐藏 + 三个外链）。
+- 页面骨架：固定顶部 NavBar（雾面玻璃，全屏宽）+ 内容区 + Footer（单行：免责声明移动端隐藏 + 三个外链）。**Footer 形态按页面区分**：首页为封面页，在页内右下角贴边渲染 `Footer floating`（该页不再经全局布局的流式页脚）；非首页（`/about` `/assets` `/calendar`，位于路由组 `(site)/(content)/`）经 `(content)/layout.tsx` 渲染流式单行页脚——保证首页**单 footer** 且不可滚动。
 - 视觉基调：深色底、纸页承载长文、藤蔓分割、flower `#8b5fd6` 点睛（单屏 ≤5%）；动效缓慢呼吸，尊重 `prefers-reduced-motion`。
 - 断点：`<640px` / `640–1024px` / `>1024px`。
 - **API 配置降级**：未配置 API 时（`NEXT_PUBLIC_API_BASE_URL` 为空），导航不出现「日历」入口、首页不渲染「直播状态 / 今日日程」组件、`/calendar` 与 `/backdoor` 呈现站点 404，且不发任何 `/api/*` 请求。该口径由 `API_CONFIGURED` 统一控制。

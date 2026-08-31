@@ -25,13 +25,7 @@ export default function Footer({ site, floating = false }: FooterProps) {
               : "mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-4 gap-y-2 px-5 py-6 text-sm lg:px-10"
           }
         >
-          <span
-            className={
-              floating
-                ? "hidden text-ink-dim sm:inline"
-                : "hidden text-ink-dim sm:inline"
-            }
-          >
+          <span className="hidden text-ink-dim sm:inline">
             {site.disclaimer}
           </span>
           {links.map((link) => (

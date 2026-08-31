@@ -7,7 +7,7 @@ import {
   daysInMonth,
   formatWeekRange,
   monthGrid,
-  monthRange,
+  monthGridRange,
   parseDateStr,
   shiftMonth,
   shiftWeek,
@@ -167,7 +167,7 @@ export default function CalendarView({ entries, onRangeChange, onSelectDay }: Ca
     const p = parseDateStr(selectedDate);
     const d = Math.min(p?.d ?? 1, daysInMonth(next.y, next.m));
     setSelectedDate(toDateStr(next.y, next.m, d));
-    const range = monthRange(next.y, next.m);
+    const range = monthGridRange(next.y, next.m);
     onRangeChange?.(range.from, range.to);
   }
 

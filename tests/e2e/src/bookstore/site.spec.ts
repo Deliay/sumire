@@ -45,6 +45,23 @@ test.describe("bookstore 主页（一屏封面页）", () => {
     await expect(page.getByRole("heading", { name: "今日日程" })).toBeVisible();
   });
 
+  test("site-home-visual-fx: 首页存在光晕粒子 canvas 与立绘视差层（不遮挡、不占布局）", async ({ page }) => {
+    await page.goto(BASE);
+    const canvas = page.locator('canvas[aria-hidden="true"]');
+    await expect(canvas).toHaveCount(1);
+    await expect(canvas).toHaveClass(/pointer-events-none/);
+    // 立绘 <img> 仍在（alt 为素材标题）
+    await expect(page.locator('img[alt*="枝堇立绘"]')).toBeVisible();
+  });
+
+  test("site-home-visual-fx-reduce: reduced-motion 下粒子 canvas 仍存在（降级保留渲染）", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto(BASE);
+    const canvas = page.locator('canvas[aria-hidden="true"]');
+    await expect(canvas).toHaveCount(1);
+    await expect(canvas).toHaveClass(/pointer-events-none/);
+  });
+
   test("site-about-fields: /about 展示新增喜好字段", async ({ page }) => {
     await page.goto(`${BASE}/about`);
     await expect(page.getByText("通俗文学")).toBeVisible();

@@ -71,6 +71,26 @@ test.describe("bookstore 日历页与主页入口", () => {
     await expect(page.getByRole("button", { name: "删除" })).toHaveCount(0);
   });
 
+  test("calendar-grid-fill-cell: 跨月补位格日程按展示网格范围取数后可见、弱化且不可点击", async ({ page }) => {
+    const run = Date.now().toString(36);
+    const title = `e2e_grid_${run}`;
+    const fillDate = gridFillCellDate();
+    await createPlan(fillDate, title);
+
+    await page.goto(`${BASE}/calendar`);
+    await expect(page.getByRole("heading", { name: "直播日程" })).toBeVisible();
+
+    const cell = page.locator(`[data-testid="calendar-day"][data-date="${fillDate}"]`);
+    await expect(cell).toBeVisible();
+    // 补位格弱化样式保留
+    await expect(cell).toHaveClass(/opacity-35/);
+    // 日程摘要可见
+    await expect(cell.getByText(title)).toBeVisible();
+    // 补位格不可点击：点击不弹当日详情
+    await cell.click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
+
   test("home-entry-to-calendar: 主页不再内嵌本周日程；经导航栏进入 /calendar", async ({ page }) => {
     await page.goto(BASE);
     // 首页不出现本周日程大卡
@@ -149,6 +169,20 @@ function shiftDateStr(s: string, days: number): string {
   const [y, m, d] = s.split("-").map(Number);
   const dt = new Date(y, m - 1, d + days);
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+}
+
+function dateStrOf(dt: Date): string {
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+}
+
+/** 取当前月视图网格中一个跨月补位格日期（优先上月末，月初周一则取下月 1 号）。 */
+function gridFillCellDate(): string {
+  const now = new Date();
+  const offset = (new Date(now.getFullYear(), now.getMonth(), 1).getDay() + 6) % 7;
+  if (offset > 0) {
+    return dateStrOf(new Date(now.getFullYear(), now.getMonth(), 0)); // 上月最后一天
+  }
+  return dateStrOf(new Date(now.getFullYear(), now.getMonth() + 1, 1)); // 下月 1 号
 }
 
 test.describe("bookstore 日历页移动端周视图", () => {

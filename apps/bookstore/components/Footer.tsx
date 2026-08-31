@@ -1,53 +1,56 @@
 import { ExternalLink } from "lucide-react";
 import type { Site } from "@/lib/content";
 
-export default function Footer({ site }: { site: Site }) {
+interface FooterProps {
+  site: Site;
+  /** 首页通栏贴底毛玻璃条：占满宽度、免责声明全端展示、无顶部蕾丝与抬升面。 */
+  floating?: boolean;
+}
+
+export default function Footer({ site, floating = false }: FooterProps) {
+  const links = [
+    { href: site.links.bilibili, label: "B 站空间" },
+    { href: site.links.live, label: "直播间" },
+    { href: site.links.moegirl, label: "萌娘百科" },
+  ];
+
   return (
-    <footer className="mt-24">
-      <div className="lace-x" aria-hidden />
-      <div className="bg-raised">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-5 py-10 lg:px-10">
-          <p className="max-w-2xl text-sm leading-relaxed text-ink-dim">
+    <footer
+      className={
+        floating
+          ? "w-full border-t border-vine/30 bg-night/70 backdrop-blur-md"
+          : "mt-24"
+      }
+    >
+      {!floating && <div className="lace-x" aria-hidden />}
+      <div className={floating ? "" : "bg-raised"}>
+        <div
+          className={
+            floating
+              ? "flex w-full flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3 text-sm lg:px-10"
+              : "mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-4 gap-y-2 px-5 py-6 text-sm lg:px-10"
+          }
+        >
+          <span
+            className={
+              floating
+                ? "block text-ink-dim"
+                : "hidden text-ink-dim sm:inline"
+            }
+          >
             {site.disclaimer}
-          </p>
-          <div className="flex flex-wrap items-center gap-5 text-sm">
+          </span>
+          {links.map((link) => (
             <a
-              href={site.links.bilibili}
+              key={link.href}
+              href={link.href}
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-ink-dim transition-colors hover:text-flower"
             >
-              B 站空间 <ExternalLink size={14} />
+              {link.label} <ExternalLink size={14} />
             </a>
-            <a
-              href={site.links.live}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-ink-dim transition-colors hover:text-flower"
-            >
-              直播间 <ExternalLink size={14} />
-            </a>
-            <a
-              href={site.links.moegirl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-ink-dim transition-colors hover:text-flower"
-            >
-              萌娘百科 <ExternalLink size={14} />
-            </a>
-          </div>
-          <div className="flex items-center gap-3 text-xs text-ink-dim">
-            <span
-              className="inline-block size-3 rounded-full"
-              style={{ backgroundColor: site.color }}
-              aria-hidden
-            />
-            <span>应援色 {site.color}</span>
-            <span aria-hidden>·</span>
-            <span>
-              {site.name} · {site.tagline}
-            </span>
-          </div>
+          ))}
         </div>
       </div>
     </footer>

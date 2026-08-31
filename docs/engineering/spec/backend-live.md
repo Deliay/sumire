@@ -1,6 +1,6 @@
-# 后端直播域 Spec（servers/api — live-history / live-events）
+# 后端直播域 Spec（servers/api — live-history / live-events / live-status）
 
-对内网直播数据服务（`http://vtuber.internal.fffdan.com`，B 站房间 1727076670，硬编码于 URL 前缀）的代理与归一化层。上游地址收敛在服务端经 env 注入（`LIVE_HISTORY_UPSTREAM_URL` / `LIVE_EVENTS_UPSTREAM_URL`），不出现在客户端。
+对内网直播数据服务（`http://vtuber.internal.fffdan.com`，B 站房间 1727076670，硬编码于 URL 前缀）的代理与归一化层。上游地址收敛在服务端经 env 注入（`LIVE_HISTORY_UPSTREAM_URL` / `LIVE_EVENTS_UPSTREAM_URL` / `LIVE_STATUS_UPSTREAM_URL`），不出现在客户端。
 
 ## 上游客户端（liveEvents/upstream.ts）
 
@@ -17,6 +17,16 @@
 - 缓存抽象 `infra/liveHistoryCache.ts`（Redis 实现 + 内存实现）。
 
 契约：`contract/live-history.openapi.yaml`。
+
+## GET /api/live/status（公开）
+
+- 上游：`GET {LIVE_STATUS_UPSTREAM_URL}`（缺省 `http://vtuber.internal.fffdan.com/api/b/live/1727076670/state/current`，房间号服务端内置固定，不暴露参数防 SSRF）；`AbortSignal.timeout(5000)`，`fetchFn` 可注入。
+- 防御式归一化（`routes/liveStatus.ts` `normalizeLiveStatus`，无 zod 手写类型守卫）：`live` 布尔为唯一强保证字段（兼容顶层/嵌套 `live`/`live_status`/`is_live`/`liveStatus` 的 boolean 与 `live_status`/`status` 的 0/1 数字语义）；`title`/`startedAt` 防御式可选，上游缺字段时为 `null`。无法确定 `live` 布尔视为上游失败。上游**实测**结构 `{ roomId, title, liveStatus, liveSessionId, createdAt }`：`liveStatus` 布尔 → `live`，`title` 透传，`createdAt` 归入 `startedAt`。
+- Redis 缓存键 `live-status:latest`，TTL **30s**；**上游失败 stale-if-error 重读缓存，仍无则降级 200 + `{ok:false, status:null}`，永不 5xx**。
+- 缓存抽象 `infra/liveStatusCache.ts`（Redis 实现 + 内存实现）；装配挂载两段式路径 `/api/live/status`（与既有 kebab-case 域根的层次差异按 PRD 实现）。
+- 上游真实响应结构经实测后归一化口径回写本文件与契约。
+
+契约：`contract/live-status.openapi.yaml`。
 
 ## LiveEvent 归一化（liveEvents/normalize.ts）
 
@@ -46,6 +56,7 @@ kuroshiro+kuromoji（懒加载字典）→ 失败则 OpenCC 简→日汉字重�
 
 | 方法+路径 | 鉴权 | 要点 |
 |---|---|---|
+| GET `/api/live/status` | 公开 | 无参数；防御式归一化；Redis `live-status:latest` TTL 30s；上游失败 stale-if-error + 200 降级 `{ok:false, status:null}`，永不 5xx |
 | GET `/api/live-events` | member+ | `type` 可重复（五类枚举：danmaku/super_chat/gift/guard_buy/online_rank_count，非法 400）；`page`≥1 默认 1、`pageSize` 1–100 默认 50；`minPrice` 可选（number 0–100，0 或不传不筛选，非法 400）；上游失败 502；items 已归一化 + read 合并 + 罗马音；`type=gift` 向上游请求时展开为 `["gift", "gift_v2"]`；`type=online_rank_count` 透传上游原始信封（不归一化、无 read/罗马音），与其余归一化条目混存 |
 | GET `/api/live-events/search` | member+ | `stringCriteria` 必填（string 1–200，trim 后非空）；`page`≥1 默认 1、`pageSize` 1–100 默认 20；上游失败 502；items 已归一化 + read 合并 + 罗马音 |
 | GET `/api/live-events/stream` | member+ | SSE，见下；`type=gift` 同样展开为 `["gift", "gift_v2"]` |
@@ -64,5 +75,5 @@ kuroshiro+kuromoji（懒加载字典）→ 失败则 OpenCC 简→日汉字重�
 
 ## 存储汇总
 
-- Redis（ioredis 单实例三用）：会话 `session:*`、登录限流 `login:*`、历史直播缓存 `live-history:latest`。
+- Redis（ioredis 单实例四用）：会话 `session:*`、登录限流 `login:*`、历史直播缓存 `live-history:latest`、直播状态缓存 `live-status:latest`。
 - MongoDB：`users`、`streamplans`、`live_event_reads` 三集合。

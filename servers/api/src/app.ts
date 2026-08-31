@@ -8,9 +8,11 @@ import { createUsersRouter } from "./routes/users";
 import { createStreamPlansRouter } from "./routes/streamPlans";
 import { createLiveHistoryRouter } from "./routes/liveHistory";
 import { createLiveEventsRouter } from "./routes/liveEvents";
+import { createLiveStatusRouter } from "./routes/liveStatus";
 import { createBiliCoverRouter } from "./routes/biliCover";
 import { createLiveEventsUpstream, type LiveEventsUpstream } from "./liveEvents/upstream";
 import { createMemoryLiveHistoryCache, type LiveHistoryCache } from "./infra/liveHistoryCache";
+import { createMemoryLiveStatusCache, type LiveStatusCache } from "./infra/liveStatusCache";
 import { config } from "./config";
 
 export interface AppDeps {
@@ -18,6 +20,8 @@ export interface AppDeps {
   rateLimiter: RateLimiter;
   /** 历史直播缓存（缺省内存实现，生产由 index.ts 注入 Redis 实现）。 */
   liveHistoryCache?: LiveHistoryCache;
+  /** 直播状态缓存（缺省内存实现，生产由 index.ts 注入 Redis 实现）。 */
+  liveStatusCache?: LiveStatusCache;
   /** 直播事件上游客户端（可注入 stub 便于测试，缺省按 config.liveEventsUpstreamUrl 创建）。 */
   liveEventsUpstream?: LiveEventsUpstream;
   /** 文本罗马音标注（缺省 kuroshiro 全文转换；单测可注入恒 null 避免加载字典）。 */
@@ -58,6 +62,13 @@ export function createApp(deps: AppDeps): Application {
     createLiveHistoryRouter({
       upstreamUrl: config.liveHistoryUpstreamUrl,
       cache: deps.liveHistoryCache ?? createMemoryLiveHistoryCache(),
+    }),
+  );
+  api.use(
+    "/live/status",
+    createLiveStatusRouter({
+      upstreamUrl: config.liveStatusUpstreamUrl,
+      cache: deps.liveStatusCache ?? createMemoryLiveStatusCache(),
     }),
   );
   api.use(

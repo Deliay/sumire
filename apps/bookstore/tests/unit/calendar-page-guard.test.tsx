@@ -15,7 +15,7 @@ vi.mock("@/features/schedule/CalendarViewPage", () => ({
 }));
 
 async function loadPage() {
-  return (await import("@/app/(site)/calendar/page")).default;
+  return (await import("@/app/(site)/(content)/calendar/page")).default;
 }
 
 describe("/calendar 未配置守卫", () => {

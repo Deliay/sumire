@@ -66,8 +66,8 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Footer 行：通栏贴底毛玻璃条，占满宽度延伸到页面最底部 */}
-      <div className="relative shrink-0 px-5 pb-6 pt-3 lg:px-10">
+      {/* Footer 行：通栏贴底毛玻璃条，占满宽度且左/右/下三边齐平贴到视口边缘；内边距见 Footer floating 内层容器 */}
+      <div className="relative shrink-0">
         <Footer site={site} floating />
       </div>
     </div>

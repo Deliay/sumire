@@ -27,7 +27,7 @@ export default function Footer({ site, floating = false }: FooterProps) {
         <div
           className={
             floating
-              ? "flex w-full flex-wrap items-center gap-x-4 gap-y-1 py-3 text-sm"
+              ? "flex w-full flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3 text-sm lg:px-10"
               : "mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-4 gap-y-2 px-5 py-6 text-sm lg:px-10"
           }
         >

@@ -156,13 +156,13 @@ sequenceDiagram
 #### 实现点 1: 立绘视差（`useParallax.ts` + `page.tsx`）
 
 - **描述**: `page.tsx` 保持 Server Component；立绘容器外包一层 Client 组件（如 `ParallaxLayer.tsx`，`"use client"`，透传 `children`），内部 `useParallax(ref)` 接管 `transform`。输入：桌面 `pointermove`（window 级，被动监听）；移动端 `deviceorientation`——特性检测 `(window as any).DeviceOrientationEvent?.requestPermission` 存在（iOS 13+）时在**首次 `touchend`** 回调中静默 `requestPermission()`，成功则挂监听，拒绝/异常静默放弃；无需权限的平台直接挂监听。
-- **技术细节**: 目标偏移由 `parallax.ts` 纯函数计算（幅度上限约 12px，定稿以设计为准）；每帧 `lerp`（t≈0.08）逼近平滑跟随；`pointerleave`/`blur` 目标归零回中；rAF 循环在无输入变化且已收敛时停帧省电；`prefers-reduced-motion`（`useMediaQuery("(prefers-reduced-motion: reduce)")`）为真时 hook 不挂任何监听、不写 transform。
-- **风险点**: hydration 一致性——初始不设置任何 transform（SSG 与首渲染一致），首帧输入后才写入；iOS 权限必须在用户手势回调内调用，不得页面加载即弹。
+- **技术细节**: 目标偏移由 `parallax.ts` 纯函数计算（幅度上限约 12px，定稿以设计为准）；每帧 `lerp`（t≈0.08）逼近平滑跟随；`pointerleave`/`blur` 目标归零回中；rAF 循环在无输入变化且已收敛时停帧省电。**reduced-motion 处理（一等口径）**：经 `useMediaQuery("(prefers-reduced-motion: reduce)")` **响应式订阅**媒体查询（`useSyncExternalStore`，系统设置变更即触发重渲染）——为真时 hook 不挂任何指针/传感器监听、不请求 iOS 权限、不写 transform；**运行时切换为 reduce** 时 effect 清理函数立即移除全部监听、停 rAF 并将 `ref.style.transform` 复位为空（立绘回中），切回 no-preference 时按正常流程重新启用，全程无需刷新页面。
+- **风险点**: hydration 一致性——初始不设置任何 transform（SSG 与首渲染一致），首帧输入后才写入；iOS 权限必须在用户手势回调内调用，不得页面加载即弹；reduced-motion 下的清理必须覆盖「已挂监听后切换」的路径（effect 依赖媒体查询值，切换即重跑清理）。
 
 #### 实现点 2: 光晕粒子（`GlowParticles.tsx` + `glowParticles.ts`）
 
 - **描述**: Client 组件渲染 `<canvas aria-hidden className="pointer-events-none absolute inset-0">`，z 序置于雾气之后/立绘之前（page.tsx 中 DOM 序先于立绘容器即可）。主循环 rAF：按生成速率（与上限挂钩）调用 `spawnPosition`——最后指针位置存在时以概率 bias 在其 radius（约 160px，定稿以设计为准）内生成，否则全屏均匀；`stepParticles` 推进（缓慢上漂 + alpha 正弦明灭）；绘制用径向渐变圆点（`createRadialGradient` 或 `shadowBlur` 二选一，以性能实测为准）。
-- **技术细节**: 取色——挂载时 `getComputedStyle(document.documentElement).getPropertyValue("--color-flower"/"--color-primary"/"--color-eye")` 读 token，粒子随机取其一；粒子数上限 `maxParticles(width*height)`（桌面约 ≤70）；`resize` 重建画布尺寸并按 DPR 缩放；`visibilitychange`（`document.hidden`）暂停/恢复 rAF；卸载清理全部监听与 rAF；`pointermove`/`pointerdown` 仅记录坐标（ passive，不 preventDefault ）；reduced-motion 直接返回 `null` 不渲染 canvas。
+- **技术细节**: 取色——挂载时 `getComputedStyle(document.documentElement).getPropertyValue("--color-flower"/"--color-primary"/"--color-eye")` 读 token，粒子随机取其一；粒子数上限 `maxParticles(width*height)`（桌面约 ≤70）；`resize` 重建画布尺寸并按 DPR 缩放；`visibilitychange`（`document.hidden`）暂停/恢复 rAF；卸载清理全部监听与 rAF；`pointermove`/`pointerdown` 仅记录坐标（ passive，不 preventDefault ）。**reduced-motion 处理（一等口径）**：同样经 `useMediaQuery("(prefers-reduced-motion: reduce)")` 响应式订阅——为真时组件返回 `null`，**不创建 canvas、不启动 rAF**；**运行时切换为 reduce** 时 React 卸载组件（effect 清理移除全部监听、取消 rAF），切回时重新挂载初始化，无需刷新页面。
 - **风险点**: 低端机 GPU/CPU——上限 + 暂停 + 无 blur 滤镜（用低 alpha 渐变模拟柔光，避免 `filter: blur` 逐帧开销）；SSG 输出不含 canvas 初始内容，无 hydration 差异。
 
 #### 实现点 3: 日历取数口径（`dateUtils.monthGridRange` + 两处接线）
@@ -193,7 +193,7 @@ sequenceDiagram
 | 视差输入 | 自实现 pointermove + deviceorientation | 引入动画库（framer-motion 等） | A | 需求简单、零依赖约束；库体积不值得 |
 | 视差写样式 | rAF 直写 `ref.style.transform` | `useState` 驱动重渲染 | A | 高频输入下避免 React 重渲染 |
 | iOS 传感器权限 | 首次触摸静默请求，失败降级 | UI 提供「开启动态」按钮 | A | PRD 要求无占位入口/提示 UI；拒绝后无残留状态 |
-| reduced-motion | 粒子不渲染 + 视差禁用 | 仅减速/减幅 | A | 与站点既有氛围动效口径一致（`.fog` 等直接停动画） |
+| reduced-motion | 粒子不渲染 + 视差禁用，**响应式订阅媒体查询**（运行时切换即时停用/清理/复位，无需刷新） | 仅挂载时读取一次 / 仅减速减幅 | A | JS 驱动动效无法靠 CSS 媒体查询兜底，必须以 `useMediaQuery`（useSyncExternalStore）订阅变更；与站点既有氛围动效口径一致（`.fog` 直接停动画） |
 | 月视图取数 | 网格范围（首格~末格 42 格） | 月区间 + 固定前后缓冲 | A | 精确匹配展示范围，无冗余无遗漏；`monthGrid` 现成 |
 | 补位格点击 | 维持不可点击 | 同步放开点击 | A | PRD 本期口径：仅补齐展示；放开点击涉及翻月联动，列入后续 |
 
@@ -238,11 +238,11 @@ tests/e2e/site.spec.ts                  # 首页粒子 canvas 存在性、日历
   - `parallax.ts`：边界（指针在四角/中心取反）、幅度钳制、倾角钳制（±25°）、lerp 收敛；
   - `glowParticles.ts`：注入确定性 `random`——无指针时全屏均匀；有指针时 bias 命中落在 radius 内且越界钳制；`stepParticles` 明灭与寿终淘汰；`maxParticles` 面积缩放上限；
   - `dateUtils.monthGridRange`：2026-08 → `{ from: "2026-07-27", to: "2026-09-06" }`；跨年（2027-01）首格落在 2026-12；
-- 组件（Testing Library）：
-  - `ParallaxLayer`：reduced-motion 时不挂监听/不写 transform；普通环境 pointermove 后 transform 更新（rAF 打桩）；
-  - `GlowParticles`：reduced-motion 返回 `null`；普通环境渲染 `canvas[aria-hidden]` 且卸载清理（不抛错）；
+- 组件（Testing Library，媒体查询以 matchMedia mock 控制并可触发变更回调）：
+  - `ParallaxLayer`：reduced-motion 时不挂监听/不写 transform；普通环境 pointermove 后 transform 更新（rAF 打桩）；**运行时切换为 reduce 后监听移除、transform 复位为空**，切回后恢复；
+  - `GlowParticles`：reduced-motion 返回 `null`（不创建 canvas）；普通环境渲染 `canvas[aria-hidden]` 且卸载清理（不抛错）；**运行时切换为 reduce 后 canvas 卸载、rAF 取消**；
   - `CalendarView`：`goMonth` 上抛网格范围（mock `onRangeChange` 断言 from/to）；补位格有 entries 时渲染摘要、无 entries 不渲染「—」；
-- `tests/e2e/site.spec.ts`：首页存在粒子 canvas 且 `pointer-events-none`；立绘层存在；（API 配置时）`/calendar` 月视图补位格日程展示回归、翻月回归；移动端周视图回归。
+- `tests/e2e/site.spec.ts`：首页存在粒子 canvas 且 `pointer-events-none`；立绘层存在；**`page.emulateMedia({ reducedMotion: "reduce" })` 下粒子 canvas 不存在、立绘无 transform**；（API 配置时）`/calendar` 月视图补位格日程展示回归、翻月回归；移动端周视图回归。
 
 ### 8.2 测试类型
 

@@ -59,7 +59,11 @@ export default function AboutPage() {
     ["喜欢", profile.likes],
     ["不擅长", profile.dislikes],
     ["常玩", profile.games],
+    ["常读/常看", profile.bookAnimeTypes],
+    ["常听", profile.musicTypes],
   ];
+
+  const gameGenre = profile.gameGenre;
 
   return (
     <div className="mx-auto w-full max-w-4xl px-5 pt-28 lg:px-10">
@@ -154,6 +158,12 @@ export default function AboutPage() {
               ))}
             </div>
           ))}
+          {gameGenre && (
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="w-16 shrink-0 font-serif text-ink-dim">偏好类型</span>
+              <Tag>{gameGenre}</Tag>
+            </div>
+          )}
         </div>
       </section>
 

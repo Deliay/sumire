@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   assetOriginalUrl,
+  assetOriginalWebpUrl,
   assetThumbnailUrl,
 } from "@/lib/content/shared";
 import {
@@ -34,6 +35,14 @@ describe("content layer", () => {
     );
   });
 
+  it("profile 含按萌娘百科补充的喜好类型字段", () => {
+    const profile = getProfile();
+    expect(profile.bookAnimeTypes).toEqual(["通俗文学", "悬疑", "恐怖", "奇幻", "冒险", "中式"]);
+    expect(profile.musicTypes).toEqual(["东方系列", "术力口", "电子纯音", "r&b"]);
+    expect(profile.gameGenre).toBe("模拟经营");
+    expect(profile.anecdotes.some((a) => a.title === "小姨驾到")).toBe(true);
+  });
+
   it("loads assets and every original file exists", () => {
     const assets = getAssets();
     expect(assets.length).toBeGreaterThanOrEqual(5);
@@ -51,5 +60,8 @@ describe("content layer", () => {
     const asset = getAssets()[0];
     expect(assetOriginalUrl(asset)).toBe(`/assets/original/${asset.file}`);
     expect(assetThumbnailUrl(asset)).toBe(`/assets/thumbnails/${asset.id}.webp`);
+    expect(assetOriginalWebpUrl(asset)).toBe(
+      `/assets/original/${asset.id}.webp`,
+    );
   });
 });

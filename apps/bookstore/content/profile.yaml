@@ -46,6 +46,19 @@ games:
   - 无人深空
   - 脑叶公司
   - 愚人船
+bookAnimeTypes:
+  - 通俗文学
+  - 悬疑
+  - 恐怖
+  - 奇幻
+  - 冒险
+  - 中式
+musicTypes:
+  - 东方系列
+  - 术力口
+  - 电子纯音
+  - r&b
+gameGenre: 模拟经营
 milestones:
   - date: "2026-08-05"
     title: 开始活动
@@ -68,6 +81,9 @@ anecdotes:
   - title: 消失的左括号
     emoji: （
     body: 初投稿的标题漏掉了左边的括号，成为出道以来的第一个小传说。
+  - title: 小姨驾到
+    emoji: 😁
+    body: 2026-08-12 直播中枝堇妹妹意外进入直播间，弹幕疯狂喊「小姨」。
 links:
   - label: B 站个人空间
     url: https://space.bilibili.com/1150976664

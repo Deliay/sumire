@@ -50,7 +50,7 @@ export default function NavBar({ siteName, tools }: NavBarProps) {
           : "bg-transparent"
       }`}
     >
-      <nav className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-5 lg:px-10">
+      <nav className="mx-auto flex h-16 w-full items-center justify-between px-5 lg:px-10">
         <Link href="/" className="group flex items-baseline gap-2">
           <span className="font-serif text-lg font-semibold tracking-wide text-ink">
             {siteName}

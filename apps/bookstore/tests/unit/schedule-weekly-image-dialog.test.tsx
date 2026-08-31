@@ -8,7 +8,7 @@ vi.mock("@/features/schedule/api", () => ({
 
 import WeeklyImageDialog from "@/features/schedule/weeklyImage/WeeklyImageDialog";
 import { clearMemoryCache, loadDefault, loadWeek, saveDefault } from "@/features/schedule/weeklyImage/storage";
-import { createDefaultScheme } from "@/features/schedule/weeklyImage/scheme";
+import { createDefaultScheme, type DefaultScheme } from "@/features/schedule/weeklyImage/scheme";
 import { getISOWeek } from "@/features/schedule/weeklyImage/weekUtils";
 
 const renderImage = vi.fn();

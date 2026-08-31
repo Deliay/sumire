@@ -228,7 +228,7 @@ describe("scheme", () => {
 
     it("should handle invalid date config gracefully", () => {
       const scheme = createDefaultScheme();
-      (scheme as DefaultScheme & { date?: unknown }).date = { invalid: true };
+      (scheme as unknown as { date?: unknown }).date = { invalid: true };
       const config = resolveDateConfig(scheme);
       expect(config.enabled).toBe(false);
       expect(config.format).toBe("{yyyy}年{mm}月{dd}日");
@@ -265,12 +265,13 @@ describe("scheme", () => {
       const base: DefaultScheme = {
         version: 1,
         global: { align: "left", fontSize: 40, color: "#b4a6bf" },
-        days: [{ content: "{schedules}" }],
+        days: [{ content: "{schedules}" }] as DefaultScheme["days"],
         date: {
+          enabled: false,
           format: "{yyyy}年{mm}月{dd}日",
           content: "{开始日期} ~ {结束日期}",
           fontSize: 25,
-        },
+        } as DefaultScheme["date"],
       };
       const weekScheme = ensureWeekScheme(base, { year: 2026, week: 33 });
       expect(weekScheme.date).toEqual(base.date);

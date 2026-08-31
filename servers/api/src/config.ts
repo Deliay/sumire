@@ -34,6 +34,11 @@ export const config = {
     "LIVE_EVENTS_UPSTREAM_URL",
     "http://vtuber.internal.fffdan.com",
   ),
+  // 直播状态上游地址：未配置时必须回退到 PRD 给定内网地址（内置缺省值，非必填、不得抛错）
+  liveStatusUpstreamUrl: getEnv(
+    "LIVE_STATUS_UPSTREAM_URL",
+    "http://vtuber.internal.fffdan.com/api/b/live/1727076670/state/current",
+  ),
   // B 站视频封面上游地址（内置缺省值，不得抛错）
   biliCoverUpstreamUrl: getEnv(
     "BILI_COVER_UPSTREAM_URL",

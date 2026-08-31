@@ -3,6 +3,7 @@ import { createApp } from "./app";
 import { RedisSessionStore } from "./session/store";
 import { RedisRateLimiter } from "./auth/rateLimit";
 import { RedisLiveHistoryCache } from "./infra/liveHistoryCache";
+import { RedisLiveStatusCache } from "./infra/liveStatusCache";
 import { connectMongo, seedSuperadmin } from "./db/users";
 import { config } from "./config";
 
@@ -20,8 +21,9 @@ async function main(): Promise<void> {
   const sessionStore = new RedisSessionStore(redis);
   const rateLimiter = new RedisRateLimiter(redis);
   const liveHistoryCache = new RedisLiveHistoryCache(redis);
+  const liveStatusCache = new RedisLiveStatusCache(redis);
 
-  const app = createApp({ sessionStore, rateLimiter, liveHistoryCache });
+  const app = createApp({ sessionStore, rateLimiter, liveHistoryCache, liveStatusCache });
   app.listen(config.port, () => {
     console.log(`sumire api listening on :${config.port}`);
   });

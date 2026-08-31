@@ -1,0 +1,46 @@
+openapi: 3.1.0
+info:
+  title: sumire live status
+  description: 枝堇Sumire 直播状态 API 契约。单一事实源，实现与 tests/api 集成测试均以本文档为准。服务端代理内网上游（http://vtuber.internal.fffdan.com/api/b/live/1727076670/state/current）并做归一化与短 TTL 缓存；上游地址与房间号不出现在客户端可见位置，前端仅经公开接口读取。
+  version: 1.0.0
+servers:
+  - url: https://api.sumire.live
+paths:
+  /api/live/status:
+    get:
+      summary: 查询当前直播状态（公开）
+      description: 无需登录。服务端代理内网上游 state/current 并归一化（房间号固定 1727076670，服务端内置不暴露）。短 TTL 缓存（30s）。上游不可达/超时/返回结构非法时降级为 200 + { ok: false, status: null }，不产生 5xx。直播状态时效性高，仅保证 live 布尔字段强保证，title/startedAt 上游缺字段时为 null。
+      security: []
+      responses:
+        "200":
+          description: 当前直播状态；ok=false 表示上游不可用（静默降级体，status 为 null）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, status]
+                properties:
+                  ok:
+                    type: boolean
+                    description: true 表示成功取回直播状态；false 表示上游不可用，status 为 null
+                  status:
+                    anyOf:
+                      - $ref: "#/components/schemas/LiveStatus"
+                      - type: "null"
+                    description: 直播状态；ok=false 时恒为 null
+components:
+  schemas:
+    LiveStatus:
+      type: object
+      required: [live]
+      description: 归一化直播状态。live 为唯一强保证字段；title/startedAt 为防御式可选，上游缺字段时为 null。上游实测结构 `{ roomId, title, liveStatus, liveSessionId, createdAt }`，服务端取 `liveStatus`（boolean）为 live，`title` 透传，`createdAt` 归入 startedAt（缺字段时为 null）
+      properties:
+        live:
+          type: boolean
+          description: 是否直播中（归一化唯一强保证字段；上游 liveStatus/live/is_live 布尔，或 live_status/status 的 0/1 数字语义）
+        title:
+          type: string
+          description: 当前直播标题；上游未提供或非字符串时为 null
+        startedAt:
+          type: string
+          description: 开播时间（ISO 时间戳，含时区）；上游未提供或非字符串时为 null

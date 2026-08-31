@@ -71,12 +71,12 @@ test.describe("bookstore 日历页与主页入口", () => {
     await expect(page.getByRole("button", { name: "删除" })).toHaveCount(0);
   });
 
-  test("home-entry-to-calendar: 主页出现本周日程入口(含开播时间)，可进入 /calendar", async ({ page }) => {
+  test("home-entry-to-calendar: 主页不再内嵌本周日程；经导航栏进入 /calendar", async ({ page }) => {
     await page.goto(BASE);
-    await expect(page.getByRole("heading", { name: "本周日程" })).toBeVisible();
-    const link = page.getByRole("link", { name: /查看完整日历/ });
-    await expect(link).toBeVisible();
-    await link.click();
+    // 首页不出现本周日程大卡
+    await expect(page.getByRole("heading", { name: "本周日程" })).toHaveCount(0);
+    // 经导航栏日历链接进入
+    await page.getByRole("link", { name: "日历" }).click();
     await expect(page.getByRole("heading", { name: "直播日程" })).toBeVisible();
   });
 

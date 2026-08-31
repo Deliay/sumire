@@ -18,15 +18,15 @@ export default function Home() {
       <div className="fog fog-a -left-40 top-1/4 size-[42rem] bg-flower/10" aria-hidden />
       <div className="fog fog-b -right-32 bottom-0 size-[36rem] bg-primary/10" aria-hidden />
 
-      {/* 立绘：桌面右半宽 × 顶部起始 50% 高；移动端顶部 50% 全宽。作为衬底不参与布局流。 */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-1/2 lg:left-auto lg:right-0 lg:h-1/2 lg:w-1/2">
+      {/* 立绘：移动端顶部 10% 起 90% 高全宽并向右偏移 25% 宽；桌面端右 10% 起 90% 高右半宽、不偏移。作为衬底不参与布局流。 */}
+      <div className="pointer-events-none absolute inset-x-0 top-[10%] h-[90%] lg:left-auto lg:right-[10%] lg:w-1/2">
         <Image
           src={assetThumbnailUrl(heroAsset)}
           alt={heroAsset.title}
           width={1000}
           height={2000}
           priority
-          className="h-full w-full object-cover object-top"
+          className="ml-[25%] h-full w-full object-cover object-top lg:ml-0"
         />
       </div>
 
@@ -66,8 +66,8 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Footer 行：右下角贴边单行 */}
-      <div className="relative flex justify-end p-5 lg:p-10">
+      {/* Footer 行：通栏贴底毛玻璃条，占满宽度延伸到页面最底部 */}
+      <div className="relative shrink-0 px-5 pb-6 pt-3 lg:px-10">
         <Footer site={site} floating />
       </div>
     </div>

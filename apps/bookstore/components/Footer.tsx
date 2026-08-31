@@ -3,7 +3,7 @@ import type { Site } from "@/lib/content";
 
 interface FooterProps {
   site: Site;
-  /** 首页贴边呈现：以绝对定位容器承载，保持一行且无顶部蕾丝与抬升面。 */
+  /** 首页通栏贴底毛玻璃条：占满宽度、免责声明全端展示、无顶部蕾丝与抬升面。 */
   floating?: boolean;
 }
 
@@ -15,17 +15,29 @@ export default function Footer({ site, floating = false }: FooterProps) {
   ];
 
   return (
-    <footer className={floating ? "w-fit" : "mt-24"}>
+    <footer
+      className={
+        floating
+          ? "w-full border-t border-vine/30 bg-night/70 backdrop-blur-md"
+          : "mt-24"
+      }
+    >
       {!floating && <div className="lace-x" aria-hidden />}
       <div className={floating ? "" : "bg-raised"}>
         <div
           className={
             floating
-              ? "flex w-fit flex-wrap items-center gap-x-4 gap-y-1 text-sm"
+              ? "flex w-full flex-wrap items-center gap-x-4 gap-y-1 py-3 text-sm"
               : "mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-4 gap-y-2 px-5 py-6 text-sm lg:px-10"
           }
         >
-          <span className="hidden text-ink-dim sm:inline">
+          <span
+            className={
+              floating
+                ? "block text-ink-dim"
+                : "hidden text-ink-dim sm:inline"
+            }
+          >
             {site.disclaimer}
           </span>
           {links.map((link) => (

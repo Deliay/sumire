@@ -60,7 +60,7 @@ pnpm lint         # ESLint
 - 日历混合展示（二期）：`CalendarView` / `DayDetailDialog` 的数据入口为统一条目 `CalendarEntry`（`kind: "plan" | "history"`，由 `mergeEntries(plans, records, now)` 归一化合并——历史记录 `startDate` 按访客本地时区折算 `date`/`startTime`、跨天归开播当日、缺 `title`/`startDate` 丢弃、未来记录不纳入）；历史条目在格子以藤蔓点 + 弱化样式区分来源、恒为「已播出」，在当日弹层带「实际播出」标签并附结束时刻、任何角色只读（无编辑/删除）；计划与历史两路独立加载，历史失败静默降级仅展示计划；
 - 历史直播取数：`api.ts` 新增 `LiveRecord` 类型与 `listLiveHistory()`（`API_CONFIGURED` 为假或请求失败返回 `{ ok: false, records: [] }`）；上游地址收敛在 `servers/api` 服务端（`LIVE_HISTORY_UPSTREAM_URL`），不进前端 bundle；
 - 周表图片生成：`features/schedule/weeklyImage/`——`weekUtils.ts`（ISO-8601 周计算纯函数，周一为一周首日）、`layout.ts`（绘制布局纯函数，注入 `measure` 做 shrink-to-fit + 截断）、`renderer.ts`（底图/字体并行预加载 + Canvas 2× 离屏超采样 + `imageSmoothingQuality: "high"` 缩回 1665×1080 + PNG dataURL）、`WeeklyImageDialog.tsx`（周切换器 + 预览 `<img>` + 长按/右键保存提示；打开时一次性 `listPlans` 拉全量，切换周只重跑布局 + 重绘）；后台「直播计划」页新增「生成周表图片」按钮（所有登录角色可用，只读性质）；只渲染人工计划，不渲染历史记录；
-- 素材坐标：`public/assets/original/AGENTS.md`（`weekly-schedules-raw.jpg` 1665×1080，每日区域 715×70，左上角 x=365，y=278/379/480/580/681/782/883）；底图须随站点同源分发（跨域 CDN 会污染画布导致 `toDataURL` 抛错）。
+- 素材坐标：`public/assets/original/AGENTS.md`（`weekly-schedules-raw.jpg` 1665×1080，每日区域 715×70，左上角 x=365，y=278/379/480/580/681/782/883；日期区域 451×40，左上角 x=640，y=80）；底图须随站点同源分发（跨域 CDN 会污染画布导致 `toDataURL` 抛错）。
 
 提交前 `pnpm lint && pnpm test && pnpm build` 全绿。
 

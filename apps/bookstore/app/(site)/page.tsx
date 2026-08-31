@@ -2,6 +2,8 @@ import Image from "next/image";
 import Footer from "@/components/Footer";
 import LiveStatus from "@/features/home/LiveStatus";
 import TodaySchedule from "@/features/home/TodaySchedule";
+import GlowParticles from "@/features/home/GlowParticles";
+import ParallaxLayer from "@/features/home/ParallaxLayer";
 import { API_CONFIGURED } from "@/features/backdoor/api";
 import { getAssetById, getProfile, getSite } from "@/lib/content";
 import { assetOriginalWebpUrl } from "@/lib/content/shared";
@@ -18,8 +20,11 @@ export default function Home() {
       <div className="fog fog-a -left-40 top-1/4 size-[42rem] bg-flower/10" aria-hidden />
       <div className="fog fog-b -right-32 bottom-0 size-[36rem] bg-primary/10" aria-hidden />
 
-      {/* 立绘：移动端顶部 10% 起 90% 高全宽并向右偏移 25% 宽；桌面端右 10% 起 90% 高右半宽、不偏移。作为衬底不参与布局流。 */}
-      <div className="pointer-events-none absolute inset-x-0 top-[10%] h-[90%] lg:left-auto lg:right-[10%] lg:w-1/2">
+      {/* 光晕粒子层：雾气之上、立绘之下（DOM 序即 z 序） */}
+      <GlowParticles />
+
+      {/* 立绘：移动端顶部 10% 起 90% 高全宽并向右偏移 25% 宽；桌面端右 10% 起 90% 高右半宽、不偏移。作为衬底不参与布局流；ParallaxLayer 驱动鼠标/传感器视差。 */}
+      <ParallaxLayer className="pointer-events-none absolute inset-x-0 top-[10%] h-[90%] lg:left-auto lg:right-[10%] lg:w-1/2">
         <Image
           src={assetOriginalWebpUrl(heroAsset)}
           alt={heroAsset.title}
@@ -28,7 +33,7 @@ export default function Home() {
           priority
           className="ml-[25%] h-full w-full object-cover object-top lg:ml-0"
         />
-      </div>
+      </ParallaxLayer>
 
       {/* 左列内容：flex 流式纵向排布，靠布局自然避让不遮挡 */}
       <div className="relative flex min-h-0 flex-1 flex-col justify-end gap-5 p-5 lg:justify-end lg:gap-6 lg:p-10 lg:pr-[50%]">

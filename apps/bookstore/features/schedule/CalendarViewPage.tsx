@@ -5,12 +5,12 @@ import { listLiveHistory, listPlans, type LiveRecord, type StreamPlan } from "@/
 import CalendarView from "@/features/schedule/CalendarView";
 import DayDetailDialog from "@/features/schedule/DayDetailDialog";
 import { mergeEntries } from "@/features/schedule/mergeEntries";
-import { monthRange } from "@/features/schedule/dateUtils";
+import { monthGridRange } from "@/features/schedule/dateUtils";
 
-/** 当前月份的 from/to 区间（YYYY-MM-DD，含首末）。 */
-function currentMonthRange(): { from: string; to: string } {
+/** 当前月展示网格的 from/to 区间（YYYY-MM-DD，含首末，覆盖跨月补位）。 */
+function currentGridRange(): { from: string; to: string } {
   const now = new Date();
-  return monthRange(now.getFullYear(), now.getMonth() + 1);
+  return monthGridRange(now.getFullYear(), now.getMonth() + 1);
 }
 
 /** 公开日历页主体：客户端按当前月区间拉取，翻月按新区间重新拉取；点击某天只读查看当日安排。 */
@@ -22,7 +22,7 @@ export default function CalendarViewPage() {
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
   useEffect(() => {
-    const { from, to } = currentMonthRange();
+    const { from, to } = currentGridRange();
     void (async () => {
       const { status, data } = await listPlans(from, to);
       setLoading(false);

@@ -15,7 +15,7 @@ import WeeklyImageDialog from "@/features/schedule/weeklyImage/WeeklyImageDialog
 import { mergeEntries } from "@/features/schedule/mergeEntries";
 import { useSession } from "@/features/backdoor/session";
 import { atLeast } from "@/features/backdoor/roleAccess";
-import { monthRange } from "@/features/schedule/dateUtils";
+import { monthGridRange } from "@/features/schedule/dateUtils";
 
 interface Range {
   from: string;
@@ -29,10 +29,10 @@ interface FormState {
   preselectDate?: string;
 }
 
-/** 当前月份的 from/to 区间（YYYY-MM-DD，含首末）。 */
+/** 当前月展示网格的 from/to 区间（YYYY-MM-DD，含首末，覆盖跨月补位）。 */
 function currentMonthRange(): Range {
   const now = new Date();
-  return monthRange(now.getFullYear(), now.getMonth() + 1);
+  return monthGridRange(now.getFullYear(), now.getMonth() + 1);
 }
 
 export default function SchedulePage() {

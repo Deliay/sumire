@@ -46,7 +46,8 @@ flowchart TD
 
 - 首页 `100svh` 占满整屏、**不可滚动**，所有元素在一屏内排布、不溢出。
 - 背景：`--color-bg` 之上叠雾气渐变，缓慢漂移。
-- **立绘**（`standing-01`）：移动端从顶部 10% 起占 90% 高、全宽并向右偏移 25% 宽裁剪展示（`ml-[25%] object-cover object-top`，不变形）；桌面端右 10% 起占 90% 高、右半宽且不偏移。作为氛围元素，不遮挡交互（`pointer-events-none`）。
+- **立绘**（`standing-01`）：移动端从顶部 10% 起占 90% 高、全宽并向右偏移 25% 宽裁剪展示（`ml-[25%] object-cover object-top`，不变形）；桌面端右 10% 起占 90% 高、右半宽且不偏移。作为氛围元素，不遮挡交互（`pointer-events-none`）。外包 `ParallaxLayer` 驱动**视差**（仅 `transform`，`translate3d` 平滑 lerp，常规幅度 ±12px，reduced-motion 降至 ±4px）。
+- **背景光晕粒子层**（`GlowParticles`，Canvas 2D，z 序在雾气之上/立绘之下）：「紫花微光」语言——径向渐变圆点、低 alpha 柔光（不用 `filter: blur`）；取色 `@theme` token（`flower`/`primary`/`eye`，运行时读 CSS 变量）。定稿参数：指针附近偏置生成概率 0.6、半径 160px；粒子尺寸 2–8px、生命周期 2.5–6s、初速向上微漂；粒子数上限 `min(70, 视口面积/15000)`（桌面约 ≤70）；明灭 alpha 正弦调制。reduced-motion 降级：密度减半、漂移速度 ×0.5、取消明灭（alpha 恒定低值）。`document.hidden` 暂停。
 - **文案块**（左下角，留 padding，桌面 > 移动端）错峰入场：
   - 花体小字 `VirtuaReal · 二十八期`（`--color-ink-dim`）；
   - 大名「枝堇」（Noto Serif SC，`--text-display`）+ 花体 `Sumire`（`--color-primary`）；

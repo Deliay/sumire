@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { cleanup, render, screen, fireEvent, act } from "@testing-library/react";
 import CalendarView from "@/features/schedule/CalendarView";
+import { monthGrid, monthGridRange } from "@/features/schedule/dateUtils";
 import type { StreamPlan } from "@/features/schedule/api";
 import type { CalendarEntry } from "@/features/schedule/mergeEntries";
 
@@ -176,6 +177,42 @@ describe("CalendarView（月视图，默认无 matchMedia）", () => {
       expect(cell.className).toContain("h-full");
       expect(cell.className).toContain("overflow-hidden");
     });
+  });
+
+  it("goMonth 上抛下月展示网格范围（首末格，非月区间）", () => {
+    const onRangeChange = vi.fn();
+    render(<CalendarView entries={[]} onRangeChange={onRangeChange} />);
+    fireEvent.click(screen.getByLabelText("下一月"));
+    const [from, to] = onRangeChange.mock.calls[0] as [string, string];
+    const now = new Date();
+    const next = now.getMonth() === 11 ? { y: now.getFullYear() + 1, m: 1 } : { y: now.getFullYear(), m: now.getMonth() + 2 };
+    expect({ from, to }).toEqual(monthGridRange(next.y, next.m));
+  });
+
+  it("补位格有条目时渲染摘要、无条目不渲染「—」；点击补位格不上抛 onSelectDay", () => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth() + 1;
+    const fillCell = monthGrid(y, m).find((c) => !c.inMonth);
+    expect(fillCell).toBeTruthy();
+    const onSelectDay = vi.fn();
+
+    const { rerender } = render(
+      <CalendarView entries={[planEntry(makePlan(fillCell!.dateStr, "补位日程", "20:00"))]} onSelectDay={onSelectDay} />,
+    );
+    const dayCells = screen.getAllByTestId("calendar-day");
+    const cell = dayCells.find((el) => el.getAttribute("data-date") === fillCell!.dateStr)!;
+    expect(cell.textContent).toContain("补位日程");
+    expect(cell.className).toContain("opacity-35");
+
+    fireEvent.click(cell);
+    expect(onSelectDay).not.toHaveBeenCalled();
+
+    rerender(<CalendarView entries={[]} onSelectDay={onSelectDay} />);
+    const emptyCell = screen
+      .getAllByTestId("calendar-day")
+      .find((el) => el.getAttribute("data-date") === fillCell!.dateStr)!;
+    expect(emptyCell.textContent).not.toContain("—");
   });
 });
 

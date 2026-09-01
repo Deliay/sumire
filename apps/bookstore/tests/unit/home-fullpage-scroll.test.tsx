@@ -270,6 +270,38 @@ describe("useFullpageScroll", () => {
     vi.unstubAllGlobals();
   });
 
+  it("free 模式回顶回收上翻用上浮缓出曲线（非误用下坠缓入）", () => {
+    let t = 0;
+    vi.stubGlobal("performance", {
+      now: () => (t += 1000),
+    });
+    render(<Harness />);
+    // 进入 free：逐站滚到素材站（index 7）再下滚越界
+    for (let i = 0; i < 8; i++) {
+      act(() => {
+        window.dispatchEvent(new WheelEvent("wheel", { deltaY: 200 }));
+      });
+    }
+    const container = document.querySelector("[data-testid='container']") as HTMLElement;
+    expect(container.style.overflow).toBe("auto"); // 已进入 free 模式
+    const track = document.querySelector("[data-testid='track']") as HTMLElement;
+    // 先向下滚动更新 lastScrollTopRef
+    act(() => {
+      container.scrollTop = 400;
+      container.dispatchEvent(new Event("scroll"));
+    });
+    // 回顶继续上滚 → 回收 deck 并翻上一站（上翻）
+    act(() => {
+      container.scrollTop = 0;
+      container.dispatchEvent(new Event("scroll"));
+    });
+    expect(container.style.overflow).toBe("hidden");
+    expect(track.dataset.index).toBe("6");
+    // 上翻用上浮缓出曲线
+    expect(track.style.transition).toContain("0.22, 0.2");
+    vi.unstubAllGlobals();
+  });
+
   it("sections 引用不稳定（每渲染新数组）时连续翻页后 hash/transform 稳定不振荡（回归）", () => {
     let t = 0;
     vi.stubGlobal("performance", {

@@ -308,6 +308,8 @@ export function useFullpageScroll({
         setFree(false);
         el.style.overflow = "hidden";
         lastScrollTopRef.current = 0;
+        // 回收上翻本质是「上翻」，转场用上浮缓出曲线
+        lastDirectionRef.current = 1;
         updateIndex(Math.max(0, indexRef.current - 1));
         return;
       }

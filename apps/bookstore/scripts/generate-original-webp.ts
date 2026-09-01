@@ -2,7 +2,7 @@
  * 从 public/assets/original/ 的原图生成全分辨率 webp（保留透明通道，不缩放）。
  * 输出到 public/assets/original/<id>.webp（供首页立绘等大图 assetOriginalWebpUrl 引用）。
  */
-import { mkdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import { parse } from "yaml";

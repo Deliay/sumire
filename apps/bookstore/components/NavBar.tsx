@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { API_CONFIGURED } from "@/features/backdoor/api";
+import { SECTIONS } from "@/features/home/sections";
 import type { ToolModule } from "@/lib/tools/registry";
 
 interface NavBarProps {
@@ -12,17 +13,27 @@ interface NavBarProps {
   tools: ToolModule[];
 }
 
-const BASE_LINKS = [
-  { href: "/", label: "主页" },
-  { href: "/about", label: "档案" },
-  { href: "/assets", label: "素材" },
-  ...(API_CONFIGURED ? [{ href: "/calendar", label: "日历" }] : []),
-];
+/** 从注册表取锚点 href（单一事实源）。 */
+function buildBaseLinks(): { href: string; label: string; navKey: string }[] {
+  const nav = [
+    { navKey: "home", label: "主页" },
+    { navKey: "archive", label: "档案" },
+    { navKey: "assets", label: "素材" },
+    ...(API_CONFIGURED ? [{ navKey: "calendar", label: "日历" }] : []),
+  ];
+  return nav.map(({ navKey, label }) => {
+    const first = SECTIONS.find((s) => s.navKey === navKey);
+    return { href: `/#${first?.id ?? ""}`, label, navKey };
+  });
+}
 
 export default function NavBar({ siteName, tools }: NavBarProps) {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
+  const [hash, setHash] = useState<string>("");
+
+  const isHome = pathname === "/";
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -31,16 +42,33 @@ export default function NavBar({ siteName, tools }: NavBarProps) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // 首页路由下跟踪 hash 选中态（档案 P1~P5 均视为「档案」）
+  useEffect(() => {
+    if (!isHome) return;
+    const sync = () => setHash(window.location.hash);
+    sync();
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
+  }, [isHome]);
+
   const links = [
-    ...BASE_LINKS,
+    ...buildBaseLinks(),
     ...tools.map((tool) => ({
       href: `/tools/${tool.slug}`,
       label: tool.name,
+      navKey: `tool-${tool.slug}`,
     })),
   ];
 
-  const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : pathname.startsWith(href);
+  const isActive = (link: { href: string; navKey: string }) => {
+    if (isHome) {
+      // 首页：按 hash 匹配 navKey；无 hash 时主页选中
+      const activeKey = SECTIONS.find((s) => `#${s.id}` === hash)?.navKey ?? (hash ? undefined : "home");
+      return link.navKey === activeKey;
+    }
+    // 非首页：按既有 pathname 口径
+    return link.href === "/" ? pathname === "/" : pathname.startsWith(link.href.split("#")[0]!);
+  };
 
   return (
     <header
@@ -65,9 +93,9 @@ export default function NavBar({ siteName, tools }: NavBarProps) {
             <li key={link.href}>
               <Link
                 href={link.href}
-                aria-current={isActive(link.href) ? "page" : undefined}
+                aria-current={isActive(link) ? "page" : undefined}
                 className={`text-sm tracking-widest transition-colors ${
-                  isActive(link.href)
+                  isActive(link)
                     ? "text-primary"
                     : "text-ink-dim hover:text-ink"
                 }`}
@@ -95,10 +123,10 @@ export default function NavBar({ siteName, tools }: NavBarProps) {
             <li key={link.href} className="py-2">
               <Link
                 href={link.href}
-                aria-current={isActive(link.href) ? "page" : undefined}
+                aria-current={isActive(link) ? "page" : undefined}
                 onClick={() => setOpen(false)}
                 className={`block text-base tracking-widest ${
-                  isActive(link.href) ? "text-primary" : "text-ink-dim"
+                  isActive(link) ? "text-primary" : "text-ink-dim"
                 }`}
               >
                 {link.label}

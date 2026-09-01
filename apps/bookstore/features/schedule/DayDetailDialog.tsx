@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type { StreamPlan } from "@/features/schedule/api";
 import type { CalendarEntry } from "@/features/schedule/mergeEntries";
 import { parseDateStr } from "@/features/schedule/dateUtils";
@@ -44,6 +45,16 @@ export default function DayDetailDialog({
   deletingId,
 }: DayDetailDialogProps) {
   const [confirmId, setConfirmId] = useState<string | null>(null);
+
+  // 打开时锁定背景滚动（与 Lightbox 一致，供全站弹层屏蔽整页翻页）
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
 
   if (!open) return null;
 
@@ -168,9 +179,9 @@ export default function DayDetailDialog({
   );
 
   if (readOnly) {
-    return (
+    return createPortal(
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-5 backdrop-blur-sm"
+        className="fixed inset-0 z-50 flex items-center justify-center px-5"
         role="dialog"
         aria-modal="true"
         aria-labelledby="day-detail-title"
@@ -178,6 +189,7 @@ export default function DayDetailDialog({
           if (e.target === e.currentTarget) handleClose();
         }}
       >
+        {/* 公开站当日详情：悬浮面板形态，不整屏变灰/毛玻璃，保留可点击外部关闭 */}
         <div className="w-full max-w-md rounded-xl border border-vine/50 bg-paper p-6 shadow-xl">
           <div className="flex items-center justify-between">
             <h2 id="day-detail-title" className="font-serif text-xl font-semibold text-ink-on-paper">
@@ -194,11 +206,12 @@ export default function DayDetailDialog({
           </div>
           <div className="mt-4">{body}</div>
         </div>
-      </div>
+      </div>,
+      document.body,
     );
   }
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-5"
       role="dialog"
@@ -224,6 +237,7 @@ export default function DayDetailDialog({
         </div>
         <div className="mt-4">{body}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

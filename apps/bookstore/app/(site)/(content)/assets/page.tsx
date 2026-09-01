@@ -10,7 +10,7 @@ export default function AssetsPage() {
   const site = getSite();
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-5 pt-28 lg:px-10">
+    <div className="mx-auto w-full px-5 pt-28 lg:px-10">
       <header className="flex flex-col gap-2">
         <span className="font-display text-sm italic tracking-[0.35em] text-ink-dim">
           Assets

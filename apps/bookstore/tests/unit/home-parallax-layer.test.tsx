@@ -77,7 +77,6 @@ function layerEl() {
 let raf: ReturnType<typeof mockRaf>;
 let mq: ReturnType<typeof makeMatchMedia>;
 let addSpy: ReturnType<typeof vi.spyOn>;
-let removeSpy: ReturnType<typeof vi.spyOn>;
 
 function countListeners(spy: ReturnType<typeof vi.spyOn>, type: string): number {
   return spy.mock.calls.filter((c: unknown[]) => c[0] === type).length;
@@ -88,7 +87,6 @@ beforeEach(() => {
   mq = makeMatchMedia(false);
   vi.stubGlobal("matchMedia", mq.stub);
   addSpy = vi.spyOn(window, "addEventListener");
-  removeSpy = vi.spyOn(window, "removeEventListener");
 });
 
 afterEach(() => {
@@ -122,7 +120,7 @@ describe("ParallaxLayer（useParallax）", () => {
     expect(el.style.transform).toBe("none");
   });
 
-  it("reduced-motion 时仍响应鼠标但幅度约 1/3，且不挂 deviceorientation 监听", () => {
+  it("reduced-motion 时仍响应鼠标满幅度且照常挂 deviceorientation（不降级）", () => {
     enableSensor();
     mq.set(true); // 先 reduce 再挂载
     render(
@@ -131,15 +129,16 @@ describe("ParallaxLayer（useParallax）", () => {
       </ParallaxLayer>,
     );
     const el = layerEl();
-    expect(countListeners(addSpy, "deviceorientation")).toBe(0);
+    // 传感器照常挂载（展示向氛围层不降级）
+    expect(countListeners(addSpy, "deviceorientation")).toBe(1);
 
     fireEvent.pointerMove(window, { clientX: window.innerWidth, clientY: window.innerHeight });
     raf.runUntilSettled();
-    // 幅度降至约 1/3（12/3=4，收敛余量 ±0.05）
-    expect(el.style.transform).toMatch(/translate3d\(-[34]\./);
+    // 满幅度（12px，非 1/3）
+    expect(el.style.transform).toMatch(/translate3d\(-1[012]\./);
   });
 
-  it("运行时切换媒体查询后幅度参数与传感器监听即时切换", () => {
+  it("运行时切换媒体查询后幅度参数与传感器监听不变（不降级）", () => {
     enableSensor();
     const addsBefore = countListeners(addSpy, "deviceorientation");
     render(
@@ -150,16 +149,15 @@ describe("ParallaxLayer（useParallax）", () => {
     // 普通环境已挂 deviceorientation
     expect(countListeners(addSpy, "deviceorientation")).toBe(addsBefore + 1);
 
-    // 切到 reduce：effect 重跑，清理 sensor 且不再挂载
+    // 切到 reduce：不清理 sensor、不降幅
     act(() => mq.set(true));
     raf.runUntilSettled();
-    expect(countListeners(removeSpy, "deviceorientation")).toBeGreaterThanOrEqual(1);
-    expect(countListeners(addSpy, "deviceorientation")).toBe(addsBefore + 1); // 未新增
+    expect(countListeners(addSpy, "deviceorientation")).toBe(addsBefore + 1);
 
     const el = layerEl();
     fireEvent.pointerMove(window, { clientX: window.innerWidth, clientY: window.innerHeight });
     raf.runUntilSettled();
-    expect(el.style.transform).toMatch(/translate3d\(-[34]\./);
+    expect(el.style.transform).toMatch(/translate3d\(-1[012]\./);
   });
 
   it("无 matchMedia 环境兜底不抛错，卸载清理不抛错", () => {

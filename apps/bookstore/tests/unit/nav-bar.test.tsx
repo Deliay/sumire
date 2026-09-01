@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { cleanup, render, screen, act } from "@testing-library/react";
+import { cleanup, render, screen, act, fireEvent } from "@testing-library/react";
 import NavBar from "@/components/NavBar";
 import type { ToolModule } from "@/lib/tools/registry";
 
@@ -71,6 +71,19 @@ describe("NavBar 锚点化", () => {
     expect(assets.getAttribute("aria-current")).toBe("page");
     const home = screen.getByRole("link", { name: "主页" });
     expect(home.getAttribute("aria-current")).not.toBe("page");
+  });
+
+  it("首页内点击导航派发 NAVIGATE_EVENT（deck 经此翻页，pushState 不触发 hashchange）", () => {
+    const spy = vi.fn();
+    window.addEventListener("sumire:navigate", spy);
+    render(<NavBar siteName="枝堇" tools={tools} />);
+    act(() => {
+      fireEvent.click(screen.getByRole("link", { name: "档案" }));
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+    const detail = (spy.mock.calls.at(-1)![0] as CustomEvent).detail;
+    expect(detail.id).toBe("archive-1");
+    window.removeEventListener("sumire:navigate", spy);
   });
 
   it("非首页路由仅对应项高亮（/about 只亮档案），href 仍为锚点", () => {

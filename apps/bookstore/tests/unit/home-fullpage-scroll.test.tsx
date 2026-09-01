@@ -192,6 +192,17 @@ describe("useFullpageScroll", () => {
     window.history.replaceState(null, "", "/");
   });
 
+  it("NAVIGATE_EVENT 响应导航锚点点击（Next Link pushState 不触发 hashchange）", () => {
+    render(<Harness />);
+    const track = document.querySelector("[data-testid='track']") as HTMLElement;
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("sumire:navigate", { detail: { id: "assets" } }),
+      );
+    });
+    expect(track.dataset.index).toBe("7");
+  });
+
   it("索引变化派发 SECTION_CHANGE_EVENT（deck → NavBar 同步）", () => {
     const spy = vi.fn();
     window.addEventListener(SECTION_CHANGE_EVENT, spy);

@@ -57,3 +57,12 @@ export interface SectionChangeDetail {
   /** 当前站的 navKey（首页/档案/日历/素材）。 */
   navKey: NavKey;
 }
+
+/** 首页内导航锚点点击事件名（NavBar → deck 请求翻页；Next Link pushState 不触发 hashchange）。 */
+export const NAVIGATE_EVENT = "sumire:navigate";
+
+/** 导航事件载荷。 */
+export interface NavigateDetail {
+  /** 目标站 id。 */
+  id: SectionId;
+}

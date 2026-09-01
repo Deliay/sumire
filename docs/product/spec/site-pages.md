@@ -27,7 +27,7 @@
 - **日历站**：全幅 `immersive` 月视图（详见 [calendar.md](calendar.md)）；未配置 API 时该站不注册。
 - **素材站**：全幅素材网格（详见素材页节）+ 尾部流式 `<Footer site />`（全站唯一 Footer）。
 - **位置指示器**（`SectionRail`）：固定视口右侧竖向树状节点（模块 → 子内容两层，档案含 5 子节点），当前站实时高亮（子节点精确到站、档案父节点次级高亮）、点击跳转（同翻页转场）、键盘可达；数据源与 deck 站序列同源（`buildTree`/`activeNode`）；移动端（<640px）收纳为仅主节点极简形态；轴体 `pointer-events-none`、仅节点可点。
-- **导航锚点化**（`NavBar`）：导航项 href 改为锚点形态（主页 `/#hero`、档案 `/#archive-1`、素材 `/#assets`、日历 `/#calendar`，hash 取自站序列注册表单一事实源）；首页路由下按 `location.hash` 匹配 navKey 高亮（档案 P1~P5 均视为「档案」选中），deck 翻页经 `SECTION_CHANGE_EVENT` 同步选中态（`replaceState` 不触发 `hashchange`）；非首页路由按既有 pathname 精确匹配选中态（href 仍为锚点，点击跳首页对应锚点，deck 挂载时 hash 直落定位）；未配置 API 时「日历」项缺席。首页内点击导航项由 deck 监听 `hashchange` 平滑翻页，其他路由跳转后经首页锚点定位。
+- **导航锚点化**（`NavBar`）：导航项 href 改为锚点形态（主页 `/#hero`、档案 `/#archive-1`、素材 `/#assets`、日历 `/#calendar`，hash 取自站序列注册表单一事实源）；首页路由下按 `location.hash` 匹配 navKey 高亮（档案 P1~P5 均视为「档案」选中），deck 翻页经 `SECTION_CHANGE_EVENT` 同步选中态（`replaceState` 不触发 `hashchange`）；非首页路由按既有 pathname 精确匹配选中态（href 仍为锚点，点击跳首页对应锚点，deck 挂载时 hash 直落定位）；未配置 API 时「日历」项缺席。首页内点击导航由 NavBar 派发 `NAVIGATE_EVENT`、deck 监听并平滑翻页（Next Link `pushState` 不触发 `hashchange`，故导航点击不走 hashchange），浏览器前进后退/直接 URL 定位经 `hashchange` 监听。
 - 已移除：三张入口卡、信息速览条、本周日程大卡、首页通栏贴底 Footer floating（改为素材尾部流式 Footer + 首页文案块下方小号免责声明）。
 
 ## 档案页 `/about`

@@ -9,8 +9,8 @@ import {
   nextIndex,
   type GestureState,
 } from "@/features/home/fullpage";
-import type { SectionDef, SectionChangeDetail } from "@/features/home/sections";
-import { SECTION_CHANGE_EVENT } from "@/features/home/sections";
+import type { SectionDef, SectionChangeDetail, NavigateDetail } from "@/features/home/sections";
+import { SECTION_CHANGE_EVENT, NAVIGATE_EVENT } from "@/features/home/sections";
 
 /** 翻页转场时长（ms）。 */
 const TRANSITION_MS = 800;
@@ -200,7 +200,7 @@ export function useFullpageScroll({
     applyTransform(indexRef.current, true);
   }, [index, applyTransform]);
 
-  // 响应 hash 变化（导航锚点点击 / 浏览器前进后退）：解析 hash 定位到对应站
+  // 响应 hash 变化（浏览器前进后退 / 直接 URL 定位）：解析 hash 定位到对应站
   useEffect(() => {
     const onHashChange = () => {
       if (blockedRef.current) return;
@@ -212,6 +212,21 @@ export function useFullpageScroll({
     };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
+  }, [goTo]);
+
+  // 响应导航锚点点击（NavBar 派发，Next Link pushState 不触发 hashchange）
+  useEffect(() => {
+    const onNavigate = (e: Event) => {
+      if (blockedRef.current) return;
+      const detail = (e as CustomEvent<NavigateDetail>).detail;
+      if (!detail || !detail.id) return;
+      const match = sectionsRef.current.findIndex((s) => s.id === detail.id);
+      if (match >= 0 && match !== indexRef.current) {
+        goTo(match);
+      }
+    };
+    window.addEventListener(NAVIGATE_EVENT, onNavigate);
+    return () => window.removeEventListener(NAVIGATE_EVENT, onNavigate);
   }, [goTo]);
 
   /** 判断触摸起始目标是否位于可滚动兜底列内（移动端档案内容列），是则不喂入手势聚合（交给原生滚动）。 */

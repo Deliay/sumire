@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { API_CONFIGURED } from "@/features/backdoor/api";
-import { SECTIONS, SECTION_CHANGE_EVENT, type SectionChangeDetail } from "@/features/home/sections";
+import { SECTIONS, SECTION_CHANGE_EVENT, NAVIGATE_EVENT, type SectionChangeDetail, type NavigateDetail } from "@/features/home/sections";
 import type { NavKey } from "@/features/home/sections";
 import type { ToolModule } from "@/lib/tools/registry";
 
@@ -21,6 +21,8 @@ interface BaseLink {
   anchor: string;
   /** 独立路由路径（非首页选中态匹配用）。 */
   route: string;
+  /** 目标站 id（首页导航翻页用）。 */
+  sectionId: string;
 }
 
 /** 从注册表取锚点与独立路由（单一事实源）。 */
@@ -35,7 +37,7 @@ function buildBaseLinks(): BaseLink[] {
     .filter((k) => k !== "calendar" || API_CONFIGURED)
     .map((navKey) => {
       const first = SECTIONS.find((s) => s.navKey === navKey);
-      return { navKey, label: map[navKey].label, anchor: `/#${first?.id ?? ""}`, route: map[navKey].route };
+      return { navKey, label: map[navKey].label, anchor: `/#${first?.id ?? ""}`, route: map[navKey].route, sectionId: first?.id ?? "" };
     });
 }
 
@@ -99,6 +101,18 @@ export default function NavBar({ siteName, tools }: NavBarProps) {
   const hrefOf = (link: { navKey: string; route: string; anchor: string }) =>
     link.navKey.startsWith("tool-") ? link.route : link.anchor;
 
+  // 首页内点击导航：Next Link 到 #hash 用 pushState 不触发 hashchange，改派发 NAVIGATE_EVENT 交由 deck 平滑翻页
+  const handleNavClick = (e: React.MouseEvent, link: { sectionId?: string; navKey: string }) => {
+    if (isHome && link.sectionId) {
+      e.preventDefault();
+      window.dispatchEvent(
+        new CustomEvent<NavigateDetail>(NAVIGATE_EVENT, { detail: { id: link.sectionId as NavigateDetail["id"] } }),
+      );
+      window.history.pushState(null, "", `#${link.sectionId}`);
+      setOpen(false);
+    }
+  };
+
   return (
     <header
       className={`fixed inset-x-0 top-0 z-40 transition-colors duration-500 ${
@@ -122,6 +136,7 @@ export default function NavBar({ siteName, tools }: NavBarProps) {
             <li key={link.route}>
               <Link
                 href={hrefOf(link)}
+                onClick={(e) => handleNavClick(e, link)}
                 aria-current={isActive(link) ? "page" : undefined}
                 className={`text-sm tracking-widest transition-colors ${
                   isActive(link)
@@ -153,7 +168,7 @@ export default function NavBar({ siteName, tools }: NavBarProps) {
               <Link
                 href={hrefOf(link)}
                 aria-current={isActive(link) ? "page" : undefined}
-                onClick={() => setOpen(false)}
+                onClick={(e) => handleNavClick(e, link)}
                 className={`block text-base tracking-widest ${
                   isActive(link) ? "text-primary" : "text-ink-dim"
                 }`}

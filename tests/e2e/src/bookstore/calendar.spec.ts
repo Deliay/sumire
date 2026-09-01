@@ -95,8 +95,8 @@ test.describe("bookstore 日历页与主页入口", () => {
     await page.goto(BASE);
     // 首页不出现本周日程大卡
     await expect(page.getByRole("heading", { name: "本周日程" })).toHaveCount(0);
-    // 经导航栏日历链接（锚点 #calendar）翻页至日历站
-    await page.getByRole("link", { name: "日历" }).click();
+    // 经导航栏日历链接（锚点 #calendar，桌面 nav）翻页至日历站
+    await page.locator("header ul").first().getByRole("link", { name: "日历" }).click();
     await expect(page.getByText(/年 .*月/).first()).toBeVisible();
   });
 

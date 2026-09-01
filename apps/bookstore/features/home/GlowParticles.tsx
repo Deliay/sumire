@@ -138,15 +138,20 @@ export default function GlowParticles({
       }
     };
 
-    const frame = () => {
+    let lastFrameTime = performance.now();
+    const frame = (now: number) => {
+      // 用真实帧间隔（钳制上限防切后台回来大跳变），使冲量位移/滞留半衰期不随刷新率失真
+      const dt = Math.min(0.1, Math.max(0.008, (now - lastFrameTime) / 1000));
+      lastFrameTime = now;
       const target = maxCount();
       while (particles.length < target) {
         const pos = spawn({ width: w, height: h }, pointer, SPAWN_BIAS, SPAWN_RADIUS, Math.random);
         particles = [...particles, create(pos, Math.random)];
       }
-      // 流场衰减 + 叠加
-      flow = decayFlow(flow, opts.dt, FLOW_HALF_LIFE);
-      particles = step(particles, opts.dt, opts, flow);
+      // 流场衰减 + 叠加（真实帧间隔）
+      const frameOpts: StepOptions = { ...opts, dt };
+      flow = decayFlow(flow, dt, FLOW_HALF_LIFE);
+      particles = step(particles, dt, frameOpts, flow);
       draw(ctx, particles, colors);
       rafId = requestAnimationFrame(frame);
     };

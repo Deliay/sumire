@@ -141,7 +141,7 @@ export default function AssetGallery({ assets }: { assets: Asset[] }) {
                   src={assetThumbnailUrl(asset)}
                   alt={asset.title}
                   fill
-                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
                   className={`transition-transform duration-500 group-hover:scale-[1.03] ${
                     asset.category === "standing"
                       ? "object-contain p-4"

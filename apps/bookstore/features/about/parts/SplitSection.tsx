@@ -33,7 +33,7 @@ export default function SplitSection({ portrait, portraitLeft, children }: Split
       </div>
       <div
         data-fullpage-scrollable
-        className={`order-2 flex min-h-0 items-center overflow-y-auto lg:justify-center lg:overflow-visible ${
+        className={`order-2 flex min-h-0 items-center-safe overflow-y-auto lg:justify-center lg:overflow-visible ${
           portraitLeft ? "lg:order-2" : "lg:order-1"
         }`}
       >

@@ -116,7 +116,7 @@ describe("useFullpageScroll", () => {
     vi.unstubAllGlobals();
   });
 
-  it("下翻（下一站）rAF 转场按 px 向下平移", () => {
+  it("下翻（下一站）rAF 转场按 px 向下平移，粒子流场 velocity 为正（下坠）", () => {
     // rAF 单步执行：首帧 t=0（起点），验证轨道向负 y 平移（下翻）
     const rafQueue: FrameRequestCallback[] = [];
     vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
@@ -124,6 +124,10 @@ describe("useFullpageScroll", () => {
       return rafQueue.length;
     });
     vi.stubGlobal("cancelAnimationFrame", () => {});
+    let t = 0;
+    vi.stubGlobal("performance", { now: () => (t += 100) });
+    const scrollSpy = vi.fn();
+    window.addEventListener(SCROLL_IMPULSE_EVENT, scrollSpy);
     render(<Harness />);
     const track = document.querySelector("[data-testid='track']") as HTMLElement;
     act(() => {
@@ -133,11 +137,18 @@ describe("useFullpageScroll", () => {
     expect(track.dataset.index).toBe("1");
     // 触发多帧，动画推进后 transform 用 px（不含 svh）
     act(() => {
-      rafQueue.splice(0).forEach((cb) => cb(100));
-      rafQueue.splice(0).forEach((cb) => cb(400));
+      rafQueue.splice(0).forEach((cb) => cb(200));
+      rafQueue.splice(0).forEach((cb) => cb(500));
     });
     expect(track.style.transform).toContain("px");
     expect(track.style.transform).not.toContain("svh");
+    // 下翻：转场期派发的 flow-scroll velocity 应为正（下坠语义，与 direction 一致）
+    const velocities = scrollSpy.mock.calls
+      .map((c) => (c[0] as CustomEvent).detail.velocity as number)
+      .filter((v) => Number.isFinite(v));
+    expect(velocities.length).toBeGreaterThan(0);
+    expect(velocities.every((v) => v > 0)).toBe(true);
+    window.removeEventListener(SCROLL_IMPULSE_EVENT, scrollSpy);
     vi.unstubAllGlobals();
   });
 

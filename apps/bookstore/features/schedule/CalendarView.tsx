@@ -370,6 +370,10 @@ export default function CalendarView({ entries, onRangeChange, onSelectDay, vari
             setTimeout(() => { suppressClickRef.current = false; }, 0);
           }
         } : undefined}
+        onPointerCancel={immersive ? () => {
+          lastXRef.current = null;
+          dragRef.current = createDrag();
+        } : undefined}
         className={`grid h-full min-h-0 flex-1 grid-cols-7 grid-rows-6 gap-1 ${
           immersive ? "touch-pan-y cursor-grab px-12 sm:px-16" : ""
         }`}

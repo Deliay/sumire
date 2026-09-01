@@ -8,7 +8,6 @@ import {
   feedWheel,
   nextIndex,
   normalizeDeltaY,
-  easeInOutCubic,
   type GestureState,
 } from "@/features/home/fullpage";
 import type { SectionDef, SectionChangeDetail, NavigateDetail } from "@/features/home/sections";
@@ -80,26 +79,15 @@ export function useFullpageScroll({
 
   const transitionMs = reduce ? TRANSITION_REDUCED_MS : TRANSITION_MS;
 
-  // 解析视口高并初始化/更新（resize 时重算，px 而非 svh 规避单位插值兼容问题）
+  // 视口高以轨道/容器实际 clientHeight 为准（与各 section h-svh 对齐），
+  // 而非 window.innerHeight（移动端 svh 与 innerHeight/dvh 在工具栏显隐时可能差 60~100px，会造成逐站错位）。
   const getVh = useCallback((): number => {
     if (vhRef.current <= 0) {
-      vhRef.current = typeof window !== "undefined" ? window.innerHeight || 800 : 800;
+      const el = containerRef.current ?? trackRef.current;
+      vhRef.current = el && el.clientHeight > 0 ? el.clientHeight : typeof window !== "undefined" ? window.innerHeight || 800 : 800;
     }
     return vhRef.current;
-  }, []);
-  useEffect(() => {
-    const onResize = () => {
-      vhRef.current = window.innerHeight || 800;
-      // 重算当前 px 偏移并直写（无动画）
-      if (trackRef.current) {
-        currentOffsetPxRef.current = -indexRef.current * vhRef.current;
-        trackRef.current.style.transition = "none";
-        trackRef.current.style.transform = `translate3d(0, ${currentOffsetPxRef.current}px, 0)`;
-      }
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [trackRef]);
+  }, [containerRef, trackRef]);
 
   /** 取消进行中的转场动画。 */
   const cancelAnim = useCallback(() => {
@@ -108,6 +96,25 @@ export function useFullpageScroll({
       animRef.current = null;
     }
   }, []);
+
+  useEffect(() => {
+    const onResize = () => {
+      // resize 前先取消进行中动画，避免旧 vh 落点覆盖校正值
+      cancelAnim();
+      const el = containerRef.current ?? trackRef.current;
+      vhRef.current = el && el.clientHeight > 0 ? el.clientHeight : window.innerHeight || 800;
+      if (trackRef.current) {
+        currentOffsetPxRef.current = -indexRef.current * vhRef.current;
+        trackRef.current.style.transition = "none";
+        trackRef.current.style.transform = `translate3d(0, ${currentOffsetPxRef.current}px, 0)`;
+      }
+    };
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      cancelAnim();
+    };
+  }, [trackRef, containerRef, cancelAnim]);
 
   /**
    * 翻页转场：非 reduced 用 rAF 驱动 px 插值（easeInOutCubic + 方向感知缓入缓出），
@@ -144,18 +151,22 @@ export function useFullpageScroll({
       // rAF 插值动画：从当前 offset 滑向目标 offset（px），方向感知缓入缓出
       const from = currentOffsetPxRef.current;
       const to = -i * getVh();
-      const drop = lastDirectionRef.current === -1;
-      const dir = to > from ? -1 : 1; // 目标更靠下 → 下翻
+      // 已位于目标（如 hash 直落后 index effect 重复触发）：直接落位，不做空动画
+      if (Math.abs(to - from) < 1) {
+        currentOffsetPxRef.current = to;
+        track.style.transition = "none";
+        track.style.transform = `translate3d(0, ${to}px, 0)`;
+        return;
+      }
+      const drop = lastDirectionRef.current === -1; // 下翻（目标更靠下）
       const dur = transitionMs;
       const start = performance.now();
+      // 差异化缓动：下翻用「下坠」（起始略慢、中段加速下滑），上翻用「上浮」（先快后慢缓出）
+      const easeDrop = (x: number) => 1 - Math.pow(1 - x, 3); // easeOutCubic：先慢后快（下坠）
+      const easeRise = (x: number) => x * x * (3 - 2 * x); // smoothstep：先快后慢（上浮）
       const ease = (t: number) => {
-        // 下翻起点略慢、加速下滑（下坠）；上翻缓出
         const x = Math.max(0, Math.min(1, t));
-        if (drop) {
-          // 类 easeOutCubic 变体：中前段较快
-          return easeInOutCubic(x);
-        }
-        return easeInOutCubic(x);
+        return drop ? easeDrop(x) : easeRise(x);
       };
       const step = (now: number) => {
         const t = Math.min(1, (now - start) / dur);
@@ -164,11 +175,12 @@ export function useFullpageScroll({
         currentOffsetPxRef.current = offset;
         track.style.transition = "none";
         track.style.transform = `translate3d(0, ${offset}px, 0)`;
-        // 粒子流场耦合：按当前滑速派发 velocity（方向沿滑动），动画结束停止
         if (t < 1) {
-          const v = (to - from) / (dur / 1000); // px/s 平均滑速
+          // 粒子流场耦合：velocity 取「翻页方向」语义（下翻 → 正 velocity → 下坠；上翻 → 负 → 上浮），
+          // 与 turn/goTo 派发的 direction 口径一致，避免与 free 滚动链方向打架。
+          const v = (drop ? 1 : -1) * (getVh() / (dur / 1000)) * (1 - t * 0.4);
           window.dispatchEvent(
-            new CustomEvent(SCROLL_IMPULSE_EVENT, { detail: { velocity: v * (1 - t * 0.4) } }),
+            new CustomEvent(SCROLL_IMPULSE_EVENT, { detail: { velocity: v } }),
           );
           animRef.current = requestAnimationFrame(step);
         } else {
@@ -177,7 +189,6 @@ export function useFullpageScroll({
         }
       };
       animRef.current = requestAnimationFrame(step);
-      void dir;
     },
     [reduce, transitionMs, trackRef, cancelAnim, getVh],
   );
@@ -246,11 +257,13 @@ export function useFullpageScroll({
         }
         lastScrollTopRef.current = 0;
       }
-      dispatchImpulse(i > indexRef.current ? -1 : 1);
-      lastDirectionRef.current = i > indexRef.current ? -1 : 1;
-      updateIndex(i);
+      const clamped = Math.max(0, Math.min(sections.length - 1, i));
+      if (clamped === indexRef.current) return;
+      dispatchImpulse(clamped > indexRef.current ? -1 : 1);
+      lastDirectionRef.current = clamped > indexRef.current ? -1 : 1;
+      updateIndex(clamped);
     },
-    [containerRef, dispatchImpulse, updateIndex],
+    [containerRef, sections.length, dispatchImpulse, updateIndex],
   );
 
   // 初始：挂载时解析 hash 直落对应站（无转场）。仅挂载执行一次（landedRef 守卫），
@@ -325,8 +338,10 @@ export function useFullpageScroll({
   useEffect(() => {
     const onWheel = (e: WheelEvent) => {
       if (blockedRef.current) return;
+      // 位于可滚动内容列内的滚轮交给原生滚动，不参与整页手势（与 touchstart 口径一致）
+      if (isInsideScrollable(e.target)) return;
       // 按 deltaMode 归一化为像素（Firefox line-mode 等），否则小步长累积不到阈值
-      const delta = normalizeDeltaY(e.deltaY, e.deltaMode, window.innerHeight || 1);
+      const delta = normalizeDeltaY(e.deltaY, e.deltaMode, getVh());
       const intent = feedWheel(gestureRef.current, delta, performance.now());
       if (intent) turn(intent.direction);
     };
@@ -428,7 +443,7 @@ export function useFullpageScroll({
       window.removeEventListener("keydown", onKeyDown);
       container?.removeEventListener("scroll", onScroll);
     };
-  }, [turn, goTo, updateIndex, containerRef, reduce, isInsideScrollable]);
+  }, [turn, goTo, updateIndex, containerRef, reduce, isInsideScrollable, getVh]);
 
   // 弹层打开/关闭屏蔽翻页
   const setLocked = useCallback((locked: boolean) => {

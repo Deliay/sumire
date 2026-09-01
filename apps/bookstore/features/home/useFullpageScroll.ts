@@ -1,0 +1,251 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useMediaQuery } from "@/lib/useMediaQuery";
+import {
+  createGestureState,
+  feedTouch,
+  feedWheel,
+  nextIndex,
+  type GestureState,
+} from "@/features/home/fullpage";
+import type { SectionDef } from "@/features/home/sections";
+
+/** 翻页转场时长（ms）。 */
+const TRANSITION_MS = 800;
+/** reduced-motion 下的转场时长（ms）。 */
+const TRANSITION_REDUCED_MS = 0;
+/** free 模式回收为 deck 的死区（px）。 */
+const BOUNDARY_DEADZONE = 2;
+/** 冲量事件名。 */
+export const IMPULSE_EVENT = "sumire:flow-impulse";
+
+export interface FullpageScrollConfig {
+  /** 可见站序列（已按 API_CONFIGURED 过滤）。 */
+  sections: SectionDef[];
+  /** 素材站索引（最后一个站），未配置素材时可为 -1。 */
+  assetsIndex: number;
+  /** 轨道 DOM ref，由其写入 transform。 */
+  trackRef: React.RefObject<HTMLElement | null>;
+  /** 容器 DOM ref（free 模式切换 overflow）。 */
+  containerRef: React.RefObject<HTMLElement | null>;
+  /** 站索引变化回调（用于 SectionRail 高亮与 hash 同步）。 */
+  onIndexChange?: (index: number) => void;
+}
+
+/** 翻页意图：-1 下一站，+1 上一站。 */
+export type TurnIntent = -1 | 1;
+
+/** 事件载荷：翻页方向（供粒子冲量消费）。 */
+export interface ImpulseDetail {
+  direction: TurnIntent;
+}
+
+/** 弹层打开时屏蔽翻页输入（Lightbox/当日详情），由调用方控制。 */
+export function useFullpageScroll({
+  sections,
+  assetsIndex,
+  trackRef,
+  containerRef,
+  onIndexChange,
+}: FullpageScrollConfig) {
+  const reduce = useMediaQuery("(prefers-reduced-motion: reduce)");
+  const [index, setIndexState] = useState(0);
+  const [free, setFree] = useState(false);
+  const [blocked, setBlocked] = useState(false);
+  const indexRef = useRef(0);
+  const freeRef = useRef(false);
+  const blockedRef = useRef(false);
+  const gestureRef = useRef<GestureState>(createGestureState());
+  const touchStartRef = useRef<{ y: number; timestamp: number } | null>(null);
+  const lastImpulseTimeRef = useRef(0);
+  const lastScrollTopRef = useRef(0);
+  const isFirstRenderRef = useRef(true);
+
+  const transitionMs = reduce ? TRANSITION_REDUCED_MS : TRANSITION_MS;
+
+  const applyTransform = useCallback(
+    (i: number, animated: boolean) => {
+      const track = trackRef.current;
+      if (!track) return;
+      track.style.transition = animated && !reduce ? `transform ${transitionMs}ms cubic-bezier(0.22,1,0.36,1)` : "none";
+      track.style.transform = `translate3d(0, ${-i * 100}svh, 0)`;
+    },
+    [reduce, transitionMs, trackRef],
+  );
+
+  const updateIndex = useCallback(
+    (i: number) => {
+      const clamped = Math.max(0, Math.min(sections.length - 1, i));
+      if (clamped === indexRef.current) return;
+      indexRef.current = clamped;
+      setIndexState(clamped);
+      onIndexChange?.(clamped);
+    },
+    [sections.length, onIndexChange],
+  );
+
+  /** 派发冲量事件（供 GlowParticles 消费），reduced-motion 不派发。 */
+  const dispatchImpulse = useCallback(
+    (direction: TurnIntent) => {
+      if (reduce) return;
+      const now = performance.now();
+      if (now - lastImpulseTimeRef.current < 300) return;
+      lastImpulseTimeRef.current = now;
+      window.dispatchEvent(
+        new CustomEvent<ImpulseDetail>(IMPULSE_EVENT, { detail: { direction } }),
+      );
+    },
+    [reduce],
+  );
+
+  const turn = useCallback(
+    (direction: TurnIntent) => {
+      if (freeRef.current) return;
+      if (indexRef.current === assetsIndex && direction === -1) {
+        // 素材站下滚越界 → 进入 free 模式，浏览器接管自然滚动
+        freeRef.current = true;
+        setFree(true);
+        if (containerRef.current) containerRef.current.style.overflow = "auto";
+        return;
+      }
+      const target = nextIndex(indexRef.current, direction, sections.length);
+      if (target === indexRef.current) return;
+      dispatchImpulse(direction);
+      updateIndex(target);
+    },
+    [assetsIndex, sections.length, containerRef, dispatchImpulse, updateIndex],
+  );
+
+  /** 程序化跳转（导航/指示器点击），同翻页转场。 */
+  const goTo = useCallback(
+    (i: number) => {
+      if (freeRef.current) {
+        freeRef.current = false;
+        setFree(false);
+        if (containerRef.current) containerRef.current.style.overflow = "hidden";
+        window.scrollTo(0, 0);
+      }
+      dispatchImpulse(i > indexRef.current ? -1 : 1);
+      updateIndex(i);
+    },
+    [containerRef, dispatchImpulse, updateIndex],
+  );
+
+  // 初始：挂载时解析 hash 直落对应站（无转场）
+  useEffect(() => {
+    if (sections.length === 0) return;
+    const hash = window.location.hash;
+    const match = sections.findIndex((s) => `#${s.id}` === hash);
+    if (match > 0) {
+      requestAnimationFrame(() => {
+        indexRef.current = match;
+        setIndexState(match);
+        onIndexChange?.(match);
+        applyTransform(match, false);
+      });
+    }
+  }, [sections, applyTransform, onIndexChange]);
+
+  // 索引变化 → 同步 hash（replaceState，不触发跳转）。首渲染不写 transform（SSG 直出站 0）。
+  useEffect(() => {
+    if (isFirstRenderRef.current) {
+      isFirstRenderRef.current = false;
+      return;
+    }
+    const section = sections[indexRef.current];
+    if (section && window.location.hash !== section.hash) {
+      history.replaceState(null, "", section.hash);
+    }
+    applyTransform(indexRef.current, true);
+  }, [index, sections, applyTransform]);
+
+  // 事件监听（window 级被动，不 preventDefault）
+  useEffect(() => {
+    const onWheel = (e: WheelEvent) => {
+      if (blockedRef.current) return;
+      const intent = feedWheel(gestureRef.current, e.deltaY, performance.now());
+      if (intent) turn(intent.direction);
+    };
+    const onTouchStart = (e: TouchEvent) => {
+      if (blockedRef.current) return;
+      const t = e.touches[0];
+      touchStartRef.current = t ? { y: t.clientY, timestamp: performance.now() } : null;
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (blockedRef.current || !touchStartRef.current) return;
+      const t = e.touches[0];
+      if (!t) return;
+      const intent = feedTouch(
+        gestureRef.current,
+        { y: touchStartRef.current.y },
+        { y: t.clientY },
+        performance.now(),
+      );
+      if (intent) turn(intent.direction);
+    };
+    const onTouchEnd = () => {
+      touchStartRef.current = null;
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (blockedRef.current) return;
+      const map: Record<string, TurnIntent> = {
+        ArrowDown: -1,
+        ArrowUp: 1,
+        PageDown: -1,
+        PageUp: 1,
+      };
+      if (e.key === "Home") {
+        goTo(0);
+        return;
+      }
+      if (e.key === "End") {
+        goTo(sections.length - 1);
+        return;
+      }
+      const d = map[e.key];
+      if (d) {
+        e.preventDefault();
+        turn(d);
+      }
+    };
+    const onScroll = () => {
+      if (!freeRef.current) return;
+      const el = containerRef.current;
+      if (!el) return;
+      const scrollTop = el.scrollTop;
+      // 回顶继续上滚 → 回收为 deck 并翻上一站
+      if (scrollTop <= BOUNDARY_DEADZONE && scrollTop - lastScrollTopRef.current < 0) {
+        freeRef.current = false;
+        setFree(false);
+        el.style.overflow = "hidden";
+        updateIndex(Math.max(0, indexRef.current - 1));
+      }
+      lastScrollTopRef.current = scrollTop;
+    };
+
+    window.addEventListener("wheel", onWheel, { passive: true });
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
+    window.addEventListener("keydown", onKeyDown);
+    const container = containerRef.current;
+    container?.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onTouchEnd);
+      window.removeEventListener("keydown", onKeyDown);
+      container?.removeEventListener("scroll", onScroll);
+    };
+  }, [turn, goTo, updateIndex, sections.length, containerRef]);
+
+  // 弹层打开/关闭屏蔽翻页
+  const setLocked = useCallback((locked: boolean) => {
+    blockedRef.current = locked;
+    setBlocked(locked);
+  }, []);
+
+  return { index, free, blocked, goTo, turn, setLocked };
+}

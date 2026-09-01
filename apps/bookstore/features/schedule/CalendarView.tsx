@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { CalendarEntry } from "@/features/schedule/mergeEntries";
+import { createDrag, feedPointer, release } from "@/features/schedule/calendarDrag";
 import {
   WEEKDAYS,
   daysInMonth,
@@ -26,6 +27,8 @@ interface CalendarViewProps {
   onRangeChange?: (from: string, to: string) => void;
   /** 点击某天回调，上抛所选日期 YYYY-MM-DD */
   onSelectDay?: (date: string) => void;
+  /** 变体：panel（后台默认，DOM/样式逐位保持现态）或 immersive（公开全幅直角中字 + 侧翻月竖条 + 拖拽翻月） */
+  variant?: "panel" | "immersive";
 }
 
 function entryTitle(entry: CalendarEntry): string {
@@ -44,12 +47,15 @@ interface DaySummariesProps {
   maxSummaries: number;
   /** 空天是否渲染「—」占位（月视图补位格为 false）。 */
   showEmpty: boolean;
+  /** immersive 变体放大摘要字号。 */
+  immersive?: boolean;
 }
 
 /** 单日条目摘要列表（月/周两形态共用）：HH:mm 主题、+N 收口、历史来源样式、空天占位。 */
-function DaySummaries({ entries, isPast, maxSummaries, showEmpty }: DaySummariesProps) {
+function DaySummaries({ entries, isPast, maxSummaries, showEmpty, immersive = false }: DaySummariesProps) {
   const shown = entries.slice(0, maxSummaries);
   const extra = entries.length - maxSummaries;
+  const size = immersive ? "text-sm" : "text-[11px]";
   return (
     <div className="flex flex-col gap-0.5">
       {shown.map((e) => {
@@ -58,7 +64,7 @@ function DaySummaries({ entries, isPast, maxSummaries, showEmpty }: DaySummaries
           <span
             key={isHistory ? `h-${e.record.startDate}-${e.record.title}` : e.plan.id}
             data-testid={isHistory ? "history-title" : "plan-title"}
-            className={`truncate rounded px-1 py-0.5 text-[11px] leading-tight ${
+            className={`truncate rounded px-1 py-0.5 leading-tight ${size} ${
               isHistory || isPast ? "text-ink-dim/80" : "bg-soft text-ink"
             }`}
           >
@@ -73,10 +79,10 @@ function DaySummaries({ entries, isPast, maxSummaries, showEmpty }: DaySummaries
         );
       })}
       {extra > 0 && (
-        <span className="text-[11px] tabular-nums text-ink-dim">+{extra}</span>
+        <span className={`tabular-nums text-ink-dim ${size}`}>+{extra}</span>
       )}
       {entries.length === 0 && showEmpty && (
-        <span className="text-[11px] text-ink-dim/50">—</span>
+        <span className={`text-ink-dim/50 ${size}`}>—</span>
       )}
     </div>
   );
@@ -90,13 +96,15 @@ interface DayCellProps {
   today: string;
   maxSummaries: number;
   onSelectDay?: (date: string) => void;
+  variant: "panel" | "immersive";
 }
 
 /** 单日格子渲染（月视图）：日期数字、今天标记、过去弱化、条目摘要、+N 收口、历史来源样式、空天占位。 */
-function DayCell({ dateStr, day, inMonth, entries, today, maxSummaries, onSelectDay }: DayCellProps) {
+function DayCell({ dateStr, day, inMonth, entries, today, maxSummaries, onSelectDay, variant }: DayCellProps) {
   const isToday = dateStr === today;
   const isPast = dateStr < today;
   const clickable = inMonth && !!onSelectDay;
+  const immersive = variant === "immersive";
   return (
     <button
       type="button"
@@ -104,9 +112,9 @@ function DayCell({ dateStr, day, inMonth, entries, today, maxSummaries, onSelect
       data-testid="calendar-day"
       onClick={() => clickable && onSelectDay?.(dateStr)}
       aria-label={inMonth ? `查看 ${dateStr} 安排` : undefined}
-      className={`relative flex h-full min-h-16 flex-col overflow-hidden rounded-md border p-1.5 text-left transition-colors ${
-        isToday ? "border-flower" : "border-vine/40"
-      } ${!inMonth ? "opacity-35" : ""} ${
+      className={`relative flex h-full min-h-16 flex-col overflow-hidden border p-1.5 text-left transition-colors ${
+        immersive ? "" : "rounded-md"
+      } ${isToday ? "border-flower" : "border-vine/40"} ${!inMonth ? "opacity-35" : ""} ${
         isToday ? "" : isPast ? "bg-night opacity-60" : "bg-raised hover:border-flower"
       } ${clickable ? "cursor-pointer" : "cursor-default"}`}
     >
@@ -117,13 +125,13 @@ function DayCell({ dateStr, day, inMonth, entries, today, maxSummaries, onSelect
         />
       )}
       <span
-        className={`mb-0.5 pl-2 font-display text-xs ${
-          isToday ? "font-bold text-flower" : isPast ? "text-ink-dim" : "text-ink"
-        }`}
+        className={`mb-0.5 pl-2 font-display ${
+          immersive ? "text-base" : "text-xs"
+        } ${isToday ? "font-bold text-flower" : isPast ? "text-ink-dim" : "text-ink"}`}
       >
         {day}
       </span>
-      <DaySummaries entries={entries} isPast={isPast} maxSummaries={maxSummaries} showEmpty={inMonth} />
+      <DaySummaries entries={entries} isPast={isPast} maxSummaries={maxSummaries} showEmpty={inMonth} immersive={immersive} />
     </button>
   );
 }
@@ -134,10 +142,13 @@ function DayCell({ dateStr, day, inMonth, entries, today, maxSummaries, onSelect
  * 未来（待播出）高亮、今天藤蔓描边；历史记录恒为「已播出」弱化样式并以藤蔓点标记区分来源；
  * 点击某天上抛日期；可见范围变更经 onRangeChange 上抛。
  */
-export default function CalendarView({ entries, onRangeChange, onSelectDay }: CalendarViewProps) {
+export default function CalendarView({ entries, onRangeChange, onSelectDay, variant = "panel" }: CalendarViewProps) {
   const [selectedDate, setSelectedDate] = useState<string>(() => todayStr());
   const isWeek = useMediaQuery("(max-width: 639px)");
   const today = todayStr();
+  const dragRef = useRef(createDrag());
+  const lastXRef = useRef<number | null>(null);
+  const immersive = variant === "immersive";
 
   const entriesByDate = useMemo(() => {
     const map = new Map<string, CalendarEntry[]>();
@@ -281,30 +292,58 @@ export default function CalendarView({ entries, onRangeChange, onSelectDay }: Ca
   }
 
   return (
-    <div className="flex h-full w-full flex-col select-none">
-      <div className="mb-4 flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => goMonth(-1)}
-          className="rounded-md border border-vine/50 px-3 py-1.5 text-sm text-ink-dim transition-colors hover:border-flower hover:text-ink"
-          aria-label="上一月"
-        >
-          ← 上月
-        </button>
-        <h2 className="font-serif text-lg font-semibold text-ink">
-          {view.y} 年 {view.m} 月
-        </h2>
-        <button
-          type="button"
-          onClick={() => goMonth(1)}
-          className="rounded-md border border-vine/50 px-3 py-1.5 text-sm text-ink-dim transition-colors hover:border-flower hover:text-ink"
-          aria-label="下一月"
-        >
-          下月 →
-        </button>
-      </div>
+    <div className={`flex h-full w-full flex-col select-none ${immersive ? "relative" : ""}`}>
+      {!immersive && (
+        <div className="mb-4 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => goMonth(-1)}
+            className="rounded-md border border-vine/50 px-3 py-1.5 text-sm text-ink-dim transition-colors hover:border-flower hover:text-ink"
+            aria-label="上一月"
+          >
+            ← 上月
+          </button>
+          <h2 className="font-serif text-lg font-semibold text-ink">
+            {view.y} 年 {view.m} 月
+          </h2>
+          <button
+            type="button"
+            onClick={() => goMonth(1)}
+            className="rounded-md border border-vine/50 px-3 py-1.5 text-sm text-ink-dim transition-colors hover:border-flower hover:text-ink"
+            aria-label="下一月"
+          >
+            下月 →
+          </button>
+        </div>
+      )}
 
-      <div className="grid grid-cols-7 gap-1">
+      {immersive && (
+        <>
+          <div className="mb-4 flex items-center justify-center">
+            <h2 className="font-serif text-xl font-semibold text-ink sm:text-2xl">
+              {view.y} 年 {view.m} 月
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={() => goMonth(-1)}
+            className="absolute inset-y-0 left-0 flex w-12 items-center justify-center text-2xl text-ink-dim transition-colors hover:text-flower sm:w-16"
+            aria-label="上月"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            onClick={() => goMonth(1)}
+            className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-2xl text-ink-dim transition-colors hover:text-flower sm:w-16"
+            aria-label="下月"
+          >
+            ›
+          </button>
+        </>
+      )}
+
+      <div className={immersive ? "grid grid-cols-7 gap-1 px-12 sm:px-16" : "grid grid-cols-7 gap-1"}>
         {WEEKDAYS.map((w) => (
           <div
             key={w}
@@ -315,7 +354,13 @@ export default function CalendarView({ entries, onRangeChange, onSelectDay }: Ca
         ))}
       </div>
 
-      <div className="grid h-full min-h-0 flex-1 grid-cols-7 grid-rows-6 gap-1">
+      <div
+        data-testid={immersive ? "immersive-grid" : undefined}
+        onPointerDown={immersive ? (e) => { dragRef.current = createDrag(); lastXRef.current = e.clientX; (e.target as HTMLElement).setPointerCapture?.(e.pointerId); } : undefined}
+        onPointerMove={immersive ? (e) => { if (lastXRef.current !== null) feedPointer(dragRef.current, e.clientX - lastXRef.current); lastXRef.current = e.clientX; } : undefined}
+        onPointerUp={immersive ? () => { lastXRef.current = null; const d = release(dragRef.current); if (d === 1) goMonth(1); else if (d === -1) goMonth(-1); } : undefined}
+        className={`grid h-full min-h-0 flex-1 grid-cols-7 grid-rows-6 gap-1 ${immersive ? "touch-pan-y cursor-grab" : ""}`}
+      >
         {cells.map((cell) => (
           <DayCell
             key={cell.dateStr}
@@ -326,6 +371,7 @@ export default function CalendarView({ entries, onRangeChange, onSelectDay }: Ca
             today={today}
             maxSummaries={MONTH_MAX_SUMMARIES}
             onSelectDay={onSelectDay}
+            variant={variant}
           />
         ))}
       </div>

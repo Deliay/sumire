@@ -56,7 +56,7 @@ export default function CalendarViewPage() {
   }
 
   return (
-    <section className="mx-auto w-full max-w-[80rem] px-5 py-14 lg:px-10">
+    <section className="mx-auto w-full px-5 py-14 lg:px-10">
       <header className="mb-8 text-center">
         <p className="font-display text-sm italic tracking-[0.4em] text-ink-dim">
           Weekly Schedule
@@ -73,7 +73,7 @@ export default function CalendarViewPage() {
       ) : loading ? (
         <div className="min-h-80 animate-pulse rounded-md border border-vine/50 bg-raised" aria-busy="true" />
       ) : (
-        <CalendarView entries={entries} onRangeChange={handleRangeChange} onSelectDay={setSelectedDay} />
+        <CalendarView entries={entries} onRangeChange={handleRangeChange} onSelectDay={setSelectedDay} variant="immersive" />
       )}
 
       <DayDetailDialog

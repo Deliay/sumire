@@ -1,0 +1,39 @@
+import PaperCard from "@/components/PaperCard";
+import type { Profile } from "@/lib/content";
+import { SectionTitle } from "./SectionTitle";
+
+/** P2 设定・Story：出道故事与预告专栏引文。 */
+export default function StoryPart({ profile }: { profile: Profile }) {
+  const storyParagraphs = profile.debutStory
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const introParagraphs = profile.debutIntro
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return (
+    <section className="flex flex-col gap-6">
+      <SectionTitle sub="Story">设定</SectionTitle>
+      <PaperCard>
+        <div className="flex flex-col gap-5 font-serif leading-loose">
+          {storyParagraphs.map((paragraph) => (
+            <p key={paragraph.slice(0, 12)} className="indent-8">
+              {paragraph}
+            </p>
+          ))}
+          <blockquote className="border-l-2 border-flower pl-5 text-ink-on-paper/80">
+            {introParagraphs.map((paragraph) => (
+              <p key={paragraph.slice(0, 12)} className="mb-3 indent-8">
+                {paragraph}
+              </p>
+            ))}
+            <cite className="block text-right text-sm not-italic text-ink-on-paper/50">
+              —— VirtuaReal 预告专栏（节选）
+            </cite>
+          </blockquote>
+        </div>
+      </PaperCard>
+    </section>
+  );
+}

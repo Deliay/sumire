@@ -38,6 +38,18 @@ export const SPAWN_BIAS = 0.6;
 /** 指针附近偏置生成半径（px）。 */
 export const SPAWN_RADIUS = 160;
 
+/** 冲量流场（全局漂移方向与强度，px/s）。 */
+export interface Flow {
+  vx: number;
+  vy: number;
+}
+
+/** 冲量强度上限（px/s），防连续叠加超限。 */
+export const IMPULSE_CAP = 300;
+
+/** 冲量低于该绝对速度视为归零。 */
+const FLOW_EPSILON = 0.5;
+
 const MAX_PARTICLES_CAP = 70;
 
 /**
@@ -85,13 +97,16 @@ export function stepParticles(
   particles: Particle[],
   dt: number,
   opts: StepOptions,
+  flow?: Flow,
 ): Particle[] {
   const out: Particle[] = [];
   for (const p of particles) {
     const age = p.age + dt;
     if (age >= p.maxLife) continue;
-    const x = p.x + p.vx * opts.speed * dt;
-    const y = p.y + p.vy * opts.speed * dt;
+    const fx = flow ? flow.vx * dt : 0;
+    const fy = flow ? flow.vy * dt : 0;
+    const x = p.x + p.vx * opts.speed * dt + fx;
+    const y = p.y + p.vy * opts.speed * dt + fy;
     let alpha: number;
     if (opts.flicker) {
       alpha = p.baseAlpha * (0.5 + 0.5 * Math.sin(age * 3 + p.phase));
@@ -101,6 +116,30 @@ export function stepParticles(
     out.push({ ...p, x, y, age, alpha });
   }
   return out;
+}
+
+/** 创建初始零冲量流场。 */
+export function createFlow(): Flow {
+  return { vx: 0, vy: 0 };
+}
+
+/**
+ * 沿翻页方向注入冲量：direction -1（向下）→ 下坠 vy 正；+1（向上）→ 上浮 vy 负。
+ * 强度钳制上限，对既有 flow 取钳制合成（不无限累加）。
+ */
+export function impulse(flow: Flow, direction: number, strength: number): Flow {
+  const mag = Math.min(Math.abs(strength), IMPULSE_CAP);
+  const target = direction < 0 ? mag : -mag;
+  const vy = Math.max(-IMPULSE_CAP, Math.min(IMPULSE_CAP, flow.vy + (target - flow.vy) * 0.5));
+  return { vx: flow.vx, vy };
+}
+
+/** 指数衰减流场：半衰期 halfLife（秒），低于阈值归零。 */
+export function decayFlow(flow: Flow, dt: number, halfLife: number): Flow {
+  const k = Math.exp((-Math.LN2 * dt) / halfLife);
+  const vx = Math.abs(flow.vx) <= FLOW_EPSILON ? 0 : flow.vx * k;
+  const vy = Math.abs(flow.vy) <= FLOW_EPSILON ? 0 : flow.vy * k;
+  return { vx, vy };
 }
 
 /** 按视口面积收敛的粒子数上限（桌面约 ≤70，小屏更少）。 */

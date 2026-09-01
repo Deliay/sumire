@@ -25,6 +25,23 @@ test.describe("bookstore 主页（整页滚动叙事容器）", () => {
     expect(hash2).toBe("#archive-2");
   });
 
+  test("site-home-calendar-exit: 桌面日历站滚轮可下翻进素材、上翻回档案（不因滚动标记被困）", async ({ page }) => {
+    await page.goto(`${BASE}/#calendar`);
+    await page.waitForTimeout(1200);
+    // 下翻：日历站 → 素材站
+    await page.mouse.wheel(0, 500);
+    await page.waitForTimeout(900);
+    expect(await page.evaluate(() => window.location.hash)).toBe("#assets");
+    // 上翻：素材站 → 回日历站
+    await page.mouse.wheel(0, -500);
+    await page.waitForTimeout(900);
+    expect(await page.evaluate(() => window.location.hash)).toBe("#calendar");
+    // 再上翻：日历站 → 档案 P5
+    await page.mouse.wheel(0, -500);
+    await page.waitForTimeout(900);
+    expect(await page.evaluate(() => window.location.hash)).toBe("#archive-5");
+  });
+
   test("site-home-content: 文案块与 bio 可见，无入口卡/速览条/本周日程", async ({ page }) => {
     await page.goto(BASE);
     await expect(page.getByText(/VirtuaReal · 二十八期/).first()).toBeVisible();

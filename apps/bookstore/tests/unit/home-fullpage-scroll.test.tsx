@@ -422,14 +422,21 @@ describe("useFullpageScroll", () => {
     vi.unstubAllGlobals();
   });
 
-  it("触摸起始位于可滚动内容列（data-fullpage-scrollable）内不触发整页翻页", () => {
+  it("触摸起始位于实际可滚动内容列内不触发整页翻页", () => {
     const onIndexChange = vi.fn();
     render(<Harness onIndexChange={onIndexChange} />);
     const track = document.querySelector("[data-testid='track']") as HTMLElement;
-    // 在可滚动列内触摸：touchstart 目标命中 data-fullpage-scrollable
+    // 可滚动列：data-fullpage-scrollable + overflowY auto + 内容溢出（scrollHeight>clientHeight）
     const scrollable = document.createElement("div");
     scrollable.setAttribute("data-fullpage-scrollable", "");
+    scrollable.style.overflowY = "auto";
+    scrollable.style.height = "100px";
+    const tall = document.createElement("div");
+    tall.style.height = "1000px";
+    scrollable.appendChild(tall);
     document.body.appendChild(scrollable);
+    Object.defineProperty(scrollable, "clientHeight", { value: 100, configurable: true });
+    Object.defineProperty(scrollable, "scrollHeight", { value: 1000, configurable: true });
     const fakeTouch = { identifier: 1, clientY: 300 } as Touch;
     const fakeTouch2 = { identifier: 1, clientY: 100 } as Touch;
     act(() => {
@@ -445,5 +452,32 @@ describe("useFullpageScroll", () => {
     expect(track.dataset.index).toBe("0");
     expect(onIndexChange).not.toHaveBeenCalled();
     document.body.removeChild(scrollable);
+  });
+
+  it("非溢出滚动标记（如桌面日历站整 section）不豁免，滚轮/触摸照常翻页", () => {
+    const onIndexChange = vi.fn();
+    render(<Harness onIndexChange={onIndexChange} />);
+    const track = document.querySelector("[data-testid='track']") as HTMLElement;
+    // 挂 data-fullpage-scrollable 但内容不溢出（scrollHeight≈clientHeight），应不豁免
+    const el = document.createElement("div");
+    el.setAttribute("data-fullpage-scrollable", "");
+    el.style.overflowY = "auto";
+    el.style.height = "100px";
+    Object.defineProperty(el, "clientHeight", { value: 100, configurable: true });
+    Object.defineProperty(el, "scrollHeight", { value: 100, configurable: true });
+    document.body.appendChild(el);
+    act(() => {
+      const start = new Event("touchstart", { bubbles: true }) as TouchEvent;
+      Object.defineProperty(start, "target", { value: el });
+      Object.defineProperty(start, "touches", { value: [{ identifier: 1, clientY: 300 } as Touch] });
+      window.dispatchEvent(start);
+      const move = new Event("touchmove", { bubbles: true }) as TouchEvent;
+      Object.defineProperty(move, "target", { value: el });
+      Object.defineProperty(move, "touches", { value: [{ identifier: 1, clientY: 100 } as Touch] });
+      window.dispatchEvent(move);
+    });
+    expect(track.dataset.index).toBe("1"); // 不豁免 → 翻页
+    expect(onIndexChange).toHaveBeenCalled();
+    document.body.removeChild(el);
   });
 });

@@ -133,10 +133,11 @@ export function useFullpageScroll({
         track.style.transform = `translate3d(0, ${currentOffsetPxRef.current}px, 0)`;
         if (animated) {
           track.style.opacity = "0";
-          requestAnimationFrame(() => {
+          animRef.current = requestAnimationFrame(() => {
             if (!track) return;
             track.style.transition = `opacity ${TRANSITION_REDUCED_MS}ms ease`;
             track.style.opacity = "1";
+            animRef.current = null;
           });
         }
         return;
@@ -161,9 +162,9 @@ export function useFullpageScroll({
       const drop = lastDirectionRef.current === -1; // 下翻（目标更靠下）
       const dur = transitionMs;
       const start = performance.now();
-      // 差异化缓动：下翻用「下坠」（起始略慢、中段加速下滑），上翻用「上浮」（先快后慢缓出）
-      const easeDrop = (x: number) => 1 - Math.pow(1 - x, 3); // easeOutCubic：先慢后快（下坠）
-      const easeRise = (x: number) => x * x * (3 - 2 * x); // smoothstep：先快后慢（上浮）
+      // 差异化缓动：下翻用「下坠」（easeInCubic 起始慢、加速下落，符合重力直觉），上翻用「上浮」（easeOutCubic 先快后慢缓出）
+      const easeDrop = (x: number) => x * x * x; // easeInCubic：先慢后快（加速下落）
+      const easeRise = (x: number) => 1 - Math.pow(1 - x, 3); // easeOutCubic：先快后慢（缓出上浮）
       const ease = (t: number) => {
         const x = Math.max(0, Math.min(1, t));
         return drop ? easeDrop(x) : easeRise(x);
@@ -328,10 +329,19 @@ export function useFullpageScroll({
     return () => window.removeEventListener(NAVIGATE_EVENT, onNavigate);
   }, [goTo]);
 
-  /** 判断触摸起始目标是否位于可滚动兜底列内（移动端档案内容列），是则不喂入手势聚合（交给原生滚动）。 */
+  /** 判断输入目标是否位于**当前实际可滚动**的兜底列内：命中 data-fullpage-scrollable 且该容器确有纵向溢出
+   *  （scrollHeight > clientHeight，或内容可滚）时才豁免整页手势（交给原生滚动）。
+   *  日历站等整 section 虽挂了标记但月视图在桌面视口不溢出 → 不豁免，滚轮/触摸照常翻页。
+   */
   const isInsideScrollable = useCallback((target: EventTarget | null): boolean => {
     if (!(target instanceof Element)) return false;
-    return !!target.closest("[data-fullpage-scrollable]");
+    const el = target.closest("[data-fullpage-scrollable]");
+    if (!el) return false;
+    const style = getComputedStyle(el);
+    const scrollable =
+      style.overflowY === "auto" || style.overflowY === "scroll" || style.overflowY === "overlay";
+    // 仅当容器实际可滚动（内容溢出）时视为可滚动列
+    return scrollable && el.scrollHeight > el.clientHeight + 1;
   }, []);
 
   // 事件监听（window 级被动，不 preventDefault）

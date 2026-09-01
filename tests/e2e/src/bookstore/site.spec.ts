@@ -10,6 +10,21 @@ test.describe("bookstore 主页（整页滚动叙事容器）", () => {
     await expect(page.getByText(/信息 · Profile|设定 · Story|喜好 · Taste/).first()).toBeVisible();
   });
 
+  test("site-home-scroll-slow-notch: 慢速单格滚轮（间隔>150ms、<100px）一次翻一屏", async ({ page }) => {
+    await page.goto(BASE);
+    await page.waitForTimeout(600);
+    // 单格 53px，间隔 400ms 慢速逐格：每格即翻一屏
+    await page.mouse.wheel(0, 53);
+    await page.waitForTimeout(600);
+    const hash1 = await page.evaluate(() => window.location.hash);
+    await page.mouse.wheel(0, 53);
+    await page.waitForTimeout(600);
+    const hash2 = await page.evaluate(() => window.location.hash);
+    // 两次慢速单格应翻两屏
+    expect(hash1).toBe("#archive-1");
+    expect(hash2).toBe("#archive-2");
+  });
+
   test("site-home-content: 文案块与 bio 可见，无入口卡/速览条/本周日程", async ({ page }) => {
     await page.goto(BASE);
     await expect(page.getByText(/VirtuaReal · 二十八期/).first()).toBeVisible();

@@ -15,7 +15,7 @@
 
 首页为**整页滚动叙事容器**：8 个整屏站（首页 → 档案 P1~P5 → 日历 → 素材）逐屏翻页，一次滚轮/滑动手势一屏（键盘可达，`↓/↑/PageDown/PageUp/Home/End`），素材站为最后一站、尾部释放为自然滚动直至结尾 + 全站唯一流式 Footer；hash 可定位可分享（`/#archive-1` 等）。未配置 API 时日历站从序列/导航/指示器缺席（收敛为 7 站）。
 
-- **整页翻页引擎**（`useFullpageScroll` + `FullpageDeck`）：window 级**被动**监听 wheel/touch/键盘，`feedWheel`/`feedTouch` 聚合手势——同一次手势连续位移超阈值只产出一个方向意图、冷却期不重复；wheel 按 `deltaMode` 归一化为像素（`DOM_DELTA_LINE` 行×24、`DOM_DELTA_PAGE` 页×0.9×视口高），保证 Firefox 等 line-mode 浏览器小步长滚轮可累积翻页；翻页直写轨道 `translate3d(0, -index*100svh, 0)`（CSS transition 承载，约 800ms 方向感知缓入/缓出，仅 `transform` 合成层属性）。SSG 首渲染即站 0、无 transform（无 hydration 差异），初始 hash 定位在挂载 effect 中执行。索引变化经 `history.replaceState` 同步 hash。
+- **整页翻页引擎**（`useFullpageScroll` + `FullpageDeck`）：window 级**被动**监听 wheel/touch/键盘，`feedWheel`/`feedTouch` 聚合手势——同一次手势连续位移超阈值只产出一个方向意图、冷却期不重复；wheel 按 `deltaMode` 归一化为像素（`DOM_DELTA_LINE` 行×24、`DOM_DELTA_PAGE` 页×0.9×视口高），且阈值（48px）低于单格滚轮（Chrome 约 53px、line-mode 约 72px）并带手势结束兜底触发，**慢速单格滚轮一次翻一屏**（触控板连续小 delta 仍由 fired/冷却保证一次手势一屏）；翻页直写轨道 `translate3d(0, -index*100svh, 0)`（CSS transition 承载，约 800ms 方向感知缓入/缓出，仅 `transform` 合成层属性）。SSG 首渲染即站 0、无 transform（无 hydration 差异），初始 hash 定位在挂载 effect 中执行。索引变化经 `history.replaceState` 同步 hash。
 - **素材区 deck/free 边界**：素材站（末站）下滚越界进入 free 模式——容器取消 `overflow-hidden`、浏览器接管自然滚动（内容可继续往下滑至素材结尾 + Footer）；free 模式回顶继续上滚回收为 deck 并翻上一站，切换瞬间轨道位移与文档滚动位置对齐、死区（>2px）消除抖动。
 - **reduced-motion 降级保留（特批口径，仅公开站氛围层）**：转场参数降级为 ≤200ms（等效瞬时切屏，仍可翻页）、冲量不注入、指示器关闭脉冲/生长动效；运行时切换系统设置即时生效。后台 `/backdoor` 不适用本口径。
 - **立绘**（`standing-01`）：首页站移动端从顶部 10% 起占 90% 高、全宽并向右偏移 25% 宽裁剪展示（`ml-[25%]`）；桌面端右 10% 起占 90% 高、右半宽且不偏移。作为氛围元素（`pointer-events-none`），不遮挡交互区域。立绘容器外包 `ParallaxLayer`（Client），随鼠标位置产生**视差**（平滑 lerp 跟随、移出/失焦回中、仅 `transform`，幅度上限 12px；移动端以设备方向传感器驱动，iOS 首次触摸静默请求权限、失败静默降级）。
@@ -32,7 +32,7 @@
 
 ## 档案页 `/about`
 
-纯静态内容页，五组档案内容（信息/设定/喜好/历程/轶闻）均以**主页档案屏一致的立绘分栏布局**呈现：桌面 `SplitSection` grid 左右分栏（单数屏立绘在左、双数屏立绘在右，立绘自 `standing-01`/`standing-02`/`illustration-01` 循环选取、经 original webp 展示），移动端立绘在上、内容在下（内容列可滚动）；自然滚动流式页、不约束整屏高度。内容：
+纯静态内容页，五组档案内容（信息/设定/喜好/历程/轶闻）均以**主页档案屏一致的立绘分栏布局**呈现：桌面 `SplitSection` grid 左右分栏（单数屏立绘在左、双数屏立绘在右，立绘自 `standing-01`/`standing-02`/`illustration-01` 循环选取、经 original webp 展示，**首页式 `object-cover object-top` 裁剪呈现、不展示全身像**），移动端立绘在上、内容在下（内容列可滚动）；自然滚动流式页、不约束整屏高度。内容：
 
 - 页头引文；
 - 信息卡（分栏立绘 + 蕾丝边框 + 档案定义表）；

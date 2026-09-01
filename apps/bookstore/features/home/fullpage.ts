@@ -20,8 +20,10 @@ export interface GestureState {
 
 /** 手势间最大间隔（超过视为新手势，重置累积）。 */
 export const GESTURE_TIMEOUT = 150;
-/** wheel 累积翻页阈值（px）。 */
-export const WHEEL_THRESHOLD = 100;
+/** wheel 累积翻页阈值（px）。低于单格滚轮（Chrome 约 53px、line-mode 归一化约 72px），保证慢速逐格一次翻一屏。 */
+export const WHEEL_THRESHOLD = 48;
+/** 手势结束兜底触发的最小累积位移（px）：低于此视为误触不翻页。 */
+export const MIN_FIRE_DELTA = 24;
 /** touch 纵向位移翻页阈值（px）。 */
 export const TOUCH_THRESHOLD = 50;
 /** 产出后的冷却时长（ms）。 */
@@ -69,7 +71,17 @@ export function feedWheel(
   now: number,
 ): WheelIntent | null {
   if (now < s.cooldownUntil) return null;
-  if (now - s.lastAt > GESTURE_TIMEOUT) resetForNewGesture(s, now);
+  // 新手势：若上一手势累积了超过最小值的同向位移但未达阈值，兜底触发一次（慢速单格翻页）
+  if (now - s.lastAt > GESTURE_TIMEOUT) {
+    const pending = s.accum;
+    resetForNewGesture(s, now);
+    if (!s.fired && Math.abs(pending) >= MIN_FIRE_DELTA) {
+      s.fired = true;
+      s.cooldownUntil = now + COOLDOWN;
+      const direction: Direction = pending > 0 ? -1 : 1;
+      return { direction };
+    }
+  }
   s.accum += deltaY;
   s.lastAt = now;
   if (Math.abs(s.accum) < WHEEL_THRESHOLD) return null;

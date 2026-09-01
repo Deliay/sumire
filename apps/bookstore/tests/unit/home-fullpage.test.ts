@@ -64,6 +64,26 @@ describe("createGestureState / feedWheel（一次手势一屏）", () => {
     const r = feedWheel(s, -300, 1000);
     expect(r).toEqual({ direction: 1 });
   });
+
+  it("慢速逐格单格（53px）间隔>150ms 即翻一屏（触发阈值以下不再需累积多格）", () => {
+    const s = createGestureState();
+    // 单格 53px，间隔 400ms：首次单格即触发（53 ≥ WHEEL_THRESHOLD 48）
+    const r = feedWheel(s, 53, 0);
+    expect(r).toEqual({ direction: -1 });
+  });
+
+  it("慢速 line-mode 单格（归一化 72px）间隔>150ms 即翻一屏", () => {
+    const s = createGestureState();
+    const r = feedWheel(s, 72, 0);
+    expect(r).toEqual({ direction: -1 });
+  });
+
+  it("慢速单格但低于最小兜底值（< MIN_FIRE_DELTA）不触发", () => {
+    const s = createGestureState();
+    // 单格 20px 且长时间无后续 → 不触发
+    expect(feedWheel(s, 20, 0)).toBeNull();
+    expect(feedWheel(s, 20, 1000)).toBeNull(); // 间隔超时但累积 20 < 24
+  });
 });
 
 describe("feedTouch", () => {

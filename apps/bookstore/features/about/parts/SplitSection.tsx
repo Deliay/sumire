@@ -17,13 +17,14 @@ interface SplitSectionProps {
  */
 export default function SplitSection({ portrait, portraitLeft, children }: SplitSectionProps) {
   const artwork = (
-    <div className="pointer-events-none relative flex h-full min-h-0 items-center justify-center">
+    <div className="pointer-events-none relative h-full min-h-0 overflow-hidden">
       <Image
         src={assetOriginalWebpUrl(portrait)}
         alt={portrait.title}
         width={1000}
         height={2000}
-        className="max-h-full w-auto object-contain"
+        // 首页式裁剪呈现：object-cover object-top 只露上半身，作氛围衬底而非全身像
+        className="h-full w-full object-cover object-top"
       />
     </div>
   );

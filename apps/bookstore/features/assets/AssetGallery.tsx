@@ -128,7 +128,7 @@ export default function AssetGallery({ assets }: { assets: Asset[] }) {
       </div>
 
       {/* 素材网格 */}
-      <ul className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <ul className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {visible.map((asset) => (
           <li key={asset.id}>
             <button

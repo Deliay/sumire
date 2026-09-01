@@ -63,7 +63,7 @@ flowchart TD
 
 - **位置指示器** `SectionRail`：固定视口右侧竖向树状节点（模块→子内容两层，档案含 5 子节点），左侧细藤蔓线（`border-l` token 色）+ 微光紫花圆点主节点 + 档案缩进子节点（子层 `border-l` 树状连线）；当前站实时高亮（子节点精确到站、档案父节点次级高亮）、点击跳转、键盘可达；**节点仅圆点（无文字标签），可访问性经 `aria-label`/`aria-current` 承载**；移动端（<640px）收纳为仅主节点极简形态；仅节点 `<a>` 可点。
 - **粒子常驻与冲量**：`GlowParticles` 改 `fixed inset-0` 常驻视口层（z 序雾气之上/内容之下，全程 `pointer-events-none`、`aria-hidden`），覆盖所有模块与素材自然滚动区。翻页/滚动沿方向注入冲量（`impulse` 强度钳制上限、`decayFlow` 指数衰减半衰期约 0.5s，停止后滞留上浮/下坠感）；公开站氛围层对 reduced-motion 不降级（冲量照常注入）。
-- **档案五屏**（P1~P5 单左双右）：桌面 `grid` 左右分栏——单数屏立绘在左、双数屏立绘在右（`order`/条件类切换），立绘 `pointer-events-none`、按屏懒加载、**外包 ParallaxLayer 接视差（与首屏一致，公开站氛围层不降级）**；内容侧渲染 `features/about/parts` 对应组件，居中收缩，桌面一屏不溢出（P2/P4 字号/间距收敛不产生屏内滚动条）；移动端纵向（立绘上内容下、立绘高度收敛）；P5 末尾官方外链按钮组。立绘**仅用 standing-01/standing-02（非相邻同图循环：P1/P3/P5→standing-01、P2/P4→standing-02，不用插画）**。
+- **档案五屏**（P1~P5 单左双右）：桌面 `grid` 左右分栏——单数屏立绘在左、双数屏立绘在右（`order`/条件类切换），立绘 `pointer-events-none`、按屏懒加载、**外包 ParallaxLayer 接视差（与首屏一致，公开站氛围层不降级）**；内容侧渲染 `features/about/parts` 对应组件，居中收缩，桌面一屏不溢出（P2/P4 字号/间距收敛不产生屏内滚动条）；移动端纵向（立绘上内容下、立绘高度收敛）；P5 末尾官方外链按钮组。立绘**仅用 standing-01（持书）/standing-02（披肩），按「持书/非持书」错位：奇数屏非持书→standing-02、偶数屏持书→standing-01（P1/P3/P5→02、P2/P4→01，避开首页同款持书立绘 standing-01）**。
 - **日历站**：全幅 `immersive` 月视图——直角中号字（去圆角、日期 `text-base` 量级）、左右两侧全高翻月竖条、横向拖拽翻月；后台 `panel` 变体不变。
 - **素材站**：全幅网格（`xl:grid-cols-4`）+ 尾部流式 `Footer site`（全站唯一 Footer）。
 - **导航锚点化**：NavBar 导航项 href 改为锚点（`/#hero`、`/#archive-1`、`/#assets`、`/#calendar`），hash 取自站序列注册表；首页路由按 `location.hash` 匹配 navKey 高亮（档案 P1~P5 均视为「档案」），非首页按 pathname。
@@ -96,9 +96,9 @@ flowchart TD
 
 ### 3.3 设定故事
 
-- **纸页卡片**：`--color-paper` 底 + 纸页纹理 + 四角藤蔓角饰，正文用 `--color-ink-on-paper`，Noto Serif SC 排印，段落首行缩进两字符——旧书页观感；
+- **氛围层底色直排**（不用纸页卡片）：正文用 `--color-ink`（`text-ink`），Noto Serif SC 排印，段落首行缩进两字符；
 - 内容：官方出道设定（古老家族、魔气、破败书屋、紫色藤蔓共生）+ VirtuaReal 预告专栏简介节选；
-- 引用块用 `--color-flower` 细左边线。
+- 引用块用 `--color-flower` 细左边线，正文 `text-ink/80`、落款 `text-ink-dim`。
 
 ### 3.4 喜好标签
 

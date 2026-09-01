@@ -65,14 +65,14 @@ describe("首页屏组件", () => {
     expect(document.querySelector("footer")).toBeTruthy();
   });
 
-  it("档案各屏立绘均用 standing 立绘（P3 不用插画）且按非相邻循环映射（P1/3/5→01、P2/4→02）", () => {
-    // 期望映射：STANDING_CYCLE = [0,1,0,1,0]，即奇数屏 standing-01、偶数屏 standing-02
+  it("档案各屏立绘均用 standing 立绘（P3 不用插画）且按「持书/非持书」错位映射（奇数屏非持书→02、偶数屏持书→01，避开首页同款持书 standing-01）", () => {
+    // 期望映射：STANDING_CYCLE = [1,0,1,0,1]，即奇数屏 standing-02、偶数屏 standing-01
     const expected = [
-      getAssetById("standing-01")!.id,
       getAssetById("standing-02")!.id,
       getAssetById("standing-01")!.id,
       getAssetById("standing-02")!.id,
       getAssetById("standing-01")!.id,
+      getAssetById("standing-02")!.id,
     ];
     for (let part = 1; part <= 5; part++) {
       render(<ArchiveSection part={part} profile={profile} portraitAssets={portraits} />);

@@ -4,8 +4,11 @@ import { JourneyPart, ProfilePart, SplitSection, StoryPart, TastePart, TriviaPar
 import { ARCHIVE_TITLES } from "@/features/home/sections";
 import type { Asset, Profile } from "@/lib/content";
 
-/** 档案各屏立绘选取（仅立绘 standing，避免相邻屏同图）：P1→standing-01、P2→standing-02、P3→standing-01、P4→standing-02、P5→standing-01。 */
-const STANDING_CYCLE = [0, 1, 0, 1, 0] as const;
+/**
+ * 档案各屏立绘选取（仅立绘 standing，按「持书/非持书」错位语义：奇数屏非持书、偶数屏持书，
+ * 避开首页/信息卡同款持书立绘 standing-01）：P1→standing-02、P2→standing-01、P3→standing-02、P4→standing-01、P5→standing-02。
+ */
+const STANDING_CYCLE = [1, 0, 1, 0, 1] as const;
 
 export default function ArchiveSection({
   part,
@@ -17,7 +20,7 @@ export default function ArchiveSection({
   portraitAssets: Asset[];
 }) {
   const title = ARCHIVE_TITLES[part - 1]?.title ?? "";
-  // 仅取立绘（standing）类素材，按非相邻同图映射选取；立绘不足时回退循环
+  // 仅取立绘（standing）类素材，按「持书/非持书」错位映射选取；立绘不足时回退循环
   const standings = portraitAssets.filter((a) => a.category === "standing");
   const portrait =
     standings.length > 0

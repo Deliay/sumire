@@ -23,7 +23,7 @@
 - **文案块**（VirtuaReal · 二十八期 / 枝堇 / Sumire / bio）置于**左下角**，留 padding（桌面 > 移动端），错峰入场动画；下方一行小号免责声明行。不再渲染应援色复制按钮。
 - **直播状态组件**：展示「直播中 / 未开播」状态（降级为中性状态），点击跳转直播间（新窗口）；仅在 API 配置时渲染，固定尺寸骨架防布局跳动。
 - **今日日程组件**：展示当天直播计划（`HH:mm 主题`），无计划展示「今日暂无安排」，失败静默为空态；仅在 API 配置时渲染。
-- **档案五屏**（P1 信息・Profile / P2 设定・Story / P3 喜好・Taste / P4 历程・Journey / P5 轶闻・Trivia）：桌面 `grid` 左右分栏——单数屏立绘在左、双数屏立绘在右，内容侧居中收缩（桌面一屏不溢出，P2/P4 字号/间距收敛不产生屏内滚动条）；**档案屏 section 无纵向 padding，立绘列随 grid 出血至窗口底边（gap=0）**，内容区自带纵向呼吸间距；移动端纵向（立绘上内容下，内容列可滚动兜底）；立绘**仅用 standing 立绘**（`standing-01`/`standing-02`，非相邻同图循环选取：P1/P3/P5→standing-01、P2/P4→standing-02，不用插画），经 `assetOriginalWebpUrl` 引用 original 全分辨率 webp（各素材均须有对应 webp，构建时由 `scripts/generate-original-webp.ts` 产出）；**立绘层外包 `ParallaxLayer` 接视差（pointermove+传感器双输入、rAF 插值，与首屏口径一致，公开站氛围层不降级 reduced-motion）**；**P1 右侧信息区用 `ProfilePart` bare 变体（仅信息表，不含立绘缩略图与蕾丝框，避免与大屏立绘重复）**；P5 末尾含官方外链按钮组。内容复用 `features/about/parts` 五组组件，与 `/about` 同源。
+- **档案五屏**（P1 信息・Profile / P2 设定・Story / P3 喜好・Taste / P4 历程・Journey / P5 轶闻・Trivia）：桌面 `grid` 左右分栏——单数屏立绘在左、双数屏立绘在右，内容侧居中收缩（桌面一屏不溢出，P2/P4 字号/间距收敛不产生屏内滚动条）；**档案屏 section 无纵向 padding，立绘列随 grid 出血至窗口底边（gap=0）**，内容区自带纵向呼吸间距；移动端纵向（立绘上内容下，内容列可滚动兜底）；立绘**仅用 standing 立绘**（`standing-01`（持书）/`standing-02`（披肩），按**「持书/非持书」错位语义循环选取：奇数屏非持书→standing-02、偶数屏持书→standing-01（P1/P3/P5→standing-02、P2/P4→standing-01，避开首页/信息卡同款持书立绘 standing-01）**，不用插画），经 `assetOriginalWebpUrl` 引用 original 全分辨率 webp（各素材均须有对应 webp，构建时由 `scripts/generate-original-webp.ts` 产出）；**立绘层外包 `ParallaxLayer` 接视差（pointermove+传感器双输入、rAF 插值，与首屏口径一致，公开站氛围层不降级 reduced-motion）**；**P1 右侧信息区用 `ProfilePart` bare 变体（仅信息表，不含立绘缩略图与蕾丝框，避免与大屏立绘重复）**；P5 末尾含官方外链按钮组。内容复用 `features/about/parts` 五组组件，与 `/about` 同源。
 - **日历站**：全幅 `immersive` 月视图（详见 [calendar.md](calendar.md)）；未配置 API 时该站不注册。
 - **素材站**：全幅素材网格（详见素材页节）+ 尾部流式 `<Footer site />`（全站唯一 Footer）。
 - **位置指示器**（`SectionRail`）：固定视口右侧竖向树状节点（模块 → 子内容两层，档案含 5 子节点），左侧 `border-l` 细藤蔓线、档案子层 `border-l` 树状连线；当前站实时高亮（子节点精确到站、档案父节点次级高亮）、点击跳转（同翻页转场）、键盘可达；数据源与 deck 站序列同源（`buildTree`/`activeNode`）；**节点仅展示圆点（无文字标签），可访问性语义经 `aria-label`（信息/设定/喜好/历程/轶闻等）与 `aria-current` 承载**；移动端（<640px）收纳为仅主节点极简形态；仅节点 `<a>` 可点。
@@ -32,7 +32,7 @@
 
 ## 档案页 `/about`
 
-纯静态内容页，五组档案内容（信息/设定/喜好/历程/轶闻）均以**主页档案屏一致的立绘分栏布局**呈现：桌面 `SplitSection` grid 左右分栏（单数屏立绘在左、双数屏立绘在右，立绘仅用 `standing-01`/`standing-02` 非相邻循环选取、经 original webp 展示，**首页式 `object-cover object-top` 裁剪呈现、不展示全身像，且外包 ParallaxLayer 接视差**），移动端立绘在上、内容在下（内容列可滚动）；自然滚动流式页、不约束整屏高度。内容：
+纯静态内容页，五组档案内容（信息/设定/喜好/历程/轶闻）均以**主页档案屏一致的立绘分栏布局**呈现：桌面 `SplitSection` grid 左右分栏（单数屏立绘在左、双数屏立绘在右，立绘仅用 `standing-01`/`standing-02` 按「持书/非持书」错位循环选取（奇数屏非持书→standing-02、偶数屏持书→standing-01，避开首页同款持书立绘）、经 original webp 展示，**首页式 `object-cover object-top` 裁剪呈现、不展示全身像，且外包 ParallaxLayer 接视差**），移动端立绘在上、内容在下（内容列可滚动）；自然滚动流式页、不约束整屏高度。内容：
 
 - 页头引文；
 - 信息卡（分栏立绘 + 蕾丝边框 + 档案定义表）；

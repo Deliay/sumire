@@ -90,7 +90,20 @@ describe("首页屏组件", () => {
   it("档案各屏立绘层外包视差容器（ParallaxLayer）", () => {
     render(<ArchiveSection part={2} profile={profile} portraitAssets={portraits} />);
     // SplitSection 立绘外包 ParallaxLayer（data-testid=parallax-layer）
-    const layer = document.querySelector('[data-testid="parallax-layer"]');
+    const layer = document.querySelector('[data-testid="parallax-layer"]') as HTMLElement;
     expect(layer).toBeTruthy();
+  });
+
+  it("档案立绘层较裁剪容器四周外扩 PARALLAX_MAX 余量（视差最大位移不露底边截断）", () => {
+    render(<ArchiveSection part={2} profile={profile} portraitAssets={portraits} />);
+    // 裁剪容器 = 立绘列内 overflow-hidden 的 relative 盒子
+    const layer = document.querySelector('[data-testid="parallax-layer"]') as HTMLElement;
+    const clip = layer.parentElement as HTMLElement;
+    expect(clip.className).toContain("overflow-hidden");
+    expect(clip.className).toContain("relative");
+    // 立绘层须 absolute 且四周外扩（-inset-*），保证 ±PARALLAX_MAX 位移时边缘不外露
+    expect(layer.className).toContain("absolute");
+    expect(layer.className).toContain("-inset-x-3");
+    expect(layer.className).toContain("-inset-y-3");
   });
 });

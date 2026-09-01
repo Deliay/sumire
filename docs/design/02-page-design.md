@@ -46,7 +46,7 @@ flowchart TD
 
 - 首页 `100svh` 占满整屏、**不可滚动**，所有元素在一屏内排布、不溢出。
 - 背景：`--color-bg` 之上叠雾气渐变，缓慢漂移。
-- **立绘**（`standing-01`）：移动端从顶部 10% 起占 90% 高、全宽并向右偏移 25% 宽裁剪展示（`ml-[25%] object-cover object-top`，不变形）；桌面端右 10% 起占 90% 高、右半宽且不偏移。作为氛围元素，不遮挡交互（`pointer-events-none`）。外包 `ParallaxLayer` 驱动**视差**（仅 `transform`，`translate3d` 平滑 lerp，常规幅度 ±12px；公开站氛围层对 reduced-motion 不降级，保持 ±12px）。
+- **立绘**（`standing-01`）：移动端从顶部 10% 起占 90% 高、全宽并向右偏移 25% 宽裁剪展示（`ml-[25%] object-cover object-top`，不变形）；桌面端右 10% 起占 90% 高、右半宽且不偏移。作为氛围元素，不遮挡交互（`pointer-events-none`）。外包 `ParallaxLayer` 驱动**视差**（仅 `transform`，`translate3d` 平滑 lerp，常规幅度 ±12px；公开站氛围层对 reduced-motion 不降级，保持 ±12px）。**立绘四周各外扩 12px 余量**，使最大位移时边缘仍被裁剪容器覆盖、不露截断边。
 - **背景光晕粒子层**（`GlowParticles`，Canvas 2D，z 序在雾气之上/立绘之下）：「紫花微光」语言——径向渐变圆点、低 alpha 柔光（不用 `filter: blur`）；取色 `@theme` token（`flower`/`primary`/`eye`，运行时读 CSS 变量）。定稿参数：指针附近偏置生成概率 0.6、半径 160px；粒子尺寸 2–8px、生命周期 2.5–6s、初速向上微漂；粒子数上限 `min(70, 视口面积/15000)`（桌面约 ≤70）；明灭 alpha 正弦调制。公开站氛围层对 reduced-motion 不降级（粒子全上限/明灭/冲量与常规一致）。`document.hidden` 暂停。
 - **文案块**（左下角，留 padding，桌面 > 移动端）错峰入场：
   - 花体小字 `VirtuaReal · 二十八期`（`--color-ink-dim`）；
@@ -63,7 +63,7 @@ flowchart TD
 
 - **位置指示器** `SectionRail`：固定视口右侧竖向树状节点（模块→子内容两层，档案含 5 子节点），左侧细藤蔓线（`border-l` token 色）+ 微光紫花圆点主节点 + 档案缩进子节点（子层 `border-l` 树状连线）；当前站实时高亮（子节点精确到站、档案父节点次级高亮）、点击跳转、键盘可达；**节点仅圆点（无文字标签），可访问性经 `aria-label`/`aria-current` 承载**；移动端（<640px）收纳为仅主节点极简形态；仅节点 `<a>` 可点。
 - **粒子常驻与冲量**：`GlowParticles` 改 `fixed inset-0` 常驻视口层（z 序雾气之上/内容之下，全程 `pointer-events-none`、`aria-hidden`），覆盖所有模块与素材自然滚动区。翻页/滚动沿方向注入冲量（`impulse` 强度钳制上限、`decayFlow` 指数衰减半衰期约 0.5s，停止后滞留上浮/下坠感）；公开站氛围层对 reduced-motion 不降级（冲量照常注入）。
-- **档案五屏**（P1~P5 单左双右）：桌面 `grid` 左右分栏——单数屏立绘在左、双数屏立绘在右（`order`/条件类切换），立绘 `pointer-events-none`、按屏懒加载、**外包 ParallaxLayer 接视差（与首屏一致，公开站氛围层不降级）**；内容侧渲染 `features/about/parts` 对应组件，居中收缩，桌面一屏不溢出（P2/P4 字号/间距收敛不产生屏内滚动条）；移动端纵向（立绘上内容下、立绘高度收敛）；P5 末尾官方外链按钮组。立绘**仅用 standing-01（持书）/standing-02（披肩），按「持书/非持书」错位：奇数屏非持书→standing-02、偶数屏持书→standing-01（P1/P3/P5→02、P2/P4→01，避开首页同款持书立绘 standing-01）**。
+- **档案五屏**（P1~P5 单左双右）：桌面 `grid` 左右分栏——单数屏立绘在左、双数屏立绘在右（`order`/条件类切换），立绘 `pointer-events-none`、按屏懒加载、**外包 ParallaxLayer 接视差（与首屏一致，公开站氛围层不降级）**，**立绘四周各外扩 12px 余量（视差最大位移不露截断边）**；内容侧渲染 `features/about/parts` 对应组件，居中收缩，桌面一屏不溢出（P2/P4 字号/间距收敛不产生屏内滚动条）；移动端纵向（立绘上内容下、立绘高度收敛）；P5 末尾官方外链按钮组。立绘**仅用 standing-01（持书）/standing-02（披肩），按「持书/非持书」错位：奇数屏非持书→standing-02、偶数屏持书→standing-01（P1/P3/P5→02、P2/P4→01，避开首页同款持书立绘 standing-01）**。
 - **日历站**：全幅 `immersive` 月视图——直角中号字（去圆角、日期 `text-base` 量级）、左右两侧全高翻月竖条、横向拖拽翻月；后台 `panel` 变体不变。
 - **素材站**：全幅网格（`xl:grid-cols-4`）+ 尾部流式 `Footer site`（全站唯一 Footer）。
 - **导航锚点化**：NavBar 导航项 href 改为锚点（`/#hero`、`/#archive-1`、`/#assets`、`/#calendar`），hash 取自站序列注册表；首页路由按 `location.hash` 匹配 navKey 高亮（档案 P1~P5 均视为「档案」），非首页按 pathname。

@@ -24,8 +24,8 @@ export default function HeroSection({
       <div className="fog fog-a -left-40 top-1/4 size-[42rem] bg-flower/10" aria-hidden />
       <div className="fog fog-b -right-32 bottom-0 size-[36rem] bg-primary/10" aria-hidden />
 
-      {/* 立绘视差衬底 */}
-      <ParallaxLayer className="pointer-events-none absolute inset-x-0 top-[10%] h-[90%] lg:left-auto lg:right-[10%] lg:w-1/2">
+      {/* 立绘视差衬底：四周外扩 PARALLAX_MAX(12px) 余量，视差最大位移时底/顶/左右边仍被 section overflow-hidden 覆盖，不露截断边 */}
+      <ParallaxLayer className="pointer-events-none absolute -inset-x-3 top-[10%] -bottom-3 lg:left-auto lg:right-[10%] lg:w-1/2">
         <Image
           src={assetOriginalWebpUrl(heroAsset)}
           alt={heroAsset.title}

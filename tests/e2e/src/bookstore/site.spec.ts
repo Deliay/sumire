@@ -174,6 +174,40 @@ test.describe("bookstore 主页（整页滚动叙事容器）", () => {
     await expect(page.locator("[data-section='hero'] img[alt*='枝堇立绘']")).toBeVisible();
   });
 
+  test("site-home-archive-parallax-overscan: 档案屏立绘最大视差位移时底边仍被裁剪容器覆盖（不露截断边）", async ({ page }) => {
+    await page.goto(`${BASE}/#archive-1`);
+    await page.waitForTimeout(1200);
+    const layer = page.locator("[data-section='archive-1'] [data-testid='parallax-layer']");
+    await expect(layer).toBeVisible();
+    // 指针移到视口底/右 → 立绘向最大负向偏移（视差反向），验证裁剪容器与立绘边缘关系
+    await page.mouse.move(1439, 899);
+    await page.waitForTimeout(600);
+    const geometry = await page.evaluate(() => {
+      const l = document.querySelector("[data-section='archive-1'] [data-testid='parallax-layer']") as HTMLElement | null;
+      const clip = l?.parentElement as HTMLElement | null;
+      if (!l || !clip) return null;
+      const clipRect = clip.getBoundingClientRect();
+      const img = l.querySelector("img") as HTMLImageElement | null;
+      const imgRect = img?.getBoundingClientRect() ?? null;
+      return {
+        clipBottom: clipRect.bottom,
+        clipTop: clipRect.top,
+        clipLeft: clipRect.left,
+        clipRight: clipRect.right,
+        imgBottom: imgRect ? imgRect.bottom : null,
+        imgTop: imgRect ? imgRect.top : null,
+        imgLeft: imgRect ? imgRect.left : null,
+        imgRight: imgRect ? imgRect.right : null,
+      };
+    });
+    expect(geometry).not.toBeNull();
+    // 立绘必须各方向外扩（img 边界在 clip 之外），保证 ±12px 位移时底/顶/左右边不外露
+    expect(geometry!.imgBottom).toBeGreaterThan(geometry!.clipBottom);
+    expect(geometry!.imgTop).toBeLessThan(geometry!.clipTop);
+    expect(geometry!.imgLeft).toBeLessThan(geometry!.clipLeft);
+    expect(geometry!.imgRight).toBeGreaterThan(geometry!.clipRight);
+  });
+
   test("site-home-visual-fx-reduce: reduced-motion 下粒子/翻页/雾气与常规一致（不降级）", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto(BASE);
@@ -213,20 +247,31 @@ test.describe("bookstore 主页（整页滚动叙事容器）", () => {
     expect(failed).toEqual([]);
   });
 
-  test("site-home-archive-bleed: 档案屏立绘底边与窗口底边齐平（gap=0）", async ({ page }) => {
+  test("site-home-archive-bleed: 档案屏立绘列裁剪容器底边与窗口底边齐平（gap=0）且立绘覆盖出血", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto(`${BASE}/#archive-1`);
     await page.waitForTimeout(1200);
     const info = await page.evaluate(() => {
-      const img = document.querySelector("[data-section='archive-1'] img[src*='/assets/original/']");
-      if (!img) return null;
-      const r = img.getBoundingClientRect();
-      return { bottom: r.bottom, innerHeight: window.innerHeight };
+      const layer = document.querySelector("[data-section='archive-1'] [data-testid='parallax-layer']");
+      const clip = layer?.parentElement as HTMLElement | null;
+      if (!clip) return null;
+      const clipRect = clip.getBoundingClientRect();
+      const img = layer?.querySelector("img") as HTMLImageElement | null;
+      const imgRect = img?.getBoundingClientRect() ?? null;
+      return {
+        clipBottom: clipRect.bottom,
+        clipTop: clipRect.top,
+        imgBottom: imgRect ? imgRect.bottom : null,
+        innerHeight: window.innerHeight,
+      };
     });
     expect(info).toBeTruthy();
     if (info) {
-      // 立绘底边应贴齐视口底（允许 ≤2px 容差）
-      expect(Math.abs(info.innerHeight - info.bottom)).toBeLessThanOrEqual(2);
+      // 立绘列裁剪容器底边贴齐视口底（允许 ≤2px 容差）——真正决定出血到窗口底边的边界
+      expect(Math.abs(info.innerHeight - info.clipBottom)).toBeLessThanOrEqual(2);
+      // 立绘 img 向下外扩出血（覆盖裁剪容器底部，防视差位移露截断边）
+      expect(info.imgBottom).not.toBeNull();
+      expect(info.imgBottom!).toBeGreaterThan(info.clipBottom);
     }
   });
 

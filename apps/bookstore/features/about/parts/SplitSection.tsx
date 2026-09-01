@@ -24,7 +24,8 @@ export default function SplitSection({ portrait, portraitLeft, children }: Split
       {/* 移动端立绘在上、内容在下；桌面单数屏立绘左双数屏立绘右；桌面立绘列约束在屏高内完整显示 */}
       <div className={`order-1 h-[40svh] min-h-0 lg:h-full ${portraitLeft ? "lg:order-1" : "lg:order-2"}`}>
         <div className="pointer-events-none relative h-full w-full overflow-hidden">
-          <ParallaxLayer className="h-full w-full">
+          {/* 立绘较容器四周各外扩 PARALLAX_MAX（12px）余量：视差最大位移时底/顶/左右边仍被 overflow-hidden 覆盖，不露截断边 */}
+          <ParallaxLayer className="absolute -inset-y-3 -inset-x-3">
             <Image
               src={assetOriginalWebpUrl(portrait)}
               alt={portrait.title}

@@ -169,13 +169,22 @@ test.describe("bookstore 主页（整页滚动叙事容器）", () => {
     expect(failed).toEqual([]);
   });
 
-  test("site-about-fields: /about 展示五组档案内容", async ({ page }) => {
+  test("site-about-fields: /about 展示五组档案内容与分栏立绘", async ({ page }) => {
     await page.goto(`${BASE}/about`);
     await expect(page.getByText("通俗文学")).toBeVisible();
     await expect(page.getByText("东方系列")).toBeVisible();
     await expect(page.getByText("模拟经营")).toBeVisible();
     await expect(page.getByText("小姨驾到")).toBeVisible();
     await expect(page.getByText("传送门")).toBeVisible();
+    // 五部分均带大屏立绘（original webp，无 404）
+    const portraits = page.locator("img[src*='/assets/original/']");
+    expect(await portraits.count()).toBeGreaterThanOrEqual(5);
+    const failed: string[] = [];
+    page.on("response", (res) => {
+      if (res.status() >= 400 && res.url().includes("/assets/original/")) failed.push(res.url());
+    });
+    await page.waitForTimeout(500);
+    expect(failed).toEqual([]);
   });
 
   test("site-calendar-regression: /calendar 回归可用", async ({ page }) => {

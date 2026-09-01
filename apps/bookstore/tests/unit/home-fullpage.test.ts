@@ -6,7 +6,23 @@ import {
   nextIndex,
   resolveFlowBoundary,
   easeInOutCubic,
+  normalizeDeltaY,
+  LINE_DELTA_PX,
 } from "@/features/home/fullpage";
+
+describe("normalizeDeltaY（wheel deltaMode 归一化为像素）", () => {
+  it("DOM_DELTA_PIXEL(0) 原样", () => {
+    expect(normalizeDeltaY(120, 0, 800)).toBe(120);
+  });
+  it("DOM_DELTA_LINE(1) 行×像素折算（Firefox）", () => {
+    expect(normalizeDeltaY(3, 1, 800)).toBeCloseTo(3 * LINE_DELTA_PX);
+    expect(normalizeDeltaY(3, 1, 800)).toBeGreaterThanOrEqual(50); // 显著放大
+  });
+  it("DOM_DELTA_PAGE(2) 页×视口比例", () => {
+    expect(normalizeDeltaY(1, 2, 800)).toBeCloseTo(0.9 * 800);
+    expect(normalizeDeltaY(1, 2, 800)).toBeGreaterThanOrEqual(700);
+  });
+});
 
 describe("createGestureState / feedWheel（一次手势一屏）", () => {
   it("同一次手势连续 delta 累加超阈值只产出一个意图", () => {

@@ -2,6 +2,7 @@ import VineDivider from "@/components/VineDivider";
 import {
   JourneyPart,
   ProfilePart,
+  SplitSection,
   StoryPart,
   TastePart,
   TriviaPart,
@@ -11,10 +12,19 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "主播档案" };
 
+const ARCHIVE_PORTRAITS = ["standing-01", "standing-02", "illustration-01"];
+
 export default function AboutPage() {
   const profile = getProfile();
   const portraitAsset = getAssetById("standing-02");
   if (!portraitAsset) throw new Error("missing asset: standing-02");
+  const portraits = ARCHIVE_PORTRAITS.map((id) => getAssetById(id)).filter(
+    (a): a is NonNullable<typeof a> => a !== null,
+  );
+
+  // 各分栏立绘（与主页档案屏一致循环选取，单数屏立绘在左双数屏在右）
+  const portraitFor = (index: number) => portraits[index % portraits.length];
+  const left = (index: number) => index % 2 === 0;
 
   return (
     <div className="mx-auto w-full max-w-4xl px-5 pt-28 lg:px-10">
@@ -31,27 +41,41 @@ export default function AboutPage() {
         </p>
       </header>
 
-      {/* ---------- 信息卡 ---------- */}
+      {/* ---------- 信息 ---------- */}
       <section className="mt-10">
-        <ProfilePart profile={profile} portrait={portraitAsset} />
+        <SplitSection portrait={portraitFor(0)} portraitLeft={left(0)}>
+          <ProfilePart profile={profile} portrait={portraitAsset} />
+        </SplitSection>
       </section>
 
       <VineDivider className="mt-14 opacity-70" />
 
+      {/* ---------- 设定 ---------- */}
       <section className="mt-14">
-        <StoryPart profile={profile} />
+        <SplitSection portrait={portraitFor(1)} portraitLeft={left(1)}>
+          <StoryPart profile={profile} />
+        </SplitSection>
       </section>
 
+      {/* ---------- 喜好 ---------- */}
       <section className="mt-14">
-        <TastePart profile={profile} />
+        <SplitSection portrait={portraitFor(2)} portraitLeft={left(2)}>
+          <TastePart profile={profile} />
+        </SplitSection>
       </section>
 
+      {/* ---------- 历程 ---------- */}
       <section className="mt-14">
-        <JourneyPart profile={profile} />
+        <SplitSection portrait={portraitFor(3)} portraitLeft={left(3)}>
+          <JourneyPart profile={profile} />
+        </SplitSection>
       </section>
 
+      {/* ---------- 轶闻 ---------- */}
       <div className="mt-14">
-        <TriviaPart profile={profile} />
+        <SplitSection portrait={portraitFor(4)} portraitLeft={left(4)}>
+          <TriviaPart profile={profile} />
+        </SplitSection>
       </div>
     </div>
   );

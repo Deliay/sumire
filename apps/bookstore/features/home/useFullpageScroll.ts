@@ -7,6 +7,7 @@ import {
   feedTouch,
   feedWheel,
   nextIndex,
+  normalizeDeltaY,
   type GestureState,
 } from "@/features/home/fullpage";
 import type { SectionDef, SectionChangeDetail, NavigateDetail } from "@/features/home/sections";
@@ -247,7 +248,9 @@ export function useFullpageScroll({
   useEffect(() => {
     const onWheel = (e: WheelEvent) => {
       if (blockedRef.current) return;
-      const intent = feedWheel(gestureRef.current, e.deltaY, performance.now());
+      // 按 deltaMode 归一化为像素（Firefox line-mode 等），否则小步长累积不到阈值
+      const delta = normalizeDeltaY(e.deltaY, e.deltaMode, window.innerHeight || 1);
+      const intent = feedWheel(gestureRef.current, delta, performance.now());
       if (intent) turn(intent.direction);
     };
     const onTouchStart = (e: TouchEvent) => {

@@ -100,6 +100,22 @@ describe("useFullpageScroll", () => {
     expect(track.dataset.index).toBe("1");
   });
 
+  it("line-mode（deltaMode=1）小步长滚轮归一化为像素后累积翻页（Firefox）", () => {
+    render(<Harness />);
+    const track = document.querySelector("[data-testid='track']") as HTMLElement;
+    // Firefox 每刻度 deltaY=3 行 ×24px = 72px，需多步累积到 100px 阈值；deltaMode=1 且同手势窗口内累积
+    let t = 0;
+    vi.stubGlobal("performance", { now: () => (t += 10) });
+    act(() => {
+      for (let i = 0; i < 6; i++) {
+        window.dispatchEvent(new WheelEvent("wheel", { deltaY: 3, deltaMode: 1 }));
+      }
+    });
+    // 归一化后累积 6×72=432px > 阈值 → 翻一屏
+    expect(track.dataset.index).toBe("1");
+    vi.unstubAllGlobals();
+  });
+
   it("下翻（下一站）转场用下坠缓入曲线", () => {
     render(<Harness />);
     const track = document.querySelector("[data-testid='track']") as HTMLElement;

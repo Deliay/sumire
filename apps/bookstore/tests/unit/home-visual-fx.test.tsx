@@ -42,6 +42,7 @@ vi.mock("@/features/about/parts", () => ({
   TastePart: () => <div>喜好</div>,
   JourneyPart: () => <div>历程</div>,
   TriviaPart: () => <div>轶闻</div>,
+  SplitSection: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
 vi.mock("@/features/schedule/CalendarViewPage", () => ({

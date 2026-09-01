@@ -33,6 +33,21 @@ export function createGestureState(): GestureState {
   return { accum: 0, lastAt: -Infinity, fired: false, cooldownUntil: 0 };
 }
 
+/** DOM_DELTA_LINE 每行折算的像素值。 */
+export const LINE_DELTA_PX = 24;
+/** DOM_DELTA_PAGE 每页折算为视口高度比例。 */
+export const PAGE_DELTA_FACTOR = 0.9;
+
+/**
+ * 将 wheel 事件 deltaY 按 deltaMode 归一化为像素（DOM_DELTA_PIXEL 原样、DOM_DELTA_LINE ×24、DOM_DELTA_PAGE ×0.9×视口高）。
+ * 解决 Firefox 等 line-mode 浏览器（deltaY 约 3 行）累积不到像素阈值导致翻页失效的问题。
+ */
+export function normalizeDeltaY(deltaY: number, deltaMode: number, viewportHeight: number): number {
+  if (deltaMode === 1) return deltaY * LINE_DELTA_PX;
+  if (deltaMode === 2) return deltaY * PAGE_DELTA_FACTOR * viewportHeight;
+  return deltaY;
+}
+
 /** 重置累积与锁定（新手势）。 */
 function resetForNewGesture(s: GestureState, now: number): void {
   s.accum = 0;

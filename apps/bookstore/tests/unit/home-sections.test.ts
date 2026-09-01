@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { SECTIONS, visibleSections, type SectionId } from "@/features/home/sections";
+import { SECTIONS, visibleSections } from "@/features/home/sections";
 
 describe("sections 站序列注册表", () => {
   it("SECTIONS 共 8 站且顺序正确（hero → archive-1..5 → calendar → assets）", () => {

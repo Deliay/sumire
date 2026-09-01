@@ -105,6 +105,27 @@ describe("feedTouch", () => {
   });
 });
 
+describe("feedWheel 与 feedTouch 模态隔离", () => {
+  it("touch 小位移残留累积不触发后续 wheel 兜底翻页", () => {
+    const s = createGestureState();
+    // 小滑 30px 未达 touch 阈值（50）
+    expect(feedTouch(s, { y: 0 }, { y: 30 }, 0)).toBeNull();
+    // 间隔超时后首个 wheel：上一来源为 touch，不应兜底触发
+    expect(feedWheel(s, 30, 1000)).toBeNull();
+    // 需 wheel 自身累积到阈值（48）才触发
+    const r = feedWheel(s, 30, 2000); // 30+30=60 ≥48
+    expect(r).toEqual({ direction: -1 });
+  });
+
+  it("wheel 未触发残留累积在兜底分支触发（慢速单格）", () => {
+    const s = createGestureState();
+    // 单格 40px（<48 阈值但 ≥24 兜底），间隔超时后兜底触发
+    expect(feedWheel(s, 40, 0)).toBeNull();
+    const r = feedWheel(s, 40, 1000); // 上一 wheel 累积 40 且未 fired → 兜底触发
+    expect(r).toEqual({ direction: -1 });
+  });
+});
+
 describe("nextIndex 钳制", () => {
   it("首站向上滚钳制在 0", () => {
     expect(nextIndex(0, 1, 8)).toBe(0);

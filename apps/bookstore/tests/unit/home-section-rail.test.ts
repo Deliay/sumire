@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { buildTree, activeNode, type RailNode } from "@/features/home/sectionRail";
-import { visibleSections, type SectionId } from "@/features/home/sections";
+import { buildTree, activeNode } from "@/features/home/sectionRail";
+import { visibleSections } from "@/features/home/sections";
 
 const sections8 = visibleSections(true);
 
@@ -38,7 +38,6 @@ describe("buildTree", () => {
 
 describe("activeNode", () => {
   it("档案各站映射对应子节点", () => {
-    const tree = buildTree(sections8);
     // sections8 索引：hero0, archive-1..5 (1-5), calendar6, assets7
     expect(activeNode(sections8, 1)).toBe("archive-1");
     expect(activeNode(sections8, 3)).toBe("archive-3");
@@ -46,7 +45,6 @@ describe("activeNode", () => {
   });
 
   it("非档案站映射主节点", () => {
-    const tree = buildTree(sections8);
     expect(activeNode(sections8, 0)).toBe("home");
     expect(activeNode(sections8, 6)).toBe("calendar");
     expect(activeNode(sections8, 7)).toBe("assets");

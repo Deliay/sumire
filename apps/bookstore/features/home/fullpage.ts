@@ -16,6 +16,8 @@ export interface GestureState {
   fired: boolean;
   /** 冷却截止时间戳（产出后到该时刻不再产出）。 */
   cooldownUntil: number;
+  /** 最近一次输入来源（wheel 或 touch），防跨模态残留累积触发翻页。 */
+  lastMode: "wheel" | "touch" | null;
 }
 
 /** 手势间最大间隔（超过视为新手势，重置累积）。 */
@@ -32,7 +34,7 @@ export const COOLDOWN = 400;
 export const BOUNDARY_DEADZONE = 2;
 
 export function createGestureState(): GestureState {
-  return { accum: 0, lastAt: -Infinity, fired: false, cooldownUntil: 0 };
+  return { accum: 0, lastAt: -Infinity, fired: false, cooldownUntil: 0, lastMode: null };
 }
 
 /** DOM_DELTA_LINE 每行折算的像素值。 */
@@ -55,6 +57,7 @@ function resetForNewGesture(s: GestureState, now: number): void {
   s.accum = 0;
   s.fired = false;
   s.lastAt = now;
+  s.lastMode = null;
 }
 
 /**
@@ -71,11 +74,14 @@ export function feedWheel(
   now: number,
 ): WheelIntent | null {
   if (now < s.cooldownUntil) return null;
-  // 新手势：若上一手势累积了超过最小值的同向位移但未达阈值，兜底触发一次（慢速单格翻页）
+  // 新手势：若上一 wheel 手势累积了超过最小值的同向位移但未达阈值，兜底触发一次（慢速单格翻页）。
+  // 仅当上一来源同为 wheel 且未产出过意图（reset 前捕获 fired），避免 touch 残留累积误触。
   if (now - s.lastAt > GESTURE_TIMEOUT) {
     const pending = s.accum;
+    const priorFired = s.fired;
+    const priorMode = s.lastMode;
     resetForNewGesture(s, now);
-    if (!s.fired && Math.abs(pending) >= MIN_FIRE_DELTA) {
+    if (!priorFired && priorMode === "wheel" && Math.abs(pending) >= MIN_FIRE_DELTA) {
       s.fired = true;
       s.cooldownUntil = now + COOLDOWN;
       const direction: Direction = pending > 0 ? -1 : 1;
@@ -84,6 +90,7 @@ export function feedWheel(
   }
   s.accum += deltaY;
   s.lastAt = now;
+  s.lastMode = "wheel";
   if (Math.abs(s.accum) < WHEEL_THRESHOLD) return null;
   if (s.fired) return null;
   s.fired = true;
@@ -107,6 +114,7 @@ export function feedTouch(
   const dy = current.y - start.y;
   s.accum = dy;
   s.lastAt = now;
+  s.lastMode = "touch";
   if (Math.abs(dy) < TOUCH_THRESHOLD) return null;
   if (s.fired) return null;
   s.fired = true;

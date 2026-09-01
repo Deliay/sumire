@@ -293,3 +293,81 @@ describe("CalendarView（周视图，matchMedia 为真）", () => {
     expect(screen.getByText(`${d.getFullYear()} 年 ${d.getMonth() + 1} 月`)).toBeTruthy();
   });
 });
+
+describe("CalendarView immersive 变体（月视图）", () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("panel（缺省）渲染现 DOM：头部翻月按钮、圆角类存在", () => {
+    render(<CalendarView entries={[]} />);
+    expect(screen.getByLabelText("下一月")).toBeTruthy();
+    expect(screen.getByLabelText("上一月")).toBeTruthy();
+    const cells = screen.getAllByTestId("calendar-day");
+    cells.forEach((cell) => expect(cell.className).toContain("rounded-md"));
+  });
+
+  it("immersive 渲染左右侧全高翻月竖条，点击上抛新区间", () => {
+    const onRangeChange = vi.fn();
+    render(<CalendarView entries={[]} onRangeChange={onRangeChange} variant="immersive" />);
+    const nextBar = screen.getByLabelText("下月");
+    const prevBar = screen.getByLabelText("上月");
+    expect(nextBar.className).toContain("inset-y-0");
+    expect(prevBar.className).toContain("inset-y-0");
+    fireEvent.click(nextBar);
+    expect(onRangeChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("immersive 月视图 DayCell 直角化（无 rounded-md）", () => {
+    render(<CalendarView entries={[]} variant="immersive" />);
+    const cells = screen.getAllByTestId("calendar-day");
+    cells.forEach((cell) => expect(cell.className).not.toContain("rounded-md"));
+  });
+
+  it("immersive 模拟横向拖拽超阈值触发翻月（与按钮同口径）", () => {
+    const onRangeChange = vi.fn();
+    render(<CalendarView entries={[]} onRangeChange={onRangeChange} variant="immersive" />);
+    const grid = document.querySelector("[data-testid='immersive-grid']");
+    expect(grid).toBeTruthy();
+    fireEvent.pointerDown(grid!, { clientX: 200 });
+    fireEvent.pointerMove(grid!, { clientX: 120 });
+    fireEvent.pointerUp(grid!);
+    expect(onRangeChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("immersive 拖拽阈值内不触发翻月", () => {
+    const onRangeChange = vi.fn();
+    render(<CalendarView entries={[]} onRangeChange={onRangeChange} variant="immersive" />);
+    const grid = document.querySelector("[data-testid='immersive-grid']");
+    fireEvent.pointerDown(grid!, { clientX: 200 });
+    fireEvent.pointerMove(grid!, { clientX: 190 });
+    fireEvent.pointerUp(grid!);
+    expect(onRangeChange).not.toHaveBeenCalled();
+  });
+
+  it("immersive 拖拽超阈值翻月后抑制日期点击（不弹当日详情）", () => {
+    const onRangeChange = vi.fn();
+    const onSelectDay = vi.fn();
+    render(<CalendarView entries={[]} onRangeChange={onRangeChange} onSelectDay={onSelectDay} variant="immersive" />);
+    const grid = document.querySelector("[data-testid='immersive-grid']");
+    // 拖拽超阈值（左拖翻下月）
+    fireEvent.pointerDown(grid!, { clientX: 200 });
+    fireEvent.pointerMove(grid!, { clientX: 100 });
+    fireEvent.pointerUp(grid!);
+    expect(onRangeChange).toHaveBeenCalledTimes(1);
+    // 模拟 click 落在日期格上（同一手势），应被抑制不触发 onSelectDay
+    const cell = screen.getAllByTestId("calendar-day")[0]!;
+    fireEvent.click(cell);
+    expect(onSelectDay).not.toHaveBeenCalled();
+  });
+
+  it("周视图分支不渲染拖拽/竖条按钮", () => {
+    const mq = mockMatchMedia(true);
+    vi.stubGlobal("matchMedia", mq.stub);
+    render(<CalendarView entries={[]} variant="immersive" />);
+    expect(screen.queryByTestId("immersive-grid")).toBeNull();
+    expect(screen.queryByLabelText("下月")).toBeNull();
+    expect(screen.queryByLabelText("上月")).toBeNull();
+  });
+});

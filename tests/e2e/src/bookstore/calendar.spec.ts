@@ -30,6 +30,20 @@ async function createPlan(dateInput: string, title: string): Promise<string> {
   return (create.body as { id: string }).id;
 }
 
+/** 以超管经 API 删除一条计划（用于清理测试数据，保证用例幂等可重复运行）。 */
+async function deletePlan(planId: string): Promise<void> {
+  const accounts = getAccounts();
+  const login = await apiRequest("/api/auth/login", "POST", {
+    username: accounts.superadmin.username,
+    password: accounts.superadmin.password,
+  });
+  const sid = login.cookie?.match(/sumire_sid=([^;]+)/)?.[1];
+  if (!sid) throw new Error("登录失败，无法取得会话");
+  const del = await apiRequest(`/api/stream-plans/${planId}`, "DELETE", undefined, sid);
+  // 允许 204/200；若已不存在（其他并发清理）也视为成功
+  expect([200, 204, 404]).toContain(del.status);
+}
+
 test.describe("bookstore 日历页与主页入口", () => {
   test("calendar-public-range: 访客无需登录查看，初始按当前月区间拉取(携带 from/to)", async ({ page }) => {
     // 录入一条远期计划，验证不是一次性全量加载
@@ -75,29 +89,44 @@ test.describe("bookstore 日历页与主页入口", () => {
     const run = Date.now().toString(36);
     const title = `e2e_grid_${run}`;
     const fillDate = gridFillCellDate();
-    await createPlan(fillDate, title);
+    const planId = await createPlan(fillDate, title);
 
-    await page.goto(`${BASE}/calendar`);
-    await expect(page.getByRole("heading", { name: "直播日程" })).toBeVisible();
+    try {
+      await page.goto(`${BASE}/calendar`);
+      await expect(page.getByRole("heading", { name: "直播日程" })).toBeVisible();
 
-    const cell = page.locator(`[data-testid="calendar-day"][data-date="${fillDate}"]`);
-    await expect(cell).toBeVisible();
-    // 补位格弱化样式保留
-    await expect(cell).toHaveClass(/opacity-35/);
-    // 日程摘要可见
-    await expect(cell.getByText(title)).toBeVisible();
-    // 补位格不可点击：点击不弹当日详情
-    await cell.click();
-    await expect(page.getByRole("dialog")).toHaveCount(0);
+      const cell = page.locator(`[data-testid="calendar-day"][data-date="${fillDate}"]`);
+      await expect(cell).toBeVisible();
+      // 补位格弱化样式保留
+      await expect(cell).toHaveClass(/opacity-35/);
+      // 日程摘要可见（同格计划 ≤2 条时不被折叠；本用例自建即清理保证幂等）
+      await expect(cell.getByText(title)).toBeVisible();
+      // 补位格不可点击：点击不弹当日详情
+      await cell.click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+    } finally {
+      // 清理本用例创建的计划，避免同补位格日期累积 >2 条导致摘要折叠、用例转红
+      await deletePlan(planId);
+    }
   });
 
-  test("home-entry-to-calendar: 主页不再内嵌本周日程；经导航栏进入 /calendar", async ({ page }) => {
+  test("home-entry-to-calendar: 主页不再内嵌本周日程；导航「日历」锚点进入", async ({ page }) => {
     await page.goto(BASE);
     // 首页不出现本周日程大卡
     await expect(page.getByRole("heading", { name: "本周日程" })).toHaveCount(0);
-    // 经导航栏日历链接进入
-    await page.getByRole("link", { name: "日历" }).click();
+    // 经导航栏日历链接（锚点 #calendar，桌面 nav）翻页至日历站
+    await page.locator("header ul").first().getByRole("link", { name: "日历" }).click();
+    await expect(page.getByText(/年 .*月/).first()).toBeVisible();
+  });
+
+  test("calendar-immersive-bars: 全幅 immersive 月视图左右全高翻月竖条可翻月", async ({ page }) => {
+    await page.goto(`${BASE}/calendar`);
     await expect(page.getByRole("heading", { name: "直播日程" })).toBeVisible();
+    const before = await page.locator("h2").filter({ hasText: /年 .*月/ }).first().textContent();
+    await page.getByRole("button", { name: "下月" }).click();
+    await expect
+      .poll(async () => page.locator("h2").filter({ hasText: /年 .*月/ }).first().textContent())
+      .not.toBe(before);
   });
 
   test("calendar-mixed-history: 日历同日混合展示计划与历史记录（来源可辨），历史只读", async ({ page }) => {

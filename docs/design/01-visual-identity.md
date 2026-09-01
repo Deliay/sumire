@@ -96,7 +96,7 @@ type: Permanent
 - **气质**：缓慢、呼吸感。藤蔓生长、雾气漂移，禁止弹跳、快速滑入等"活泼"动效；
 - 时长基准：入场 400–600ms（ease-out），环境动效（雾、藤蔓）≥ 8s 循环；
 - 藤蔓生长用 SVG `stroke-dashoffset` 过渡；
-- 全站尊重 `prefers-reduced-motion`：命中时关闭环境动效，入场改为直接呈现；
+- **reduced-motion 口径（展示向）**：公开站氛围层（首页雾气、藤蔓生长、视差、粒子、翻页转场与冲量）对 `prefers-reduced-motion: reduce` **不降级**——展示向站点以氛围动效为核心卖点，reduced 用户体验与常规一致；后台 `/backdoor` 仍尊重该偏好，关闭环境动效、入场改为直接呈现。
 - 装饰动画只用 `transform` / `opacity`，避免布局抖动。
 
 ## 6. 图标与插画

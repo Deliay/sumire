@@ -1,23 +1,31 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useMediaQuery } from "@/lib/useMediaQuery";
 import {
   SPAWN_BIAS,
   SPAWN_RADIUS,
+  createFlow,
   createParticle,
+  decayFlow,
+  impulse,
   maxParticles,
   spawnPosition,
   stepParticles,
+  type Flow,
   type Particle,
   type StepOptions,
   type Vec2,
 } from "@/features/home/glowParticles";
+import { IMPULSE_EVENT, SCROLL_IMPULSE_EVENT, type ImpulseDetail } from "@/features/home/useFullpageScroll";
 
 /** 粒子取色 token（运行时读 CSS 变量）。 */
 const TOKEN_KEYS = ["--color-flower", "--color-primary", "--color-eye"] as const;
 /** token 缺失时兜底色。 */
 const FALLBACK_COLORS = ["#8b5fd6", "#b4a6bf", "#7fb0e6"];
+/** 冲量衰减半衰期（秒）。 */
+const FLOW_HALF_LIFE = 0.5;
+/** 单次翻页冲量强度（px/s）。 */
+const IMPULSE_STRENGTH = 520;
 
 interface GlowParticlesProps {
   /** 便于测试注入的纯函数（默认取模块真实实现）。 */
@@ -52,7 +60,8 @@ function draw(ctx: CanvasRenderingContext2D, particles: Particle[], colors: stri
 
 /**
  * 背景光晕粒子层（Client）：Canvas 2D 主循环 spawn（指针偏置）→ step → draw。
- * DPR/resize 自适应、document.hidden 暂停、token 取色；reduced-motion 降级保留（减半降速去明灭）。
+ * DPR/resize 自适应、document.hidden 暂停、token 取色。
+ * 注：展示向公开站氛围层不降级 reduced-motion（粒子上限/明灭/冲量流场与常规一致）。
  */
 export default function GlowParticles({
   spawn = spawnPosition,
@@ -60,7 +69,6 @@ export default function GlowParticles({
   step = stepParticles,
   cap = maxParticles,
 }: GlowParticlesProps) {
-  const reduce = useMediaQuery("(prefers-reduced-motion: reduce)");
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -98,24 +106,45 @@ export default function GlowParticles({
     let running = false;
     let rafId = 0;
     let hidden = document.hidden;
+    let flow: Flow = createFlow();
 
-    const maxCount = () => {
-      const base = cap(w * h);
-      return reduce ? Math.max(4, Math.round(base / 2)) : base;
-    };
-    const opts: StepOptions = { speed: reduce ? 0.5 : 1, flicker: !reduce, dt: 1 / 60 };
+    const maxCount = () => cap(w * h);
+    const opts: StepOptions = { speed: 1, flicker: true, dt: 1 / 60 };
 
     const onPointer = (e: { clientX: number; clientY: number }) => {
       pointer = { x: e.clientX, y: e.clientY };
     };
 
-    const frame = () => {
+    const onImpulse = (e: Event) => {
+      const detail = (e as CustomEvent<ImpulseDetail>).detail;
+      if (detail && typeof detail.direction === "number") {
+        flow = impulse(flow, detail.direction, IMPULSE_STRENGTH);
+      }
+    };
+
+    const onScrollImpulse = (e: Event) => {
+      const detail = (e as CustomEvent<{ velocity: number }>).detail;
+      if (detail && typeof detail.velocity === "number") {
+        // velocity >0 = 向下滚 → 下坠（direction -1）
+        const dir = detail.velocity > 0 ? -1 : 1;
+        flow = impulse(flow, dir, Math.min(IMPULSE_STRENGTH, Math.abs(detail.velocity)));
+      }
+    };
+
+    let lastFrameTime = performance.now();
+    const frame = (now: number) => {
+      // 用真实帧间隔（钳制上限防切后台回来大跳变），使冲量位移/滞留半衰期不随刷新率失真
+      const dt = Math.min(0.1, Math.max(0.008, (now - lastFrameTime) / 1000));
+      lastFrameTime = now;
       const target = maxCount();
       while (particles.length < target) {
         const pos = spawn({ width: w, height: h }, pointer, SPAWN_BIAS, SPAWN_RADIUS, Math.random);
         particles = [...particles, create(pos, Math.random)];
       }
-      particles = step(particles, opts.dt, opts);
+      // 流场衰减 + 叠加（真实帧间隔）
+      const frameOpts: StepOptions = { ...opts, dt };
+      flow = decayFlow(flow, dt, FLOW_HALF_LIFE);
+      particles = step(particles, dt, frameOpts, flow);
       draw(ctx, particles, colors);
       rafId = requestAnimationFrame(frame);
     };
@@ -142,6 +171,8 @@ export default function GlowParticles({
     window.addEventListener("pointermove", onPointer, { passive: true });
     window.addEventListener("pointerdown", onPointer, { passive: true });
     window.addEventListener("resize", resize);
+    window.addEventListener(IMPULSE_EVENT, onImpulse);
+    window.addEventListener(SCROLL_IMPULSE_EVENT, onScrollImpulse);
     document.addEventListener("visibilitychange", onVisibility);
 
     if (!hidden) start();
@@ -150,17 +181,19 @@ export default function GlowParticles({
       window.removeEventListener("pointermove", onPointer);
       window.removeEventListener("pointerdown", onPointer);
       window.removeEventListener("resize", resize);
+      window.removeEventListener(IMPULSE_EVENT, onImpulse);
+      window.removeEventListener(SCROLL_IMPULSE_EVENT, onScrollImpulse);
       document.removeEventListener("visibilitychange", onVisibility);
       stop();
     };
-  }, [reduce, spawn, create, step, cap]);
+  }, [spawn, create, step, cap]);
 
   return (
     <canvas
       ref={canvasRef}
       aria-hidden
       data-testid="glow-particles"
-      className="pointer-events-none absolute inset-0"
+      className="pointer-events-none fixed inset-0"
     />
   );
 }

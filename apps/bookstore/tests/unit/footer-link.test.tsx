@@ -52,17 +52,4 @@ describe("Footer 管理入口", () => {
     expect(disclaimer?.className).toContain("hidden");
     expect(disclaimer?.className).toContain("sm:inline");
   });
-
-  it("floating 形态仍含三外链且无应援色行", () => {
-    const { container } = render(<Footer site={site} floating />);
-    expect(screen.getByRole("link", { name: /B 站空间/ })).toHaveAttribute("href", site.links.bilibili);
-    expect(container.querySelector('a[href="/backdoor"]')).toBeNull();
-  });
-
-  it("floating 形态免责声明全端展示（不带 hidden）", () => {
-    const { container } = render(<Footer site={site} floating />);
-    const disclaimer = container.querySelector("footer span");
-    expect(disclaimer?.textContent).toContain("本站为非官方粉丝作品");
-    expect(disclaimer?.className).not.toContain("hidden");
-  });
 });

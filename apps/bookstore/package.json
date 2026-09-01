@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "pnpm thumbnails && next build",
+    "build": "pnpm thumbnails && tsx scripts/generate-original-webp.ts && next build",
     "start": "next start",
     "lint": "eslint",
     "thumbnails": "tsx scripts/generate-thumbnails.ts",

@@ -1,0 +1,115 @@
+/**
+ * 整页滚动翻页纯函数（无 DOM、可单测）。注入 now 便于确定性测试。
+ *
+ * 方向约定：`-1` = 向后（向下滚 → 下一站），`+1` = 向前（向上滚 → 上一站）。
+ */
+
+export type Direction = 1 | -1;
+export type FlowMode = "deck" | "free";
+
+export interface GestureState {
+  /** 当前累积位移（wheel 的 deltaY / touch 的纵向位移）。 */
+  accum: number;
+  /** 最近一次输入的时间戳。 */
+  lastAt: number;
+  /** 该手势是否已产出过方向意图（锁定，避免一次手势连跳）。 */
+  fired: boolean;
+  /** 冷却截止时间戳（产出后到该时刻不再产出）。 */
+  cooldownUntil: number;
+}
+
+/** 手势间最大间隔（超过视为新手势，重置累积）。 */
+export const GESTURE_TIMEOUT = 150;
+/** wheel 累积翻页阈值（px）。 */
+export const WHEEL_THRESHOLD = 100;
+/** touch 纵向位移翻页阈值（px）。 */
+export const TOUCH_THRESHOLD = 50;
+/** 产出后的冷却时长（ms）。 */
+export const COOLDOWN = 400;
+/** free 模式顶部回收死区（px）。 */
+export const BOUNDARY_DEADZONE = 2;
+
+export function createGestureState(): GestureState {
+  return { accum: 0, lastAt: -Infinity, fired: false, cooldownUntil: 0 };
+}
+
+/** 重置累积与锁定（新手势）。 */
+function resetForNewGesture(s: GestureState, now: number): void {
+  s.accum = 0;
+  s.fired = false;
+  s.lastAt = now;
+}
+
+/**
+ * 喂入滚轮事件：同一次手势连续 delta 累加，超阈值且过冷却期只产出一个方向意图。
+ * 手势间隔超过 GESTURE_TIMEOUT 视为新手势，重置累积。
+ */
+export interface WheelIntent {
+  direction: Direction;
+}
+
+export function feedWheel(
+  s: GestureState,
+  deltaY: number,
+  now: number,
+): WheelIntent | null {
+  if (now < s.cooldownUntil) return null;
+  if (now - s.lastAt > GESTURE_TIMEOUT) resetForNewGesture(s, now);
+  s.accum += deltaY;
+  s.lastAt = now;
+  if (Math.abs(s.accum) < WHEEL_THRESHOLD) return null;
+  if (s.fired) return null;
+  s.fired = true;
+  s.cooldownUntil = now + COOLDOWN;
+  const direction: Direction = s.accum > 0 ? -1 : 1;
+  s.accum = 0;
+  return { direction };
+}
+
+/**
+ * 喂入触控位移（start/current 纵向坐标）：位移阈值 + 速度下限。
+ */
+export function feedTouch(
+  s: GestureState,
+  start: { y: number },
+  current: { y: number },
+  now: number,
+): WheelIntent | null {
+  if (now < s.cooldownUntil) return null;
+  if (now - s.lastAt > GESTURE_TIMEOUT) resetForNewGesture(s, now);
+  const dy = current.y - start.y;
+  s.accum = dy;
+  s.lastAt = now;
+  if (Math.abs(dy) < TOUCH_THRESHOLD) return null;
+  if (s.fired) return null;
+  s.fired = true;
+  s.cooldownUntil = now + COOLDOWN;
+  const direction: Direction = dy > 0 ? 1 : -1;
+  s.accum = 0;
+  return { direction };
+}
+
+/** 目标站索引钳制到 [0, count-1]。 */
+export function nextIndex(current: number, direction: Direction, count: number): number {
+  return Math.max(0, Math.min(count - 1, current + (direction === -1 ? 1 : -1)));
+}
+
+/**
+ * 素材区 deck/free 边界判定：free 模式下顶部（含死区）且继续上滚 → 回收为 deck；
+ * 其余保持当前模式。deck → free 的交接由调用方在素材站下滚越界时发起。
+ */
+export function resolveFlowBoundary(
+  mode: FlowMode,
+  scrollTop: number,
+  direction: Direction,
+): FlowMode {
+  if (mode !== "free") return "deck";
+  if (scrollTop <= BOUNDARY_DEADZONE && direction === 1) return "deck";
+  return "free";
+}
+
+/** 缓入缓出三次贝塞尔近似（CSS easeInOutCubic 等价）。 */
+export function easeInOutCubic(t: number): number {
+  const x = Math.max(0, Math.min(1, t));
+  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+}

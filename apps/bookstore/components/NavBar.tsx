@@ -95,8 +95,9 @@ export default function NavBar({ siteName, tools }: NavBarProps) {
     return pathname === link.route;
   };
 
-  const hrefOf = (link: { anchor: string; route: string }) =>
-    isHome ? link.anchor : link.route === "/" ? "/" : link.route;
+  // 基础导航恒为锚点 href（首页/非首页均指向首页对应锚点，deck 挂载时 hash 直落定位）；工具项为独立路由
+  const hrefOf = (link: { navKey: string; route: string; anchor: string }) =>
+    link.navKey.startsWith("tool-") ? link.route : link.anchor;
 
   return (
     <header

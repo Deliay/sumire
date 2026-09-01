@@ -73,11 +73,12 @@ describe("NavBar 锚点化", () => {
     expect(home.getAttribute("aria-current")).not.toBe("page");
   });
 
-  it("非首页路由仅对应项高亮（/about 只亮档案）", () => {
+  it("非首页路由仅对应项高亮（/about 只亮档案），href 仍为锚点", () => {
     mockPathname = "/about";
     render(<NavBar siteName="枝堇" tools={tools} />);
     const archive = screen.getByRole("link", { name: "档案" });
-    expect(archive.getAttribute("href")).toBe("/about");
+    // href 恒为锚点（非首页也指向首页锚点，deck 挂载时 hash 直落定位）
+    expect(archive.getAttribute("href")).toBe("/#archive-1");
     expect(archive.getAttribute("aria-current")).toBe("page");
     // 其余不亮
     for (const label of ["主页", "素材", "日历"]) {
@@ -85,11 +86,11 @@ describe("NavBar 锚点化", () => {
     }
   });
 
-  it("非首页路由锚点转独立路由（/calendar 页 href 为 /calendar）", () => {
+  it("非首页锚点 href 恒为锚点（/calendar 页 href 仍为 /#calendar）", () => {
     mockPathname = "/calendar";
     render(<NavBar siteName="枝堇" tools={tools} />);
     const calendar = screen.getByRole("link", { name: "日历" });
-    expect(calendar.getAttribute("href")).toBe("/calendar");
+    expect(calendar.getAttribute("href")).toBe("/#calendar");
     expect(calendar.getAttribute("aria-current")).toBe("page");
   });
 

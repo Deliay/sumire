@@ -35,13 +35,13 @@ export default function ArchiveSection({
   );
 
   const artwork = portrait ? (
-    <div className="pointer-events-none relative flex h-full items-center justify-center">
+    <div className="pointer-events-none relative flex h-full min-h-0 items-center justify-center">
       <Image
         src={assetOriginalWebpUrl(portrait)}
         alt={portrait.title}
         width={1000}
         height={2000}
-        className="h-full w-auto object-contain"
+        className="max-h-full w-auto object-contain"
       />
     </div>
   ) : null;
@@ -49,10 +49,10 @@ export default function ArchiveSection({
   return (
     <section className="relative flex h-svh flex-col overflow-hidden px-5 py-6 lg:px-10">
       <div className="grid h-full min-h-0 grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* 移动端立绘在上、内容在下；桌面单数屏立绘左双数屏立绘右 */}
-        <div className={`order-1 h-[42svh] lg:h-auto ${left ? "lg:order-1" : "lg:order-2"}`}>{artwork}</div>
+        {/* 移动端立绘在上、内容在下；桌面单数屏立绘左双数屏立绘右；桌面立绘列约束在屏高内完整显示 */}
+        <div className={`order-1 h-[40svh] min-h-0 lg:h-full ${left ? "lg:order-1" : "lg:order-2"}`}>{artwork}</div>
         <div
-          className={`order-2 flex min-h-0 items-center lg:justify-center ${
+          className={`order-2 flex min-h-0 items-center overflow-y-auto lg:justify-center lg:overflow-visible ${
             left ? "lg:order-2" : "lg:order-1"
           }`}
         >

@@ -72,7 +72,22 @@ export function useFullpageScroll({
     (i: number, animated: boolean) => {
       const track = trackRef.current;
       if (!track) return;
-      track.style.transition = animated && !reduce ? `transform ${transitionMs}ms cubic-bezier(0.22,1,0.36,1)` : "none";
+      if (reduce) {
+        // reduced-motion：transform 瞬时切位，opacity 短促淡切（≤200ms）
+        track.style.transition = "none";
+        track.style.transform = `translate3d(0, ${-i * 100}svh, 0)`;
+        if (animated) {
+          // 先清 opacity 过渡瞬时置底，再 rAF 复位触发淡入
+          track.style.opacity = "0";
+          requestAnimationFrame(() => {
+            if (!track) return;
+            track.style.transition = `opacity ${TRANSITION_REDUCED_MS}ms ease`;
+            track.style.opacity = "1";
+          });
+        }
+        return;
+      }
+      track.style.transition = animated ? `transform ${transitionMs}ms cubic-bezier(0.22,1,0.36,1)` : "none";
       track.style.transform = `translate3d(0, ${-i * 100}svh, 0)`;
     },
     [reduce, transitionMs, trackRef],
@@ -172,17 +187,9 @@ export function useFullpageScroll({
     if (section && window.location.hash !== section.hash) {
       history.replaceState(null, "", section.hash);
     }
-    // reduced-motion 用短促淡切：先清 opacity 过渡瞬时置底，再淡入
-    if (reduce && trackRef.current) {
-      const track = trackRef.current;
-      track.style.transition = `opacity ${TRANSITION_REDUCED_MS}ms ease`;
-      track.style.opacity = "0";
-      requestAnimationFrame(() => {
-        track.style.opacity = "1";
-      });
-    }
+    // 转场：常规 transform 过渡；reduced-motion 为短促 opacity 淡切（applyTransform 内实现）
     applyTransform(indexRef.current, true);
-  }, [index, sections, applyTransform, reduce, trackRef]);
+  }, [index, sections, applyTransform]);
 
   // 响应 hash 变化（导航锚点点击 / 浏览器前进后退）：解析 hash 定位到对应站
   useEffect(() => {

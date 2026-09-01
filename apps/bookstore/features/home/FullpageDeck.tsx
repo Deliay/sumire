@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import GlowParticles from "@/features/home/GlowParticles";
 import SectionRail from "@/features/home/SectionRail";
 import { useFullpageScroll } from "@/features/home/useFullpageScroll";
@@ -28,7 +28,8 @@ export default function FullpageDeck({
   archivePortraits,
   assets,
 }: FullpageDeckProps) {
-  const sections = visibleSections(API_CONFIGURED);
+  // sections 用 useMemo 稳定引用（避免每渲染新数组触发 useFullpageScroll 的 effect 重跑）
+  const sections = useMemo(() => visibleSections(API_CONFIGURED), []);
   const assetsIndex = sections.findIndex((s) => s.id === "assets");
   const containerRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);

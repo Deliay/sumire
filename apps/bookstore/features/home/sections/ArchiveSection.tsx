@@ -52,6 +52,7 @@ export default function ArchiveSection({
         {/* 移动端立绘在上、内容在下；桌面单数屏立绘左双数屏立绘右；桌面立绘列约束在屏高内完整显示 */}
         <div className={`order-1 h-[40svh] min-h-0 lg:h-full ${left ? "lg:order-1" : "lg:order-2"}`}>{artwork}</div>
         <div
+          data-fullpage-scrollable
           className={`order-2 flex min-h-0 items-center overflow-y-auto lg:justify-center lg:overflow-visible ${
             left ? "lg:order-2" : "lg:order-1"
           }`}

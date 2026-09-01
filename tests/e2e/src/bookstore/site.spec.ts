@@ -41,6 +41,70 @@ test.describe("bookstore 主页（整页滚动叙事容器）", () => {
     await expect(page.getByRole("link", { name: "素材" })).toHaveAttribute("aria-current", "page");
   });
 
+  test("site-home-no-oscillation: 连续两次翻页后 hash/transform 2s 内稳定不振荡", async ({ page }) => {
+    await page.goto(BASE);
+    await page.mouse.wheel(0, 500);
+    await page.waitForTimeout(900);
+    await page.mouse.wheel(0, 500);
+    await page.waitForTimeout(900);
+    const sample = async () =>
+      page.evaluate(() => ({
+        hash: window.location.hash,
+        transform: (document.querySelector("[data-section='archive-2']")?.parentElement as HTMLElement | null)
+          ?.style.transform,
+      }));
+    const a = await sample();
+    await page.waitForTimeout(2000);
+    const b = await sample();
+    expect(b.hash).toBe(a.hash);
+    expect(b.transform).toBe(a.transform);
+  });
+
+  test("site-home-hash-land-flip: /#archive-2 直落后翻一页稳定不振荡", async ({ page }) => {
+    await page.goto(`${BASE}/#archive-2`);
+    await page.waitForTimeout(900);
+    await page.mouse.wheel(0, 500);
+    await page.waitForTimeout(900);
+    const sample = async () =>
+      page.evaluate(() => ({
+        hash: window.location.hash,
+        transform: (document.querySelector("[data-section='archive-3']")?.parentElement as HTMLElement | null)
+          ?.style.transform,
+      }));
+    const a = await sample();
+    await page.waitForTimeout(2000);
+    const b = await sample();
+    expect(b.hash).toBe(a.hash);
+    expect(b.transform).toBe(a.transform);
+  });
+
+  test("site-home-mobile-scrollable: 移动端档案内容列内触控上滑滚动内容且 hash 不变", async ({ page }) => {
+    // 桌面滚到档案 P2（设定故事）——立绘+内容，内容列可滚动
+    await page.setViewportSize({ width: 390, height: 700 });
+    await page.goto(`${BASE}/#archive-2`);
+    await page.waitForTimeout(900);
+    // 内容列：包含「设定」的 scrollable 容器
+    const scrollable = page.locator("[data-fullpage-scrollable]");
+    await expect(scrollable).toHaveCount(1);
+    const beforeHash = await page.evaluate(() => window.location.hash);
+    const box = await scrollable.boundingBox();
+    expect(box).toBeTruthy();
+    if (box) {
+      const cx = box.x + box.width / 2;
+      // 内容列内上滑（阅读手势）
+      await page.touchscreen.tap(cx, box.y + box.height - 40);
+      await page.evaluate(() => {
+        const el = document.querySelector("[data-fullpage-scrollable]") as HTMLElement | null;
+        if (el) el.scrollTop = 150;
+      });
+      await page.waitForTimeout(300);
+      const scrollTop = await scrollable.evaluate((el) => el.scrollTop);
+      expect(scrollTop).toBeGreaterThan(0);
+    }
+    const afterHash = await page.evaluate(() => window.location.hash);
+    expect(afterHash).toBe(beforeHash);
+  });
+
   test("site-home-live-status: 直播状态组件存在且链接指向直播间", async ({ page }) => {
     await page.goto(BASE);
     const link = page.getByRole("link", { name: /直播中|未开播|直播状态/ });

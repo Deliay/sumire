@@ -65,6 +65,11 @@ export function useFullpageScroll({
   const lastScrollTopRef = useRef(0);
   const lastScrollTimeRef = useRef(0);
   const isFirstRenderRef = useRef(true);
+  // sections 引用不稳定（每次渲染新数组），用 ref 稳定供 effect 读取
+  const sectionsRef = useRef(sections);
+  useEffect(() => {
+    sectionsRef.current = sections;
+  }, [sections]);
 
   const transitionMs = reduce ? TRANSITION_REDUCED_MS : TRANSITION_MS;
 
@@ -162,12 +167,15 @@ export function useFullpageScroll({
     [containerRef, dispatchImpulse, updateIndex],
   );
 
-  // 初始：挂载时解析 hash 直落对应站（无转场）
+  // 初始：挂载时解析 hash 直落对应站（无转场）。仅挂载执行一次（landedRef 守卫），
+  // 挂载后的 hash 变化由 hashchange 监听负责；避免因 sections 引用变化导致逐帧重跑与振荡。
+  const landedRef = useRef(false);
   useEffect(() => {
-    if (sections.length === 0) return;
+    if (landedRef.current || sections.length === 0) return;
     const hash = window.location.hash;
     const match = sections.findIndex((s) => `#${s.id}` === hash);
     if (match > 0) {
+      landedRef.current = true;
       requestAnimationFrame(() => {
         indexRef.current = match;
         setIndexState(match);
@@ -175,7 +183,8 @@ export function useFullpageScroll({
         applyTransform(match, false);
       });
     }
-  }, [sections, applyTransform, onIndexChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 索引变化 → 同步 hash（replaceState，不触发跳转）。首渲染不写 transform（SSG 直出站 0）。
   useEffect(() => {
@@ -183,27 +192,33 @@ export function useFullpageScroll({
       isFirstRenderRef.current = false;
       return;
     }
-    const section = sections[indexRef.current];
+    const section = sectionsRef.current[indexRef.current];
     if (section && window.location.hash !== section.hash) {
       history.replaceState(null, "", section.hash);
     }
     // 转场：常规 transform 过渡；reduced-motion 为短促 opacity 淡切（applyTransform 内实现）
     applyTransform(indexRef.current, true);
-  }, [index, sections, applyTransform]);
+  }, [index, applyTransform]);
 
   // 响应 hash 变化（导航锚点点击 / 浏览器前进后退）：解析 hash 定位到对应站
   useEffect(() => {
     const onHashChange = () => {
       if (blockedRef.current) return;
       const hash = window.location.hash;
-      const match = sections.findIndex((s) => `#${s.id}` === hash);
+      const match = sectionsRef.current.findIndex((s) => `#${s.id}` === hash);
       if (match >= 0 && match !== indexRef.current) {
         goTo(match);
       }
     };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
-  }, [sections, goTo]);
+  }, [goTo]);
+
+  /** 判断触摸起始目标是否位于可滚动兜底列内（移动端档案内容列），是则不喂入手势聚合（交给原生滚动）。 */
+  const isInsideScrollable = useCallback((target: EventTarget | null): boolean => {
+    if (!(target instanceof Element)) return false;
+    return !!target.closest("[data-fullpage-scrollable]");
+  }, []);
 
   // 事件监听（window 级被动，不 preventDefault）
   useEffect(() => {
@@ -214,6 +229,11 @@ export function useFullpageScroll({
     };
     const onTouchStart = (e: TouchEvent) => {
       if (blockedRef.current) return;
+      // 位于可滚动内容列内的触摸交给原生滚动，不参与整页手势
+      if (isInsideScrollable(e.target)) {
+        touchStartRef.current = null;
+        return;
+      }
       const t = e.touches[0];
       touchStartRef.current = t ? { y: t.clientY, timestamp: performance.now() } : null;
     };
@@ -245,7 +265,7 @@ export function useFullpageScroll({
         return;
       }
       if (e.key === "End") {
-        goTo(sections.length - 1);
+        goTo(sectionsRef.current.length - 1);
         return;
       }
       const d = map[e.key];
@@ -303,7 +323,7 @@ export function useFullpageScroll({
       window.removeEventListener("keydown", onKeyDown);
       container?.removeEventListener("scroll", onScroll);
     };
-  }, [turn, goTo, updateIndex, sections.length, containerRef, reduce]);
+  }, [turn, goTo, updateIndex, containerRef, reduce, isInsideScrollable]);
 
   // 弹层打开/关闭屏蔽翻页
   const setLocked = useCallback((locked: boolean) => {

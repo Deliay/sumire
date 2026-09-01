@@ -253,21 +253,60 @@ test.describe("bookstore 主页（整页滚动叙事容器）", () => {
     await expect(page.getByRole("heading", { name: "直播日程" })).toBeVisible();
   });
 
-  test("site-home-free-reclaim: free 模式顶部（scrollTop=0）上滚直接回收回日历站，键盘↑亦回收", async ({ page }) => {
+  test("site-home-free-reclaim: free 模式顶部上滚回收回日历站；键盘↓/PageDown 实际滚动、↑/PageUp 顶部回收", async ({ page }) => {
+    // free 模式滚动容器 = FullpageDeck 外层（[data-section] 的祖父：container>track>section）
+    const scrollTop = () =>
+      page.evaluate(() => {
+        const section = document.querySelector("[data-section='assets']");
+        const container = section?.parentElement?.parentElement as HTMLElement | null;
+        return container ? container.scrollTop : 0;
+      });
+    const setScrollTop = (v: number) =>
+      page.evaluate((val) => {
+        const section = document.querySelector("[data-section='assets']");
+        const container = section?.parentElement?.parentElement as HTMLElement | null;
+        if (container) container.scrollTop = val;
+      }, v);
+
     await page.goto(`${BASE}/#assets`);
     await page.waitForTimeout(1200);
-    // 进入 free 模式（素材站容器 overflow auto），scrollTop 尚未下滚
+    await expect
+      .poll(() =>
+        page.evaluate(() => !!document.querySelector("[data-section='assets']")?.parentElement?.parentElement),
+      )
+      .toBe(true);
+    // 进入 free 模式（素材站下滚越界 → 容器 overflow auto）
     await page.mouse.wheel(0, 800);
     await page.waitForTimeout(600);
-    // 立即上滚（顶部未下滚，无 scroll 事件）→ 回收上翻回日历站
-    await page.mouse.wheel(0, -800);
+    const inFree = await page.evaluate(() => {
+      const section = document.querySelector("[data-section='assets']");
+      const c = section?.parentElement?.parentElement as HTMLElement | null;
+      return c ? c.style.overflow === "auto" : false;
+    });
+    expect(inFree).toBe(true);
+    // 键盘 ↓ 应使容器实际向下滚动（scrollTop 增大，修复阻塞 2）
+    await page.keyboard.press("ArrowDown");
+    await page.waitForTimeout(200);
+    const afterDown = await scrollTop();
+    expect(afterDown).toBeGreaterThan(0);
+    // PageDown 进一步滚动（步长更大）
+    await page.keyboard.press("PageDown");
+    await page.waitForTimeout(200);
+    const afterPageDown = await scrollTop();
+    expect(afterPageDown).toBeGreaterThan(afterDown);
+    // 回顶（scrollTop=0 触发 onScroll 回收上翻回日历站）
+    await setScrollTop(0);
     await page.waitForTimeout(900);
     expect(await page.evaluate(() => window.location.hash)).toBe("#calendar");
 
-    // 再次进入 free 并键盘 ↑ 回收
+    // 再次进入 free（scrollTop=0）后键盘 ↑ 直接回收上翻（不依赖 scroll 事件）
+    await page.goto(`${BASE}/#assets`);
+    await page.waitForTimeout(1200);
     await page.mouse.wheel(0, 800);
-    await page.waitForTimeout(900);
+    await page.waitForTimeout(600);
     expect(await page.evaluate(() => window.location.hash)).toBe("#assets");
+    const scrollTopAtEntry = await scrollTop();
+    expect(scrollTopAtEntry).toBe(0);
     await page.keyboard.press("ArrowUp");
     await page.waitForTimeout(900);
     expect(await page.evaluate(() => window.location.hash)).toBe("#calendar");

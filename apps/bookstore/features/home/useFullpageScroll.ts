@@ -399,16 +399,18 @@ export function useFullpageScroll({
       const d = map[e.key];
       if (!d) return;
       if (freeRef.current) {
-        // free 模式：方向键/Page 交原生滚动（素材自然滚动区键盘可用）。
-        // 顶部 ↑/PageUp 映射为回收上翻；其余不拦截不 preventDefault，交由容器原生滚动。
-        if (d === 1) {
-          const el = containerRef.current;
-          if (el && el.scrollTop <= BOUNDARY_DEADZONE) {
-            e.preventDefault();
-            reclaimToDeck();
-            return;
-          }
+        // free 模式：显式 scrollBy（不依赖焦点，容器无 tabIndex、视口无溢出，原生键盘滚动不落到容器）。
+        // ArrowDown/PageDown 向下滚动素材；ArrowUp/PageUp 顶部回收上翻，其余向上滚动。
+        e.preventDefault();
+        const el = containerRef.current;
+        if (!el) return;
+        if (d === 1 && el.scrollTop <= BOUNDARY_DEADZONE) {
+          reclaimToDeck();
+          return;
         }
+        // 差异化步长：Page 键约一屏高、方向键约 1/4 屏（贴近原生体验）
+        const step = e.key === "PageDown" || e.key === "PageUp" ? getVh() : Math.max(40, Math.round(getVh() / 4));
+        el.scrollBy({ top: d === 1 ? -step : step });
         return;
       }
       e.preventDefault();

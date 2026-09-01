@@ -338,7 +338,8 @@ describe("useFullpageScroll", () => {
     vi.unstubAllGlobals();
   });
 
-  it("free 模式回顶回收上翻用上浮缓出曲线（非误用下坠缓入）", () => {    let t = 0;
+  it("free 模式回顶回收上翻用上浮缓出曲线（非误用下坠缓入）", () => {
+    let t = 0;
     vi.stubGlobal("performance", {
       now: () => (t += 1000),
     });
@@ -546,7 +547,7 @@ describe("useFullpageScroll", () => {
     vi.unstubAllGlobals();
   });
 
-  it("free 模式方向键↑/PageUp 顶部回收上翻、↓/PageDown 不拦截交原生（键盘可用）", () => {
+  it("free 模式键盘：↓/PageDown 显式 scrollBy 向下滚动、↑/PageUp 顶部回收上翻、scrollTop>DEADZONE 时向上滚动", () => {
     let t = 0;
     vi.stubGlobal("performance", { now: () => (t += 1000) });
     const frames: FrameRequestCallback[] = [];
@@ -555,6 +556,9 @@ describe("useFullpageScroll", () => {
       return frames.length;
     });
     vi.stubGlobal("cancelAnimationFrame", () => {});
+    // 捕获 scrollBy 调用（jsdom 不实现原生滚动，断言显式滚动参数以证明键盘可用）
+    HTMLElement.prototype.scrollBy = () => {};
+    const scrollBySpy = vi.spyOn(HTMLElement.prototype, "scrollBy");
     render(<Harness />);
     for (let i = 0; i < 8; i++) {
       act(() => {
@@ -564,19 +568,56 @@ describe("useFullpageScroll", () => {
     const container = document.querySelector("[data-testid='container']") as HTMLElement;
     const track = document.querySelector("[data-testid='track']") as HTMLElement;
     expect(container.style.overflow).toBe("auto");
-    // ↓ 顶部向下不回收、不翻页（交原生滚动），index 不变
+    // ↓ 顶部向下：显式向下滚动（不回收、不翻页），index 不变
     act(() => {
       window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
     });
+    expect(scrollBySpy).toHaveBeenLastCalledWith({ top: expect.any(Number) });
+    expect((scrollBySpy.mock.calls.at(-1)![0] as unknown as { top: number }).top).toBeGreaterThan(0);
     expect(track.dataset.index).toBe("7");
     expect(container.style.overflow).toBe("auto");
-    // ↑ 顶部 → 回收上翻
+    // ↑ 顶部 → 回收上翻（不调用向下 scrollBy）
+    scrollBySpy.mockClear();
     act(() => {
       window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp" }));
     });
+    expect(scrollBySpy).not.toHaveBeenCalled();
     expect(container.style.overflow).toBe("hidden");
     expect(track.dataset.index).toBe("6");
-    void frames;
+    vi.unstubAllGlobals();
+  });
+
+  it("free 模式 scrollTop>DEADZONE 时 ↑/PageUp 显式向上 scrollBy（不回收），PageDown 步长为一屏高", () => {
+    let t = 0;
+    vi.stubGlobal("performance", { now: () => (t += 1000) });
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      return 1;
+    });
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+    HTMLElement.prototype.scrollBy = () => {};
+    const scrollBySpy = vi.spyOn(HTMLElement.prototype, "scrollBy");
+    render(<Harness />);
+    for (let i = 0; i < 8; i++) {
+      act(() => {
+        window.dispatchEvent(new WheelEvent("wheel", { deltaY: 200 }));
+      });
+    }
+    const container = document.querySelector("[data-testid='container']") as HTMLElement;
+    const track = document.querySelector("[data-testid='track']") as HTMLElement;
+    expect(container.style.overflow).toBe("auto");
+    // 让容器处于已滚动位置（scrollTop > DEADZONE）→ ↑ 应向上滚动而非回收
+    Object.defineProperty(container, "scrollTop", { value: 500, configurable: true, writable: true });
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp" }));
+    });
+    expect((scrollBySpy.mock.calls.at(-1)![0] as unknown as { top: number }).top).toBeLessThan(0);
+    expect(track.dataset.index).toBe("7"); // 未回收、未翻页
+    expect(container.style.overflow).toBe("auto");
+    // PageDown 步长 = 一屏高（getVh）
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "PageDown" }));
+    });
+    expect((scrollBySpy.mock.calls.at(-1)![0] as unknown as { top: number }).top).toBeGreaterThan(0);
     vi.unstubAllGlobals();
   });
 });

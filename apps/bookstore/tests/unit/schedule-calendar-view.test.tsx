@@ -346,6 +346,22 @@ describe("CalendarView immersive 变体（月视图）", () => {
     expect(onRangeChange).not.toHaveBeenCalled();
   });
 
+  it("immersive 拖拽超阈值翻月后抑制日期点击（不弹当日详情）", () => {
+    const onRangeChange = vi.fn();
+    const onSelectDay = vi.fn();
+    render(<CalendarView entries={[]} onRangeChange={onRangeChange} onSelectDay={onSelectDay} variant="immersive" />);
+    const grid = document.querySelector("[data-testid='immersive-grid']");
+    // 拖拽超阈值（左拖翻下月）
+    fireEvent.pointerDown(grid!, { clientX: 200 });
+    fireEvent.pointerMove(grid!, { clientX: 100 });
+    fireEvent.pointerUp(grid!);
+    expect(onRangeChange).toHaveBeenCalledTimes(1);
+    // 模拟 click 落在日期格上（同一手势），应被抑制不触发 onSelectDay
+    const cell = screen.getAllByTestId("calendar-day")[0]!;
+    fireEvent.click(cell);
+    expect(onSelectDay).not.toHaveBeenCalled();
+  });
+
   it("周视图分支不渲染拖拽/竖条按钮", () => {
     const mq = mockMatchMedia(true);
     vi.stubGlobal("matchMedia", mq.stub);

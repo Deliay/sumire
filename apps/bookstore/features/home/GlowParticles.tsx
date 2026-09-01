@@ -17,7 +17,7 @@ import {
   type StepOptions,
   type Vec2,
 } from "@/features/home/glowParticles";
-import { IMPULSE_EVENT, type ImpulseDetail } from "@/features/home/useFullpageScroll";
+import { IMPULSE_EVENT, SCROLL_IMPULSE_EVENT, type ImpulseDetail } from "@/features/home/useFullpageScroll";
 
 /** 粒子取色 token（运行时读 CSS 变量）。 */
 const TOKEN_KEYS = ["--color-flower", "--color-primary", "--color-eye"] as const;
@@ -128,6 +128,16 @@ export default function GlowParticles({
       }
     };
 
+    const onScrollImpulse = (e: Event) => {
+      if (reduce) return;
+      const detail = (e as CustomEvent<{ velocity: number }>).detail;
+      if (detail && typeof detail.velocity === "number") {
+        // velocity >0 = 向下滚 → 下坠（direction -1）
+        const dir = detail.velocity > 0 ? -1 : 1;
+        flow = impulse(flow, dir, Math.min(IMPULSE_STRENGTH, Math.abs(detail.velocity)));
+      }
+    };
+
     const frame = () => {
       const target = maxCount();
       while (particles.length < target) {
@@ -164,6 +174,7 @@ export default function GlowParticles({
     window.addEventListener("pointerdown", onPointer, { passive: true });
     window.addEventListener("resize", resize);
     window.addEventListener(IMPULSE_EVENT, onImpulse);
+    window.addEventListener(SCROLL_IMPULSE_EVENT, onScrollImpulse);
     document.addEventListener("visibilitychange", onVisibility);
 
     if (!hidden) start();
@@ -173,6 +184,7 @@ export default function GlowParticles({
       window.removeEventListener("pointerdown", onPointer);
       window.removeEventListener("resize", resize);
       window.removeEventListener(IMPULSE_EVENT, onImpulse);
+      window.removeEventListener(SCROLL_IMPULSE_EVENT, onScrollImpulse);
       document.removeEventListener("visibilitychange", onVisibility);
       stop();
     };

@@ -5,7 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { API_CONFIGURED } from "@/features/backdoor/api";
-import { SECTIONS } from "@/features/home/sections";
+import { SECTIONS, SECTION_CHANGE_EVENT, type SectionChangeDetail } from "@/features/home/sections";
+import type { NavKey } from "@/features/home/sections";
 import type { ToolModule } from "@/lib/tools/registry";
 
 interface NavBarProps {
@@ -13,18 +14,29 @@ interface NavBarProps {
   tools: ToolModule[];
 }
 
-/** 从注册表取锚点 href（单一事实源）。 */
-function buildBaseLinks(): { href: string; label: string; navKey: string }[] {
-  const nav = [
-    { navKey: "home", label: "主页" },
-    { navKey: "archive", label: "档案" },
-    { navKey: "assets", label: "素材" },
-    ...(API_CONFIGURED ? [{ navKey: "calendar", label: "日历" }] : []),
-  ];
-  return nav.map(({ navKey, label }) => {
-    const first = SECTIONS.find((s) => s.navKey === navKey);
-    return { href: `/#${first?.id ?? ""}`, label, navKey };
-  });
+interface BaseLink {
+  navKey: NavKey;
+  label: string;
+  /** 首页内锚点 href。 */
+  anchor: string;
+  /** 独立路由路径（非首页选中态匹配用）。 */
+  route: string;
+}
+
+/** 从注册表取锚点与独立路由（单一事实源）。 */
+function buildBaseLinks(): BaseLink[] {
+  const map: Record<NavKey, { label: string; route: string }> = {
+    home: { label: "主页", route: "/" },
+    archive: { label: "档案", route: "/about" },
+    assets: { label: "素材", route: "/assets" },
+    calendar: { label: "日历", route: "/calendar" },
+  };
+  return (Object.keys(map) as NavKey[])
+    .filter((k) => k !== "calendar" || API_CONFIGURED)
+    .map((navKey) => {
+      const first = SECTIONS.find((s) => s.navKey === navKey);
+      return { navKey, label: map[navKey].label, anchor: `/#${first?.id ?? ""}`, route: map[navKey].route };
+    });
 }
 
 export default function NavBar({ siteName, tools }: NavBarProps) {
@@ -42,33 +54,49 @@ export default function NavBar({ siteName, tools }: NavBarProps) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // 首页路由下跟踪 hash 选中态（档案 P1~P5 均视为「档案」）
+  // 首页路由下跟踪 hash 选中态：监听 hashchange（外部跳转）与 SECTION_CHANGE_EVENT（deck 翻页 replaceState）
   useEffect(() => {
     if (!isHome) return;
-    const sync = () => setHash(window.location.hash);
-    sync();
-    window.addEventListener("hashchange", sync);
-    return () => window.removeEventListener("hashchange", sync);
+    const syncHash = () => setHash(window.location.hash);
+    const onSectionChange = (e: Event) => {
+      const detail = (e as CustomEvent<SectionChangeDetail>).detail;
+      if (detail && typeof detail.navKey === "string") {
+        setHash(`#${SECTIONS.find((s) => s.navKey === detail.navKey)?.id ?? ""}`);
+      }
+    };
+    syncHash();
+    window.addEventListener("hashchange", syncHash);
+    window.addEventListener(SECTION_CHANGE_EVENT, onSectionChange);
+    return () => {
+      window.removeEventListener("hashchange", syncHash);
+      window.removeEventListener(SECTION_CHANGE_EVENT, onSectionChange);
+    };
   }, [isHome]);
 
+  const baseLinks = buildBaseLinks();
   const links = [
-    ...buildBaseLinks(),
+    ...baseLinks,
     ...tools.map((tool) => ({
-      href: `/tools/${tool.slug}`,
+      navKey: `tool-${tool.slug}` as string,
       label: tool.name,
-      navKey: `tool-${tool.slug}`,
+      anchor: `/tools/${tool.slug}`,
+      route: `/tools/${tool.slug}`,
     })),
   ];
 
-  const isActive = (link: { href: string; navKey: string }) => {
+  const isActive = (link: { navKey: string; route: string; anchor: string }) => {
     if (isHome) {
-      // 首页：按 hash 匹配 navKey；无 hash 时主页选中
       const activeKey = SECTIONS.find((s) => `#${s.id}` === hash)?.navKey ?? (hash ? undefined : "home");
       return link.navKey === activeKey;
     }
-    // 非首页：按既有 pathname 口径
-    return link.href === "/" ? pathname === "/" : pathname.startsWith(link.href.split("#")[0]!);
+    // 非首页：按独立路由精确匹配（工具项前缀匹配）
+    if (link.route === "/") return pathname === "/";
+    if (link.route.startsWith("/tools/")) return pathname.startsWith(link.route);
+    return pathname === link.route;
   };
+
+  const hrefOf = (link: { anchor: string; route: string }) =>
+    isHome ? link.anchor : link.route === "/" ? "/" : link.route;
 
   return (
     <header
@@ -90,9 +118,9 @@ export default function NavBar({ siteName, tools }: NavBarProps) {
 
         <ul className="hidden items-center gap-7 md:flex">
           {links.map((link) => (
-            <li key={link.href}>
+            <li key={link.route}>
               <Link
-                href={link.href}
+                href={hrefOf(link)}
                 aria-current={isActive(link) ? "page" : undefined}
                 className={`text-sm tracking-widest transition-colors ${
                   isActive(link)
@@ -120,9 +148,9 @@ export default function NavBar({ siteName, tools }: NavBarProps) {
       {open && (
         <ul className="border-t border-vine/40 bg-night/95 px-5 py-4 backdrop-blur-md md:hidden">
           {links.map((link) => (
-            <li key={link.href} className="py-2">
+            <li key={link.route} className="py-2">
               <Link
-                href={link.href}
+                href={hrefOf(link)}
                 aria-current={isActive(link) ? "page" : undefined}
                 onClick={() => setOpen(false)}
                 className={`block text-base tracking-widest ${

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { StreamPlan } from "@/features/schedule/api";
 import type { CalendarEntry } from "@/features/schedule/mergeEntries";
 import { parseDateStr } from "@/features/schedule/dateUtils";
@@ -44,6 +44,16 @@ export default function DayDetailDialog({
   deletingId,
 }: DayDetailDialogProps) {
   const [confirmId, setConfirmId] = useState<string | null>(null);
+
+  // 打开时锁定背景滚动（与 Lightbox 一致，供全站弹层屏蔽整页翻页）
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
 
   if (!open) return null;
 

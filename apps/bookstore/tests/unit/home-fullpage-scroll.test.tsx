@@ -2,8 +2,8 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { cleanup, render, act } from "@testing-library/react";
 import { useRef } from "react";
-import { useFullpageScroll, IMPULSE_EVENT } from "@/features/home/useFullpageScroll";
-import { visibleSections } from "@/features/home/sections";
+import { useFullpageScroll, IMPULSE_EVENT, SCROLL_IMPULSE_EVENT } from "@/features/home/useFullpageScroll";
+import { visibleSections, SECTION_CHANGE_EVENT } from "@/features/home/sections";
 
 const sections8 = visibleSections(true);
 
@@ -142,5 +142,58 @@ describe("useFullpageScroll", () => {
   it("卸载清理不抛错", () => {
     const { unmount } = render(<Harness />);
     expect(() => unmount()).not.toThrow();
+  });
+
+  it("hashchange 响应导航锚点点击（首页内点击导航 → deck 翻页）", () => {
+    render(<Harness />);
+    const track = document.querySelector("[data-testid='track']") as HTMLElement;
+    // 模拟点击「素材」导航，URL hash 变为 #assets
+    window.history.replaceState(null, "", "#assets");
+    act(() => {
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    });
+    expect(track.dataset.index).toBe("7");
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("索引变化派发 SECTION_CHANGE_EVENT（deck → NavBar 同步）", () => {
+    const spy = vi.fn();
+    window.addEventListener(SECTION_CHANGE_EVENT, spy);
+    render(<Harness />);
+    act(() => {
+      window.dispatchEvent(new WheelEvent("wheel", { deltaY: 200 }));
+    });
+    expect(spy).toHaveBeenCalled();
+    const detail = (spy.mock.calls.at(-1)![0] as CustomEvent).detail;
+    expect(detail.navKey).toBe("archive");
+    window.removeEventListener(SECTION_CHANGE_EVENT, spy);
+  });
+
+  it("free 模式滚动派发 SCROLL_IMPULSE_EVENT（连续喂入粒子冲量）", () => {
+    // 让 performance.now 随调用递增，绕过 wheel 冷却（一次手势一屏但需多次翻页到末站）
+    let t = 0;
+    vi.stubGlobal("performance", {
+      now: () => (t += 1000),
+    });
+    render(<Harness />);
+    // 进入 free：逐站滚到素材站（index 7）再下滚越界
+    for (let i = 0; i < 8; i++) {
+      act(() => {
+        window.dispatchEvent(new WheelEvent("wheel", { deltaY: 200 }));
+      });
+    }
+    const container = document.querySelector("[data-testid='container']") as HTMLElement;
+    expect(container.style.overflow).toBe("auto"); // 已进入 free 模式
+
+    const scrollSpy = vi.fn();
+    window.addEventListener(SCROLL_IMPULSE_EVENT, scrollSpy);
+    act(() => {
+      // 模拟素材区向下滚动：scrollTop 从 0 跳到 400
+      container.scrollTop = 400;
+      container.dispatchEvent(new Event("scroll"));
+    });
+    expect(scrollSpy).toHaveBeenCalled();
+    window.removeEventListener(SCROLL_IMPULSE_EVENT, scrollSpy);
+    vi.unstubAllGlobals();
   });
 });

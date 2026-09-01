@@ -5,6 +5,7 @@ import NavBar from "@/components/NavBar";
 import type { ToolModule } from "@/lib/tools/registry";
 
 let configured = true;
+let mockPathname = "/";
 
 vi.mock("@/features/backdoor/api", () => ({
   get API_CONFIGURED() {
@@ -13,7 +14,7 @@ vi.mock("@/features/backdoor/api", () => ({
 }));
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/",
+  usePathname: () => mockPathname,
 }));
 
 const tools: ToolModule[] = [];
@@ -27,6 +28,7 @@ describe("NavBar 锚点化", () => {
     cleanup();
     vi.restoreAllMocks();
     window.history.replaceState(null, "", "/");
+    mockPathname = "/";
   });
 
   beforeEach(() => {
@@ -56,6 +58,39 @@ describe("NavBar 锚点化", () => {
     expect(archive.getAttribute("aria-current")).toBe("page");
     const home = screen.getByRole("link", { name: "主页" });
     expect(home.getAttribute("aria-current")).not.toBe("page");
+  });
+
+  it("SECTION_CHANGE_EVENT 同步选中态（deck replaceState 翻页后）", () => {
+    render(<NavBar siteName="枝堇" tools={tools} />);
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("sumire:section-change", { detail: { navKey: "assets" } }),
+      );
+    });
+    const assets = screen.getByRole("link", { name: "素材" });
+    expect(assets.getAttribute("aria-current")).toBe("page");
+    const home = screen.getByRole("link", { name: "主页" });
+    expect(home.getAttribute("aria-current")).not.toBe("page");
+  });
+
+  it("非首页路由仅对应项高亮（/about 只亮档案）", () => {
+    mockPathname = "/about";
+    render(<NavBar siteName="枝堇" tools={tools} />);
+    const archive = screen.getByRole("link", { name: "档案" });
+    expect(archive.getAttribute("href")).toBe("/about");
+    expect(archive.getAttribute("aria-current")).toBe("page");
+    // 其余不亮
+    for (const label of ["主页", "素材", "日历"]) {
+      expect(screen.getByRole("link", { name: label }).getAttribute("aria-current")).not.toBe("page");
+    }
+  });
+
+  it("非首页路由锚点转独立路由（/calendar 页 href 为 /calendar）", () => {
+    mockPathname = "/calendar";
+    render(<NavBar siteName="枝堇" tools={tools} />);
+    const calendar = screen.getByRole("link", { name: "日历" });
+    expect(calendar.getAttribute("href")).toBe("/calendar");
+    expect(calendar.getAttribute("aria-current")).toBe("page");
   });
 
   it("未配置 API 无「日历」项", () => {

@@ -33,6 +33,13 @@ afterEach(() => {
 });
 
 describe("DayDetailDialog 只读模式", () => {
+  it("打开时锁定背景滚动（供全站弹层屏蔽整页翻页），关闭时恢复", () => {
+    const { rerender } = render(<DayDetailDialog open date="2026-08-15" entries={[]} readOnly onClose={() => {}} />);
+    expect(document.body.style.overflow).toBe("hidden");
+    rerender(<DayDetailDialog open={false} date="2026-08-15" entries={[]} readOnly onClose={() => {}} />);
+    expect(document.body.style.overflow).toBe("");
+  });
+
   it("展示空态文案", () => {
     render(<DayDetailDialog open date="2026-08-15" entries={[]} readOnly onClose={() => {}} />);
     expect(screen.getByText("这一天书屋静悄悄的。")).toBeTruthy();

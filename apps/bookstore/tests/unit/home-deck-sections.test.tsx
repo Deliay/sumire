@@ -37,15 +37,17 @@ describe("首页屏组件", () => {
     expect(screen.getByText(profile.displayName)).toBeTruthy();
   });
 
-  it("ArchiveSection 单数屏立绘在左、双数屏在右（order 类）", () => {
+  it("ArchiveSection 单数屏立绘在左、双数屏在右（桌面 order 类）", () => {
     const odd = render(<ArchiveSection part={1} profile={profile} portraitAssets={portraits} />);
     const oddGrid = odd.container.querySelector("section .grid")!;
-    expect(oddGrid.firstElementChild?.className).toContain("hidden lg:block");
+    // 立绘容器在桌面为第一列（order-1）
+    expect(oddGrid.firstElementChild?.className).toContain("lg:order-1");
     odd.unmount();
 
     const even = render(<ArchiveSection part={2} profile={profile} portraitAssets={portraits} />);
     const evenGrid = even.container.querySelector("section .grid")!;
-    expect(evenGrid.lastElementChild?.className).toContain("hidden lg:block");
+    // 双数屏立绘在桌面为第二列（order-2）
+    expect(evenGrid.firstElementChild?.className).toContain("lg:order-2");
   });
 
   it("AssetsSection 含 AssetGallery 与 Footer", () => {

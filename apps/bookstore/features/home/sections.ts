@@ -48,3 +48,12 @@ export const SECTIONS: SectionDef[] = [
 export function visibleSections(apiConfigured: boolean): SectionDef[] {
   return SECTIONS.filter((s) => s.id !== "calendar" || apiConfigured);
 }
+
+/** 首页整页滚动站切换事件名（deck → NavBar 选中态同步，replaceState 不触发 hashchange 故用自定义事件）。 */
+export const SECTION_CHANGE_EVENT = "sumire:section-change";
+
+/** 站切换事件载荷。 */
+export interface SectionChangeDetail {
+  /** 当前站的 navKey（首页/档案/日历/素材）。 */
+  navKey: NavKey;
+}

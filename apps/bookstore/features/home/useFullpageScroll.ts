@@ -9,16 +9,19 @@ import {
   nextIndex,
   type GestureState,
 } from "@/features/home/fullpage";
-import type { SectionDef } from "@/features/home/sections";
+import type { SectionDef, SectionChangeDetail } from "@/features/home/sections";
+import { SECTION_CHANGE_EVENT } from "@/features/home/sections";
 
 /** 翻页转场时长（ms）。 */
 const TRANSITION_MS = 800;
-/** reduced-motion 下的转场时长（ms）。 */
-const TRANSITION_REDUCED_MS = 0;
+/** reduced-motion 下的淡切转场时长（ms）。 */
+const TRANSITION_REDUCED_MS = 200;
 /** free 模式回收为 deck 的死区（px）。 */
 const BOUNDARY_DEADZONE = 2;
 /** 冲量事件名。 */
 export const IMPULSE_EVENT = "sumire:flow-impulse";
+/** free 模式滚动速度冲量事件名（连续喂入）。 */
+export const SCROLL_IMPULSE_EVENT = "sumire:flow-scroll";
 
 export interface FullpageScrollConfig {
   /** 可见站序列（已按 API_CONFIGURED 过滤）。 */
@@ -60,6 +63,7 @@ export function useFullpageScroll({
   const touchStartRef = useRef<{ y: number; timestamp: number } | null>(null);
   const lastImpulseTimeRef = useRef(0);
   const lastScrollTopRef = useRef(0);
+  const lastScrollTimeRef = useRef(0);
   const isFirstRenderRef = useRef(true);
 
   const transitionMs = reduce ? TRANSITION_REDUCED_MS : TRANSITION_MS;
@@ -81,8 +85,16 @@ export function useFullpageScroll({
       indexRef.current = clamped;
       setIndexState(clamped);
       onIndexChange?.(clamped);
+      const section = sections[clamped];
+      if (section) {
+        window.dispatchEvent(
+          new CustomEvent<SectionChangeDetail>(SECTION_CHANGE_EVENT, {
+            detail: { navKey: section.navKey },
+          }),
+        );
+      }
     },
-    [sections.length, onIndexChange],
+    [sections, onIndexChange],
   );
 
   /** 派发冲量事件（供 GlowParticles 消费），reduced-motion 不派发。 */
@@ -123,8 +135,11 @@ export function useFullpageScroll({
       if (freeRef.current) {
         freeRef.current = false;
         setFree(false);
-        if (containerRef.current) containerRef.current.style.overflow = "hidden";
-        window.scrollTo(0, 0);
+        if (containerRef.current) {
+          containerRef.current.style.overflow = "hidden";
+          containerRef.current.scrollTop = 0;
+        }
+        lastScrollTopRef.current = 0;
       }
       dispatchImpulse(i > indexRef.current ? -1 : 1);
       updateIndex(i);
@@ -157,8 +172,31 @@ export function useFullpageScroll({
     if (section && window.location.hash !== section.hash) {
       history.replaceState(null, "", section.hash);
     }
+    // reduced-motion 用短促淡切：先清 opacity 过渡瞬时置底，再淡入
+    if (reduce && trackRef.current) {
+      const track = trackRef.current;
+      track.style.transition = `opacity ${TRANSITION_REDUCED_MS}ms ease`;
+      track.style.opacity = "0";
+      requestAnimationFrame(() => {
+        track.style.opacity = "1";
+      });
+    }
     applyTransform(indexRef.current, true);
-  }, [index, sections, applyTransform]);
+  }, [index, sections, applyTransform, reduce, trackRef]);
+
+  // 响应 hash 变化（导航锚点点击 / 浏览器前进后退）：解析 hash 定位到对应站
+  useEffect(() => {
+    const onHashChange = () => {
+      if (blockedRef.current) return;
+      const hash = window.location.hash;
+      const match = sections.findIndex((s) => `#${s.id}` === hash);
+      if (match >= 0 && match !== indexRef.current) {
+        goTo(match);
+      }
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, [sections, goTo]);
 
   // 事件监听（window 级被动，不 preventDefault）
   useEffect(() => {
@@ -219,7 +257,26 @@ export function useFullpageScroll({
         freeRef.current = false;
         setFree(false);
         el.style.overflow = "hidden";
+        lastScrollTopRef.current = 0;
         updateIndex(Math.max(0, indexRef.current - 1));
+        return;
+      }
+      // free 模式滚动速度 → 连续喂入粒子冲量（沿滚动方向）
+      if (!reduce) {
+        const dt = Math.max(1, performance.now() - lastScrollTimeRef.current);
+        const velocity = ((scrollTop - lastScrollTopRef.current) * 1000) / dt;
+        lastScrollTimeRef.current = performance.now();
+        if (Math.abs(velocity) > 1) {
+          const now = performance.now();
+          if (now - lastImpulseTimeRef.current > 30) {
+            lastImpulseTimeRef.current = now;
+            window.dispatchEvent(
+              new CustomEvent(SCROLL_IMPULSE_EVENT, {
+                detail: { velocity },
+              }),
+            );
+          }
+        }
       }
       lastScrollTopRef.current = scrollTop;
     };
@@ -239,7 +296,7 @@ export function useFullpageScroll({
       window.removeEventListener("keydown", onKeyDown);
       container?.removeEventListener("scroll", onScroll);
     };
-  }, [turn, goTo, updateIndex, sections.length, containerRef]);
+  }, [turn, goTo, updateIndex, sections.length, containerRef, reduce]);
 
   // 弹层打开/关闭屏蔽翻页
   const setLocked = useCallback((locked: boolean) => {

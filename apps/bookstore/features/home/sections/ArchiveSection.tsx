@@ -17,17 +17,23 @@ export default function ArchiveSection({
 }) {
   const title = ARCHIVE_TITLES[part - 1]?.title ?? "";
   const portrait = portraitAssets[(part - 1) % portraitAssets.length];
+  // P1 大屏立绘与 ProfilePart 内立绘不同源：ProfilePart 用 standing-02（与 /about 一致），避免同图并排
+  const profilePortrait = portraitAssets.find((a) => a.id === "standing-02") ?? portrait;
   const left = part % 2 === 1;
+
   const content = (
-    <div className="flex min-h-0 flex-col justify-center gap-4">
-      <h2 className="font-serif text-2xl font-semibold text-ink sm:text-3xl">{title}</h2>
-      {part === 1 && <ProfilePart profile={profile} portrait={portrait} />}
+    <div className="flex min-h-0 flex-col justify-center gap-4 lg:gap-5">
+      {part === 1 && (
+        <h2 className="font-serif text-2xl font-semibold text-ink sm:text-3xl">{title}</h2>
+      )}
+      {part === 1 && <ProfilePart profile={profile} portrait={profilePortrait} />}
       {part === 2 && <StoryPart profile={profile} />}
       {part === 3 && <TastePart profile={profile} />}
       {part === 4 && <JourneyPart profile={profile} />}
       {part === 5 && <TriviaPart profile={profile} />}
     </div>
   );
+
   const artwork = portrait ? (
     <div className="pointer-events-none relative flex h-full items-center justify-center">
       <Image
@@ -43,17 +49,15 @@ export default function ArchiveSection({
   return (
     <section className="relative flex h-svh flex-col overflow-hidden px-5 py-6 lg:px-10">
       <div className="grid h-full min-h-0 grid-cols-1 gap-4 lg:grid-cols-2">
-        {left ? (
-          <>
-            <div className="hidden lg:block">{artwork}</div>
-            <div className="flex min-h-0 items-center overflow-y-auto lg:justify-center">{content}</div>
-          </>
-        ) : (
-          <>
-            <div className="flex min-h-0 items-center overflow-y-auto lg:justify-center">{content}</div>
-            <div className="hidden lg:block">{artwork}</div>
-          </>
-        )}
+        {/* 移动端立绘在上、内容在下；桌面单数屏立绘左双数屏立绘右 */}
+        <div className={`order-1 h-[42svh] lg:h-auto ${left ? "lg:order-1" : "lg:order-2"}`}>{artwork}</div>
+        <div
+          className={`order-2 flex min-h-0 items-center lg:justify-center ${
+            left ? "lg:order-2" : "lg:order-1"
+          }`}
+        >
+          {content}
+        </div>
       </div>
     </section>
   );

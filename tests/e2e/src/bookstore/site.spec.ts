@@ -25,6 +25,22 @@ test.describe("bookstore 主页（整页滚动叙事容器）", () => {
     await expect(page.getByText("档案")).toBeVisible();
   });
 
+  test("site-home-nav-click: 首页内点击导航「档案」锚点平滑翻页至档案站", async ({ page }) => {
+    await page.goto(BASE);
+    await page.getByRole("link", { name: "档案" }).click();
+    await expect(page.getByText(/信息 · Profile|设定 · Story|喜好 · Taste/).first()).toBeVisible();
+  });
+
+  test("site-home-nav-active: 翻页后导航选中态同步（滚动到素材站 → 素材高亮）", async ({ page }) => {
+    await page.goto(BASE);
+    // 滚轮多次到素材站
+    for (let i = 0; i < 6; i++) {
+      await page.mouse.wheel(0, 500);
+      await page.waitForTimeout(900);
+    }
+    await expect(page.getByRole("link", { name: "素材" })).toHaveAttribute("aria-current", "page");
+  });
+
   test("site-home-live-status: 直播状态组件存在且链接指向直播间", async ({ page }) => {
     await page.goto(BASE);
     const link = page.getByRole("link", { name: /直播中|未开播|直播状态/ });

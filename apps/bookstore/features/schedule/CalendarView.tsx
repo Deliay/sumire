@@ -148,6 +148,7 @@ export default function CalendarView({ entries, onRangeChange, onSelectDay, vari
   const today = todayStr();
   const dragRef = useRef(createDrag());
   const lastXRef = useRef<number | null>(null);
+  const suppressClickRef = useRef(false);
   const immersive = variant === "immersive";
 
   const entriesByDate = useMemo(() => {
@@ -358,8 +359,20 @@ export default function CalendarView({ entries, onRangeChange, onSelectDay, vari
         data-testid={immersive ? "immersive-grid" : undefined}
         onPointerDown={immersive ? (e) => { dragRef.current = createDrag(); lastXRef.current = e.clientX; (e.target as HTMLElement).setPointerCapture?.(e.pointerId); } : undefined}
         onPointerMove={immersive ? (e) => { if (lastXRef.current !== null) feedPointer(dragRef.current, e.clientX - lastXRef.current); lastXRef.current = e.clientX; } : undefined}
-        onPointerUp={immersive ? () => { lastXRef.current = null; const d = release(dragRef.current); if (d === 1) goMonth(1); else if (d === -1) goMonth(-1); } : undefined}
-        className={`grid h-full min-h-0 flex-1 grid-cols-7 grid-rows-6 gap-1 ${immersive ? "touch-pan-y cursor-grab" : ""}`}
+        onPointerUp={immersive ? () => {
+          lastXRef.current = null;
+          const d = release(dragRef.current);
+          if (d !== 0) {
+            suppressClickRef.current = true;
+            if (d === 1) goMonth(1);
+            else if (d === -1) goMonth(-1);
+            // 抑制本次点击触发的日期选择
+            setTimeout(() => { suppressClickRef.current = false; }, 0);
+          }
+        } : undefined}
+        className={`grid h-full min-h-0 flex-1 grid-cols-7 grid-rows-6 gap-1 ${
+          immersive ? "touch-pan-y cursor-grab px-12 sm:px-16" : ""
+        }`}
       >
         {cells.map((cell) => (
           <DayCell
@@ -370,7 +383,7 @@ export default function CalendarView({ entries, onRangeChange, onSelectDay, vari
             entries={entriesByDate.get(cell.dateStr) ?? []}
             today={today}
             maxSummaries={MONTH_MAX_SUMMARIES}
-            onSelectDay={onSelectDay}
+            onSelectDay={immersive ? (date) => { if (!suppressClickRef.current) onSelectDay?.(date); } : onSelectDay}
             variant={variant}
           />
         ))}

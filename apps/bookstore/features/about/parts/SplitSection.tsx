@@ -1,4 +1,5 @@
 import Image from "next/image";
+import ParallaxLayer from "@/features/home/ParallaxLayer";
 import type { Asset } from "@/lib/content";
 import { assetOriginalWebpUrl } from "@/lib/content/shared";
 
@@ -14,7 +15,8 @@ interface SplitSectionProps {
 /**
  * 档案立绘分栏布局（可复用）：桌面 grid 左右分栏——单数屏立绘在左、双数屏立绘在右，
  * 移动端立绘在上、内容在下（内容列可滚动兜底）。不约束整屏高度（流式页 / 整页站均可用）。
- * 立绘列以 object-cover object-top 裁剪呈现、作氛围衬底不展示全身像。
+ * 立绘列以 object-cover object-top 裁剪呈现、作氛围衬底不展示全身像；外包 ParallaxLayer 接视差
+ * （pointermove + 传感器双输入、rAF 插值，与首屏口径一致，公开站氛围层不降级 reduced-motion）。
  */
 export default function SplitSection({ portrait, portraitLeft, children }: SplitSectionProps) {
   return (
@@ -22,13 +24,15 @@ export default function SplitSection({ portrait, portraitLeft, children }: Split
       {/* 移动端立绘在上、内容在下；桌面单数屏立绘左双数屏立绘右；桌面立绘列约束在屏高内完整显示 */}
       <div className={`order-1 h-[40svh] min-h-0 lg:h-full ${portraitLeft ? "lg:order-1" : "lg:order-2"}`}>
         <div className="pointer-events-none relative h-full w-full overflow-hidden">
-          <Image
-            src={assetOriginalWebpUrl(portrait)}
-            alt={portrait.title}
-            width={1000}
-            height={2000}
-            className="h-full w-full object-cover object-top"
-          />
+          <ParallaxLayer className="h-full w-full">
+            <Image
+              src={assetOriginalWebpUrl(portrait)}
+              alt={portrait.title}
+              width={1000}
+              height={2000}
+              className="h-full w-full object-cover object-top"
+            />
+          </ParallaxLayer>
         </div>
       </div>
       <div

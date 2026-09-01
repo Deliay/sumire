@@ -88,7 +88,8 @@ describe("FullpageDeck", () => {
 
   it("SectionRail 当前站变化高亮正确、点击节点触发跳转", () => {
     renderDeck();
-    const link = screen.getByText("素材");
+    // 指示器节点无文字、用 aria-label 定位（右中侧导航仅圆点）
+    const link = screen.getByLabelText("素材");
     fireEvent.click(link);
     // 素材为末站，点击后应滚动到素材站
     const sections = document.querySelectorAll("[data-section]");

@@ -51,10 +51,12 @@ test.describe("bookstore 主页（整页滚动叙事容器）", () => {
     await expect(page.getByText(/了解更多 →/)).toHaveCount(0);
   });
 
-  test("site-home-indicator: 存在位置指示器（SectionRail）", async ({ page }) => {
+  test("site-home-indicator: 存在位置指示器（SectionRail，仅圆点无文字）", async ({ page }) => {
     await page.goto(BASE);
-    await expect(page.getByRole("navigation", { name: "页面位置" })).toBeVisible();
-    await expect(page.getByRole("navigation", { name: "页面位置" }).getByText("档案")).toBeVisible();
+    const rail = page.getByRole("navigation", { name: "页面位置" });
+    await expect(rail).toBeVisible();
+    // 指示器仅圆点节点（无文字），用 aria-label 定位「档案」主节点
+    await expect(rail.getByRole("link", { name: "档案" })).toBeVisible();
   });
 
   test("site-home-nav-click: 首页内点击导航「档案」锚点平滑翻页至档案站", async ({ page }) => {

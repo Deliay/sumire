@@ -64,4 +64,24 @@ describe("首页屏组件", () => {
     expect(screen.getByText(assets[0]!.title)).toBeTruthy();
     expect(document.querySelector("footer")).toBeTruthy();
   });
+
+  it("档案各屏立绘均用 standing 立绘（P3 不用插画）且非相邻同图", () => {
+    for (let part = 1; part <= 5; part++) {
+      render(<ArchiveSection part={part} profile={profile} portraitAssets={portraits} />);
+      const imgs = document.querySelectorAll("section img");
+      // 每屏大屏立绘一张（P1 bare 内容列无缩略图），src 指向 standing 立绘 webp
+      expect(imgs.length).toBe(1);
+      const src = imgs[0]!.getAttribute("src") ?? "";
+      expect(src).toContain("/assets/original/standing-");
+      expect(src).not.toContain("illustration");
+      cleanup();
+    }
+  });
+
+  it("档案各屏立绘层外包视差容器（ParallaxLayer）", () => {
+    render(<ArchiveSection part={2} profile={profile} portraitAssets={portraits} />);
+    // SplitSection 立绘外包 ParallaxLayer（data-testid=parallax-layer）
+    const layer = document.querySelector('[data-testid="parallax-layer"]');
+    expect(layer).toBeTruthy();
+  });
 });

@@ -8,7 +8,7 @@ export default function Home() {
   const heroAsset = getAssetById("standing-01");
   if (!heroAsset) throw new Error("missing asset: standing-01");
 
-  const archivePortraits = ["standing-01", "standing-02", "illustration-01"]
+  const archivePortraits = ["standing-01", "standing-02"]
     .map((id) => getAssetById(id))
     .filter((a): a is NonNullable<typeof a> => a !== null);
 

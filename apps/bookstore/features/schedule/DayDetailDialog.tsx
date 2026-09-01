@@ -180,7 +180,7 @@ export default function DayDetailDialog({
   if (readOnly) {
     return (
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-5 backdrop-blur-sm"
+        className="fixed inset-0 z-50 flex items-center justify-center px-5"
         role="dialog"
         aria-modal="true"
         aria-labelledby="day-detail-title"
@@ -188,6 +188,7 @@ export default function DayDetailDialog({
           if (e.target === e.currentTarget) handleClose();
         }}
       >
+        {/* 公开站当日详情：悬浮面板形态，不整屏变灰/毛玻璃，保留可点击外部关闭 */}
         <div className="w-full max-w-md rounded-xl border border-vine/50 bg-paper p-6 shadow-xl">
           <div className="flex items-center justify-between">
             <h2 id="day-detail-title" className="font-serif text-xl font-semibold text-ink-on-paper">

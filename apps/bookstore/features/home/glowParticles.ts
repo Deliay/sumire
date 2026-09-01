@@ -45,7 +45,7 @@ export interface Flow {
 }
 
 /** 冲量强度上限（px/s），防连续叠加超限。 */
-export const IMPULSE_CAP = 300;
+export const IMPULSE_CAP = 600;
 
 /** 冲量低于该绝对速度视为归零。 */
 const FLOW_EPSILON = 0.5;
@@ -130,7 +130,7 @@ export function createFlow(): Flow {
 export function impulse(flow: Flow, direction: number, strength: number): Flow {
   const mag = Math.min(Math.abs(strength), IMPULSE_CAP);
   const target = direction < 0 ? mag : -mag;
-  const vy = Math.max(-IMPULSE_CAP, Math.min(IMPULSE_CAP, flow.vy + (target - flow.vy) * 0.5));
+  const vy = Math.max(-IMPULSE_CAP, Math.min(IMPULSE_CAP, flow.vy + (target - flow.vy) * 0.9));
   return { vx: flow.vx, vy };
 }
 

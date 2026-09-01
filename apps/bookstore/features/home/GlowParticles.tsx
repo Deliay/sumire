@@ -26,7 +26,7 @@ const FALLBACK_COLORS = ["#8b5fd6", "#b4a6bf", "#7fb0e6"];
 /** 冲量衰减半衰期（秒）。 */
 const FLOW_HALF_LIFE = 0.5;
 /** 单次翻页冲量强度（px/s）。 */
-const IMPULSE_STRENGTH = 260;
+const IMPULSE_STRENGTH = 520;
 
 interface GlowParticlesProps {
   /** 便于测试注入的纯函数（默认取模块真实实现）。 */

@@ -148,6 +148,27 @@ test.describe("bookstore 主页（整页滚动叙事容器）", () => {
     await expect(canvas).toHaveClass(/pointer-events-none/);
   });
 
+  test("site-home-archive-webp: 档案屏大屏立绘 webp 均正常加载（无 404）", async ({ page }) => {
+    const failed: string[] = [];
+    page.on("response", (res) => {
+      if (res.status() >= 400 && res.url().includes("/assets/original/")) failed.push(res.url());
+    });
+    await page.goto(`${BASE}/#archive-5`);
+    await page.waitForTimeout(1200);
+    // 逐个翻页遍历档案屏，触发各屏大屏立绘 lazy 加载
+    for (const id of ["archive-5", "archive-4", "archive-3", "archive-2", "archive-1"]) {
+      await page.evaluate((sid) => {
+        window.history.pushState(null, "", `#${sid}`);
+        window.dispatchEvent(new HashChangeEvent("hashchange"));
+      }, id);
+      await page.waitForTimeout(700);
+    }
+    // 各档案屏大屏立绘 img（original webp）应有加载（DOM 中 standing/illustration 的 original 图）
+    const portraitImgs = page.locator("[data-section^='archive'] img[src*='/assets/original/']");
+    await expect(portraitImgs.first()).toHaveCount(1);
+    expect(failed).toEqual([]);
+  });
+
   test("site-about-fields: /about 展示五组档案内容", async ({ page }) => {
     await page.goto(`${BASE}/about`);
     await expect(page.getByText("通俗文学")).toBeVisible();

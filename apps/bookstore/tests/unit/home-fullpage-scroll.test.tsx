@@ -100,6 +100,32 @@ describe("useFullpageScroll", () => {
     expect(track.dataset.index).toBe("1");
   });
 
+  it("下翻（下一站）转场用下坠缓入曲线", () => {
+    render(<Harness />);
+    const track = document.querySelector("[data-testid='track']") as HTMLElement;
+    act(() => {
+      window.dispatchEvent(new WheelEvent("wheel", { deltaY: 200 }));
+    });
+    // 向下滚 → direction -1 → 下坠缓入（加速下滑）
+    expect(track.style.transition).toContain("0.22, 0.9");
+  });
+
+  it("上翻（上一站）转场用上浮缓出曲线", () => {
+    // 先落到 index 1 再上翻
+    let t = 1000;
+    vi.stubGlobal("performance", { now: () => (t += 1000) });
+    render(<Harness />);
+    const track = document.querySelector("[data-testid='track']") as HTMLElement;
+    act(() => {
+      window.dispatchEvent(new WheelEvent("wheel", { deltaY: 200 }));
+    });
+    act(() => {
+      window.dispatchEvent(new WheelEvent("wheel", { deltaY: -200 }));
+    });
+    expect(track.style.transition).toContain("0.22, 0.2");
+    vi.unstubAllGlobals();
+  });
+
   it("键盘 ArrowDown/ArrowUp 翻页", () => {
     render(<Harness />);
     const track = document.querySelector("[data-testid='track']") as HTMLElement;

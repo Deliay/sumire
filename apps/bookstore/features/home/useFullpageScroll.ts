@@ -64,6 +64,7 @@ export function useFullpageScroll({
   const lastImpulseTimeRef = useRef(0);
   const lastScrollTopRef = useRef(0);
   const lastScrollTimeRef = useRef(0);
+  const lastDirectionRef = useRef<TurnIntent>(-1);
   const isFirstRenderRef = useRef(true);
   // sections 引用不稳定（每次渲染新数组），用 ref 稳定供 effect 读取
   const sectionsRef = useRef(sections);
@@ -92,7 +93,12 @@ export function useFullpageScroll({
         }
         return;
       }
-      track.style.transition = animated ? `transform ${transitionMs}ms cubic-bezier(0.22,1,0.36,1)` : "none";
+      // 方向感知转场：下翻（下一站）呈「下坠」缓入（起始略慢、加速下滑），上翻呈「上浮」缓出
+      const drop = lastDirectionRef.current === -1;
+      const ease = drop
+        ? "cubic-bezier(0.22, 0.9, 0.36, 0.95)"
+        : "cubic-bezier(0.22, 0.2, 0.36, 1)";
+      track.style.transition = animated ? `transform ${transitionMs}ms ${ease}` : "none";
       track.style.transform = `translate3d(0, ${-i * 100}svh, 0)`;
     },
     [reduce, transitionMs, trackRef],
@@ -143,6 +149,7 @@ export function useFullpageScroll({
       }
       const target = nextIndex(indexRef.current, direction, sections.length);
       if (target === indexRef.current) return;
+      lastDirectionRef.current = direction;
       dispatchImpulse(direction);
       updateIndex(target);
     },
@@ -162,6 +169,7 @@ export function useFullpageScroll({
         lastScrollTopRef.current = 0;
       }
       dispatchImpulse(i > indexRef.current ? -1 : 1);
+      lastDirectionRef.current = i > indexRef.current ? -1 : 1;
       updateIndex(i);
     },
     [containerRef, dispatchImpulse, updateIndex],

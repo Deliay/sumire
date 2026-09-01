@@ -26,7 +26,7 @@ export default function ArchiveSection({
       {part === 1 && (
         <h2 className="font-serif text-2xl font-semibold text-ink sm:text-3xl">{title}</h2>
       )}
-      {part === 1 && <ProfilePart profile={profile} portrait={profilePortrait} />}
+      {part === 1 && <ProfilePart profile={profile} portrait={profilePortrait} variant="bare" />}
       {part === 2 && <StoryPart profile={profile} />}
       {part === 3 && <TastePart profile={profile} />}
       {part === 4 && <JourneyPart profile={profile} />}

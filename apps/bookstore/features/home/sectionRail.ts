@@ -30,7 +30,7 @@ export function buildTree(sections: SectionDef[]): RailNode[] {
   for (const id of order) {
     const isArchive = id === ("archive" as SectionId);
     const def = sections.find((s) => s.id === id);
-    const label = isArchive ? "档案" : (def?.title ?? "");
+    const label = isArchive ? "档案" : (def?.railLabel ?? def?.title ?? "");
     const node: RailNode = {
       id: isArchive ? "archive" : (def?.navKey ?? id),
       label,
@@ -39,7 +39,7 @@ export function buildTree(sections: SectionDef[]): RailNode[] {
     if (isArchive && archiveKids.length > 0) {
       node.children = archiveKids.map((s) => ({
         id: s.id,
-        label: s.title,
+        label: s.railLabel,
         hash: s.hash,
       }));
     }

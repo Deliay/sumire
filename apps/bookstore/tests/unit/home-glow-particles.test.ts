@@ -7,6 +7,7 @@ import {
   createFlow,
   impulse,
   decayFlow,
+  IMPULSE_CAP,
   type Particle,
   type StepOptions,
   type Flow,
@@ -132,13 +133,12 @@ describe("createFlow / impulse / decayFlow（冲量流场）", () => {
   });
 
   it("impulse 强度钳制上限，连续注入不超限", () => {
-    const cap = 300;
     const once = impulse(createFlow(), -1, 99999);
-    expect(Math.abs(once.vy)).toBeLessThanOrEqual(cap);
+    expect(Math.abs(once.vy)).toBeLessThanOrEqual(IMPULSE_CAP);
     // 连续注入多次
     let f = createFlow();
-    for (let i = 0; i < 10; i++) f = impulse(f, -1, 300);
-    expect(Math.abs(f.vy)).toBeLessThanOrEqual(cap);
+    for (let i = 0; i < 10; i++) f = impulse(f, -1, IMPULSE_CAP);
+    expect(Math.abs(f.vy)).toBeLessThanOrEqual(IMPULSE_CAP);
   });
 
   it("decayFlow 单调衰减最终归零", () => {

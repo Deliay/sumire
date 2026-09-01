@@ -37,6 +37,14 @@ describe("首页屏组件", () => {
     expect(screen.getByText(profile.displayName)).toBeTruthy();
   });
 
+  it("ArchiveSection part1 内容列用 bare 变体（无立绘缩略图、无 LaceFrame）", () => {
+    render(<ArchiveSection part={1} profile={profile} portraitAssets={portraits} />);
+    // ProfilePart bare：不渲染缩略图 <img>（仅左侧大屏立绘一张），且无 LaceFrame
+    const imgs = document.querySelectorAll("section img");
+    expect(imgs.length).toBe(1); // 仅左侧大屏立绘
+    expect(document.querySelector(".lace-x")).toBeNull();
+  });
+
   it("ArchiveSection 单数屏立绘在左、双数屏在右（桌面 order 类）", () => {
     const odd = render(<ArchiveSection part={1} profile={profile} portraitAssets={portraits} />);
     const oddGrid = odd.container.querySelector("section .grid")!;

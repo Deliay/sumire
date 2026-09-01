@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useMediaQuery } from "@/lib/useMediaQuery";
 import {
   createGestureState,
   feedTouch,
@@ -15,8 +14,6 @@ import { SECTION_CHANGE_EVENT, NAVIGATE_EVENT } from "@/features/home/sections";
 
 /** 翻页转场时长（ms）。 */
 const TRANSITION_MS = 800;
-/** reduced-motion 下的淡切转场时长（ms）。 */
-const TRANSITION_REDUCED_MS = 200;
 /** free 模式回收为 deck 的死区（px）。 */
 const BOUNDARY_DEADZONE = 2;
 /** 冲量事件名。 */
@@ -53,7 +50,6 @@ export function useFullpageScroll({
   containerRef,
   onIndexChange,
 }: FullpageScrollConfig) {
-  const reduce = useMediaQuery("(prefers-reduced-motion: reduce)");
   const [index, setIndexState] = useState(0);
   const [free, setFree] = useState(false);
   const [blocked, setBlocked] = useState(false);
@@ -77,7 +73,7 @@ export function useFullpageScroll({
     sectionsRef.current = sections;
   }, [sections]);
 
-  const transitionMs = reduce ? TRANSITION_REDUCED_MS : TRANSITION_MS;
+  const transitionMs = TRANSITION_MS;
 
   // 视口高以轨道/容器实际 clientHeight 为准（与各 section h-svh 对齐），
   // 而非 window.innerHeight（移动端 svh 与 innerHeight/dvh 在工具栏显隐时可能差 60~100px，会造成逐站错位）。
@@ -117,7 +113,7 @@ export function useFullpageScroll({
   }, [trackRef, containerRef, cancelAnim]);
 
   /**
-   * 翻页转场：非 reduced 用 rAF 驱动 px 插值（easeInOutCubic + 方向感知缓入缓出），
+   * 翻页转场：rAF 驱动 px 插值（方向感知缓入缓出），
    * 每帧派发「流场速度」事件使粒子层随页面平移耦合（动画结束即停，冲量滞留衰减作余韵）。
    */
   const applyTransform = useCallback(
@@ -125,23 +121,6 @@ export function useFullpageScroll({
       const track = trackRef.current;
       if (!track) return;
       cancelAnim();
-      if (reduce) {
-        // reduced-motion：transform 瞬时切位（px），opacity 短促淡切（≤200ms）
-        currentOffsetPxRef.current = -i * getVh();
-        track.style.transition = "none";
-        track.style.opacity = "1";
-        track.style.transform = `translate3d(0, ${currentOffsetPxRef.current}px, 0)`;
-        if (animated) {
-          track.style.opacity = "0";
-          animRef.current = requestAnimationFrame(() => {
-            if (!track) return;
-            track.style.transition = `opacity ${TRANSITION_REDUCED_MS}ms ease`;
-            track.style.opacity = "1";
-            animRef.current = null;
-          });
-        }
-        return;
-      }
       if (!animated) {
         // 首渲染 / hash 直落：瞬时定位，无动画
         currentOffsetPxRef.current = -i * getVh();
@@ -191,7 +170,7 @@ export function useFullpageScroll({
       };
       animRef.current = requestAnimationFrame(step);
     },
-    [reduce, transitionMs, trackRef, cancelAnim, getVh],
+    [transitionMs, trackRef, cancelAnim, getVh],
   );
 
   const updateIndex = useCallback(
@@ -213,10 +192,9 @@ export function useFullpageScroll({
     [sections, onIndexChange],
   );
 
-  /** 派发冲量事件（供 GlowParticles 消费），reduced-motion 不派发。 */
+  /** 派发冲量事件（供 GlowParticles 消费）。 */
   const dispatchImpulse = useCallback(
     (direction: TurnIntent) => {
-      if (reduce) return;
       const now = performance.now();
       if (now - lastImpulseTimeRef.current < 300) return;
       lastImpulseTimeRef.current = now;
@@ -224,7 +202,7 @@ export function useFullpageScroll({
         new CustomEvent<ImpulseDetail>(IMPULSE_EVENT, { detail: { direction } }),
       );
     },
-    [reduce],
+    [],
   );
 
   const turn = useCallback(
@@ -296,7 +274,7 @@ export function useFullpageScroll({
     if (section && window.location.hash !== section.hash) {
       history.replaceState(null, "", section.hash);
     }
-    // 转场：常规 transform 过渡；reduced-motion 为短促 opacity 淡切（applyTransform 内实现）
+    // 转场：rAF px 插值动画（applyTransform 内实现）
     applyTransform(indexRef.current, true);
   }, [index, applyTransform]);
 
@@ -419,20 +397,18 @@ export function useFullpageScroll({
         return;
       }
       // free 模式滚动速度 → 连续喂入粒子冲量（沿滚动方向）
-      if (!reduce) {
-        const dt = Math.max(1, performance.now() - lastScrollTimeRef.current);
-        const velocity = ((scrollTop - lastScrollTopRef.current) * 1000) / dt;
-        lastScrollTimeRef.current = performance.now();
-        if (Math.abs(velocity) > 1) {
-          const now = performance.now();
-          if (now - lastImpulseTimeRef.current > 30) {
-            lastImpulseTimeRef.current = now;
-            window.dispatchEvent(
-              new CustomEvent(SCROLL_IMPULSE_EVENT, {
-                detail: { velocity },
-              }),
-            );
-          }
+      const dt = Math.max(1, performance.now() - lastScrollTimeRef.current);
+      const velocity = ((scrollTop - lastScrollTopRef.current) * 1000) / dt;
+      lastScrollTimeRef.current = performance.now();
+      if (Math.abs(velocity) > 1) {
+        const now = performance.now();
+        if (now - lastImpulseTimeRef.current > 30) {
+          lastImpulseTimeRef.current = now;
+          window.dispatchEvent(
+            new CustomEvent(SCROLL_IMPULSE_EVENT, {
+              detail: { velocity },
+            }),
+          );
         }
       }
       lastScrollTopRef.current = scrollTop;
@@ -453,7 +429,7 @@ export function useFullpageScroll({
       window.removeEventListener("keydown", onKeyDown);
       container?.removeEventListener("scroll", onScroll);
     };
-  }, [turn, goTo, updateIndex, containerRef, reduce, isInsideScrollable, getVh]);
+  }, [turn, goTo, updateIndex, containerRef, isInsideScrollable, getVh]);
 
   // 弹层打开/关闭屏蔽翻页
   const setLocked = useCallback((locked: boolean) => {

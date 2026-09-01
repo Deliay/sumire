@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useMediaQuery } from "@/lib/useMediaQuery";
 import {
   SPAWN_BIAS,
   SPAWN_RADIUS,
@@ -61,7 +60,8 @@ function draw(ctx: CanvasRenderingContext2D, particles: Particle[], colors: stri
 
 /**
  * 背景光晕粒子层（Client）：Canvas 2D 主循环 spawn（指针偏置）→ step → draw。
- * DPR/resize 自适应、document.hidden 暂停、token 取色；reduced-motion 降级保留（减半降速去明灭）。
+ * DPR/resize 自适应、document.hidden 暂停、token 取色。
+ * 注：展示向公开站氛围层不降级 reduced-motion（粒子上限/明灭/冲量流场与常规一致）。
  */
 export default function GlowParticles({
   spawn = spawnPosition,
@@ -69,7 +69,6 @@ export default function GlowParticles({
   step = stepParticles,
   cap = maxParticles,
 }: GlowParticlesProps) {
-  const reduce = useMediaQuery("(prefers-reduced-motion: reduce)");
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -109,19 +108,14 @@ export default function GlowParticles({
     let hidden = document.hidden;
     let flow: Flow = createFlow();
 
-    const maxCount = () => {
-      const base = cap(w * h);
-      return reduce ? Math.max(4, Math.round(base / 2)) : base;
-    };
-    const opts: StepOptions = { speed: reduce ? 0.5 : 1, flicker: !reduce, dt: 1 / 60 };
+    const maxCount = () => cap(w * h);
+    const opts: StepOptions = { speed: 1, flicker: true, dt: 1 / 60 };
 
     const onPointer = (e: { clientX: number; clientY: number }) => {
       pointer = { x: e.clientX, y: e.clientY };
     };
 
     const onImpulse = (e: Event) => {
-      // reduced-motion 不注入冲量（流场恒零）
-      if (reduce) return;
       const detail = (e as CustomEvent<ImpulseDetail>).detail;
       if (detail && typeof detail.direction === "number") {
         flow = impulse(flow, detail.direction, IMPULSE_STRENGTH);
@@ -129,7 +123,6 @@ export default function GlowParticles({
     };
 
     const onScrollImpulse = (e: Event) => {
-      if (reduce) return;
       const detail = (e as CustomEvent<{ velocity: number }>).detail;
       if (detail && typeof detail.velocity === "number") {
         // velocity >0 = 向下滚 → 下坠（direction -1）
@@ -193,7 +186,7 @@ export default function GlowParticles({
       document.removeEventListener("visibilitychange", onVisibility);
       stop();
     };
-  }, [reduce, spawn, create, step, cap]);
+  }, [spawn, create, step, cap]);
 
   return (
     <canvas

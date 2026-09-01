@@ -1,5 +1,5 @@
 ---
-description: 首页视觉效果优化4期技术提案——纯前端变更：features/home 新增数据驱动站序列注册表（sections.ts，导航/指示器/容器同源）与自实现翻页引擎（fullpage.ts 纯函数：wheel/touch 手势聚合阈值、目标站索引、素材尾部自然滚动释放/回收边界；useFullpageScroll.ts 驱动 translate3d 轨道、键盘翻页、hash 同步、reduced-motion 降级为短促淡切；FullpageDeck.tsx 容器）；新增 SectionRail 竖向树状指示器（树模型纯函数 + 点击跳转）；GlowParticles 提升为整页常驻 fixed 层并新增滚动冲量（glowParticles.ts 新增全局流场冲量注入与指数衰减，翻页事件/自然滚动速度喂入，reduce 下不启用）；features/about 抽出五组内容组件（Profile/Story/Taste/Journey/Trivia）供档案五屏与 /about 复用，档案屏立绘左右交替（单左双右）；CalendarView 新增 variant="immersive"（直角中字全幅、左右全高翻月竖条按钮、calendarDrag.ts 纯函数拖拽翻月），后台保持 panel 默认不变；AssetGallery 全幅化；独立路由 /about /assets /calendar 保留复用同源组件；无后端/契约变更
+description: 首页视觉效果优化4期技术提案——纯前端变更：features/home 新增数据驱动站序列注册表（sections.ts，导航/指示器/容器同源）与自实现翻页引擎（fullpage.ts 纯函数：wheel/touch 手势聚合阈值、目标站索引、素材尾部自然滚动释放/回收边界；useFullpageScroll.ts 驱动 translate3d 轨道、键盘翻页、hash 同步；FullpageDeck.tsx 容器）；新增 SectionRail 竖向树状指示器（树模型纯函数 + 点击跳转）；GlowParticles 提升为整页常驻 fixed 层并新增滚动冲量（glowParticles.ts 新增全局流场冲量注入与指数衰减，翻页事件/自然滚动速度喂入）；features/about 抽出五组内容组件（Profile/Story/Taste/Journey/Trivia）供档案五屏与 /about 复用，档案屏立绘左右交替（单左双右）；CalendarView 新增 variant="immersive"（直角中字全幅、左右全高翻月竖条按钮、calendarDrag.ts 纯函数拖拽翻月），后台保持 panel 默认不变；AssetGallery 全幅化；独立路由 /about /assets /calendar 保留复用同源组件；无后端/契约变更
 type: Fleeting
 ---
 
@@ -26,7 +26,7 @@ type: Fleeting
 - 素材：`features/assets/AssetGallery.tsx`（分类筛选 + 网格 + Lightbox），`/assets` 经 `(content)/layout.tsx` 限宽 72rem；
 - 日历：`features/schedule/CalendarView.tsx`（月/周响应式，`onRangeChange` 上抛网格范围、`onSelectDay`）、`CalendarViewPage.tsx`（公开页主体）、后台 `/backdoor/schedule` 复用同一 `CalendarView`；
 - 全局：`components/NavBar.tsx`（固定雾面玻璃，`Link` 路由跳转）、`components/Footer.tsx`（floating/流式两形态）、`lib/useMediaQuery.ts`（响应式媒体查询订阅）；
-- 样式规范：仅 `@theme` token 色；reduced-motion 特批口径（仅公开站氛围层，降级保留）。
+- 样式规范：仅 `@theme` token 色；公开站氛围层对 reduced-motion 不降级（展示向口径，视差/粒子/转场/冲量与常规一致），后台仍严格遵循 frontend-rules 的 reduced-motion 规范。
 
 ### 1.2 目标
 
@@ -34,7 +34,7 @@ type: Fleeting
 - 自实现翻页引擎：一次手势一屏、translate3d 轨道转场、键盘可达、素材尾部自然滚动无缝衔接、hash 可定位可分享；
 - 粒子常驻 + 滚动冲量（翻页方向加速、停止后滞留衰减）；
 - 档案五屏立绘左右交替；日历 immersive 全幅变体（含拖拽翻月）；素材全幅化；
-- 零新依赖、零 CLS、reduced-motion 降级保留、SSG 首屏直出无 hydration 差异。
+- 零新依赖、零 CLS、公开站氛围层不降级 reduced-motion、SSG 首屏直出无 hydration 差异。
 
 ### 1.3 范围
 
@@ -102,7 +102,7 @@ graph LR
 |------|------|-----------|
 | `features/home/sections.ts` | 站序列注册表（id/hash/标题/树层级/是否需 API），单一事实源 | 纯数据 + 类型；`API_CONFIGURED` 过滤日历站 |
 | `features/home/fullpage.ts` | 翻页纯函数：手势聚合、阈值方向判定、目标站索引、素材区释放/回收边界、easing | 无 DOM 可单测；注入 `now` 便于确定性测试 |
-| `features/home/useFullpageScroll.ts` | 输入监听（wheel/touch/keyboard 被动）、状态机、轨道 transform 驱动、hash 同步、冲量事件派发、reduced-motion 降级参数 | rAF/transition 编排；直写 style 不触发重渲染 |
+| `features/home/useFullpageScroll.ts` | 输入监听（wheel/touch/keyboard 被动）、状态机、轨道 transform 驱动、hash 同步、冲量事件派发 | rAF px 插值编排；直写 style 不触发重渲染；公开站氛围层不降级 reduced-motion |
 | `features/home/FullpageDeck.tsx` | Client 容器：渲染站序列、常驻粒子层、SectionRail、素材自然滚动区 + Footer | SSG 首屏直出（初始站 0，无 transform） |
 | `features/home/SectionRail.tsx` + `sectionRail.ts` | 竖向树状指示器：树模型、当前节点计算、点击跳转 | 树数据来自注册表；键盘可达 |
 | `features/home/sections/HeroSection.tsx` 等 | 各屏组件（首页/档案/日历/素材） | 内容组件复用；每屏 `h2` 标题层级 |
@@ -180,20 +180,20 @@ sequenceDiagram
 
 #### 实现点 1: 翻页引擎（`fullpage.ts` + `useFullpageScroll.ts` + `FullpageDeck.tsx`）
 
-- **描述**: `FullpageDeck` 渲染外层 `100svh overflow-hidden` 容器与纵向轨道（`height: N*100svh`，`translate3d(0, -index*100svh, 0)`）。`useFullpageScroll` 挂 window 级被动监听：`wheel` 经 `feedWheel` 聚合（同一次滚动事件的连续 delta 累加，超过阈值且距上次翻页超过冷却期才产出方向意图——保证一次手势一屏、不连跳）；`touchstart/touchmove/touchend` 同理（位移阈值 + 方向）；键盘 `↓/↑/PageDown/PageUp/Home/End` 直接映射意图。翻页时更新站索引：转场用 CSS transition（`transform` + `opacity` 错峰，时长以实现定稿为准，常规约 700~900ms），reduced-motion 下降级为 ≤200ms 的 opacity 淡切（参数来自 `useMediaQuery` 响应式订阅，运行时切换即时生效）。转场开始即向粒子层派发冲量事件（自定义事件或回调注册）。站索引变化同步 `location.hash`（`#archive-1` 等，`history.replaceState` 不污染历史栈）；挂载时解析初始 hash 定位到对应站（无转场直落）。
+- **描述**: `FullpageDeck` 渲染外层 `100svh overflow-hidden` 容器与纵向轨道（`height: N*100svh`，`translate3d(0, -index*100svh, 0)`）。`useFullpageScroll` 挂 window 级被动监听：`wheel` 经 `feedWheel` 聚合（同一次滚动事件的连续 delta 累加，超过阈值且距上次翻页超过冷却期才产出方向意图——保证一次手势一屏、不连跳）；`touchstart/touchmove/touchend` 同理（位移阈值 + 方向）；键盘 `↓/↑/PageDown/PageUp/Home/End` 直接映射意图。翻页时更新站索引：转场用 rAF px 插值（`transform` + 粒子流场耦合，时长约 800ms），公开站氛围层对 reduced-motion 不降级。转场开始即向粒子层派发冲量事件（自定义事件或回调注册）。站索引变化同步 `location.hash`（`#archive-1` 等，`history.replaceState` 不污染历史栈）；挂载时解析初始 hash 定位到对应站（无转场直落）。
 - **技术细节**: 素材区衔接——站索引到达素材站且继续下滚越界时，`resolveFlowBoundary` 切到 `free` 模式：容器取消 `overflow-hidden`、轨道位移固定在素材站，浏览器接管自然滚动（素材内容 + Footer 在文档流中）；`free` 模式下 `scroll` 监听计算滚动速度喂粒子冲量；`scrollTop <= 0` 且继续上滚（wheel 向上 / 触屏下滑）时切回 `deck` 并翻到上一站。两模式切换不得产生跳动（切换瞬间轨道位移与文档滚动位置对齐）。
 - **风险点**: hydration 一致性——SSG 首渲染即站 0、无 transform、无 hash，初始 hash 定位在 hydration 后 effect 中执行；`wheel` 必须 passive 且**不** `preventDefault`（`overflow-hidden` 已天然阻断滚动）；触控板惯性滚动的高频小 delta 由聚合阈值吸收；`free` 模式边界抖动（scrollTop 在 0 附近振荡）用死区（如 > 2px 才判定离开顶部）消除；弹层（Lightbox/当日详情）打开时屏蔽翻页输入（既有滚动锁定口径扩展）。
 
 #### 实现点 2: 常驻粒子与滚动冲量（`GlowParticles.tsx` + `glowParticles.ts` 扩展）
 
 - **描述**: `GlowParticles` 由首屏 `absolute inset-0` 改为 `fixed inset-0` 常驻视口层（z 序保持在雾气之上/内容之下，全程 `pointer-events-none`、`aria-hidden`），覆盖所有模块与素材自然滚动区。新增全局流场：粒子每帧位移 = 既有缓慢漂移 + `flow` 速度；翻页开始/自然滚动时 `impulse(flow, direction, strength)` 注入瞬时速度（strength 与滚动速度挂钩、设上限），随后 `decayFlow` 按半衰期（约 0.4~0.6s，定稿以设计为准）指数衰减——视觉上即「翻页瞬间粒子整体下坠/上浮加速，随后缓缓平复」，滞留时长达 PRD 的 0.5~1.5s 量级。
-- **技术细节**: 冲量源两处——`useFullpageScroll` 翻页事件（强度固定档位）、`free` 模式滚动速度（连续喂入，帧间仍衰减）；reduced-motion 为真时不注入任何冲量（流场恒零），既有降级口径（密度减半、降速 ×0.5、去明灭）不变；`document.hidden` 暂停口径不变。
+- **技术细节**: 冲量源两处——`useFullpageScroll` 翻页事件（强度固定档位）、`free` 模式滚动速度（连续喂入，帧间仍衰减）；公开站氛围层对 reduced-motion 不降级（冲量照常注入）；`document.hidden` 暂停口径不变。
 - **风险点**: 连续冲量叠加——`impulse` 对 flow 取钳制后的合成（非无限累加）；低端机——流场只是每帧一次向量加法，无额外绘制开销。
 
 #### 实现点 3: 竖向树状指示器（`SectionRail.tsx` + `sectionRail.ts`）
 
 - **描述**: 桌面端固定于视口右侧边缘的竖向指示器：竖轴为细藤蔓线（CSS 渐变，token 色），模块节点为主节点（微光紫花圆点 + 文字），档案 5 个子内容为主节点下的缩进子节点（树状连线）。数据由 `buildTree(visibleSections(...))` 生成，与翻页容器同源。当前站经 `activeNode` 映射高亮（子节点精确到站，父节点在档案任一站时呈次级高亮）；点击节点调 deck 跳转（同翻页转场）。移动端（< 640px）收纳为仅主节点的极简形态（以实现定稿为准）。
-- **技术细节**: 组件为 `<nav aria-label="页面位置">`，节点为 `<a href="#...">`（键盘可达、可读屏），点击拦截走平滑翻页；reduced-motion 下关闭节点脉冲/生长动效，保留高亮切换。
+- **技术细节**: 组件为 `<nav aria-label="页面位置">`，节点为 `<a href="#...">`（键盘可达、可读屏），点击拦截走平滑翻页；公开站氛围层对 reduced-motion 不降级（节点脉冲/生长动效照常）。
 - **风险点**: 窄屏遮挡内容——指示器整体 `pointer-events` 仅作用于节点，轴体穿透；素材自然滚动区高亮保持「素材」。
 
 #### 实现点 4: 档案五屏与内容复用（`features/about/parts/*` + `ArchiveSection`）
@@ -220,7 +220,7 @@ sequenceDiagram
 ### 5.3 兼容性
 
 - 无新依赖；`API_CONFIGURED` 降级口径扩展为「日历站从序列/导航/指示器移除」；
-- 输入全部特性检测 + 被动监听；弹层打开时屏蔽翻页；`prefers-reduced-motion` 响应式降级；
+- 输入全部特性检测 + 被动监听；弹层打开时屏蔽翻页；公开站氛围层不降级 `prefers-reduced-motion`，后台仍遵循 frontend-rules；
 - 纯静态导出：首屏 SSG 直出站 0，翻页/冲量/指示器交互仅 hydration 后启用，无 hydration 差异。
 
 ## 6. 技术决策
@@ -247,7 +247,7 @@ sequenceDiagram
 | 依赖 | 既有 `GlowParticles`/`useParallax`/`useMediaQuery`/`CalendarView`/`AssetGallery`/`VineTimeline` | 全部复用/扩展，无新增包 |
 | 约束 | 纯静态导出 `output: "export"` | 首屏 SSG 直出站 0，交互仅 hydration 后启用 |
 | 约束 | 样式仅用 `@theme` token 色 | `docs/engineering/frontend-rules.md`；Canvas 运行时读 CSS 变量（沿用） |
-| 约束 | reduced-motion 降级保留（特批口径，仅公开站氛围层） | 转场淡切化、冲量不启用；后台仍严格遵循 `docs/engineering/frontend-rules.md` |
+| 约束 | 公开站氛围层不降级 reduced-motion（展示向口径） | 视差/粒子/转场/冲量与常规一致；后台仍严格遵循 `docs/engineering/frontend-rules.md` |
 | 约束 | 不出现未上线功能占位入口 | — |
 | 约束 | 文案仅搬移不改编 | 档案内容以官方公开信息为准，禁止二次设定 |
 | 约束 | 分支 `<type>/<slug>` 自需求总分支切出，只 merge | `AGENTS.md` |
@@ -291,7 +291,7 @@ apps/bookstore/
 └── features/assets/AssetGallery.tsx     # 全幅化（去限宽、列数扩展）
 
 apps/bookstore/tests/                    # fullpage/sectionRail/calendarDrag/glowParticles 冲量纯函数 + 组件守卫
-tests/e2e/site.spec.ts                   # 翻页序列/指示器/日历新样式/素材全幅/reduced-motion 回归
+tests/e2e/site.spec.ts                   # 翻页序列/指示器/日历新样式/素材全幅/reduced-motion 不降级回归
 ```
 
 ## 8. 测试策略
@@ -305,7 +305,7 @@ tests/e2e/site.spec.ts                   # 翻页序列/指示器/日历新样�
   - `calendarDrag.ts`：左拖超阈值 → 下月、右拖 → 上月、阈值内 → 0、累积后 release 归零；
   - `sections.ts`：`visibleSections(false)` 无日历站且导航 key 完整；
 - 组件（Testing Library，matchMedia mock 可触发变更回调）：
-  - `FullpageDeck`：首屏直出站 0（无 transform）；模拟 wheel 序列后站索引前进一屏且不连跳；hash 初始定位（`#archive-3` 直落对应站）；reduced-motion 下转场参数降级、冲量不派发；
+  - `FullpageDeck`：首屏直出站 0（无 transform）；模拟 wheel 序列后站索引前进一屏且不连跳；hash 初始定位（`#archive-3` 直落对应站）；reduced-motion 下转场/冲量与常规一致（不降级）；
   - `SectionRail`：渲染完整树；当前站变化高亮正确；点击节点触发跳转；
   - `CalendarView`：`variant` 缺省渲染现 DOM（后台回归）；immersive 渲染侧翻月按钮（点击上抛新网格范围）；模拟 pointer 拖拽超阈值触发 `goMonth`、阈值内不触发且不影响日期点击；
   - `NavBar`：hash 变化同步选中态；未配置 API 无「日历」项；
@@ -316,7 +316,7 @@ tests/e2e/site.spec.ts                   # 翻页序列/指示器/日历新样�
 | 类型 | 工具 | 覆盖范围 |
 |------|------|---------|
 | 单元测试 | Vitest + Testing Library | 纯函数边界、组件守卫（站序列/指示器/日历变体/导航） |
-| E2E | Playwright | 翻页序列、指示器高亮、素材尾部滚动、日历新样式、reduced-motion 降级 |
+| E2E | Playwright | 翻页序列、指示器高亮、素材尾部滚动、日历新样式、reduced-motion 不降级 |
 | API 黑盒 | —（无后端变更） | 不涉及 |
 
 ## 9. 部署方案
@@ -341,7 +341,7 @@ tests/e2e/site.spec.ts                   # 翻页序列/指示器/日历新样�
 - [ ] 档案 P1~P5 内容与 `/about` 同源、单左双右交替、桌面一屏不溢出
 - [ ] 日历 immersive：全幅直角中字、侧全高翻月按钮、拖拽翻月（阈值/方向正确）；后台 panel 样式零变化
 - [ ] 素材全幅、筛选/Lightbox 口径不变；全站单 Footer
-- [ ] `prefers-reduced-motion` 降级保留（转场淡切、冲量关闭、既有口径不变），运行时切换即时生效
+- [ ] 公开站氛围层 `prefers-reduced-motion` 不降级（转场/冲量/粒子/视差与常规一致），后台 `/backdoor` 仍遵循 frontend-rules
 - [ ] 未配置 API 时日历站/导航/指示器同步缺席
 - [ ] 独立路由 `/about` `/assets` `/calendar` 直接访问正常且内容同源
 - [ ] 无 CLS、无新增依赖；`pnpm lint && pnpm test && pnpm build` 全绿

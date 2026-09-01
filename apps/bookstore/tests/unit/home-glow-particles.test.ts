@@ -97,7 +97,7 @@ describe("stepParticles", () => {
     expect(s1.alpha).not.toBe(s2.alpha);
   });
 
-  it("reduced-motion 参数：速度降低、明灭关闭（alpha 恒定）", () => {
+  it("flicker 关闭 + 降速参数下 alpha 恒定且位移按 speed 缩放", () => {
     const slow = { ...opts, speed: 0.5, flicker: false };
     const p = makeParticle({ maxLife: 10 });
     const s1 = stepParticles([p], 1, slow)[0]!;

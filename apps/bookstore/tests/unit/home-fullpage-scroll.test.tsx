@@ -237,14 +237,17 @@ describe("useFullpageScroll", () => {
     expect(cb).toHaveBeenLastCalledWith(3);
   });
 
-  it("reduced-motion 下转场参数降级且冲量事件不派发", () => {
+  it("reduced-motion 下转场与冲量与常规一致（不降级）", () => {
     const mq = mockMatchMedia(true);
     vi.stubGlobal("matchMedia", mq.stub);
+    let t = 0;
+    vi.stubGlobal("performance", { now: () => (t += 200) });
     const rafCalls: FrameRequestCallback[] = [];
     vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
       rafCalls.push(cb);
       return rafCalls.length;
     });
+    vi.stubGlobal("cancelAnimationFrame", () => {});
     const impulseSpy = vi.fn();
     window.addEventListener(IMPULSE_EVENT, impulseSpy);
     render(<Harness />);
@@ -253,16 +256,15 @@ describe("useFullpageScroll", () => {
       window.dispatchEvent(new WheelEvent("wheel", { deltaY: 200 }));
     });
     expect(track.dataset.index).toBe("1");
-    // reduced-motion：transform 瞬时切位（px），随后 opacity 0→1 淡切（≤200ms）
+    // 转场仍用 px 插值（非 svh），且 rAF 动画照常调度
+    act(() => {
+      rafCalls.splice(0).forEach((cb) => cb(performance.now()));
+      rafCalls.splice(0).forEach((cb) => cb(performance.now()));
+    });
     expect(track.style.transform).toContain("px");
     expect(track.style.transform).not.toContain("svh");
-    // 有 rAF 调起 opacity 淡入
-    expect(rafCalls.length).toBeGreaterThan(0);
-    act(() => {
-      rafCalls.forEach((cb) => cb(0));
-    });
-    expect(track.style.opacity).toBe("1");
-    expect(impulseSpy).not.toHaveBeenCalled();
+    // 冲量照常派发（展示向氛围层不降级 reduced-motion）
+    expect(impulseSpy).toHaveBeenCalled();
     window.removeEventListener(IMPULSE_EVENT, impulseSpy);
     vi.unstubAllGlobals();
   });

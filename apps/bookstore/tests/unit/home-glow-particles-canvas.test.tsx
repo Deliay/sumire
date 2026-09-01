@@ -98,7 +98,7 @@ describe("GlowParticles", () => {
     expect(() => unmount()).not.toThrow();
   });
 
-  it("reduced-motion 时 canvas 仍渲染，但传入 step 的为降级档（上限减半、明灭关闭、降速）", () => {
+  it("reduced-motion 时仍为常规档（不降级：全上限、明灭开启、全速）", () => {
     mq.set(true);
     const stepSpy = vi.fn(stepParticles);
     const capSpy = vi.fn(() => 20);
@@ -109,9 +109,9 @@ describe("GlowParticles", () => {
     const last = stepSpy.mock.calls.at(-1)!;
     const particlesArg = last[0] as { length: number };
     const optsArg = last[2] as { speed: number; flicker: boolean };
-    expect(particlesArg.length).toBe(10); // 20 / 2 上限减半
-    expect(optsArg.flicker).toBe(false);
-    expect(optsArg.speed).toBe(0.5);
+    expect(particlesArg.length).toBe(20); // 全上限（不减半）
+    expect(optsArg.flicker).toBe(true);
+    expect(optsArg.speed).toBe(1);
   });
 
   it("普通环境传入 step 的为常规档（明灭开启、全上限）", () => {
@@ -127,7 +127,7 @@ describe("GlowParticles", () => {
     expect(optsArg.speed).toBe(1);
   });
 
-  it("运行时切换媒体查询后参数即时更换（画布保留）", () => {
+  it("切换媒体查询后参数保持常规（不降级）", () => {
     const stepSpy = vi.fn(stepParticles);
     const capSpy = vi.fn(() => 20);
     render(<GlowParticles step={stepSpy} cap={capSpy} />);
@@ -136,8 +136,8 @@ describe("GlowParticles", () => {
 
     act(() => mq.set(true));
     raf.run(1);
-    expect((stepSpy.mock.calls.at(-1)![2] as { flicker: boolean }).flicker).toBe(false);
-    expect((stepSpy.mock.calls.at(-1)![0] as { length: number }).length).toBe(10);
+    expect((stepSpy.mock.calls.at(-1)![2] as { flicker: boolean }).flicker).toBe(true);
+    expect((stepSpy.mock.calls.at(-1)![0] as { length: number }).length).toBe(20);
     expect(document.querySelector('[data-testid="glow-particles"]')).toBeTruthy();
   });
 
@@ -180,7 +180,7 @@ describe("GlowParticles", () => {
     expect(Math.abs(flowArg.vy)).toBeGreaterThan(0);
   });
 
-  it("reduced-motion 时注入冲量事件后 flow 恒零", () => {
+  it("reduced-motion 时注入冲量事件后 flow 照常非零（不降级）", () => {
     mq.set(true);
     const stepSpy = vi.fn(stepParticles);
     const capSpy = vi.fn(() => 20);
@@ -194,7 +194,6 @@ describe("GlowParticles", () => {
     raf.run(1);
     const last = stepSpy.mock.calls.at(-1)!;
     const flowArg = last[3] as { vx: number; vy: number };
-    expect(flowArg.vx).toBe(0);
-    expect(flowArg.vy).toBe(0);
+    expect(Math.abs(flowArg.vy)).toBeGreaterThan(0);
   });
 });

@@ -172,12 +172,17 @@ test.describe("bookstore 主页（整页滚动叙事容器）", () => {
     await expect(page.locator("[data-section='hero'] img[alt*='枝堇立绘']")).toBeVisible();
   });
 
-  test("site-home-visual-fx-reduce: reduced-motion 下粒子 canvas 仍存在（降级保留渲染）", async ({ page }) => {
+  test("site-home-visual-fx-reduce: reduced-motion 下粒子/翻页与常规一致（不降级）", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto(BASE);
+    await page.waitForTimeout(1000);
     const canvas = page.locator('canvas[aria-hidden="true"]');
     await expect(canvas).toHaveCount(1);
     await expect(canvas).toHaveClass(/pointer-events-none/);
+    // 展示向氛围层不降级：reduced 下仍可滚轮翻页（转场正常）
+    await page.mouse.wheel(0, 500);
+    await page.waitForTimeout(1500);
+    expect(await page.evaluate(() => window.location.hash)).toBe("#archive-1");
   });
 
   test("site-home-archive-webp: 档案屏大屏立绘 webp 均正常加载（无 404）", async ({ page }) => {

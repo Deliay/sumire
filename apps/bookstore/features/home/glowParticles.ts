@@ -26,7 +26,7 @@ export interface Particle {
   alpha: number; // 当前透明度（step 后更新）
 }
 
-/** 粒子推进/绘制参数；reduced-motion 下降级（speed 降低、flicker 关闭）。 */
+/** 粒子推进/绘制参数（speed、flicker、dt）。 */
 export interface StepOptions {
   speed: number;
   flicker: boolean;

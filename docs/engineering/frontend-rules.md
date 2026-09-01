@@ -46,7 +46,7 @@ pnpm thumbnails   # 重新生成素材缩略图
 - 默认 Server Component；仅交互组件（菜单、复制、Lightbox、筛选）标 `"use client"`
 - Client Component 禁止 import `lib/content/index.ts`（含 `node:fs`），用 `lib/content/shared.ts`
 - 样式只用 `@theme` 中的 token 色（`night/raised/soft/paper/ink/flower/vine/eye/primary`），禁止散落硬编码色值
-- 氛围动效必须尊重 `prefers-reduced-motion`
+- 氛围动效必须尊重 `prefers-reduced-motion`（例外：公开站氛围层——首页雾气/藤蔓/视差/粒子/翻页转场与冲量为展示向特批口径不降级，见 design 01 §5；后台 `/backdoor` 仍严格执行本规范）
 
 ## 内容规范
 

@@ -67,7 +67,7 @@ flowchart TD
 - **日历站**：全幅 `immersive` 月视图——直角中号字（去圆角、日期 `text-base` 量级）、左右两侧全高翻月竖条、横向拖拽翻月；后台 `panel` 变体不变。
 - **素材站**：全幅网格（`xl:grid-cols-4`）+ 尾部流式 `Footer site`（全站唯一 Footer）。
 - **导航锚点化**：NavBar 导航项 href 改为锚点（`/#hero`、`/#archive-1`、`/#assets`、`/#calendar`），hash 取自站序列注册表；首页路由按 `location.hash` 匹配 navKey 高亮（档案 P1~P5 均视为「档案」），非首页按 pathname。
-- **定稿参数**：翻页转场 800ms（reduced 淡切 200ms）、冲量强度 520px/s / 上限 600px/s、冲量衰减半衰期 0.5s、wheel 累积阈值 48px（低于单格，慢速单格一次一屏）、touch 位移阈值 50px、冷却 400ms、素材区顶部回收死区 2px、日历拖拽阈值 60px。
+- **定稿参数**：翻页转场 800ms、冲量强度 520px/s / 上限 600px/s、冲量衰减半衰期 0.5s、wheel 累积阈值 48px（低于单格，慢速单格一次一屏）、touch 位移阈值 50px、冷却 400ms、素材区顶部回收死区 2px、日历拖拽阈值 60px。
 
 ## 3. 档案页 `/about`
 

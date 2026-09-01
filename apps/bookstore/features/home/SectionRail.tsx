@@ -40,7 +40,7 @@ export default function SectionRail({ sections, index, onNavigate }: SectionRail
                       e.preventDefault();
                       onNavigate(findIndex(node.children![0]!.id));
                     }}
-                    aria-label="档案"
+                    aria-label={node.label}
                     aria-current={isParentActive ? "true" : undefined}
                     className="flex items-center"
                   >

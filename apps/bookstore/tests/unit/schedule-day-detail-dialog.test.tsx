@@ -40,6 +40,15 @@ describe("DayDetailDialog 只读模式", () => {
     expect(document.body.style.overflow).toBe("");
   });
 
+  it("只读面板为悬浮面板形态：不整屏变灰/无 backdrop-blur（公开站当日详情）", () => {
+    render(<DayDetailDialog open date="2026-08-15" entries={[]} readOnly onClose={() => {}} />);
+    const overlay = document.querySelector('[role="dialog"]') as HTMLElement;
+    expect(overlay).toBeTruthy();
+    // 回归：公开站当日详情不得用全屏灰罩/毛玻璃（与后台管理态遮罩口径区分）
+    expect(overlay.className).not.toContain("bg-black");
+    expect(overlay.className).not.toContain("backdrop");
+  });
+
   it("展示空态文案", () => {
     render(<DayDetailDialog open date="2026-08-15" entries={[]} readOnly onClose={() => {}} />);
     expect(screen.getByText("这一天书屋静悄悄的。")).toBeTruthy();

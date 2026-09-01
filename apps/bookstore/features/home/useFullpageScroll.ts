@@ -205,9 +205,31 @@ export function useFullpageScroll({
     [],
   );
 
+  /** free → deck 回收（顶越界上翻）：复位 free、隐藏溢出、置零 scrollTop，翻上一站（上浮缓出）。 */
+  const reclaimToDeck = useCallback(() => {
+    const el = containerRef.current;
+    if (el) {
+      el.style.overflow = "hidden";
+      el.scrollTop = 0;
+    }
+    lastScrollTopRef.current = 0;
+    lastDirectionRef.current = 1; // 上翻，转场用上浮缓出曲线
+    updateIndex(Math.max(0, indexRef.current - 1));
+    freeRef.current = false;
+    setFree(false);
+  }, [containerRef, updateIndex]);
+
   const turn = useCallback(
     (direction: TurnIntent) => {
-      if (freeRef.current) return;
+      if (freeRef.current) {
+        // free 模式下滚交给原生滚动；仅「顶部继续上滚」时回收为 deck 翻上一站
+        // （scrollTop=0 时上滚不产生 scroll 事件，须在此承接，否则卡死素材区顶部）
+        if (direction === 1) {
+          const el = containerRef.current;
+          if (el && el.scrollTop <= BOUNDARY_DEADZONE) reclaimToDeck();
+        }
+        return;
+      }
       if (indexRef.current === assetsIndex && direction === -1) {
         // 素材站下滚越界 → 进入 free 模式，浏览器接管自然滚动
         freeRef.current = true;
@@ -221,7 +243,7 @@ export function useFullpageScroll({
       dispatchImpulse(direction);
       updateIndex(target);
     },
-    [assetsIndex, sections.length, containerRef, dispatchImpulse, updateIndex],
+    [assetsIndex, sections.length, containerRef, dispatchImpulse, updateIndex, reclaimToDeck],
   );
 
   /** 程序化跳转（导航/指示器点击），同翻页转场。 */
@@ -375,10 +397,22 @@ export function useFullpageScroll({
         return;
       }
       const d = map[e.key];
-      if (d) {
-        e.preventDefault();
-        turn(d);
+      if (!d) return;
+      if (freeRef.current) {
+        // free 模式：方向键/Page 交原生滚动（素材自然滚动区键盘可用）。
+        // 顶部 ↑/PageUp 映射为回收上翻；其余不拦截不 preventDefault，交由容器原生滚动。
+        if (d === 1) {
+          const el = containerRef.current;
+          if (el && el.scrollTop <= BOUNDARY_DEADZONE) {
+            e.preventDefault();
+            reclaimToDeck();
+            return;
+          }
+        }
+        return;
       }
+      e.preventDefault();
+      turn(d);
     };
     const onScroll = () => {
       if (!freeRef.current) return;
@@ -387,13 +421,7 @@ export function useFullpageScroll({
       const scrollTop = el.scrollTop;
       // 回顶继续上滚 → 回收为 deck 并翻上一站
       if (scrollTop <= BOUNDARY_DEADZONE && scrollTop - lastScrollTopRef.current < 0) {
-        freeRef.current = false;
-        setFree(false);
-        el.style.overflow = "hidden";
-        lastScrollTopRef.current = 0;
-        // 回收上翻本质是「上翻」，转场用上浮缓出曲线
-        lastDirectionRef.current = 1;
-        updateIndex(Math.max(0, indexRef.current - 1));
+        reclaimToDeck();
         return;
       }
       // free 模式滚动速度 → 连续喂入粒子冲量（沿滚动方向）
@@ -429,7 +457,7 @@ export function useFullpageScroll({
       window.removeEventListener("keydown", onKeyDown);
       container?.removeEventListener("scroll", onScroll);
     };
-  }, [turn, goTo, updateIndex, containerRef, isInsideScrollable, getVh]);
+  }, [turn, goTo, updateIndex, containerRef, isInsideScrollable, getVh, reclaimToDeck]);
 
   // 弹层打开/关闭屏蔽翻页
   const setLocked = useCallback((locked: boolean) => {

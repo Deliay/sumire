@@ -65,7 +65,15 @@ describe("首页屏组件", () => {
     expect(document.querySelector("footer")).toBeTruthy();
   });
 
-  it("档案各屏立绘均用 standing 立绘（P3 不用插画）且非相邻同图", () => {
+  it("档案各屏立绘均用 standing 立绘（P3 不用插画）且按非相邻循环映射（P1/3/5→01、P2/4→02）", () => {
+    // 期望映射：STANDING_CYCLE = [0,1,0,1,0]，即奇数屏 standing-01、偶数屏 standing-02
+    const expected = [
+      getAssetById("standing-01")!.id,
+      getAssetById("standing-02")!.id,
+      getAssetById("standing-01")!.id,
+      getAssetById("standing-02")!.id,
+      getAssetById("standing-01")!.id,
+    ];
     for (let part = 1; part <= 5; part++) {
       render(<ArchiveSection part={part} profile={profile} portraitAssets={portraits} />);
       const imgs = document.querySelectorAll("section img");
@@ -74,6 +82,7 @@ describe("首页屏组件", () => {
       const src = imgs[0]!.getAttribute("src") ?? "";
       expect(src).toContain("/assets/original/standing-");
       expect(src).not.toContain("illustration");
+      expect(src).toContain(expected[part - 1]!);
       cleanup();
     }
   });

@@ -252,4 +252,24 @@ test.describe("bookstore 主页（整页滚动叙事容器）", () => {
     await page.goto(`${BASE}/calendar`);
     await expect(page.getByRole("heading", { name: "直播日程" })).toBeVisible();
   });
+
+  test("site-home-free-reclaim: free 模式顶部（scrollTop=0）上滚直接回收回日历站，键盘↑亦回收", async ({ page }) => {
+    await page.goto(`${BASE}/#assets`);
+    await page.waitForTimeout(1200);
+    // 进入 free 模式（素材站容器 overflow auto），scrollTop 尚未下滚
+    await page.mouse.wheel(0, 800);
+    await page.waitForTimeout(600);
+    // 立即上滚（顶部未下滚，无 scroll 事件）→ 回收上翻回日历站
+    await page.mouse.wheel(0, -800);
+    await page.waitForTimeout(900);
+    expect(await page.evaluate(() => window.location.hash)).toBe("#calendar");
+
+    // 再次进入 free 并键盘 ↑ 回收
+    await page.mouse.wheel(0, 800);
+    await page.waitForTimeout(900);
+    expect(await page.evaluate(() => window.location.hash)).toBe("#assets");
+    await page.keyboard.press("ArrowUp");
+    await page.waitForTimeout(900);
+    expect(await page.evaluate(() => window.location.hash)).toBe("#calendar");
+  });
 });

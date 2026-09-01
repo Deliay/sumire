@@ -338,8 +338,7 @@ describe("useFullpageScroll", () => {
     vi.unstubAllGlobals();
   });
 
-  it("free 模式回顶回收上翻用上浮缓出曲线（非误用下坠缓入）", () => {
-    let t = 0;
+  it("free 模式回顶回收上翻用上浮缓出曲线（非误用下坠缓入）", () => {    let t = 0;
     vi.stubGlobal("performance", {
       now: () => (t += 1000),
     });
@@ -481,5 +480,103 @@ describe("useFullpageScroll", () => {
     expect(track.dataset.index).toBe("1"); // 不豁免 → 翻页
     expect(onIndexChange).toHaveBeenCalled();
     document.body.removeChild(el);
+  });
+
+  it("free 模式顶部（scrollTop=0）未下滚直接上滚 wheel 回收上翻（不被 free 分支吞掉）", () => {
+    let t = 0;
+    vi.stubGlobal("performance", { now: () => (t += 1000) });
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      frames.push(cb);
+      return frames.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+    render(<Harness />);
+    // 进入 free：逐站滚到素材站（index 7）再下滚越界
+    for (let i = 0; i < 8; i++) {
+      act(() => {
+        window.dispatchEvent(new WheelEvent("wheel", { deltaY: 200 }));
+      });
+    }
+    const container = document.querySelector("[data-testid='container']") as HTMLElement;
+    const track = document.querySelector("[data-testid='track']") as HTMLElement;
+    expect(container.style.overflow).toBe("auto");
+    // scrollTop 恒 0（进入 free 未下滚），立即上滚：无 scroll 事件也须回收上翻
+    expect(container.scrollTop).toBe(0);
+    act(() => {
+      window.dispatchEvent(new WheelEvent("wheel", { deltaY: -200 }));
+    });
+    expect(container.style.overflow).toBe("hidden");
+    expect(track.dataset.index).toBe("6");
+    void frames;
+    vi.unstubAllGlobals();
+  });
+
+  it("free 模式触屏未下滚直接上滑回收上翻（不被 free 分支吞掉）", () => {
+    let t = 0;
+    vi.stubGlobal("performance", { now: () => (t += 1000) });
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      frames.push(cb);
+      return frames.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+    render(<Harness />);
+    for (let i = 0; i < 8; i++) {
+      act(() => {
+        window.dispatchEvent(new WheelEvent("wheel", { deltaY: 200 }));
+      });
+    }
+    const container = document.querySelector("[data-testid='container']") as HTMLElement;
+    const track = document.querySelector("[data-testid='track']") as HTMLElement;
+    expect(container.style.overflow).toBe("auto");
+    expect(container.scrollTop).toBe(0);
+    act(() => {
+      const start = new Event("touchstart", { bubbles: true }) as TouchEvent;
+      Object.defineProperty(start, "touches", { value: [{ identifier: 1, clientY: 100 } as Touch] });
+      window.dispatchEvent(start);
+      const move = new Event("touchmove", { bubbles: true }) as TouchEvent;
+      Object.defineProperty(move, "touches", { value: [{ identifier: 1, clientY: 300 } as Touch] });
+      window.dispatchEvent(move);
+    });
+    // 上滑（clientY 增大）→ 顶部回收上翻
+    expect(container.style.overflow).toBe("hidden");
+    expect(track.dataset.index).toBe("6");
+    void frames;
+    vi.unstubAllGlobals();
+  });
+
+  it("free 模式方向键↑/PageUp 顶部回收上翻、↓/PageDown 不拦截交原生（键盘可用）", () => {
+    let t = 0;
+    vi.stubGlobal("performance", { now: () => (t += 1000) });
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      frames.push(cb);
+      return frames.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+    render(<Harness />);
+    for (let i = 0; i < 8; i++) {
+      act(() => {
+        window.dispatchEvent(new WheelEvent("wheel", { deltaY: 200 }));
+      });
+    }
+    const container = document.querySelector("[data-testid='container']") as HTMLElement;
+    const track = document.querySelector("[data-testid='track']") as HTMLElement;
+    expect(container.style.overflow).toBe("auto");
+    // ↓ 顶部向下不回收、不翻页（交原生滚动），index 不变
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+    });
+    expect(track.dataset.index).toBe("7");
+    expect(container.style.overflow).toBe("auto");
+    // ↑ 顶部 → 回收上翻
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp" }));
+    });
+    expect(container.style.overflow).toBe("hidden");
+    expect(track.dataset.index).toBe("6");
+    void frames;
+    vi.unstubAllGlobals();
   });
 });

@@ -32,7 +32,7 @@
 
 ## 档案页 `/about`
 
-纯静态内容页，五组档案内容（信息/设定/喜好/历程/轶闻）均以**主页档案屏一致的立绘分栏布局**呈现：桌面 `SplitSection` grid 左右分栏（单数屏立绘在左、双数屏立绘在右，立绘仅用 `standing-01`/`standing-02` 按「持书/非持书」错位循环选取（奇数屏非持书→standing-02、偶数屏持书→standing-01，避开首页同款持书立绘）、经 original webp 展示，**首页式 `object-cover object-top` 裁剪呈现、不展示全身像，且外包 ParallaxLayer 接视差**），移动端立绘在上、内容在下（内容列可滚动）；自然滚动流式页、不约束整屏高度。内容：
+纯静态内容页，五组档案内容（信息/设定/喜好/历程/轶闻）均以**主页档案屏一致的立绘分栏布局**呈现：桌面 `SplitSection` grid 左右分栏（单数屏立绘在左、双数屏立绘在右，立绘仅用 `standing-01`/`standing-02` 选取、经 original webp 展示，**首页式 `object-cover object-top` 裁剪呈现、不展示全身像，且外包 ParallaxLayer 接视差**），移动端立绘在上、内容在下（内容列可滚动）；自然滚动流式页、不约束整屏高度。**分栏立绘映射与主页不同（/about 首节「信息」用 ProfilePart full，内立绘恒为 standing-02）：首节大屏用 standing-01 避开与信息卡缩略图同图并排，其后按「非持书/持书」错位循环——信息→standing-01、设定→standing-02、喜好→standing-01、历程→standing-02、轶闻→standing-01**。内容：
 
 - 页头引文；
 - 信息卡（分栏立绘 + 蕾丝边框 + 档案定义表）；

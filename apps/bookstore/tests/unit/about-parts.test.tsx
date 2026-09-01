@@ -6,6 +6,7 @@ import StoryPart from "@/features/about/parts/StoryPart";
 import TastePart from "@/features/about/parts/TastePart";
 import JourneyPart from "@/features/about/parts/JourneyPart";
 import TriviaPart from "@/features/about/parts/TriviaPart";
+import AboutPage from "@/app/(site)/(content)/about/page";
 import { getProfile } from "@/lib/content";
 import { getAssetById } from "@/lib/content";
 
@@ -81,5 +82,22 @@ describe("about parts 五组内容组件", () => {
       expect(idx).toBeGreaterThan(last);
       last = idx;
     }
+  });
+
+  it("/about 首节「信息」大屏立绘与信息卡缩略图不同源（avoid 同图并排）", () => {
+    render(<AboutPage />);
+    // 大屏立绘 = original webp（首屏 SplitSection 分栏立绘，overlay 下多屏共 5 张）
+    const bigImgs = Array.from(document.querySelectorAll("img[src*='/assets/original/']"));
+    expect(bigImgs.length).toBeGreaterThanOrEqual(5);
+    // 首节大屏 = 首张 original webp
+    const bigPortrait = bigImgs[0]!.getAttribute("src") ?? "";
+    // 信息卡内缩略图 = thumbnails 下的 standing-02（about/page.tsx portraitAsset）
+    const infoCard = document.querySelector("img[src*='/assets/thumbnails/']");
+    expect(infoCard).toBeTruthy();
+    const infoCardSrc = infoCard!.getAttribute("src") ?? "";
+    expect(infoCardSrc).toContain("standing-02");
+    // 首节大屏立绘不得与信息卡缩略图同源（应 standing-01）
+    expect(bigPortrait).toContain("standing-01");
+    expect(bigPortrait).not.toContain("standing-02");
   });
 });

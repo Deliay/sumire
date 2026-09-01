@@ -22,8 +22,9 @@ export default function AboutPage() {
     (a): a is NonNullable<typeof a> => a !== null,
   );
 
-  // 各分栏立绘（与主页档案屏一致：仅立绘、按「持书/非持书」错位——奇数屏非持书 standing-02、偶数屏持书 standing-01，避开首页同款持书立绘）
-  const STANDING_CYCLE = [1, 0, 1, 0, 1] as const;
+  // 各分栏立绘（/about 首节「信息」用 ProfilePart full，内立绘恒为 standing-02；故首节大屏须避开 standing-02 同图并排 → 首节大屏=standing-01，其后按「非持书/持书」错位：
+  // 信息01/设定02/喜好01/历程02/轶闻01。与主页 ArchiveSection 的 [1,0,1,0,1] 不同——主页 P1 用 bare 变体无内立绘，故可从非持书起始）
+  const STANDING_CYCLE = [0, 1, 0, 1, 0] as const;
   const portraitFor = (index: number) =>
     portraits.length > 0
       ? portraits[STANDING_CYCLE[index % STANDING_CYCLE.length] % portraits.length]

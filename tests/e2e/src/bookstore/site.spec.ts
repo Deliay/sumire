@@ -172,13 +172,18 @@ test.describe("bookstore 主页（整页滚动叙事容器）", () => {
     await expect(page.locator("[data-section='hero'] img[alt*='枝堇立绘']")).toBeVisible();
   });
 
-  test("site-home-visual-fx-reduce: reduced-motion 下粒子/翻页与常规一致（不降级）", async ({ page }) => {
+  test("site-home-visual-fx-reduce: reduced-motion 下粒子/翻页/雾气与常规一致（不降级）", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto(BASE);
     await page.waitForTimeout(1000);
     const canvas = page.locator('canvas[aria-hidden="true"]');
     await expect(canvas).toHaveCount(1);
     await expect(canvas).toHaveClass(/pointer-events-none/);
+    // 公开站氛围层不降级：reduced 下首页雾气仍带漂移动画（非 animation:none）
+    const fogAnim = await page
+      .locator(".fog-a")
+      .evaluate((el) => getComputedStyle(el).animationName);
+    expect(fogAnim).not.toBe("none");
     // 展示向氛围层不降级：reduced 下仍可滚轮翻页（转场正常）
     await page.mouse.wheel(0, 500);
     await page.waitForTimeout(1500);

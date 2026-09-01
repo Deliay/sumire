@@ -6,12 +6,11 @@ import {
   nextIndex,
   resolveFlowBoundary,
   easeInOutCubic,
-  type GestureState,
 } from "@/features/home/fullpage";
 
 describe("createGestureState / feedWheel（一次手势一屏）", () => {
   it("同一次手势连续 delta 累加超阈值只产出一个意图", () => {
-    let s = createGestureState();
+    const s = createGestureState();
     let out: { direction: 1 | -1 } | null = null;
     for (let i = 0; i < 10; i++) {
       const r = feedWheel(s, 20, i * 10);

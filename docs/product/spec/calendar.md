@@ -23,6 +23,11 @@
 - 空月照常渲染，不显示额外提示。
 - 点击某天弹出日详情浮层（只读）：条目按时间升序，历史条目标注「实际播出」与结束时间「至 HH:mm」；空日文案「这一天书屋静悄悄的。」；点击遮罩关闭。
 
+## 变体（`CalendarView variant`）
+
+- **默认 `panel`**：后台 `/backdoor/schedule` 与既有调用不传 variant，DOM 与样式逐位保持现态（圆角小字、头部小翻月按钮），后台零回归。
+- **`immersive`**（公开 `/calendar` 与首页日历站）：直角中号字（DayCell 去 `rounded-md`，日期 `text-base` 量级、摘要 `text-sm` 量级），全幅占满屏宽；翻月按钮改为日历左右两侧**高度占满的竖条**（`absolute inset-y-0`，图标 + hover token 色），头部仅保留月份标题；支持**横向拖拽翻月**（横向位移累积超阈值约 60px 触发，左拖下月右拖上月，release 归零），拖拽超阈值时置 `isDragging` 抑制日期点击；网格区 `touch-action: pan-y` 保留纵向滚动、`pointer` 监听不 `preventDefault`。周视图分支不渲染拖拽/竖条按钮、布局不变。
+
 ## 首页「今日日程」入口
 
 首页不再内嵌「本周日程」大卡，改为轻量「今日日程」组件：仅当天计划（`HH:mm 主题`），无计划展示「今日暂无安排」，失败静默为空态；仅在 API 配置时渲染。规则见 [site-pages.md](site-pages.md)。日历完整视图仅经 `/calendar` 访问。

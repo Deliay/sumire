@@ -91,13 +91,23 @@ test.describe("bookstore 日历页与主页入口", () => {
     await expect(page.getByRole("dialog")).toHaveCount(0);
   });
 
-  test("home-entry-to-calendar: 主页不再内嵌本周日程；经导航栏进入 /calendar", async ({ page }) => {
+  test("home-entry-to-calendar: 主页不再内嵌本周日程；导航「日历」锚点进入", async ({ page }) => {
     await page.goto(BASE);
     // 首页不出现本周日程大卡
     await expect(page.getByRole("heading", { name: "本周日程" })).toHaveCount(0);
-    // 经导航栏日历链接进入
+    // 经导航栏日历链接（锚点 #calendar）翻页至日历站
     await page.getByRole("link", { name: "日历" }).click();
+    await expect(page.getByText(/年 .*月/).first()).toBeVisible();
+  });
+
+  test("calendar-immersive-bars: 全幅 immersive 月视图左右全高翻月竖条可翻月", async ({ page }) => {
+    await page.goto(`${BASE}/calendar`);
     await expect(page.getByRole("heading", { name: "直播日程" })).toBeVisible();
+    const before = await page.locator("h2").filter({ hasText: /年 .*月/ }).first().textContent();
+    await page.getByRole("button", { name: "下月" }).click();
+    await expect
+      .poll(async () => page.locator("h2").filter({ hasText: /年 .*月/ }).first().textContent())
+      .not.toBe(before);
   });
 
   test("calendar-mixed-history: 日历同日混合展示计划与历史记录（来源可辨），历史只读", async ({ page }) => {

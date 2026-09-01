@@ -51,7 +51,7 @@ export function buildTree(sections: SectionDef[]): RailNode[] {
 /**
  * 站索引 → 当前高亮节点 id。档案站精确到子节点，其余映射主节点。
  */
-export function activeNode(sections: SectionDef[], index: number): SectionId | "home" | "calendar" | "assets" {
+export function activeNode(sections: SectionDef[], index: number): RailNode["id"] {
   const s = sections[index];
   if (!s) return "home";
   if (s.parent === "archive") return s.id as SectionId;

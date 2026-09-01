@@ -154,4 +154,47 @@ describe("GlowParticles", () => {
     document.dispatchEvent(new Event("visibilitychange"));
     expect(raf.pending()).toBe(1); // 恢复
   });
+
+  it("常驻 fixed 类（覆盖全部模块，脱离 overflow-hidden 容器）", () => {
+    render(<GlowParticles />);
+    const canvas = document.querySelector('[data-testid="glow-particles"]') as HTMLElement;
+    expect(canvas.className).toContain("fixed");
+    expect(canvas.className).toContain("inset-0");
+  });
+
+  it("接收冲量事件后传入 step 的 flow 非零，随后衰减归零", () => {
+    const stepSpy = vi.fn(stepParticles);
+    const capSpy = vi.fn(() => 20);
+    render(<GlowParticles step={stepSpy} cap={capSpy} />);
+    raf.run(1);
+    // 派发向下冲量（direction -1）
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("sumire:flow-impulse", { detail: { direction: -1 } }),
+      );
+    });
+    raf.run(1);
+    const last = stepSpy.mock.calls.at(-1)!;
+    const flowArg = last[3] as { vx: number; vy: number };
+    expect(flowArg).toBeTruthy();
+    expect(Math.abs(flowArg.vy)).toBeGreaterThan(0);
+  });
+
+  it("reduced-motion 时注入冲量事件后 flow 恒零", () => {
+    mq.set(true);
+    const stepSpy = vi.fn(stepParticles);
+    const capSpy = vi.fn(() => 20);
+    render(<GlowParticles step={stepSpy} cap={capSpy} />);
+    raf.run(1);
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("sumire:flow-impulse", { detail: { direction: -1 } }),
+      );
+    });
+    raf.run(1);
+    const last = stepSpy.mock.calls.at(-1)!;
+    const flowArg = last[3] as { vx: number; vy: number };
+    expect(flowArg.vx).toBe(0);
+    expect(flowArg.vy).toBe(0);
+  });
 });

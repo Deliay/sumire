@@ -5,19 +5,28 @@ import { useMediaQuery } from "@/lib/useMediaQuery";
 import {
   SPAWN_BIAS,
   SPAWN_RADIUS,
+  createFlow,
   createParticle,
+  decayFlow,
+  impulse,
   maxParticles,
   spawnPosition,
   stepParticles,
+  type Flow,
   type Particle,
   type StepOptions,
   type Vec2,
 } from "@/features/home/glowParticles";
+import { IMPULSE_EVENT, type ImpulseDetail } from "@/features/home/useFullpageScroll";
 
 /** 粒子取色 token（运行时读 CSS 变量）。 */
 const TOKEN_KEYS = ["--color-flower", "--color-primary", "--color-eye"] as const;
 /** token 缺失时兜底色。 */
 const FALLBACK_COLORS = ["#8b5fd6", "#b4a6bf", "#7fb0e6"];
+/** 冲量衰减半衰期（秒）。 */
+const FLOW_HALF_LIFE = 0.5;
+/** 单次翻页冲量强度（px/s）。 */
+const IMPULSE_STRENGTH = 260;
 
 interface GlowParticlesProps {
   /** 便于测试注入的纯函数（默认取模块真实实现）。 */
@@ -98,6 +107,7 @@ export default function GlowParticles({
     let running = false;
     let rafId = 0;
     let hidden = document.hidden;
+    let flow: Flow = createFlow();
 
     const maxCount = () => {
       const base = cap(w * h);
@@ -109,13 +119,24 @@ export default function GlowParticles({
       pointer = { x: e.clientX, y: e.clientY };
     };
 
+    const onImpulse = (e: Event) => {
+      // reduced-motion 不注入冲量（流场恒零）
+      if (reduce) return;
+      const detail = (e as CustomEvent<ImpulseDetail>).detail;
+      if (detail && typeof detail.direction === "number") {
+        flow = impulse(flow, detail.direction, IMPULSE_STRENGTH);
+      }
+    };
+
     const frame = () => {
       const target = maxCount();
       while (particles.length < target) {
         const pos = spawn({ width: w, height: h }, pointer, SPAWN_BIAS, SPAWN_RADIUS, Math.random);
         particles = [...particles, create(pos, Math.random)];
       }
-      particles = step(particles, opts.dt, opts);
+      // 流场衰减 + 叠加
+      flow = decayFlow(flow, opts.dt, FLOW_HALF_LIFE);
+      particles = step(particles, opts.dt, opts, flow);
       draw(ctx, particles, colors);
       rafId = requestAnimationFrame(frame);
     };
@@ -142,6 +163,7 @@ export default function GlowParticles({
     window.addEventListener("pointermove", onPointer, { passive: true });
     window.addEventListener("pointerdown", onPointer, { passive: true });
     window.addEventListener("resize", resize);
+    window.addEventListener(IMPULSE_EVENT, onImpulse);
     document.addEventListener("visibilitychange", onVisibility);
 
     if (!hidden) start();
@@ -150,6 +172,7 @@ export default function GlowParticles({
       window.removeEventListener("pointermove", onPointer);
       window.removeEventListener("pointerdown", onPointer);
       window.removeEventListener("resize", resize);
+      window.removeEventListener(IMPULSE_EVENT, onImpulse);
       document.removeEventListener("visibilitychange", onVisibility);
       stop();
     };
@@ -160,7 +183,7 @@ export default function GlowParticles({
       ref={canvasRef}
       aria-hidden
       data-testid="glow-particles"
-      className="pointer-events-none absolute inset-0"
+      className="pointer-events-none fixed inset-0"
     />
   );
 }

@@ -288,7 +288,7 @@ type: Fleeting
 ### 5.2 约束
 
 - 视觉严格按设计文档：仅用 `@theme` token 色，禁硬编码色值；「紫花微光 / 藤蔓 / 纸页」语言延续；
-- reduced-motion「降级而非禁用」特批口径仅公开站氛围层（见 §4.2）；后台仍严格遵循 `docs/engineering/frontend-rules.md`；
+- 公开站氛围层对 reduced-motion 不降级（展示向特批口径，见 §4.2）；后台仍严格遵循 `docs/engineering/frontend-rules.md`；
 - 未上线功能不得在 UI 显占位入口；
 - 分支 `<type>/<slug>`（`prd/` 文档、`feat/` 开发），禁止 rebase/squash，只 merge；遵循 TDD；
 - 内容以官方公开信息为准，禁止二次设定（档案五屏文案仅搬移不改编）；

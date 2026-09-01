@@ -39,9 +39,12 @@ describe("首页屏组件", () => {
 
   it("ArchiveSection part1 内容列用 bare 变体（无立绘缩略图、无 LaceFrame）", () => {
     render(<ArchiveSection part={1} profile={profile} portraitAssets={portraits} />);
-    // ProfilePart bare：不渲染缩略图 <img>（仅左侧大屏立绘一张），且无 LaceFrame
+    // ProfilePart bare：内容列不渲染缩略图 <img>；全 section 仅桌面错位大屏立绘 + 移动端 hero 口径背景立绘各一张
     const imgs = document.querySelectorAll("section img");
-    expect(imgs.length).toBe(1); // 仅左侧大屏立绘
+    expect(imgs.length).toBe(2);
+    for (const img of Array.from(imgs)) {
+      expect(img.getAttribute("src") ?? "").not.toContain("/thumbnails/");
+    }
     expect(document.querySelector(".lace-x")).toBeNull();
   });
 
@@ -65,8 +68,8 @@ describe("首页屏组件", () => {
     expect(document.querySelector("footer")).toBeTruthy();
   });
 
-  it("档案各屏立绘均用 standing 立绘（P3 不用插画）且按「持书/非持书」错位映射（奇数屏非持书→02、偶数屏持书→01，避开首页同款持书 standing-01）", () => {
-    // 期望映射：STANDING_CYCLE = [1,0,1,0,1]，即奇数屏 standing-02、偶数屏 standing-01
+  it("档案各屏立绘均用 standing 立绘（P3 不用插画）且按「持书/非持书」错位映射（奇数屏非持书→02、偶数屏持书→01，避开首页同款持书 standing-01）；移动端 hero 口径背景立绘与桌面同 cycle 交替", () => {
+    // 期望映射：STANDING_CYCLE = [1,0,1,0,1]，即奇数屏 standing-02、偶数屏 standing-01（桌面错位立绘与移动端背景立绘共用）
     const expected = [
       getAssetById("standing-02")!.id,
       getAssetById("standing-01")!.id,
@@ -76,13 +79,20 @@ describe("首页屏组件", () => {
     ];
     for (let part = 1; part <= 5; part++) {
       render(<ArchiveSection part={part} profile={profile} portraitAssets={portraits} />);
-      const imgs = document.querySelectorAll("section img");
-      // 每屏大屏立绘一张（P1 bare 内容列无缩略图），src 指向 standing 立绘 webp
-      expect(imgs.length).toBe(1);
-      const src = imgs[0]!.getAttribute("src") ?? "";
+      const imgs = Array.from(document.querySelectorAll("section img"));
+      // 桌面错位大屏立绘（grid 分栏内）+ 移动端 hero 口径背景立绘 各一张
+      expect(imgs.length).toBe(2);
+      const big = Array.from(document.querySelectorAll("section .grid img"));
+      expect(big.length).toBe(1);
+      const src = big[0]!.getAttribute("src") ?? "";
       expect(src).toContain("/assets/original/standing-");
       expect(src).not.toContain("illustration");
       expect(src).toContain(expected[part - 1]!);
+      // 移动端 hero 口径背景立绘（grid 外的背景层）按同一 cycle 交替
+      const bg = imgs.filter((img) => !img.closest(".grid"));
+      expect(bg.length).toBe(1);
+      const bgSrc = bg[0]!.getAttribute("src") ?? "";
+      expect(bgSrc).toContain(expected[part - 1]!);
       cleanup();
     }
   });
@@ -92,6 +102,22 @@ describe("首页屏组件", () => {
     // SplitSection 立绘外包 ParallaxLayer（data-testid=parallax-layer）
     const layer = document.querySelector('[data-testid="parallax-layer"]') as HTMLElement;
     expect(layer).toBeTruthy();
+  });
+
+  it("移动端内容浮层带毛玻璃底且铺满整屏（仅移动端，桌面 lg 复位透明）", () => {
+    render(<ArchiveSection part={2} profile={profile} portraitAssets={portraits} />);
+    // 内容列内浮层（data-fullpage-scrollable 的直接子 div）须带毛玻璃底且至少铺满整列高度，桌面复位
+    const float = document.querySelector('[data-fullpage-scrollable] > div') as HTMLElement;
+    expect(float).toBeTruthy();
+    expect(float.className).toContain("backdrop-blur-md");
+    expect(float.className).toContain("bg-night/70");
+    // 铺满整屏：min-h-full ≥ 内容列高度（内容短时模糊仍盖满全屏）
+    expect(float.className).toContain("min-h-full");
+    // 桌面复位：lg 下透明、无毛玻璃、无移动端 padding、min-h 复位
+    expect(float.className).toContain("lg:bg-transparent");
+    expect(float.className).toContain("lg:backdrop-blur-none");
+    expect(float.className).toContain("lg:p-0");
+    expect(float.className).toContain("lg:min-h-0");
   });
 
   it("档案立绘层较裁剪容器四周外扩 PARALLAX_MAX 余量（视差最大位移不露底边截断）", () => {

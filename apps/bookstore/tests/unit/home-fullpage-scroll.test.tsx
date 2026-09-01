@@ -590,9 +590,7 @@ describe("useFullpageScroll", () => {
   it("free 模式 scrollTop>DEADZONE 时 ↑/PageUp 显式向上 scrollBy（不回收），PageDown 步长为一屏高", () => {
     let t = 0;
     vi.stubGlobal("performance", { now: () => (t += 1000) });
-    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
-      return 1;
-    });
+    vi.stubGlobal("requestAnimationFrame", () => 1);
     vi.stubGlobal("cancelAnimationFrame", () => {});
     HTMLElement.prototype.scrollBy = () => {};
     const scrollBySpy = vi.spyOn(HTMLElement.prototype, "scrollBy");

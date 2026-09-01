@@ -311,4 +311,42 @@ test.describe("bookstore 主页（整页滚动叙事容器）", () => {
     await page.waitForTimeout(900);
     expect(await page.evaluate(() => window.location.hash)).toBe("#calendar");
   });
+
+  test("site-home-deck-calendar-dialog: 首页整页滚动容器内日历站点击 cell 弹当日详情（portal 可见）", async ({ page }) => {
+    await page.goto(`${BASE}/#calendar`);
+    await page.waitForTimeout(1200);
+    // 当月一天（点击必弹当日详情，空态亦可）
+    const today = new Date();
+    const d = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const cell = page.locator(`[data-testid="calendar-day"][data-date="${d}"]`);
+    await expect(cell).toBeVisible();
+    await cell.click();
+    // portal 到 body 的 dialog 应可见（若被轨道 will-change:transform 裁剪则不可见）
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    // 回归守卫：dialog 须为 body 直接子节点（脱离 transform/overflow 祖先，否则被轨道裁剪）
+    const isBodyChild = await page.evaluate(() => {
+      const dlg = document.querySelector('[role="dialog"]');
+      return dlg ? dlg.parentElement === document.body : false;
+    });
+    expect(isBodyChild).toBe(true);
+    await expect(dialog).toContainText(/月 \d+ 日|这一天书屋静悄悄的/);
+    // 点击遮罩（dialog 自身）关闭
+    await dialog.click({ position: { x: 8, y: 8 }, force: true });
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
+
+  test("site-home-deck-lightbox: 首页整页滚动容器内素材站点开 Lightbox（portal 可见）", async ({ page }) => {
+    await page.goto(`${BASE}/#assets`);
+    await page.waitForTimeout(1200);
+    // 素材网格第一项
+    const firstCard = page.locator("ul li button").first();
+    await expect(firstCard).toBeVisible();
+    await firstCard.click();
+    // portal 到 body 的 Lightbox dialog 应可见
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(page.getByRole("dialog").getByRole("button", { name: "关闭" })).toBeVisible();
+    await page.getByRole("dialog").getByRole("button", { name: "关闭" }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
 });

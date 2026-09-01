@@ -3,6 +3,7 @@
 import { Download, X } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ASSET_CATEGORY_LABELS,
   assetOriginalUrl,
@@ -41,7 +42,8 @@ function Lightbox({
     };
   }, [onClose]);
 
-  return (
+  // 经 portal 挂到 body：脱离 transform/overflow 祖先（整页 deck 轨道 will-change:transform 会成为 fixed 包含块并裁剪），确保 fixed 覆盖层以视口为基准可见
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -90,7 +92,8 @@ function Lightbox({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

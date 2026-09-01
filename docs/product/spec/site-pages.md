@@ -46,4 +46,4 @@
 
 - 常驻版权提示纸卡（非官方声明）。
 - 画廊：分类筛选（全部 / 立绘 / 插画 / 宣传图）、响应式网格（1/2/3/4 列，`xl:grid-cols-4`），立绘完整 contain 展示、其余 cover 裁切，4:5 占位防布局跳动；页面与素材站均全幅占满屏宽（限宽在页面容器处去除，保留左右 padding）。
-- Lightbox：Esc 或遮罩关闭、锁定背景滚动、焦点初置关闭键、提供原图下载链接。
+- Lightbox：Esc 或遮罩关闭、锁定背景滚动、焦点初置关闭键、提供原图下载链接。**弹层（Lightbox 与日历当日详情）经 `createPortal` 挂 `document.body`**，脱离整页滚动容器轨道（`will-change:transform`/`overflow` 祖先会成为 fixed 覆盖层的包含块并裁剪），确保以视口为基准可见；首页内嵌日历站/素材站弹层与独立 `/calendar`、`/assets` 路由行为一致。

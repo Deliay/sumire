@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type { StreamPlan } from "@/features/schedule/api";
 import type { CalendarEntry } from "@/features/schedule/mergeEntries";
 import { parseDateStr } from "@/features/schedule/dateUtils";
@@ -178,7 +179,7 @@ export default function DayDetailDialog({
   );
 
   if (readOnly) {
-    return (
+    return createPortal(
       <div
         className="fixed inset-0 z-50 flex items-center justify-center px-5"
         role="dialog"
@@ -205,11 +206,12 @@ export default function DayDetailDialog({
           </div>
           <div className="mt-4">{body}</div>
         </div>
-      </div>
+      </div>,
+      document.body,
     );
   }
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-5"
       role="dialog"
@@ -235,6 +237,7 @@ export default function DayDetailDialog({
         </div>
         <div className="mt-4">{body}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

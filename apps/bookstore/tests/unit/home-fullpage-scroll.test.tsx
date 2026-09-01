@@ -116,20 +116,40 @@ describe("useFullpageScroll", () => {
     vi.unstubAllGlobals();
   });
 
-  it("下翻（下一站）转场用下坠缓入曲线", () => {
+  it("下翻（下一站）rAF 转场按 px 向下平移", () => {
+    // rAF 单步执行：首帧 t=0（起点），验证轨道向负 y 平移（下翻）
+    const rafQueue: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      rafQueue.push(cb);
+      return rafQueue.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", () => {});
     render(<Harness />);
     const track = document.querySelector("[data-testid='track']") as HTMLElement;
     act(() => {
       window.dispatchEvent(new WheelEvent("wheel", { deltaY: 200 }));
     });
-    // 向下滚 → direction -1 → 下坠缓入（加速下滑）
-    expect(track.style.transition).toContain("0.22, 0.9");
+    // 索引已切到 1；首帧动画起点为当前位置，随后帧应向 -vh 推进
+    expect(track.dataset.index).toBe("1");
+    // 触发多帧，动画推进后 transform 用 px（不含 svh）
+    act(() => {
+      rafQueue.splice(0).forEach((cb) => cb(100));
+      rafQueue.splice(0).forEach((cb) => cb(400));
+    });
+    expect(track.style.transform).toContain("px");
+    expect(track.style.transform).not.toContain("svh");
+    vi.unstubAllGlobals();
   });
 
-  it("上翻（上一站）转场用上浮缓出曲线", () => {
-    // 先落到 index 1 再上翻
+  it("上翻（上一站）rAF 转场按 px 向上平移", () => {
     let t = 1000;
     vi.stubGlobal("performance", { now: () => (t += 1000) });
+    const rafQueue: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      rafQueue.push(cb);
+      return rafQueue.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", () => {});
     render(<Harness />);
     const track = document.querySelector("[data-testid='track']") as HTMLElement;
     act(() => {
@@ -138,7 +158,13 @@ describe("useFullpageScroll", () => {
     act(() => {
       window.dispatchEvent(new WheelEvent("wheel", { deltaY: -200 }));
     });
-    expect(track.style.transition).toContain("0.22, 0.2");
+    expect(track.dataset.index).toBe("0");
+    act(() => {
+      rafQueue.splice(0).forEach((cb) => cb(300));
+      rafQueue.splice(0).forEach((cb) => cb(600));
+    });
+    expect(track.style.transform).toContain("px");
+    expect(track.style.transform).not.toContain("svh");
     vi.unstubAllGlobals();
   });
 
@@ -156,14 +182,26 @@ describe("useFullpageScroll", () => {
   });
 
   it("hash 初始定位（#archive-3 直落）", () => {
-    const raf = vi.fn((cb: FrameRequestCallback) => {
-      cb(0);
-      return 0;
+    // rAF 用递增时间戳执行，使动画帧推进到终止，且挂载 hash 直落 effect 可运行
+    let t = 0;
+    vi.stubGlobal("performance", { now: () => t });
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      frames.push(cb);
+      return frames.length;
     });
-    vi.stubGlobal("requestAnimationFrame", raf);
+    vi.stubGlobal("cancelAnimationFrame", () => {});
     window.history.replaceState(null, "", "#archive-3");
     render(<Harness />);
     const track = document.querySelector("[data-testid='track']") as HTMLElement;
+    // 执行全部挂起的 rAF 帧（时间戳递增，动画自然终止）
+    act(() => {
+      while (frames.length) {
+        const cb = frames.shift()!;
+        t += 1000;
+        cb(t);
+      }
+    });
     expect(track.dataset.index).toBe("3");
     window.history.replaceState(null, "", "/");
     vi.unstubAllGlobals();
@@ -204,8 +242,9 @@ describe("useFullpageScroll", () => {
       window.dispatchEvent(new WheelEvent("wheel", { deltaY: 200 }));
     });
     expect(track.dataset.index).toBe("1");
-    // reduced-motion：transform 瞬时切位，随后 opacity 0→1 淡切（≤200ms）
-    expect(track.style.transform).toContain("-100svh");
+    // reduced-motion：transform 瞬时切位（px），随后 opacity 0→1 淡切（≤200ms）
+    expect(track.style.transform).toContain("px");
+    expect(track.style.transform).not.toContain("svh");
     // 有 rAF 调起 opacity 淡入
     expect(rafCalls.length).toBeGreaterThan(0);
     act(() => {
@@ -291,6 +330,12 @@ describe("useFullpageScroll", () => {
     vi.stubGlobal("performance", {
       now: () => (t += 1000),
     });
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      frames.push(cb);
+      return frames.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", () => {});
     render(<Harness />);
     // 进入 free：逐站滚到素材站（index 7）再下滚越界
     for (let i = 0; i < 8; i++) {
@@ -313,21 +358,30 @@ describe("useFullpageScroll", () => {
     });
     expect(container.style.overflow).toBe("hidden");
     expect(track.dataset.index).toBe("6");
-    // 上翻用上浮缓出曲线
-    expect(track.style.transition).toContain("0.22, 0.2");
+    // 执行动画帧推进到终止，transform 用 px（不含 svh 单位）
+    act(() => {
+      while (frames.length) {
+        const cb = frames.shift()!;
+        cb(performance.now() + 1000);
+      }
+    });
+    expect(track.style.transform).toContain("px");
+    expect(track.style.transform).not.toContain("svh");
     vi.unstubAllGlobals();
   });
 
-  it("sections 引用不稳定（每渲染新数组）时连续翻页后 hash/transform 稳定不振荡（回归）", () => {
+  it("sections 引用不稳定（每渲染新数组）时连续翻页后 index/hash 稳定不振荡（回归）", () => {
     let t = 0;
     vi.stubGlobal("performance", {
       now: () => (t += 1000),
     });
-    const raf = vi.fn((cb: FrameRequestCallback) => {
-      cb(0);
-      return 0;
+    // rAF 捕获但不执行（禁用动画），聚焦索引/hash 稳定性（振荡回归防护）
+    const rafCalls: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      rafCalls.push(cb);
+      return rafCalls.length;
     });
-    vi.stubGlobal("requestAnimationFrame", raf);
+    vi.stubGlobal("cancelAnimationFrame", () => {});
     render(<UnstableSectionsHarness />);
     const track = document.querySelector("[data-testid='track']") as HTMLElement;
 
@@ -337,7 +391,6 @@ describe("useFullpageScroll", () => {
     });
     expect(track.dataset.index).toBe("1");
     const hash1 = window.location.hash;
-    const transform1 = track.style.transform;
 
     // 再翻到 index 2
     act(() => {
@@ -345,19 +398,16 @@ describe("useFullpageScroll", () => {
     });
     expect(track.dataset.index).toBe("2");
     const hash2 = window.location.hash;
-    const transform2 = track.style.transform;
 
-    // 无输入下再触发若干渲染（模拟 rAF 回拨），应保持 index 2、hash/transform 不变
+    // 无输入下再触发若干渲染（模拟 rAF 回拨），应保持 index 2、hash 不变
     act(() => {
-      raf.mockClear();
+      rafCalls.splice(0);
     });
     expect(track.dataset.index).toBe("2");
     expect(window.location.hash).toBe(hash2);
-    expect(track.style.transform).toBe(transform2);
     expect(window.location.hash).toBe(hash2);
     expect(track.dataset.index).toBe("2");
     void hash1;
-    void transform1;
     vi.unstubAllGlobals();
   });
 

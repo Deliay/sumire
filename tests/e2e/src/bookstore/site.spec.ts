@@ -184,6 +184,23 @@ test.describe("bookstore 主页（整页滚动叙事容器）", () => {
     expect(failed).toEqual([]);
   });
 
+  test("site-home-archive-bleed: 档案屏立绘底边与窗口底边齐平（gap=0）", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto(`${BASE}/#archive-1`);
+    await page.waitForTimeout(1200);
+    const info = await page.evaluate(() => {
+      const img = document.querySelector("[data-section='archive-1'] img[src*='/assets/original/']");
+      if (!img) return null;
+      const r = img.getBoundingClientRect();
+      return { bottom: r.bottom, innerHeight: window.innerHeight };
+    });
+    expect(info).toBeTruthy();
+    if (info) {
+      // 立绘底边应贴齐视口底（允许 ≤2px 容差）
+      expect(Math.abs(info.innerHeight - info.bottom)).toBeLessThanOrEqual(2);
+    }
+  });
+
   test("site-about-fields: /about 展示五组档案内容与分栏立绘", async ({ page }) => {
     await page.goto(`${BASE}/about`);
     await expect(page.getByText("通俗文学")).toBeVisible();

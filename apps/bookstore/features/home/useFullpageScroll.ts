@@ -8,6 +8,7 @@ import {
   feedWheel,
   nextIndex,
   normalizeDeltaY,
+  easeInOutCubic,
   type GestureState,
 } from "@/features/home/fullpage";
 import type { SectionDef, SectionChangeDetail, NavigateDetail } from "@/features/home/sections";
@@ -67,6 +68,10 @@ export function useFullpageScroll({
   const lastScrollTimeRef = useRef(0);
   const lastDirectionRef = useRef<TurnIntent>(-1);
   const isFirstRenderRef = useRef(true);
+  // rAF 驱动的 px 转场动画状态（规避 CSS viewport 单位 transition 插值兼容问题）
+  const animRef = useRef<number | null>(null);
+  const currentOffsetPxRef = useRef(0);
+  const vhRef = useRef<number>(0);
   // sections 引用不稳定（每次渲染新数组），用 ref 稳定供 effect 读取
   const sectionsRef = useRef(sections);
   useEffect(() => {
@@ -75,16 +80,51 @@ export function useFullpageScroll({
 
   const transitionMs = reduce ? TRANSITION_REDUCED_MS : TRANSITION_MS;
 
+  // 解析视口高并初始化/更新（resize 时重算，px 而非 svh 规避单位插值兼容问题）
+  const getVh = useCallback((): number => {
+    if (vhRef.current <= 0) {
+      vhRef.current = typeof window !== "undefined" ? window.innerHeight || 800 : 800;
+    }
+    return vhRef.current;
+  }, []);
+  useEffect(() => {
+    const onResize = () => {
+      vhRef.current = window.innerHeight || 800;
+      // 重算当前 px 偏移并直写（无动画）
+      if (trackRef.current) {
+        currentOffsetPxRef.current = -indexRef.current * vhRef.current;
+        trackRef.current.style.transition = "none";
+        trackRef.current.style.transform = `translate3d(0, ${currentOffsetPxRef.current}px, 0)`;
+      }
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [trackRef]);
+
+  /** 取消进行中的转场动画。 */
+  const cancelAnim = useCallback(() => {
+    if (animRef.current !== null) {
+      cancelAnimationFrame(animRef.current);
+      animRef.current = null;
+    }
+  }, []);
+
+  /**
+   * 翻页转场：非 reduced 用 rAF 驱动 px 插值（easeInOutCubic + 方向感知缓入缓出），
+   * 每帧派发「流场速度」事件使粒子层随页面平移耦合（动画结束即停，冲量滞留衰减作余韵）。
+   */
   const applyTransform = useCallback(
     (i: number, animated: boolean) => {
       const track = trackRef.current;
       if (!track) return;
+      cancelAnim();
       if (reduce) {
-        // reduced-motion：transform 瞬时切位，opacity 短促淡切（≤200ms）
+        // reduced-motion：transform 瞬时切位（px），opacity 短促淡切（≤200ms）
+        currentOffsetPxRef.current = -i * getVh();
         track.style.transition = "none";
-        track.style.transform = `translate3d(0, ${-i * 100}svh, 0)`;
+        track.style.opacity = "1";
+        track.style.transform = `translate3d(0, ${currentOffsetPxRef.current}px, 0)`;
         if (animated) {
-          // 先清 opacity 过渡瞬时置底，再 rAF 复位触发淡入
           track.style.opacity = "0";
           requestAnimationFrame(() => {
             if (!track) return;
@@ -94,15 +134,52 @@ export function useFullpageScroll({
         }
         return;
       }
-      // 方向感知转场：下翻（下一站）呈「下坠」缓入（起始略慢、加速下滑），上翻呈「上浮」缓出
+      if (!animated) {
+        // 首渲染 / hash 直落：瞬时定位，无动画
+        currentOffsetPxRef.current = -i * getVh();
+        track.style.transition = "none";
+        track.style.transform = `translate3d(0, ${currentOffsetPxRef.current}px, 0)`;
+        return;
+      }
+      // rAF 插值动画：从当前 offset 滑向目标 offset（px），方向感知缓入缓出
+      const from = currentOffsetPxRef.current;
+      const to = -i * getVh();
       const drop = lastDirectionRef.current === -1;
-      const ease = drop
-        ? "cubic-bezier(0.22, 0.9, 0.36, 0.95)"
-        : "cubic-bezier(0.22, 0.2, 0.36, 1)";
-      track.style.transition = animated ? `transform ${transitionMs}ms ${ease}` : "none";
-      track.style.transform = `translate3d(0, ${-i * 100}svh, 0)`;
+      const dir = to > from ? -1 : 1; // 目标更靠下 → 下翻
+      const dur = transitionMs;
+      const start = performance.now();
+      const ease = (t: number) => {
+        // 下翻起点略慢、加速下滑（下坠）；上翻缓出
+        const x = Math.max(0, Math.min(1, t));
+        if (drop) {
+          // 类 easeOutCubic 变体：中前段较快
+          return easeInOutCubic(x);
+        }
+        return easeInOutCubic(x);
+      };
+      const step = (now: number) => {
+        const t = Math.min(1, (now - start) / dur);
+        const e = ease(t);
+        const offset = from + (to - from) * e;
+        currentOffsetPxRef.current = offset;
+        track.style.transition = "none";
+        track.style.transform = `translate3d(0, ${offset}px, 0)`;
+        // 粒子流场耦合：按当前滑速派发 velocity（方向沿滑动），动画结束停止
+        if (t < 1) {
+          const v = (to - from) / (dur / 1000); // px/s 平均滑速
+          window.dispatchEvent(
+            new CustomEvent(SCROLL_IMPULSE_EVENT, { detail: { velocity: v * (1 - t * 0.4) } }),
+          );
+          animRef.current = requestAnimationFrame(step);
+        } else {
+          currentOffsetPxRef.current = to;
+          animRef.current = null;
+        }
+      };
+      animRef.current = requestAnimationFrame(step);
+      void dir;
     },
-    [reduce, transitionMs, trackRef],
+    [reduce, transitionMs, trackRef, cancelAnim, getVh],
   );
 
   const updateIndex = useCallback(

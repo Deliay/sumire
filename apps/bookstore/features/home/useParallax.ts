@@ -2,13 +2,10 @@
 
 import { useEffect } from "react";
 import type { RefObject } from "react";
-import { useMediaQuery } from "@/lib/useMediaQuery";
 import { lerp, pointerOffset, tiltOffset } from "@/features/home/parallax";
 
-/** 常规鼠标视差幅度上限（px）。 */
+/** 鼠标视差幅度上限（px）。 */
 const PARALLAX_MAX = 12;
-/** reduced-motion 下幅度降至约 1/3。 */
-const REDUCE_MAX = PARALLAX_MAX / 3;
 /** 每帧插值系数（平滑跟随，非瞬时跳变）。 */
 const LERP_T = 0.08;
 /** 收敛阈值：差值小于该值视为已到位，停帧省电。 */
@@ -25,18 +22,15 @@ type OrientationEventLike = {
  *   pointerleave/blur 目标归零回中；收敛后停帧省电。
  * - 移动端 deviceorientation：iOS（requestPermission 存在）首次 touchend 静默请求，成功挂监听，
  *   拒绝/异常静默放弃；无需权限平台直接挂监听。
- * - reduced-motion（降级保留）：鼠标视差保留但幅度降至约 1/3、不挂 deviceorientation 监听、不请求权限。
- *   effect 依赖媒体查询值，运行时切换即重跑清理/换参。
  * - 卸载完整清理；初始不写任何 transform（SSG/首渲染一致）。
+ * 注：展示向公开站氛围层不降级 reduced-motion（视差/传感器与常规一致）；后台 `/backdoor` 不受本模块影响。
  */
 export function useParallax(ref: RefObject<HTMLElement | null>): void {
-  const reduce = useMediaQuery("(prefers-reduced-motion: reduce)");
-
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
 
-    const max = reduce ? REDUCE_MAX : PARALLAX_MAX;
+    const max = PARALLAX_MAX;
 
     let targetX = 0;
     let targetY = 0;
@@ -142,15 +136,13 @@ export function useParallax(ref: RefObject<HTMLElement | null>): void {
     window.addEventListener("pointerleave", onLeave);
     window.addEventListener("blur", onLeave);
 
-    if (!reduce) {
-      const DOE = (window as unknown as {
-        DeviceOrientationEvent?: { requestPermission?: () => Promise<string> };
-      }).DeviceOrientationEvent;
-      if (DOE && typeof DOE.requestPermission === "function") {
-        window.addEventListener("touchend", onTouchEnd, { passive: true });
-      } else {
-        attachOrientation();
-      }
+    const DOE = (window as unknown as {
+      DeviceOrientationEvent?: { requestPermission?: () => Promise<string> };
+    }).DeviceOrientationEvent;
+    if (DOE && typeof DOE.requestPermission === "function") {
+      window.addEventListener("touchend", onTouchEnd, { passive: true });
+    } else {
+      attachOrientation();
     }
 
     return () => {
@@ -162,5 +154,5 @@ export function useParallax(ref: RefObject<HTMLElement | null>): void {
       if (running) cancelAnimationFrame(rafId);
       el.style.transform = "none";
     };
-  }, [reduce, ref]);
+  }, [ref]);
 }

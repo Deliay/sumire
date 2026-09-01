@@ -3,6 +3,7 @@
 import { Download, X } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ASSET_CATEGORY_LABELS,
   assetOriginalUrl,
@@ -41,7 +42,8 @@ function Lightbox({
     };
   }, [onClose]);
 
-  return (
+  // 经 portal 挂到 body：脱离 transform/overflow 祖先（整页 deck 轨道 will-change:transform 会成为 fixed 包含块并裁剪），确保 fixed 覆盖层以视口为基准可见
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -90,7 +92,8 @@ function Lightbox({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -128,7 +131,7 @@ export default function AssetGallery({ assets }: { assets: Asset[] }) {
       </div>
 
       {/* 素材网格 */}
-      <ul className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <ul className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {visible.map((asset) => (
           <li key={asset.id}>
             <button
@@ -141,7 +144,7 @@ export default function AssetGallery({ assets }: { assets: Asset[] }) {
                   src={assetThumbnailUrl(asset)}
                   alt={asset.title}
                   fill
-                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
                   className={`transition-transform duration-500 group-hover:scale-[1.03] ${
                     asset.category === "standing"
                       ? "object-contain p-4"

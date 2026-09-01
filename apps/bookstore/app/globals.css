@@ -165,18 +165,10 @@ body {
   }
 }
 
-/* ---------- 尊重减少动态偏好（仅关闭氛围动效，不做全局时长覆盖） ---------- */
+/* ---------- 尊重减少动态偏好 ----------
+   公开站氛围层（首页雾气 .fog、藤蔓生长 .vine-draw）对 prefers-reduced-motion 不降级（展示向口径）；
+   仅后台弹幕看板功能性定位闪光 .animate-danmaku-flash 保留降级。 */
 @media (prefers-reduced-motion: reduce) {
-  .fog-a,
-  .fog-b {
-    animation: none;
-  }
-
-  .vine-draw path[data-grow] {
-    animation: none;
-    stroke-dashoffset: 0;
-  }
-
   .animate-danmaku-flash {
     animation: none;
   }

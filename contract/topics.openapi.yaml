@@ -1,0 +1,474 @@
+openapi: 3.1.0
+info:
+  title: sumire topics
+  description: |
+    枝堇Sumire 棉花糖（提问箱）API 契约。单一事实源，实现与 tests/api 集成测试均以本文档为准。
+    管理端点（admin+）：主题 CRUD + 采集控制 + 棉花糖管理；公开端点：主题信息 + 投递。
+  version: 1.0.0
+servers:
+  - url: https://api.sumire.live
+paths:
+  /api/topics:
+    get:
+      summary: 查询主题列表（管理）
+      description: 需登录，角色限 superadmin / admin。默认不含已归档主题；`?archived=true` 返回含归档的全部主题。
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: archived
+          in: query
+          required: false
+          schema: { type: boolean }
+          description: 是否包含已归档主题（默认 false）
+      responses:
+        "200":
+          description: 主题列表（按创建时间倒序）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, topics]
+                properties:
+                  ok: { type: boolean, const: true }
+                  topics:
+                    type: array
+                    items: { $ref: "#/components/schemas/Topic" }
+        "401":
+          description: 未登录或会话已失效
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "403":
+          description: 已登录但角色权限不足（member）
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    post:
+      summary: 新建主题（管理）
+      description: 需登录，角色限 superadmin / admin。
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, description, startAt, endAt, charLimit]
+              properties:
+                title: { $ref: "#/components/schemas/TopicTitle" }
+                description: { $ref: "#/components/schemas/TopicDescription" }
+                startAt: { $ref: "#/components/schemas/ISODate" }
+                endAt: { $ref: "#/components/schemas/ISODate" }
+                charLimit: { $ref: "#/components/schemas/CharLimit" }
+                aiReviewEnabled: { type: boolean, default: true }
+      responses:
+        "201":
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, id]
+                properties:
+                  ok: { type: boolean, const: true }
+                  id: { type: string }
+        "400":
+          description: 字段校验失败
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "401":
+          description: 未登录或会话已失效
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "403":
+          description: 已登录但角色权限不足（member）
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+  /api/topics/{id}:
+    get:
+      summary: 查询主题详情（管理）
+      description: 需登录，角色限 superadmin / admin。返回含派生 status。
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: 主题 ID
+      responses:
+        "200":
+          description: 主题详情
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, topic]
+                properties:
+                  ok: { type: boolean, const: true }
+                  topic: { $ref: "#/components/schemas/Topic" }
+        "401":
+          description: 未登录或会话已失效
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "403":
+          description: 已登录但角色权限不足（member）
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404":
+          description: 主题不存在
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    put:
+      summary: 编辑主题（管理）
+      description: 需登录，角色限 superadmin / admin。
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, description, startAt, endAt, charLimit]
+              properties:
+                title: { $ref: "#/components/schemas/TopicTitle" }
+                description: { $ref: "#/components/schemas/TopicDescription" }
+                startAt: { $ref: "#/components/schemas/ISODate" }
+                endAt: { $ref: "#/components/schemas/ISODate" }
+                charLimit: { $ref: "#/components/schemas/CharLimit" }
+                aiReviewEnabled: { type: boolean }
+      responses:
+        "200":
+          description: 编辑成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean, const: true }
+        "400":
+          description: 字段校验失败
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "401":
+          description: 未登录或会话已失效
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "403":
+          description: 已登录但角色权限不足
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404":
+          description: 主题不存在
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+  /api/topics/{id}/collecting:
+    post:
+      summary: 切换采集状态（管理）
+      description: |
+        需登录，角色限 superadmin / admin。
+        主题当前为 collecting → 停止采集（collectingStopped=true）；
+        主题当前为 upcoming/ended → 继续采集（collectingStopped=false）。
+        archived 主题不可操作。
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [start, stop]
+                  description: start=继续采集，stop=停止采集
+      responses:
+        "200":
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean, const: true }
+        "401":
+          description: 未登录或会话已失效
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "403":
+          description: 已登录但角色权限不足
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404":
+          description: 主题不存在
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "409":
+          description: 主题已归档，无法操作
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+  /api/topics/{id}/archive:
+    post:
+      summary: 归档主题（管理）
+      description: 需登录，角色限 superadmin / admin。归档后主题不可再投递。
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: 归档成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean, const: true }
+        "401":
+          description: 未登录或会话已失效
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "403":
+          description: 已登录但角色权限不足
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404":
+          description: 主题不存在
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "410":
+          description: 主题已归档
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+  /api/topics/{id}/marshmallows:
+    get:
+      summary: 查询主题下的棉花糖（管理）
+      description: 需登录，角色限 superadmin / admin。分页查询，按投递时间倒序。
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: 棉花糖列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, marshmallows, total]
+                properties:
+                  ok: { type: boolean, const: true }
+                  marshmallows:
+                    type: array
+                    items: { $ref: "#/components/schemas/Marshmallow" }
+                  total: { type: integer }
+        "401":
+          description: 未登录或会话已失效
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "403":
+          description: 已登录但角色权限不足
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404":
+          description: 主题不存在
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    post:
+      summary: 投递棉花糖
+      description: |
+        无需登录。投递成功响应体严格 `{ ok: true }`，不含 id/aiReview 等任何内部字段。
+        投递后内容进入 AI 审核队列（若主题启用 AI 审核）。
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content, clientKey]
+              properties:
+                content: { type: string, description: 棉花糖内容（trim 后非空，≤ charLimit） }
+                clientKey: { type: string, description: 客户端标识（用于限速） }
+      responses:
+        "201":
+          description: 投递成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean, const: true }
+        "400":
+          description: 内容为空或超字数限制
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "409":
+          description: 主题未开始或已结束，无法投递
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "410":
+          description: 主题已归档，无法投递
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "429":
+          description: 操作频率过快
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+  /api/marshmallows/{id}:
+    patch:
+      summary: 更新棉花糖状态（管理）
+      description: |
+        需登录，角色限 superadmin / admin。
+        可设置 adopted（采用/取消采用）和 ignoreAiFilter（忽略 AI 过滤）。
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                adopted: { type: boolean }
+                ignoreAiFilter: { type: boolean }
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean, const: true }
+        "400":
+          description: 无有效字段
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "401":
+          description: 未登录或会话已失效
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "403":
+          description: 已登录但角色权限不足
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404":
+          description: 棉花糖不存在
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+  /api/topics/{id}/public:
+    get:
+      summary: 查询主题公开信息
+      description: 无需登录。返回主题公开信息（不含审核管理字段）与派生 status。
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: 主题公开信息
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, topic]
+                properties:
+                  ok: { type: boolean, const: true }
+                  topic: { $ref: "#/components/schemas/TopicPublicInfo" }
+        "404":
+          description: 主题不存在
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sumire_sid
+  schemas:
+    TopicTitle:
+      type: string
+      description: 主题标题，trim 后 1–100 字符
+      minLength: 1
+      maxLength: 100
+    TopicDescription:
+      type: string
+      description: 主题描述（Markdown）
+    ISODate:
+      type: string
+      format: date-time
+      description: ISO 8601 日期时间
+    CharLimit:
+      type: integer
+      description: 投递字数限制（100–10000）
+      minimum: 100
+      maximum: 10000
+    Topic:
+      type: object
+      required: [id, title, description, startAt, endAt, charLimit, aiReviewEnabled, status, createdAt]
+      properties:
+        id: { type: string }
+        title: { $ref: "#/components/schemas/TopicTitle" }
+        description: { $ref: "#/components/schemas/TopicDescription" }
+        startAt: { $ref: "#/components/schemas/ISODate" }
+        endAt: { $ref: "#/components/schemas/ISODate" }
+        charLimit: { $ref: "#/components/schemas/CharLimit" }
+        aiReviewEnabled: { type: boolean }
+        status:
+          type: string
+          enum: [upcoming, collecting, ended]
+          description: 派生状态（不落库）
+        collectingStopped: { type: boolean, description: 手动停止采集标志 }
+        archived: { type: boolean, description: 是否已归档 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    TopicPublicInfo:
+      type: object
+      required: [id, title, description, startAt, endAt, charLimit, status]
+      description: 主题公开信息（不含审核管理字段）
+      properties:
+        id: { type: string }
+        title: { $ref: "#/components/schemas/TopicTitle" }
+        description: { $ref: "#/components/schemas/TopicDescription" }
+        startAt: { $ref: "#/components/schemas/ISODate" }
+        endAt: { $ref: "#/components/schemas/ISODate" }
+        charLimit: { $ref: "#/components/schemas/CharLimit" }
+        status:
+          type: string
+          enum: [upcoming, collecting, ended]
+    Marshmallow:
+      type: object
+      required: [id, topicId, content, adopted, createdAt]
+      properties:
+        id: { type: string }
+        topicId: { type: string }
+        content: { type: string }
+        adopted: { type: boolean }
+        aiReview:
+          oneOf:
+            - type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [approved, rejected, pending] }
+                filteredReason: { type: string }
+                ignoredByAdmin: { type: boolean }
+            - type: "null"
+          description: AI 审核结果（null 表示未启用 AI 审核）
+        createdAt: { type: string, format: date-time }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string, description: 中文错误信息 }

@@ -44,6 +44,10 @@ export const config = {
     "BILI_COVER_UPSTREAM_URL",
     "http://ayelet-tools.internal.fffdan.com/api/v1/bilibili/cover",
   ),
+  // AI 审核配置（fail-fast 校验在 index.ts 启动时执行）
+  reviewAiType: envOr("SUMIRE_REVIEW_AI_TYPE"), // "openai" | "claude"
+  reviewAiEndpoint: envOr("SUMIRE_REVIEW_AI_ENDPOINT"),
+  reviewAiApiKey: envOr("SUMIRE_REVIEW_AI_API_KEY"),
 };
 
 export const COOKIE_NAME = "sumire_sid";

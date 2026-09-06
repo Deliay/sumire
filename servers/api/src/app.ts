@@ -13,6 +13,9 @@ import { createBiliCoverRouter } from "./routes/biliCover";
 import { createLiveEventsUpstream, type LiveEventsUpstream } from "./liveEvents/upstream";
 import { createMemoryLiveHistoryCache, type LiveHistoryCache } from "./infra/liveHistoryCache";
 import { createMemoryLiveStatusCache, type LiveStatusCache } from "./infra/liveStatusCache";
+import { createTopicsRouter, type TopicsRouterDeps } from "./routes/topics";
+import { createMemoryMarshRateLimiter, type MarshRateLimiter } from "./topics/rateLimit";
+import { MemoryReviewQueue, type ReviewQueue } from "./topics/reviewQueue";
 import { config } from "./config";
 
 export interface AppDeps {
@@ -26,6 +29,10 @@ export interface AppDeps {
   liveEventsUpstream?: LiveEventsUpstream;
   /** 文本罗马音标注（缺省 kuroshiro 全文转换；单测可注入恒 null 避免加载字典）。 */
   toRomajiFn?: (text: string) => Promise<string | null>;
+  /** 棉花糖投递限速器 */
+  marshRateLimiter?: MarshRateLimiter;
+  /** AI 审核队列 */
+  reviewQueue?: ReviewQueue;
 }
 
 export function createApp(deps: AppDeps): Application {
@@ -81,6 +88,22 @@ export function createApp(deps: AppDeps): Application {
   api.use(
     "/bilibili/cover",
     createBiliCoverRouter({ upstreamUrl: config.biliCoverUpstreamUrl }),
+  );
+
+  // topics 域：管理端点需 admin+；公开端点在路由内部单独挂载中间件
+  api.use(
+    "/topics",
+    createTopicsRouter({
+      marshRateLimiter: deps.marshRateLimiter ?? createMemoryMarshRateLimiter(),
+      reviewQueue: deps.reviewQueue ?? new MemoryReviewQueue(),
+    }),
+  );
+  api.use(
+    "/marshmallows",
+    createTopicsRouter({
+      marshRateLimiter: deps.marshRateLimiter ?? createMemoryMarshRateLimiter(),
+      reviewQueue: deps.reviewQueue ?? new MemoryReviewQueue(),
+    }),
   );
 
   app.use("/api", api);

@@ -140,6 +140,45 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 
 - SideNav `NAV_ITEMS` 追加 `{ href: "/backdoor/danmaku-tools", label: "弹幕工具", roles: ["superadmin", "admin", "member"] }`；选中态最长前缀匹配，`/backdoor/danmaku-tools/vote` 命中「弹幕工具」而非「弹幕看板」。
 
+## 棉花糖（features/topics）
+
+### 模块结构
+
+| 文件 | 职责 |
+|------|------|
+| `features/topics/types.ts` | Zod schema（Topic / Marshmallow / TopicPublicInfo） |
+| `features/topics/api.ts` | 管理端点 + 公开端点封装 |
+| `features/topics/status.ts` | 状态文案/徽标色纯函数 |
+| `features/topics/clientKey.ts` | localStorage 客户端标识读写 |
+| `features/markdown/MarkdownEditor.tsx` | @uiw/react-md-editor 封装（`next/dynamic ssr:false`） |
+| `features/markdown/MarkdownView.tsx` | react-markdown + remark-gfm（禁原始 HTML） |
+
+### 组件
+
+| 组件 | 说明 |
+|------|------|
+| `TopicCard` | 列表页卡片（标题/状态徽标/三按钮） |
+| `TopicFormDialog` | 新建/修改主题弹窗（含 MarkdownEditor） |
+| `CollapsibleMarkdown` | 可折叠 Markdown（line-clamp-3） |
+| `MarshmallowCard` | 棉花糖条目 + 采用切换 + AI 覆盖层三态 |
+| `ConfirmDialog` | 投递前 AI 审核告知弹窗 |
+| `SubmitDoneView` | 提交完成结果视图 |
+| `TopicPublicPage` | 公开收集页主体 |
+
+### 后台页面
+
+- **列表页**（`/backdoor/topics`）：RequireRole("admin") 守卫，卡片栅格，编辑弹窗
+- **详情页**（`/backdoor/topics/:id`）：RequireRole("admin") 守卫，折叠描述，棉花糖列表
+- **幻灯片页**（`/backdoor/topics/:id/presentation`）：独立页，RequireRole("admin") 守卫，分页拉取所有棉花糖
+
+### 公开收集页
+
+- 查询串方案（`/topics?id={topicId}`），GitHub Pages 静态导出兼容
+- 三态视图：form / submitting / done
+- done 态仅展示成功提示，不含审核字段
+
+SideNav `NAV_ITEMS` 追加 `{ href: "/backdoor/topics", label: "棉花糖", roles: ["superadmin", "admin"] }`。
+
 ## 悬停胶囊栏（features/danmaku）
 
 ### 纯函数与 Hook

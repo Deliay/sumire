@@ -68,8 +68,8 @@ export default function TopicsPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-medium text-ink">棉花糖</h1>
-          <p className="text-sm text-ink-dim">提问箱主题管理</p>
+          <h1 className="font-serif text-2xl font-semibold text-ink">棉花糖</h1>
+          <p className="mt-1 text-ink-dim">提问箱主题管理</p>
         </div>
         <button
           type="button"

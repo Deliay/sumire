@@ -66,5 +66,28 @@ test.describe("backdoor 棉花糖（主题管理）", () => {
     const guide = page.getByRole("button", { name: "知道了" });
     if (await guide.isVisible().catch(() => false)) await guide.click();
     await expect(page.getByText(content)).toBeVisible();
+
+    // 6. 字号预设档位真实生效（回归：prose 自带 font-size:1rem 曾覆盖容器继承导致点击无效果）
+    const prose = page.locator("div.prose", { hasText: content }).first();
+    await expect(prose).toBeVisible();
+    await expect(prose).toHaveCSS("font-size", "16px"); // 默认「中」
+    await expect(prose).toHaveCSS("text-align", "left"); // 容器居中、条目内文本左对齐
+    const itemBox = prose.locator(".."); // 条目限宽容器
+    await expect(itemBox).toHaveClass(/max-w-\[50%\]/);
+    await page.getByRole("button", { name: "大" }).click();
+    await expect(prose).toHaveCSS("font-size", "20px");
+    await expect(page.getByRole("button", { name: "大" })).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: "小" }).click();
+    await expect(prose).toHaveCSS("font-size", "14px");
+    await expect(page.getByRole("button", { name: "小" })).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: "中" }).click();
+    await expect(prose).toHaveCSS("font-size", "16px");
+
+    // 7. 页头标题衬线字体 + 页头/放映区明线分割
+    await expect(page.getByRole("heading", { name: title, exact: true })).toHaveCSS(
+      "font-family",
+      /Noto Serif SC|serif/,
+    );
+    await expect(page.locator("div.border-t.border-vine").first()).toBeVisible();
   });
 });

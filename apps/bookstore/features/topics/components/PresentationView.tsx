@@ -11,6 +11,12 @@ import type { Topic, Marshmallow } from "@/features/topics/types";
 const FONT_SIZE_KEY = "topics.presentation.fontSize";
 const GUIDE_KEY = "topics.presentation.guideSeen";
 
+const FONT_PRESETS = [
+  { label: "小", size: 14 },
+  { label: "中", size: 16 },
+  { label: "大", size: 20 },
+] as const;
+
 function getInitialFontSize(): number {
   if (typeof window === "undefined") return 16;
   try {
@@ -81,11 +87,10 @@ export default function PresentationView() {
     return () => { cancelled = true; };
   }, [id]);
 
-  const handleFontSize = (delta: number) => {
-    const next = Math.min(32, Math.max(12, fontSize + delta));
-    setFontSize(next);
+  const handleFontSize = (size: number) => {
+    setFontSize(size);
     try {
-      localStorage.setItem(FONT_SIZE_KEY, String(next));
+      localStorage.setItem(FONT_SIZE_KEY, String(size));
     } catch {
       // ignore
     }
@@ -119,27 +124,35 @@ export default function PresentationView() {
         <div className="h-screen flex flex-col bg-night text-ink">
           {/* 页头 */}
           <div className="shrink-0 p-4 text-center">
-            <h1 className="text-xl font-medium">{topic.title}</h1>
+            <h1 className="font-serif text-2xl font-semibold">{topic.title}</h1>
             <div className="mt-1">
               <CollapsibleMarkdown content={topic.description} />
             </div>
-            <div className="flex items-center justify-center gap-2 mt-2">
-              <button
-                type="button"
-                onClick={() => handleFontSize(-2)}
-                className="text-sm text-ink-dim hover:text-ink"
-              >
-                A−
-              </button>
-              <button
-                type="button"
-                onClick={() => handleFontSize(2)}
-                className="text-sm text-ink-dim hover:text-ink"
-              >
-                A+
-              </button>
+            <div
+              className="inline-flex items-center gap-1 mt-3 border border-vine rounded overflow-hidden"
+              role="group"
+              aria-label="字号"
+            >
+              {FONT_PRESETS.map((preset) => (
+                <button
+                  key={preset.size}
+                  type="button"
+                  onClick={() => handleFontSize(preset.size)}
+                  aria-pressed={fontSize === preset.size}
+                  className={`px-3 py-1 text-sm ${
+                    fontSize === preset.size
+                      ? "bg-primary/20 text-ink"
+                      : "text-ink-dim hover:text-ink hover:bg-raised"
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              ))}
             </div>
           </div>
+
+          {/* 页头与放映区的明线分割 */}
+          <div className="shrink-0 border-t border-vine" />
 
           {/* 放映区 */}
           <div className="flex-1 min-h-0 flex items-stretch">
@@ -153,17 +166,14 @@ export default function PresentationView() {
               ‹
             </button>
 
-            <div className="flex-1 flex items-center justify-center px-4">
+            <div className="flex-1 min-w-0 flex items-center justify-center px-4">
               {marshmallows.length === 0 ? (
                 <div className="text-ink-dim text-center">
                   还没有已采用的棉花糖，请先在详情页采用
                 </div>
               ) : current ? (
-                <div
-                  className="max-w-[50%] h-full overflow-y-auto p-4"
-                  style={{ fontSize }}
-                >
-                  <MarkdownView content={current.content} />
+                <div className="w-full max-w-[50%] h-full overflow-y-auto p-4 text-left">
+                  <MarkdownView content={current.content} style={{ fontSize }} />
                 </div>
               ) : null}
             </div>
@@ -185,7 +195,7 @@ export default function PresentationView() {
               <div className="bg-raised border border-vine rounded-lg p-6 max-w-sm text-center">
                 <p className="text-sm text-ink mb-2">左右翻页按钮切换条目</p>
                 <p className="text-sm text-ink mb-2">条目内容可在内部滚动</p>
-                <p className="text-sm text-ink mb-4">A−/A+ 调节字号</p>
+                <p className="text-sm text-ink mb-4">小/中/大 调节字号</p>
                 <button
                   type="button"
                   onClick={closeGuide}

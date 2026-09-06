@@ -103,7 +103,7 @@ export default function TopicPublicPage() {
   return (
     <div className="max-w-[40rem] mx-auto px-5 py-8">
       {/* 主题信息 */}
-      <h1 className="text-xl font-medium text-ink mb-2">{topic.title}</h1>
+      <h1 className="font-serif text-2xl font-semibold text-ink mb-2">{topic.title}</h1>
       <div className="flex items-center gap-2 mb-4 text-xs text-ink-dim">
         <span className={getStatusBadgeClass(status)}>{getStatusText(status)}</span>
         <span>

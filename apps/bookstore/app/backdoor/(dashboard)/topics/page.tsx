@@ -96,7 +96,7 @@ export default function TopicsPage() {
               onArchive={() => handleArchive(topic.id)}
               // I18: 修改按钮打开表单而非跳转详情
               onEdit={() => setEditingTopic(topic)}
-              onClick={() => router.push(`/backdoor/topics/${topic.id}`)}
+              onClick={() => router.push(`/backdoor/topics/detail?id=${topic.id}`)}
             />
           ))}
         </div>

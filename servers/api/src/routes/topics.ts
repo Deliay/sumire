@@ -97,7 +97,7 @@ export function createTopicsRouter(deps: TopicsRouterDeps): Router {
   router.get("/:id", requireRole("admin"), async (req: Request, res: Response) => {
     const id = String(req.params.id);
     if (!isValidObjectId(id)) {
-      res.status(400).json({ error: "主题 ID 非法" });
+      res.status(404).json({ error: "主题不存在" });
       return;
     }
     const topic = await findTopicOutput(id);
@@ -111,7 +111,7 @@ export function createTopicsRouter(deps: TopicsRouterDeps): Router {
   router.put("/:id", requireRole("admin"), async (req: Request, res: Response) => {
     const id = String(req.params.id);
     if (!isValidObjectId(id)) {
-      res.status(400).json({ error: "主题 ID 非法" });
+      res.status(404).json({ error: "主题不存在" });
       return;
     }
     const { title, description, startAt, endAt, charLimit, aiReviewEnabled } = req.body ?? {};
@@ -169,7 +169,7 @@ export function createTopicsRouter(deps: TopicsRouterDeps): Router {
   router.post("/:id/collecting", requireRole("admin"), async (req: Request, res: Response) => {
     const id = String(req.params.id);
     if (!isValidObjectId(id)) {
-      res.status(400).json({ error: "主题 ID 非法" });
+      res.status(404).json({ error: "主题不存在" });
       return;
     }
     const topic = await findTopic(id);
@@ -197,7 +197,7 @@ export function createTopicsRouter(deps: TopicsRouterDeps): Router {
   router.post("/:id/archive", requireRole("admin"), async (req: Request, res: Response) => {
     const id = String(req.params.id);
     if (!isValidObjectId(id)) {
-      res.status(400).json({ error: "主题 ID 非法" });
+      res.status(404).json({ error: "主题不存在" });
       return;
     }
     const topic = await findTopic(id);
@@ -216,7 +216,7 @@ export function createTopicsRouter(deps: TopicsRouterDeps): Router {
   router.get("/:id/marshmallows", requireRole("admin"), async (req: Request, res: Response) => {
     const id = String(req.params.id);
     if (!isValidObjectId(id)) {
-      res.status(400).json({ error: "主题 ID 非法" });
+      res.status(404).json({ error: "主题不存在" });
       return;
     }
     const topic = await findTopicOutput(id);
@@ -236,7 +236,7 @@ export function createTopicsRouter(deps: TopicsRouterDeps): Router {
   router.get("/:id/public", visitorCookieMiddleware, async (req: Request, res: Response) => {
     const id = String(req.params.id);
     if (!isValidObjectId(id)) {
-      res.status(400).json({ error: "主题 ID 非法" });
+      res.status(404).json({ error: "主题不存在" });
       return;
     }
     const topic = await findTopicOutput(id);
@@ -267,7 +267,7 @@ export function createTopicsRouter(deps: TopicsRouterDeps): Router {
     async (req: Request, res: Response) => {
       const id = String(req.params.id);
       if (!isValidObjectId(id)) {
-        res.status(400).json({ error: "主题 ID 非法" });
+        res.status(404).json({ error: "主题不存在" });
         return;
       }
       const topic = await findTopic(id);
@@ -362,7 +362,7 @@ export function createMarshmallowsRouter(): Router {
   router.patch("/:id", requireRole("admin"), async (req: Request, res: Response) => {
     const id = String(req.params.id);
     if (!isValidObjectId(id)) {
-      res.status(400).json({ error: "棉花糖 ID 非法" });
+      res.status(404).json({ error: "棉花糖不存在" });
       return;
     }
     const marsh = await findMarshmallow(id);

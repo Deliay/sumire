@@ -168,12 +168,12 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 ### 后台页面
 
 - **列表页**（`/backdoor/topics`）：RequireRole("admin") 守卫，卡片栅格，编辑弹窗
-- **详情页**（`/backdoor/topics/:id`）：RequireRole("admin") 守卫，折叠描述，棉花糖列表
-- **幻灯片页**（`/backdoor/topics/:id/presentation`）：独立页，RequireRole("admin") 守卫，分页拉取所有棉花糖
+- **详情页**（`/backdoor/topics/detail?id={topicId}`）：RequireRole("admin") 守卫，折叠描述，棉花糖列表。查询串方案（GitHub Pages 静态导出兼容动态路由），id 经客户端 `useSearchParams` 读取并包 Suspense
+- **幻灯片页**（`/backdoor/topics/presentation?id={topicId}`）：查询串方案，独立页，RequireRole("admin") 守卫，分页拉取所有棉花糖
 
 ### 公开收集页
 
-- 查询串方案（`/topics?id={topicId}`），GitHub Pages 静态导出兼容
+- 查询串方案（`/topics?id={topicId}`），GitHub Pages 静态导出兼容；id 经客户端 `useSearchParams` 读取并包 Suspense
 - 三态视图：form / submitting / done
 - done 态仅展示成功提示，不含审核字段
 

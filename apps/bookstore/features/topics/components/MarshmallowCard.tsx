@@ -21,7 +21,6 @@ export default function MarshmallowCard({
 
   const isRejected = aiReview?.status === "rejected" && !aiReview?.ignoredByAdmin;
   const isPending = aiReview?.status === "pending" && !aiReview?.ignoredByAdmin;
-  const showOverlay = isRejected || (isPending && !showPendingContent);
 
   return (
     <div

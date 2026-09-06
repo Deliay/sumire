@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import MarkdownView from "@/features/markdown/MarkdownView";
 import MarkdownEditor from "@/features/markdown/MarkdownEditor";
 import ConfirmDialog from "@/features/topics/components/ConfirmDialog";
@@ -12,12 +13,10 @@ import type { TopicPublicInfo } from "@/features/topics/types";
 
 type ViewState = "form" | "submitting" | "done";
 
-interface TopicPublicPageProps {
-  /** B8: 从 searchParams 获取 id（查询串降级方案） */
-  topicId?: string;
-}
-
-export default function TopicPublicPage({ topicId }: TopicPublicPageProps) {
+export default function TopicPublicPage() {
+  // B8: 从查询串 id 读取（静态导出不支持动态路由直达）
+  const searchParams = useSearchParams();
+  const topicId = searchParams.get("id") ?? "";
   const [topic, setTopic] = useState<TopicPublicInfo | null>(null);
   const [content, setContent] = useState("");
   const [viewState, setViewState] = useState<ViewState>("form");
@@ -26,11 +25,7 @@ export default function TopicPublicPage({ topicId }: TopicPublicPageProps) {
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
-    if (!topicId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- initialization on mount
-      setNotFound(true);
-      return;
-    }
+    if (!topicId) return;
     let cancelled = false;
     (async () => {
       const { status, data } = await getTopicPublic(topicId);

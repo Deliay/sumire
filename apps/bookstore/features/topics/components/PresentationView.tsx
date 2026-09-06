@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import MarkdownView from "@/features/markdown/MarkdownView";
 import CollapsibleMarkdown from "@/features/topics/components/CollapsibleMarkdown";
 import { RequireRole } from "@/features/backdoor/RequireRole";
@@ -30,10 +30,10 @@ function getInitialGuideSeen(): boolean {
   }
 }
 
-export default function PresentationPage() {
-  const params = useParams();
-  const id = params.id as string;
-
+// B8 同款方案：静态导出不支持动态路由直达，幻灯片页改用查询串 id（/backdoor/topics/presentation?id=xxx）
+export default function PresentationView() {
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id") ?? "";
   const [topic, setTopic] = useState<Topic | null>(null);
   const [marshmallows, setMarshmallows] = useState<Marshmallow[]>([]);
   const [index, setIndex] = useState(0);
@@ -45,11 +45,11 @@ export default function PresentationPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration from localStorage on mount
     setFontSize(getInitialFontSize());
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration from localStorage on mount
     setShowGuide(!getInitialGuideSeen());
   }, []);
 
   useEffect(() => {
+    if (!id) return;
     let cancelled = false;
     (async () => {
       const { status, data: topicData } = await getTopic(id);

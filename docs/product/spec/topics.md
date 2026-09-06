@@ -71,15 +71,16 @@
 - 操作：停止/继续收集、归档、修改（打开编辑弹窗）
 - 新建主题弹窗
 
-### 主题详情页（`/backdoor/topics/:id`）
+### 主题详情页（`/backdoor/topics/detail?id={topicId}`）
 
+- 查询串方案（与公开收集页一致，GitHub Pages 静态导出兼容动态路由）
 - 可折叠描述（Markdown，默认折叠）
 - 棉花糖列表（采用/取消采用，AI 覆盖层三态）
 - 工具栏：幻灯片、开始/结束收集、修改主题
 
-### 幻灯片页（`/backdoor/topics/:id/presentation`）
+### 幻灯片页（`/backdoor/topics/presentation?id={topicId}`）
 
-- 独立页，不经后台骨架
+- 查询串方案，独立页，不经后台骨架
 - 仅展示已采用的棉花糖
 - 左右翻页，字号调节（localStorage 持久化）
 - 首次引导遮盖层

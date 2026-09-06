@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import CollapsibleMarkdown from "@/features/topics/components/CollapsibleMarkdown";
 import MarshmallowCard from "@/features/topics/components/MarshmallowCard";
 import TopicFormDialog from "@/features/topics/components/TopicFormDialog";
@@ -17,10 +17,10 @@ import {
 import { getStatusText, getStatusBadgeClass } from "@/features/topics/status";
 import type { Topic, Marshmallow } from "@/features/topics/types";
 
-export default function TopicDetailPage() {
-  const params = useParams();
-  const id = params.id as string;
-
+// B8 同款方案：静态导出不支持动态路由直达，详情页改用查询串 id（/backdoor/topics/detail?id=xxx）
+export default function TopicDetailView() {
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id") ?? "";
   const [topic, setTopic] = useState<Topic | null>(null);
   const [marshmallows, setMarshmallows] = useState<Marshmallow[]>([]);
   const [total, setTotal] = useState(0);
@@ -32,6 +32,7 @@ export default function TopicDetailPage() {
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
+    if (!id) return;
     let cancelled = false;
     (async () => {
       const { status, data } = await getTopic(id);
@@ -47,6 +48,7 @@ export default function TopicDetailPage() {
   }, [id]);
 
   useEffect(() => {
+    if (!id) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -134,7 +136,7 @@ export default function TopicDetailPage() {
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => window.open(`/backdoor/topics/${id}/presentation`, "_blank")}
+              onClick={() => window.open(`/backdoor/topics/presentation?id=${id}`, "_blank")}
               className="text-xs text-ink-dim hover:text-ink border border-vine rounded px-2 py-1"
             >
               幻灯片

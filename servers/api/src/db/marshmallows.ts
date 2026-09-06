@@ -156,9 +156,9 @@ export async function writeReviewResult(
   status: "approved" | "rejected",
   filteredReason?: string,
 ): Promise<boolean> {
+  // I13: 不触碰 ignoredByAdmin 字段，保留管理员在 pending 期间的设置
   const update: Record<string, unknown> = {
     "aiReview.status": status,
-    "aiReview.ignoredByAdmin": false,
     updatedAt: new Date(),
   };
   if (filteredReason !== undefined) {

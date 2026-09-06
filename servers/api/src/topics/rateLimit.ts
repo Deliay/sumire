@@ -18,6 +18,7 @@ export class RedisMarshRateLimiter implements MarshRateLimiter {
     this.redis = redis;
   }
 
+  // I11: 原子化检查+记录，避免 TOCTOU 竞态
   async check(key: string): Promise<boolean> {
     const windows = [
       { prefix: "1m", limit: 1, ttl: 60 },
@@ -25,24 +26,21 @@ export class RedisMarshRateLimiter implements MarshRateLimiter {
     ];
     for (const w of windows) {
       const redisKey = `marsh:${w.prefix}:${key}`;
-      const count = Number(await this.redis.get(redisKey)) || 0;
-      if (count >= w.limit) return false;
+      // INCR 原子递增，返回新值
+      const count = await this.redis.incr(redisKey);
+      if (count === 1) {
+        // 首次设置过期时间
+        await this.redis.expire(redisKey, w.ttl);
+      }
+      if (count > w.limit) {
+        return false;
+      }
     }
     return true;
   }
 
-  async record(key: string): Promise<void> {
-    const windows = [
-      { prefix: "1m", ttl: 60 },
-      { prefix: "1h", ttl: 3600 },
-    ];
-    for (const w of windows) {
-      const redisKey = `marsh:${w.prefix}:${key}`;
-      const count = await this.redis.incr(redisKey);
-      if (count === 1) {
-        await this.redis.expire(redisKey, w.ttl);
-      }
-    }
+  async record(_key: string): Promise<void> {
+    // 已在 check 中原子化完成，无需额外操作
   }
 
   dispose(): void {

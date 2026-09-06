@@ -9,9 +9,8 @@ export interface AiClient {
   chat(content: string): Promise<{ filtered: boolean; filteredReason: string }>;
 }
 
-function createOpenAiClient(): AiClient {
-  // Dynamic import to avoid hard dependency
-  const OpenAI = require("openai").default;
+async function createOpenAiClient(): Promise<AiClient> {
+  const { default: OpenAI } = await import("openai");
   const client = new OpenAI({
     apiKey: config.reviewAiApiKey,
     baseURL: config.reviewAiEndpoint,
@@ -40,8 +39,14 @@ function createOpenAiClient(): AiClient {
   };
 }
 
-function createClaudeClient(): AiClient {
-  const Anthropic = require("@anthropic-ai/sdk").default;
+async function createClaudeClient(): Promise<AiClient> {
+  // Dynamic import with error handling for optional dependency
+  // @ts-ignore - optional dependency may not be installed
+  const AnthropicModule = await import("@anthropic-ai/sdk").catch(() => null);
+  if (!AnthropicModule?.default) {
+    throw new Error("@anthropic-ai/sdk 未安装，请运行 pnpm add @anthropic-ai/sdk");
+  }
+  const Anthropic = AnthropicModule.default;
   const client = new Anthropic({
     apiKey: config.reviewAiApiKey,
     baseURL: config.reviewAiEndpoint,
@@ -68,7 +73,7 @@ function createClaudeClient(): AiClient {
   };
 }
 
-function createAiClient(): AiClient {
+async function createAiClient(): Promise<AiClient> {
   const type = config.reviewAiType;
   if (type === "claude") return createClaudeClient();
   return createOpenAiClient();
@@ -86,11 +91,11 @@ function sleep(ms: number): Promise<void> {
  * @param queue 队列实例
  * @param aiClient AI 客户端（可注入 mock）
  */
-export function startReviewWorker(
+export async function startReviewWorker(
   queue: ReviewQueue,
   aiClient?: AiClient,
-): () => void {
-  const client = aiClient ?? createAiClient();
+): Promise<() => void> {
+  const client = aiClient ?? await createAiClient();
   let stopped = false;
 
   async function processJob(job: ReviewJob): Promise<void> {
@@ -101,15 +106,13 @@ export function startReviewWorker(
     if (!topic) return;
 
     let lastError: Error | null = null;
+    let result: { filtered: boolean; filteredReason: string } | null = null;
+
+    // 只重试 AI 调用
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const result = await client.chat(marsh.content);
-        if (result.filtered) {
-          await writeReviewResult(marsh._id.toString(), "rejected", result.filteredReason);
-        } else {
-          await writeReviewResult(marsh._id.toString(), "approved");
-        }
-        return;
+        result = await client.chat(marsh.content);
+        break; // AI 调用成功，跳出重试循环
       } catch (err) {
         lastError = err as Error;
         if (attempt < MAX_RETRIES) {
@@ -118,13 +121,30 @@ export function startReviewWorker(
       }
     }
 
-    // 最终失败兜底
-    await writeReviewResult(
-      marsh._id.toString(),
-      "rejected",
-      "审核服务暂时不可用，请管理员人工确认",
-    );
-    console.error(`[reviewWorker] 最终失败 ${job.marshmallowId}:`, lastError?.message);
+    if (result) {
+      // AI 调用成功，写入结果（DB 写入失败不重试 AI）
+      try {
+        if (result.filtered) {
+          await writeReviewResult(marsh._id.toString(), "rejected", result.filteredReason);
+        } else {
+          await writeReviewResult(marsh._id.toString(), "approved");
+        }
+      } catch (dbErr) {
+        console.error(`[reviewWorker] DB 回写失败 ${job.marshmallowId}:`, dbErr);
+      }
+    } else {
+      // 最终失败兜底
+      try {
+        await writeReviewResult(
+          marsh._id.toString(),
+          "rejected",
+          "审核服务暂时不可用，请管理员人工确认",
+        );
+      } catch {
+        // ignore
+      }
+      console.error(`[reviewWorker] 最终失败 ${job.marshmallowId}:`, lastError?.message);
+    }
   }
 
   async function loop(): Promise<void> {

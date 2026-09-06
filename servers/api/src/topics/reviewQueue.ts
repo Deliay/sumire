@@ -45,8 +45,13 @@ export class MemoryReviewQueue implements ReviewQueue {
     this.queue.push(job);
   }
 
+  // I23: 添加 sleep 避免忙转
   async dequeue(): Promise<ReviewJob | null> {
-    return this.queue.shift() ?? null;
+    const job = this.queue.shift() ?? null;
+    if (!job) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    return job;
   }
 
   dispose(): void {

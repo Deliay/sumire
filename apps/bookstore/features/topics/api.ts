@@ -1,4 +1,4 @@
-import { request, API_CONFIGURED } from "@/features/backdoor/api";
+import { request, API_BASE_URL, API_CONFIGURED } from "@/features/backdoor/api";
 import type { Topic, Marshmallow } from "./types";
 
 // ===== 管理端点 =====
@@ -83,10 +83,11 @@ export async function updateMarshmallow(
 }
 
 // ===== 公开端点 =====
+// B6: 使用 API_BASE_URL 而非相对路径，确保 GitHub Pages 静态导出后 API 在独立源时可用
 
 export async function getTopicPublic(id: string) {
   if (!API_CONFIGURED) return { status: 0, data: null };
-  const res = await fetch(`/api/topics/${id}/public`, {
+  const res = await fetch(`${API_BASE_URL}/api/topics/${id}/public`, {
     credentials: "include",
   });
   const data = await res.json();
@@ -99,7 +100,7 @@ export async function submitMarshmallow(
   clientKey: string,
 ) {
   if (!API_CONFIGURED) return { status: 0, data: null };
-  const res = await fetch(`/api/topics/${topicId}/marshmallows`, {
+  const res = await fetch(`${API_BASE_URL}/api/topics/${topicId}/marshmallows`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ content, clientKey }),

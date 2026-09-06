@@ -21,6 +21,10 @@
     "mongoose": "^8.16.0",
     "opencc-js": "^1.4.1"
   },
+  "optionalDependencies": {
+    "openai": "^4.0.0",
+    "@anthropic-ai/sdk": "^0.0.0"
+  },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.19",

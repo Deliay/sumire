@@ -13,7 +13,7 @@ import { createBiliCoverRouter } from "./routes/biliCover";
 import { createLiveEventsUpstream, type LiveEventsUpstream } from "./liveEvents/upstream";
 import { createMemoryLiveHistoryCache, type LiveHistoryCache } from "./infra/liveHistoryCache";
 import { createMemoryLiveStatusCache, type LiveStatusCache } from "./infra/liveStatusCache";
-import { createTopicsRouter, type TopicsRouterDeps } from "./routes/topics";
+import { createTopicsRouter, createMarshmallowsRouter, type TopicsRouterDeps } from "./routes/topics";
 import { createMemoryMarshRateLimiter, type MarshRateLimiter } from "./topics/rateLimit";
 import { MemoryReviewQueue, type ReviewQueue } from "./topics/reviewQueue";
 import { config } from "./config";
@@ -98,13 +98,8 @@ export function createApp(deps: AppDeps): Application {
       reviewQueue: deps.reviewQueue ?? new MemoryReviewQueue(),
     }),
   );
-  api.use(
-    "/marshmallows",
-    createTopicsRouter({
-      marshRateLimiter: deps.marshRateLimiter ?? createMemoryMarshRateLimiter(),
-      reviewQueue: deps.reviewQueue ?? new MemoryReviewQueue(),
-    }),
-  );
+  // B2: 棉花糖管理端点独立路由（PATCH /api/marshmallows/:id）
+  api.use("/marshmallows", createMarshmallowsRouter());
 
   app.use("/api", api);
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "next/navigation";
 import MarkdownView from "@/features/markdown/MarkdownView";
 import MarkdownEditor from "@/features/markdown/MarkdownEditor";
 import ConfirmDialog from "@/features/topics/components/ConfirmDialog";
@@ -13,27 +12,41 @@ import type { TopicPublicInfo } from "@/features/topics/types";
 
 type ViewState = "form" | "submitting" | "done";
 
-export default function TopicPublicPage() {
-  const params = useParams();
-  const id = params.id as string;
+interface TopicPublicPageProps {
+  /** B8: 从 searchParams 获取 id（查询串降级方案） */
+  topicId?: string;
+}
 
+export default function TopicPublicPage({ topicId }: TopicPublicPageProps) {
   const [topic, setTopic] = useState<TopicPublicInfo | null>(null);
   const [content, setContent] = useState("");
   const [viewState, setViewState] = useState<ViewState>("form");
   const [error, setError] = useState("");
   const [showConfirm, setShowConfirm] = useState(false);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
+    if (!topicId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- initialization on mount
+      setNotFound(true);
+      return;
+    }
     let cancelled = false;
     (async () => {
-      const { data } = await getTopicPublic(id);
-      if (!cancelled && data?.ok) setTopic(data.topic);
+      const { status, data } = await getTopicPublic(topicId);
+      if (!cancelled) {
+        if (status === 200 && data?.ok) {
+          setTopic(data.topic);
+        } else {
+          setNotFound(true);
+        }
+      }
     })();
     return () => { cancelled = true; };
-  }, [id]);
+  }, [topicId]);
 
   const handleSubmit = useCallback(async () => {
-    if (!content.trim()) {
+    if (!topicId || !content.trim()) {
       setError("内容不能为空");
       return;
     }
@@ -45,7 +58,7 @@ export default function TopicPublicPage() {
     setError("");
     try {
       const clientKey = getClientKey();
-      const { status, data } = await submitMarshmallow(id, content.trim(), clientKey);
+      const { status, data } = await submitMarshmallow(topicId, content.trim(), clientKey);
       if (status === 201 && data?.ok) {
         setViewState("done");
       } else if (status === 429) {
@@ -65,12 +78,21 @@ export default function TopicPublicPage() {
       setError("投递失败，请重试");
       setViewState("form");
     }
-  }, [content, topic, id]);
+  }, [content, topic, topicId]);
 
   const handleAgain = () => {
     setContent("");
     setViewState("form");
   };
+
+  if (notFound) {
+    return (
+      <div className="max-w-[40rem] mx-auto px-5 py-8 text-center text-ink-dim">
+        <p className="text-lg mb-2">主题不存在</p>
+        <p className="text-sm">请检查链接是否正确</p>
+      </div>
+    );
+  }
 
   if (!topic) {
     return (

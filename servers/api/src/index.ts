@@ -28,9 +28,21 @@ async function main(): Promise<void> {
   const marshRateLimiter = new RedisMarshRateLimiter(redis);
   const reviewQueue = new RedisReviewQueue(redis);
 
-  // fail-fast 校验 AI 审核配置
-  if (config.reviewAiType && config.reviewAiType !== "openai" && config.reviewAiType !== "claude") {
-    throw new Error(`SUMIRE_REVIEW_AI_TYPE 必须为 openai 或 claude，当前值: ${config.reviewAiType}`);
+  // fail-fast 校验 AI 审核配置：任一缺失则启动失败
+  const hasAiConfig = config.reviewAiType || config.reviewAiEndpoint || config.reviewAiApiKey;
+  if (hasAiConfig) {
+    if (!config.reviewAiType) {
+      throw new Error("SUMIRE_REVIEW_AI_TYPE 未配置（SUMIRE_REVIEW_AI_* 任一缺失即启动失败）");
+    }
+    if (config.reviewAiType !== "openai" && config.reviewAiType !== "claude") {
+      throw new Error(`SUMIRE_REVIEW_AI_TYPE 必须为 openai 或 claude，当前值: ${config.reviewAiType}`);
+    }
+    if (!config.reviewAiEndpoint) {
+      throw new Error("SUMIRE_REVIEW_AI_ENDPOINT 未配置（SUMIRE_REVIEW_AI_* 任一缺失即启动失败）");
+    }
+    if (!config.reviewAiApiKey) {
+      throw new Error("SUMIRE_REVIEW_AI_API_KEY 未配置（SUMIRE_REVIEW_AI_* 任一缺失即启动失败）");
+    }
   }
 
   const app = createApp({
@@ -44,7 +56,7 @@ async function main(): Promise<void> {
 
   // 启动 AI 审核 worker
   if (config.reviewAiType && config.reviewAiEndpoint && config.reviewAiApiKey) {
-    startReviewWorker(reviewQueue);
+    await startReviewWorker(reviewQueue);
     console.log(`[reviewWorker] 已启动 (${config.reviewAiType})`);
   } else {
     console.log("[reviewWorker] 未配置 AI 审核，跳过启动");

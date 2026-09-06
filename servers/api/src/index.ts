@@ -52,6 +52,7 @@ async function main(): Promise<void> {
     liveStatusCache,
     marshRateLimiter,
     reviewQueue,
+    aiReviewEnabled: !!(config.reviewAiType && config.reviewAiEndpoint && config.reviewAiApiKey),
   });
 
   // 启动 AI 审核 worker

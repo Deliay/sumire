@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import MarkdownView from "@/features/markdown/MarkdownView";
 import CollapsibleMarkdown from "@/features/topics/components/CollapsibleMarkdown";
+import { RequireRole } from "@/features/backdoor/RequireRole";
 import { getTopic, listMarshmallows } from "@/features/topics/api";
 import type { Topic, Marshmallow } from "@/features/topics/types";
 
@@ -52,11 +53,22 @@ export default function PresentationPage() {
     (async () => {
       const { data: topicData } = await getTopic(id);
       if (!cancelled && topicData?.ok) setTopic(topicData.topic);
-      const { data: marshData } = await listMarshmallows(id, { pageSize: 1000 });
-      if (!cancelled && marshData?.ok) {
-        setMarshmallows(
-          marshData.marshmallows.filter((m) => m.adopted),
-        );
+      // #5: 逐页拉取所有棉花糖（后端钳制 100），直到无更多数据
+      let allMarshmallows: Marshmallow[] = [];
+      let page = 1;
+      let hasMore = true;
+      while (hasMore && !cancelled) {
+        const { data: marshData } = await listMarshmallows(id, { page, pageSize: 100 });
+        if (!cancelled && marshData?.ok) {
+          allMarshmallows = [...allMarshmallows, ...marshData.marshmallows];
+          hasMore = allMarshmallows.length < marshData.total;
+          page++;
+        } else {
+          hasMore = false;
+        }
+      }
+      if (!cancelled) {
+        setMarshmallows(allMarshmallows.filter((m) => m.adopted));
       }
     })();
     return () => { cancelled = true; };
@@ -92,7 +104,8 @@ export default function PresentationPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-night text-ink">
+    <RequireRole role="admin">
+      <div className="h-screen flex flex-col bg-night text-ink">
       {/* 页头 */}
       <div className="shrink-0 p-4 text-center">
         <h1 className="text-xl font-medium">{topic.title}</h1>
@@ -173,5 +186,6 @@ export default function PresentationPage() {
         </div>
       )}
     </div>
+    </RequireRole>
   );
 }

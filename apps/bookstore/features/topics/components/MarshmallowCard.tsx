@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import MarkdownView from "@/features/markdown/MarkdownView";
 import type { Marshmallow } from "@/features/topics/types";
 
@@ -15,9 +16,12 @@ export default function MarshmallowCard({
   onShowAnyway,
 }: MarshmallowCardProps) {
   const { id, content, adopted, aiReview } = marshmallow;
+  // I14: "提前查看" 仅本地 state 临时展示，不持久化
+  const [showPendingContent, setShowPendingContent] = useState(false);
 
   const isRejected = aiReview?.status === "rejected" && !aiReview?.ignoredByAdmin;
   const isPending = aiReview?.status === "pending" && !aiReview?.ignoredByAdmin;
+  const showOverlay = isRejected || (isPending && !showPendingContent);
 
   return (
     <div
@@ -65,11 +69,19 @@ export default function MarshmallowCard({
         </div>
       )}
 
-      {isPending && (
+      {/* I14: pending 状态显示"提前查看"按钮 */}
+      {isPending && !showPendingContent && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-night/80 rounded-lg p-4">
-          <p className="text-sm text-ink text-center">
+          <p className="text-sm text-ink text-center mb-2">
             这条内容AI正在审核中
           </p>
+          <button
+            type="button"
+            onClick={() => setShowPendingContent(true)}
+            className="text-sm text-ink-dim hover:text-ink"
+          >
+            提前查看
+          </button>
         </div>
       )}
     </div>

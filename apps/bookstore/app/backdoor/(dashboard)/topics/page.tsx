@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import TopicCard from "@/features/topics/components/TopicCard";
 import TopicFormDialog from "@/features/topics/components/TopicFormDialog";
-import { listTopics, createTopic, setCollecting, archiveTopic } from "@/features/topics/api";
+import { RequireRole } from "@/features/backdoor/RequireRole";
+import { listTopics, createTopic, updateTopic, setCollecting, archiveTopic } from "@/features/topics/api";
 import type { Topic } from "@/features/topics/types";
 
 export default function TopicsPage() {
@@ -12,6 +13,8 @@ export default function TopicsPage() {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  // I18: 编辑状态
+  const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,6 +40,17 @@ export default function TopicsPage() {
     }
   };
 
+  const handleUpdate = async (data: Parameters<typeof updateTopic>[1]) => {
+    if (!editingTopic) return;
+    const { status, data: resp } = await updateTopic(editingTopic.id, data);
+    if (status === 200) {
+      await reload();
+      setEditingTopic(null);
+    } else {
+      throw new Error("更新失败");
+    }
+  };
+
   const handleStartStop = async (id: string, currentStatus: string) => {
     const action = currentStatus === "collecting" ? "stop" : "start";
     await setCollecting(id, action);
@@ -50,6 +64,7 @@ export default function TopicsPage() {
   };
 
   return (
+    <RequireRole role="admin">
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -79,7 +94,8 @@ export default function TopicsPage() {
               status={topic.status}
               onStartStop={() => handleStartStop(topic.id, topic.status)}
               onArchive={() => handleArchive(topic.id)}
-              onEdit={() => router.push(`/backdoor/topics/${topic.id}`)}
+              // I18: 修改按钮打开表单而非跳转详情
+              onEdit={() => setEditingTopic(topic)}
               onClick={() => router.push(`/backdoor/topics/${topic.id}`)}
             />
           ))}
@@ -93,6 +109,24 @@ export default function TopicsPage() {
           onClose={() => setShowForm(false)}
         />
       )}
+
+      {/* I18: 编辑表单 */}
+      {editingTopic && (
+        <TopicFormDialog
+          mode="edit"
+          initial={{
+            title: editingTopic.title,
+            description: editingTopic.description,
+            startAt: new Date(editingTopic.startAt).toLocaleString("sv-SE", { timeZone: "UTC" }).slice(0, 16),
+            endAt: new Date(editingTopic.endAt).toLocaleString("sv-SE", { timeZone: "UTC" }).slice(0, 16),
+            charLimit: editingTopic.charLimit,
+            aiReviewEnabled: editingTopic.aiReviewEnabled,
+          }}
+          onSubmit={handleUpdate}
+          onClose={() => setEditingTopic(null)}
+        />
+      )}
     </div>
+    </RequireRole>
   );
 }

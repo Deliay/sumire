@@ -20,12 +20,14 @@ import {
 } from "../db/marshmallows";
 import { requireRole } from "../rbac/requireRole";
 import { visitorCookieMiddleware } from "../topics/visitorCookie";
-import { marshRateLimit, type MarshRateLimiter } from "../topics/rateLimit";
+import type { MarshRateLimiter } from "../topics/rateLimit";
 import type { ReviewQueue } from "../topics/reviewQueue";
 
 export interface TopicsRouterDeps {
   marshRateLimiter: MarshRateLimiter;
   reviewQueue?: ReviewQueue;
+  /** #4: AI 审核功能是否已配置并可用 */
+  aiReviewEnabled?: boolean;
 }
 
 function sha256(input: string): string {
@@ -333,7 +335,8 @@ export function createTopicsRouter(deps: TopicsRouterDeps): Router {
         aiReviewEnabled: topic.aiReviewEnabled,
       });
 
-      if (topic.aiReviewEnabled && deps.reviewQueue) {
+      // #4: 仅在 AI 审核已配置时入队；未配置时 aiReview 字段保持 null（见 createMarshmallow 逻辑）
+      if (topic.aiReviewEnabled && deps.aiReviewEnabled && deps.reviewQueue) {
         await deps.reviewQueue.enqueue({
           marshmallowId: marsh.id,
           topicId: id,

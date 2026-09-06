@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import CollapsibleMarkdown from "@/features/topics/components/CollapsibleMarkdown";
 import MarshmallowCard from "@/features/topics/components/MarshmallowCard";
 import TopicFormDialog from "@/features/topics/components/TopicFormDialog";
+import { RequireRole } from "@/features/backdoor/RequireRole";
 import {
   getTopic,
   listMarshmallows,
@@ -27,11 +28,20 @@ export default function TopicDetailPage() {
   const [loading, setLoading] = useState(true);
   const [showEdit, setShowEdit] = useState(false);
 
+  // I17: 区分加载中与不存在
+  const [notFound, setNotFound] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data } = await getTopic(id);
-      if (!cancelled && data?.ok) setTopic(data.topic);
+      const { status, data } = await getTopic(id);
+      if (!cancelled) {
+        if (status === 200 && data?.ok) {
+          setTopic(data.topic);
+        } else {
+          setNotFound(true);
+        }
+      }
     })();
     return () => { cancelled = true; };
   }, [id]);
@@ -99,11 +109,23 @@ export default function TopicDetailPage() {
     await reload();
   };
 
+  if (notFound) {
+    return (
+      <RequireRole role="admin">
+        <div className="text-center text-ink-dim py-8">
+          <p className="text-lg mb-2">主题不存在</p>
+          <p className="text-sm">请检查链接是否正确</p>
+        </div>
+      </RequireRole>
+    );
+  }
+
   if (!topic) {
     return <div className="text-center text-ink-dim py-8">加载中…</div>;
   }
 
   return (
+    <RequireRole role="admin">
     <div className="flex flex-col h-full">
       {/* 页头 */}
       <div className="shrink-0 mb-4">
@@ -201,8 +223,9 @@ export default function TopicDetailPage() {
           initial={{
             title: topic.title,
             description: topic.description,
-            startAt: new Date(topic.startAt).toISOString().slice(0, 16),
-            endAt: new Date(topic.endAt).toISOString().slice(0, 16),
+            // I16: 使用本地时区格式化 datetime-local，避免时区漂移
+            startAt: new Date(topic.startAt).toLocaleString("sv-SE", { timeZone: "UTC" }).slice(0, 16),
+            endAt: new Date(topic.endAt).toLocaleString("sv-SE", { timeZone: "UTC" }).slice(0, 16),
             charLimit: topic.charLimit,
             aiReviewEnabled: topic.aiReviewEnabled,
           }}
@@ -211,5 +234,6 @@ export default function TopicDetailPage() {
         />
       )}
     </div>
+    </RequireRole>
   );
 }

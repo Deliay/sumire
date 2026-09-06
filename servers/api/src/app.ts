@@ -33,6 +33,8 @@ export interface AppDeps {
   marshRateLimiter?: MarshRateLimiter;
   /** AI 审核队列 */
   reviewQueue?: ReviewQueue;
+  /** AI 审核功能是否已配置并可用 */
+  aiReviewEnabled?: boolean;
 }
 
 export function createApp(deps: AppDeps): Application {
@@ -96,6 +98,7 @@ export function createApp(deps: AppDeps): Application {
     createTopicsRouter({
       marshRateLimiter: deps.marshRateLimiter ?? createMemoryMarshRateLimiter(),
       reviewQueue: deps.reviewQueue ?? new MemoryReviewQueue(),
+      aiReviewEnabled: deps.aiReviewEnabled,
     }),
   );
   // B2: 棉花糖管理端点独立路由（PATCH /api/marshmallows/:id）

@@ -23,7 +23,7 @@
   },
   "optionalDependencies": {
     "openai": "^4.0.0",
-    "@anthropic-ai/sdk": "^0.0.0"
+    "@anthropic-ai/sdk": "^0.39.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

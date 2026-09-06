@@ -10,7 +10,12 @@ export interface AiClient {
 }
 
 async function createOpenAiClient(): Promise<AiClient> {
-  const { default: OpenAI } = await import("openai");
+  // Dynamic import with error handling for optional dependency
+  const OpenAIModule = await import("openai").catch(() => null);
+  if (!OpenAIModule?.default) {
+    throw new Error("openai 未安装，请运行 pnpm add openai");
+  }
+  const OpenAI = OpenAIModule.default;
   const client = new OpenAI({
     apiKey: config.reviewAiApiKey,
     baseURL: config.reviewAiEndpoint,
@@ -59,7 +64,8 @@ async function createClaudeClient(): Promise<AiClient> {
         system: REVIEW_SYSTEM_PROMPT,
         messages: [{ role: "user", content }],
       });
-      const text = resp.content?.[0]?.text ?? "{}";
+      const block = resp.content?.[0];
+      const text = block && "text" in block ? block.text : "{}";
       try {
         const parsed = JSON.parse(text);
         return {

@@ -50,6 +50,10 @@ export default function TopicFormDialog({
       setError("标题不能超过 100 字符");
       return;
     }
+    if (!description.trim()) {
+      setError("描述不能为空");
+      return;
+    }
     if (!startAt || !endAt) {
       setError("请选择开始和结束日期");
       return;

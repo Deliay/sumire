@@ -1,9 +1,16 @@
 import crypto from "node:crypto";
-import type { NextFunction, Request, Response } from "express";
 import type { Redis } from "ioredis";
 
 export interface MarshRateLimiter {
+  /**
+   * 检查 key 是否被限速（不递增计数）。
+   * 返回 true = 允许，false = 已超限。
+   */
   check(key: string): Promise<boolean>;
+  /**
+   * 记录一次请求（递增计数）。
+   * 应在 check 全部通过后调用。
+   */
   record(key: string): Promise<void>;
   dispose(): void;
 }
@@ -18,7 +25,7 @@ export class RedisMarshRateLimiter implements MarshRateLimiter {
     this.redis = redis;
   }
 
-  // I11: 原子化检查+记录，避免 TOCTOU 竞态
+  // #6: check 不递增计数，仅读取当前值判断
   async check(key: string): Promise<boolean> {
     const windows = [
       { prefix: "1m", limit: 1, ttl: 60 },
@@ -26,21 +33,27 @@ export class RedisMarshRateLimiter implements MarshRateLimiter {
     ];
     for (const w of windows) {
       const redisKey = `marsh:${w.prefix}:${key}`;
-      // INCR 原子递增，返回新值
-      const count = await this.redis.incr(redisKey);
-      if (count === 1) {
-        // 首次设置过期时间
-        await this.redis.expire(redisKey, w.ttl);
-      }
-      if (count > w.limit) {
+      const count = Number(await this.redis.get(redisKey)) || 0;
+      if (count >= w.limit) {
         return false;
       }
     }
     return true;
   }
 
-  async record(_key: string): Promise<void> {
-    // 已在 check 中原子化完成，无需额外操作
+  // #6: record 原子递增所有窗口
+  async record(key: string): Promise<void> {
+    const windows = [
+      { prefix: "1m", ttl: 60 },
+      { prefix: "1h", ttl: 3600 },
+    ];
+    for (const w of windows) {
+      const redisKey = `marsh:${w.prefix}:${key}`;
+      const count = await this.redis.incr(redisKey);
+      if (count === 1) {
+        await this.redis.expire(redisKey, w.ttl);
+      }
+    }
   }
 
   dispose(): void {
@@ -91,47 +104,4 @@ export class MemoryMarshRateLimiter implements MarshRateLimiter {
 
 export function createMemoryMarshRateLimiter(): MemoryMarshRateLimiter {
   return new MemoryMarshRateLimiter();
-}
-
-function getClientKeyHash(clientKey: string): string {
-  return sha256(clientKey);
-}
-
-function getVisitorIdHash(visitorId: string): string {
-  return sha256(visitorId);
-}
-
-/**
- * 三维度限速中间件：clientKey + visitorId + IP
- * 任一维度超限即返回 429
- */
-export function marshRateLimit(limiter: MarshRateLimiter) {
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const { clientKey } = (req.body ?? {}) as Record<string, unknown>;
-    const ip = req.ip ?? req.socket?.remoteAddress ?? "unknown";
-    const visitorId = req.visitorId ?? "";
-
-    const keys: string[] = [];
-    if (typeof clientKey === "string" && clientKey.trim()) {
-      keys.push(`ck:${getClientKeyHash(clientKey.trim())}`);
-    }
-    if (visitorId) {
-      keys.push(`vid:${getVisitorIdHash(visitorId)}`);
-    }
-    keys.push(`ip:${ip}`);
-
-    for (const k of keys) {
-      const ok = await limiter.check(k);
-      if (!ok) {
-        res.status(429).json({ error: "操作频率过快" });
-        return;
-      }
-    }
-
-    for (const k of keys) {
-      await limiter.record(k);
-    }
-
-    next();
-  };
 }

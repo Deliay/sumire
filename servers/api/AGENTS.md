@@ -2,7 +2,7 @@
 
 枝堇Sumire 后台系统 V1 后端——Express 5 + TypeScript（strict）纯 API 服务，不托管任何页面。
 
-开发前加载 `docs/engineering/backend-rules.md` 与 API 契约 `contract/backdoor-auth.openapi.yaml`、`contract/stream-plans.openapi.yaml`、`contract/live-history.openapi.yaml`、`contract/live-events.openapi.yaml`（均为单一事实源）。
+开发前加载 `docs/engineering/backend-rules.md` 与 API 契约 `contract/backdoor-auth.openapi.yaml`、`contract/stream-plans.openapi.yaml`、`contract/live-history.openapi.yaml`、`contract/live-events.openapi.yaml`、`contract/topics.openapi.yaml`（均为单一事实源）。
 
 ## 技术栈
 
@@ -33,9 +33,10 @@ pnpm lint       # tsc --noEmit 类型检查
 | `src/auth/` | 登录/登出/改密/会话/限速 |
 | `src/rbac/` | 角色与权限中间件 |
 | `src/session/` | Redis 会话与 Cookie |
-| `src/db/` | MongoDB 连接与 users、stream_plans、live_event_reads 模型 |
+| `src/db/` | MongoDB 连接与 users、stream_plans、live_event_reads、topics、marshmallows 模型 |
 | `src/liveEvents/` | 直播事件上游客户端（`upstream.ts`）与 B 站 payload 归一化（`normalize.ts`） |
-| `src/routes/` | /api/auth/*、/api/users、/api/stream-plans、/api/live-history、/api/live-events |
+| `src/topics/` | 棉花糖域：visitorCookie、rateLimit、reviewQueue、reviewWorker |
+| `src/routes/` | /api/auth/*、/api/users、/api/stream-plans、/api/live-history、/api/live-events、/api/topics、/api/marshmallows |
 | `src/infra/` | 历史直播 Redis 缓存抽象（`LiveHistoryCache`）与实现 |
 | `tests/` | 单元测试 |
 

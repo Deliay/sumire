@@ -42,7 +42,7 @@ export default function TopicsPage() {
 
   const handleUpdate = async (data: Parameters<typeof updateTopic>[1]) => {
     if (!editingTopic) return;
-    const { status, data: resp } = await updateTopic(editingTopic.id, data);
+    const { status } = await updateTopic(editingTopic.id, data);
     if (status === 200) {
       await reload();
       setEditingTopic(null);
@@ -117,8 +117,8 @@ export default function TopicsPage() {
           initial={{
             title: editingTopic.title,
             description: editingTopic.description,
-            startAt: new Date(editingTopic.startAt).toLocaleString("sv-SE", { timeZone: "UTC" }).slice(0, 16),
-            endAt: new Date(editingTopic.endAt).toLocaleString("sv-SE", { timeZone: "UTC" }).slice(0, 16),
+            startAt: new Date(editingTopic.startAt).toLocaleString("sv-SE").slice(0, 16),
+            endAt: new Date(editingTopic.endAt).toLocaleString("sv-SE").slice(0, 16),
             charLimit: editingTopic.charLimit,
             aiReviewEnabled: editingTopic.aiReviewEnabled,
           }}

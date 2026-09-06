@@ -39,6 +39,7 @@ export default function PresentationPage() {
   const [index, setIndex] = useState(0);
   const [fontSize, setFontSize] = useState(16);
   const [showGuide, setShowGuide] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
   // Hydrate from localStorage after mount
   useEffect(() => {
@@ -51,9 +52,15 @@ export default function PresentationPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data: topicData } = await getTopic(id);
-      if (!cancelled && topicData?.ok) setTopic(topicData.topic);
-      // #5: 逐页拉取所有棉花糖（后端钳制 100），直到无更多数据
+      const { status, data: topicData } = await getTopic(id);
+      if (!cancelled) {
+        if (status === 200 && topicData?.ok) {
+          setTopic(topicData.topic);
+        } else {
+          setNotFound(true);
+        }
+      }
+      // 逐页拉取所有棉花糖（后端钳制 100）
       let allMarshmallows: Marshmallow[] = [];
       let page = 1;
       let hasMore = true;
@@ -95,97 +102,102 @@ export default function PresentationPage() {
 
   const current = marshmallows[index];
 
-  if (!topic) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-night text-ink-dim">
-        加载中…
-      </div>
-    );
-  }
-
   return (
     <RequireRole role="admin">
-      <div className="h-screen flex flex-col bg-night text-ink">
-      {/* 页头 */}
-      <div className="shrink-0 p-4 text-center">
-        <h1 className="text-xl font-medium">{topic.title}</h1>
-        <div className="mt-1">
-          <CollapsibleMarkdown content={topic.description} />
-        </div>
-        <div className="flex items-center justify-center gap-2 mt-2">
-          <button
-            type="button"
-            onClick={() => handleFontSize(-2)}
-            className="text-sm text-ink-dim hover:text-ink"
-          >
-            A−
-          </button>
-          <button
-            type="button"
-            onClick={() => handleFontSize(2)}
-            className="text-sm text-ink-dim hover:text-ink"
-          >
-            A+
-          </button>
-        </div>
-      </div>
-
-      {/* 放映区 */}
-      <div className="flex-1 min-h-0 flex items-stretch">
-        <button
-          type="button"
-          onClick={() => setIndex((i) => Math.max(0, i - 1))}
-          disabled={index === 0}
-          className="w-12 shrink-0 flex items-center justify-center text-ink-dim hover:text-ink disabled:opacity-30 disabled:cursor-not-allowed"
-          aria-label="上一条"
-        >
-          ‹
-        </button>
-
-        <div className="flex-1 flex items-center justify-center px-4">
-          {marshmallows.length === 0 ? (
-            <div className="text-ink-dim text-center">
-              还没有已采用的棉花糖，请先在详情页采用
-            </div>
-          ) : current ? (
-            <div
-              className="max-w-[50%] h-full overflow-y-auto p-4"
-              style={{ fontSize }}
-            >
-              <MarkdownView content={current.content} />
-            </div>
-          ) : null}
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setIndex((i) => Math.min(marshmallows.length - 1, i + 1))}
-          disabled={index >= marshmallows.length - 1}
-          className="w-12 shrink-0 flex items-center justify-center text-ink-dim hover:text-ink disabled:opacity-30 disabled:cursor-not-allowed"
-          aria-label="下一条"
-        >
-          ›
-        </button>
-      </div>
-
-      {/* 首次引导遮盖层 */}
-      {showGuide && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-night/85">
-          <div className="bg-raised border border-vine rounded-lg p-6 max-w-sm text-center">
-            <p className="text-sm text-ink mb-2">左右翻页按钮切换条目</p>
-            <p className="text-sm text-ink mb-2">条目内容可在内部滚动</p>
-            <p className="text-sm text-ink mb-4">A−/A+ 调节字号</p>
-            <button
-              type="button"
-              onClick={closeGuide}
-              className="px-4 py-1.5 text-sm bg-primary text-night rounded hover:bg-primary/90"
-            >
-              知道了
-            </button>
+      {notFound ? (
+        <div className="h-screen flex items-center justify-center bg-night text-ink-dim">
+          <div className="text-center">
+            <p className="text-lg mb-2">主题不存在</p>
+            <p className="text-sm">请检查链接是否正确</p>
           </div>
         </div>
+      ) : !topic ? (
+        <div className="h-screen flex items-center justify-center bg-night text-ink-dim">
+          加载中…
+        </div>
+      ) : (
+        <div className="h-screen flex flex-col bg-night text-ink">
+          {/* 页头 */}
+          <div className="shrink-0 p-4 text-center">
+            <h1 className="text-xl font-medium">{topic.title}</h1>
+            <div className="mt-1">
+              <CollapsibleMarkdown content={topic.description} />
+            </div>
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <button
+                type="button"
+                onClick={() => handleFontSize(-2)}
+                className="text-sm text-ink-dim hover:text-ink"
+              >
+                A−
+              </button>
+              <button
+                type="button"
+                onClick={() => handleFontSize(2)}
+                className="text-sm text-ink-dim hover:text-ink"
+              >
+                A+
+              </button>
+            </div>
+          </div>
+
+          {/* 放映区 */}
+          <div className="flex-1 min-h-0 flex items-stretch">
+            <button
+              type="button"
+              onClick={() => setIndex((i) => Math.max(0, i - 1))}
+              disabled={index === 0}
+              className="w-12 shrink-0 flex items-center justify-center text-ink-dim hover:text-ink disabled:opacity-30 disabled:cursor-not-allowed"
+              aria-label="上一条"
+            >
+              ‹
+            </button>
+
+            <div className="flex-1 flex items-center justify-center px-4">
+              {marshmallows.length === 0 ? (
+                <div className="text-ink-dim text-center">
+                  还没有已采用的棉花糖，请先在详情页采用
+                </div>
+              ) : current ? (
+                <div
+                  className="max-w-[50%] h-full overflow-y-auto p-4"
+                  style={{ fontSize }}
+                >
+                  <MarkdownView content={current.content} />
+                </div>
+              ) : null}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIndex((i) => Math.min(marshmallows.length - 1, i + 1))}
+              disabled={index >= marshmallows.length - 1}
+              className="w-12 shrink-0 flex items-center justify-center text-ink-dim hover:text-ink disabled:opacity-30 disabled:cursor-not-allowed"
+              aria-label="下一条"
+            >
+              ›
+            </button>
+          </div>
+
+          {/* 首次引导遮盖层 */}
+          {showGuide && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-night/85">
+              <div className="bg-raised border border-vine rounded-lg p-6 max-w-sm text-center">
+                <p className="text-sm text-ink mb-2">左右翻页按钮切换条目</p>
+                <p className="text-sm text-ink mb-2">条目内容可在内部滚动</p>
+                <p className="text-sm text-ink mb-4">A−/A+ 调节字号</p>
+                <button
+                  type="button"
+                  onClick={closeGuide}
+                  className="px-4 py-1.5 text-sm bg-primary text-night rounded hover:bg-primary/90"
+                >
+                  知道了
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
-    </div>
     </RequireRole>
   );
 }

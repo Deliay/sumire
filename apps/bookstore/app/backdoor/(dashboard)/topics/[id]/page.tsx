@@ -78,7 +78,7 @@ export default function TopicDetailPage() {
     charLimit: number;
     aiReviewEnabled?: boolean;
   }) => {
-    const { status, data: resp } = await updateTopic(id, data);
+    const { status } = await updateTopic(id, data);
     if (status === 200) {
       await reload();
     } else {
@@ -223,9 +223,9 @@ export default function TopicDetailPage() {
           initial={{
             title: topic.title,
             description: topic.description,
-            // I16: 使用本地时区格式化 datetime-local，避免时区漂移
-            startAt: new Date(topic.startAt).toLocaleString("sv-SE", { timeZone: "UTC" }).slice(0, 16),
-            endAt: new Date(topic.endAt).toLocaleString("sv-SE", { timeZone: "UTC" }).slice(0, 16),
+            // I16: 使用本地时区格式化 datetime-local
+            startAt: new Date(topic.startAt).toLocaleString("sv-SE").slice(0, 16),
+            endAt: new Date(topic.endAt).toLocaleString("sv-SE").slice(0, 16),
             charLimit: topic.charLimit,
             aiReviewEnabled: topic.aiReviewEnabled,
           }}

@@ -326,17 +326,19 @@ export function createTopicsRouter(deps: TopicsRouterDeps): Router {
       }
 
       // B5: 存储 sha256 哈希而非原文
+      // #2: 仅在主题和服务端都启用 AI 审核时才设置 pending 状态
+      const aiReviewActive = topic.aiReviewEnabled && deps.aiReviewEnabled === true;
       const marsh = await createMarshmallow({
         topicId: id,
         content: content.trim(),
         visitorId: req.visitorId ? sha256(req.visitorId) : undefined,
         clientKeyHash: sha256(clientKey.trim()),
         ip,
-        aiReviewEnabled: topic.aiReviewEnabled,
+        aiReviewEnabled: aiReviewActive,
       });
 
-      // #4: 仅在 AI 审核已配置时入队；未配置时 aiReview 字段保持 null（见 createMarshmallow 逻辑）
-      if (topic.aiReviewEnabled && deps.aiReviewEnabled && deps.reviewQueue) {
+      // #4: 仅在 AI 审核已配置时入队
+      if (aiReviewActive && deps.reviewQueue) {
         await deps.reviewQueue.enqueue({
           marshmallowId: marsh.id,
           topicId: id,

@@ -1,5 +1,5 @@
 ---
-description: 棉花糖（提问箱）技术提案——服务端新增 topics 模块（mongoose 双集合 + 手写 OpenAPI 契约），公开投递端点按 localStorage 标识与 IP 双维度 Redis 固定窗口限速；AI 前置审核经 Redis List 自建轻量队列异步执行（openai/anthropic SDK，SUMIRE_REVIEW_AI_ 前缀环境变量，结构化 JSON 输出 filtered/filteredReason）；前端新增后台 /backdoor/topics 三页与公开收集页 /topics/[id]（静态导出下动态路由经占位参数 + 客户端取径实现），Markdown 编辑器引入 @uiw/react-md-editor，渲染引入 react-markdown + remark-gfm
+description: 棉花糖（提问箱）技术提案——服务端新增 topics 模块（mongoose 双集合 + 手写 OpenAPI 契约），公开投递端点颁发 HttpOnly 访客 Cookie 并按 localStorage 标识、访客 Cookie 与 IP 三维度 Redis 固定窗口限速，提交响应仅返回成功与否（前端展示提交完成结果视图，不暴露审核字段）；AI 前置审核经 Redis List 自建轻量队列异步执行（openai/anthropic SDK，SUMIRE_REVIEW_AI_ 前缀环境变量，结构化 JSON 输出 filtered/filteredReason）；前端新增后台 /backdoor/topics 三页与公开收集页 /topics/[id]（静态导出下动态路由经占位参数 + 客户端取径实现），Markdown 编辑器引入 @uiw/react-md-editor，渲染引入 react-markdown + remark-gfm
 type: Fleeting
 ---
 
@@ -7,7 +7,7 @@ type: Fleeting
 
 **功能名称**: 棉花糖（Marshmallow Topics）
 **关联 PRD**: `docs/product/requirements/draft/2026-09-06-marshmallow-topics-prd.md`
-**技术提案版本**: v1.0
+**技术提案版本**: v1.1
 **创建日期**: 2026-09-06
 **作者**: sumire workflow
 **prd-branch**: `prd/marshmallow-topics`（需求总分支）
@@ -17,7 +17,7 @@ type: Fleeting
 
 ### 1.1 背景
 
-从零新增「棉花糖」提问箱：后台主题管理与审阅（含 AI 审核覆盖层）、公开收集页投递（双重限速）、AI 前置异步审核、幻灯片放映页。全仓无任何 topics / marshmallow 存量代码（已确认零命中），全链路新建。
+从零新增「棉花糖」提问箱：后台主题管理与审阅（含 AI 审核覆盖层）、公开收集页投递（访客 Cookie + 三重限速 + 提交完成结果视图）、AI 前置异步审核、幻灯片放映页。全仓无任何 topics / marshmallow 存量代码（已确认零命中），全链路新建。
 
 现况要点（调研结论）：
 
@@ -26,13 +26,14 @@ type: Fleeting
 - 契约手写、无 codegen，每模块一文件（`contract/<模块>.openapi.yaml`），路径含 `/api` 前缀，受限端点显式 `cookieAuth`；
 - bookstore 为 `output: "export"` 纯静态导出站，无 SSR；动态公开路由需特殊处理（见 5.2 实现点 4）；
 - 无 Markdown 渲染/编辑先例，无 openai/anthropic SDK——均为首次引入依赖；
-- 后端无 zod，路由内手写校验为正例（沿用）；错误统一 `{ error: string }` 中文。
+- 后端无 zod，路由内手写校验为正例（沿用）；错误统一 `{ error: string }` 中文；
+- CORS 已为精确白名单 + `credentials: true`，公开页跨域携带访客 Cookie 无需新增配置。
 
 ### 1.2 目标
 
-- 服务端：`/api/topics` 系列管理端点（admin 及以上）+ 公开读/投递端点 + 双维度频率限制 + AI 异步审核 worker；
-- 契约：新增 `contract/topics.openapi.yaml` 单一事实源；
-- 前端：后台「棉花糖」三页（列表/详情/幻灯片）+ 公开收集页 + 可复用 Markdown 编辑器组件；
+- 服务端：`/api/topics` 系列管理端点（admin 及以上）+ 公开读/投递端点（颁发访客 Cookie）+ 三维度频率限制（localStorage 标识 + 访客 Cookie + IP）+ AI 异步审核 worker；
+- 契约：新增 `contract/topics.openapi.yaml` 单一事实源；投递响应仅 `{ ok: true }`，不返回审核字段；
+- 前端：后台「棉花糖」三页（列表/详情/幻灯片）+ 公开收集页（含提交完成结果视图）+ 可复用 Markdown 编辑器组件；
 - 测试：tests/api 黑盒集成（含限速与 AI stub）、前端单测、Playwright e2e。
 
 ### 1.3 范围
@@ -47,7 +48,7 @@ type: Fleeting
 ```mermaid
 graph TD
     subgraph 公开站
-        PUB[/topics/:id 收集页<br/>SSG + 客户端 fetch/] -->|POST /api/topics/:id/marshmallows<br/>X-Client-Key + 频率限制| API
+        PUB[/topics/:id 收集页<br/>SSG + 客户端 fetch<br/>提交完成结果视图/] -->|POST /api/topics/:id/marshmallows<br/>clientKey + 访客 Cookie + 频率限制| API
     end
     subgraph 后台
         LIST[/backdoor/topics 卡片列表/] --> DETAIL[/backdoor/topics/:id 详情页/]
@@ -55,7 +56,8 @@ graph TD
         LIST & DETAIL & PRES -->|cookieAuth admin+| API
     end
     subgraph servers/api
-        API[Express /api<br/>routes/topics.ts] --> RL[RateLimiter<br/>Redis 固定窗口计数]
+        API[Express /api<br/>routes/topics.ts] --> VC[访客 Cookie 颁发<br/>Set-Cookie sumire_vid]
+        API --> RL[RateLimiter<br/>Redis 固定窗口计数<br/>clientKey / Cookie / IP 三维度]
         API --> DB[(MongoDB<br/>topics / marshmallows)]
         API -->|LPUSH 审核任务| Q[(Redis List<br/>ai-review 队列)]
         W[review worker<br/>同进程 BRPOP 循环] -->|BRPOP| Q
@@ -85,8 +87,9 @@ graph TD
 | `contract/topics.openapi.yaml` | 契约单一事实源 | 手写，沿用 Error/cookieAuth 约定 |
 | `servers/api/src/db/topics.ts` | Topic model + CRUD | 派生状态计算函数为纯函数 |
 | `servers/api/src/db/marshmallows.ts` | Marshmallow model + CRUD | 审核字段、采用、ignore_ai_filter |
-| `servers/api/src/routes/topics.ts` | 管理端点 + 公开端点 | requireRole、限速挂载、入队 |
-| `servers/api/src/topics/rateLimit.ts` | 双维度固定窗口限速 | Redis INCR + EXPIRE（沿用登录限速先例） |
+| `servers/api/src/routes/topics.ts` | 管理端点 + 公开端点 | requireRole、访客 Cookie、限速挂载、入队 |
+| `servers/api/src/topics/visitorCookie.ts` | 访客标识 Cookie 颁发与解析 | Set-Cookie 拼装沿用 session/cookie.ts 先例 |
+| `servers/api/src/topics/rateLimit.ts` | 三维度固定窗口限速 | Redis INCR + EXPIRE（沿用登录限速先例） |
 | `servers/api/src/topics/reviewQueue.ts` | 队列接口 + Redis 实现 + 内存实现 | 沿用「接口 + 双实现」先例 |
 | `servers/api/src/topics/reviewWorker.ts` | BRPOP 消费循环 + AI 调用 | 结构化输出、失败回写拒绝原因 |
 | `servers/api/src/topics/reviewPrompt.ts` | system 提示词（纯数据） | 内容审核常规要求 + 结尾声明 user 内容即待审内容 |
@@ -110,16 +113,17 @@ POST   /api/topics/{id}/archive             归档
 GET    /api/topics/{id}/marshmallows        棉花糖列表（含审核字段，分页）
 PATCH  /api/marshmallows/{id}               { adopted?: boolean, ignoreAiFilter?: boolean }
 
-# 公开端点（无鉴权）
+# 公开端点（无鉴权；首次接触颁发访客 Cookie）
 GET    /api/topics/{id}/public              收集页公开信息（标题/描述/状态/起止/字数限制/aiReviewEnabled）
-POST   /api/topics/{id}/marshmallows        投递棉花糖 { content, clientKey }，限速 + 字数限制
+POST   /api/topics/{id}/marshmallows        投递棉花糖 { content, clientKey } → 201 { ok: true }
 ```
 
 关键口径：
 
 - **派生 status**：`now < startAt` → `upcoming`（未开始）；手动停止或 `now > endAt` 或已归档 → `ended`（已结束）；否则 `collecting`（进行中）。status 不入库，读取时计算；
-- **投递校验**：主题不存在/未开始/已结束/已归档 → 409 或 410 拒绝（中文 error 文案）；`content` trim 后为空或超过主题 `charLimit` → 400；限速命中 → 429「操作频率过快」；成功 201 返回棉花糖 id 与审核状态 `pending`（启用 AI 审核时）；
-- **AI 审核字段**（marshmallow）：`aiReview: { status: "pending" | "approved" | "rejected", filteredReason?: string, ignoredByAdmin: boolean }`；未启用 AI 审核的主题该字段为 `null`，前端据此不渲染覆盖层；
+- **访客 Cookie**：两个公开端点均检查请求 Cookie `sumire_vid`，缺失或非法时颁发新值——`Set-Cookie: sumire_vid=<uuid>; HttpOnly; Path=/; SameSite=Lax; Max-Age=31536000`，生产 `Secure`、不设 Domain（与 `sumire_sid` 拼装口径一致）；限速以其 sha256 为维度 key；
+- **投递校验**：主题不存在/未开始/已结束/已归档 → 409 或 410 拒绝（中文 error 文案）；`content` trim 后为空或超过主题 `charLimit` → 400；限速命中 → 429「操作频率过快」；**成功 201 仅返回 `{ ok: true }`——不返回棉花糖 id、审核状态等任何内部字段**（访客侧只需知道是否提交成功）；
+- **AI 审核字段**（marshmallow，仅管理端点可见）：`aiReview: { status: "pending" | "approved" | "rejected", filteredReason?: string, ignoredByAdmin: boolean }`；未启用 AI 审核的主题该字段为 `null`，前端据此不渲染覆盖层；
 - PATCH `ignoreAiFilter: true` 即 PRD 的持久化「显示这条棉花糖」。
 
 ## 4. 数据模型
@@ -147,6 +151,7 @@ interface MarshmallowDoc {
   topicId: ObjectId;        // 索引
   content: string;          // Markdown 原文，≤ 主题 charLimit
   clientKeyHash: string;    // localStorage 标识的 sha256（不存原文）
+  visitorIdHash: string;    // 访客 Cookie 标识的 sha256（不存原文）
   authorIp: string;         // 仅限速与审计用
   adopted: boolean;         // 默认 false
   aiReview: {
@@ -174,14 +179,15 @@ sequenceDiagram
     participant M as 管理员（详情页）
 
     V->>A: GET /api/topics/{id}/public
-    A-->>V: 主题信息（含 status / charLimit / aiReviewEnabled）
+    A-->>V: 主题信息 + Set-Cookie sumire_vid（首次颁发）
     V->>V: 首次访问生成 clientKey 存 localStorage
-    V->>A: POST /api/topics/{id}/marshmallows { content, clientKey }
-    A->>R: 限速计数（clientKeyHash 与 IP 各 1/min、5/h）
-    R-->>A: 超限 → 429 操作频率过快
+    V->>A: POST /api/topics/{id}/marshmallows { content, clientKey }<br/>（credentials: include 回带 sumire_vid）
+    A->>R: 限速计数（clientKeyHash、visitorIdHash、IP 各 1/min、5/h）
+    R-->>A: 任一超限 → 429 操作频率过快
     A->>A: 校验主题状态与字数限制 → 落库（aiReview.status=pending）
     A->>R: LPUSH 审核任务 { marshmallowId }
-    A-->>V: 201 { id, aiReview.status }
+    A-->>V: 201 { ok: true }（不含审核字段）
+    V->>V: 切换「提交完成」结果视图（仅成功提示 + 再投一条）
     W->>R: BRPOP 审核任务
     W->>AI: system=审核前置要求 / user=棉花糖内容<br/>要求结构化 JSON 输出
     AI-->>W: { filtered: boolean, filteredReason?: string }
@@ -195,13 +201,15 @@ sequenceDiagram
 
 ### 5.2 关键实现点
 
-#### 实现点 1：双维度频率限制（topics/rateLimit.ts）
+#### 实现点 1：访客 Cookie 与三维度频率限制（topics/visitorCookie.ts + rateLimit.ts）
 
-- 沿用 `auth/rateLimit.ts` 的 Redis 固定窗口计数先例（INCR + EXPIRE），封装为通用 `FixedWindowLimiter`：`allow(key, limit, windowSeconds)`；
-- 四个窗口：`marsh:ck:{sha256(clientKey)}` 60s/1 条与 3600s/5 条；`marsh:ip:{ip}` 60s/1 条与 3600s/5 条；任一 `allow` 返回 false 即 429「操作频率过快」；
+- **访客 Cookie**：`visitorCookie.ts` 提供中间件，挂于两个公开端点——解析 `sumire_vid`（复用既有 cookie 解析口径），缺失/非法时生成 `crypto.randomUUID()` 并拼装 Set-Cookie（HttpOnly / Path=/ / SameSite=Lax / Max-Age=31536000 / 生产 Secure / 不设 Domain，与 `session/cookie.ts` 同口径）；解析结果挂 `req.visitorId` 供限速与落库使用；
+- **限速**：沿用 `auth/rateLimit.ts` 的 Redis 固定窗口计数先例（INCR + EXPIRE），封装为通用 `FixedWindowLimiter`：`allow(key, limit, windowSeconds)`；
+- 六个窗口：`marsh:ck:{sha256(clientKey)}`、`marsh:vid:{sha256(visitorId)}`、`marsh:ip:{ip}`，各 60s/1 条与 3600s/5 条；任一 `allow` 返回 false 即 429「操作频率过快」；
 - IP 取 `req.ip`（`trust proxy` 已开启，与登录限速同口径）；
-- `clientKey` 由前端生成 `crypto.randomUUID()` 存 localStorage（key：`topics.clientKey`），随 body 上送；服务端只存 sha256；
-- **风险点**：固定窗口在窗口边界可瞬时 2 倍放行——与登录限速同口径，量级可接受，不引入滑动窗口复杂度。
+- `clientKey` 由前端生成 `crypto.randomUUID()` 存 localStorage（key：`topics.clientKey`），随 body 上送；服务端只存 sha256（`visitorId` 同）；
+- 前端公开页 fetch 一律 `credentials: "include"`（跨域回带 `sumire_vid`；CORS 已为白名单 + credentials，无需新增配置）；
+- **风险点**：固定窗口在窗口边界可瞬时 2 倍放行——与登录限速同口径，量级可接受，不引入滑动窗口复杂度；访客清除 Cookie 后该维度重置，但 localStorage 标识与 IP 维度仍兜底。
 
 #### 实现点 2：AI 审核队列与 worker（topics/reviewQueue.ts + reviewWorker.ts）
 
@@ -235,7 +243,7 @@ sequenceDiagram
 - **主题表单弹窗**（新建/修改复用）：标题（文本）、描述（MarkdownEditor）、开始/结束日期（datetime-local）、字数限制（number，100–10000 校验）、启用AI前置审核（checkbox 默认勾选）；复用后台既有 dialog 口径（`createPortal` 挂 body、Esc/遮罩关闭、`role="alert"` 错误区）；
 - **详情页** `/backdoor/topics/[id]`：大标题 + CollapsibleMarkdown（描述渲染，line-clamp-3，默认折叠，展开/收起按钮）；工具栏「幻灯片」（`window.open` 独立页）「开始/结束收集」「修改主题」；列表容器 `flex-1 overflow-y-auto` 内部滚动；条目组件 MarshmallowCard：全宽、内容 MarkdownView 渲染、采用切换（已采用变灰 + 「已采用」标记）；AI 覆盖层按 `aiReview.status` 三态渲染（rejected：原因 + 「显示这条棉花糖」→ PATCH ignoreAiFilter；pending：提示 + 「提前查看」→ 本地 state 临时展示；null：无覆盖层）；
 - **幻灯片页** `/backdoor/topics/[id]/presentation`：仅 adopted 条目；条目满高（`h-full`）内部 Y 滚动、`max-w-[50%] mx-auto`；左右全高按钮（lucide `ChevronLeft`/`ChevronRight`，首末条禁用）；页头标题 + CollapsibleMarkdown；字号工具栏（A-/A+，存 localStorage `topics.presentation.fontSize`）；首次引导遮盖层（localStorage `topics.presentation.guideSeen`，关闭后写入）；
-- **收集页** `/topics/[id]`：主题信息区 + MarkdownEditor + 提交按钮；提交前 ConfirmDialog 展示 AI 审核告知文案；成功/失败（429/400/409）均有明确提示；未开始/已结束/已归档展示状态提示并禁用编辑器；
+- **收集页** `/topics/[id]`：主题信息区 + MarkdownEditor + 提交按钮，页面级三态视图——`form`（编辑投递）/ `submitting` / `done`（**提交完成结果视图**：仅展示「提交成功，感谢你的棉花糖」+「再投一条」按钮，不展示任何审核字段；「再投一条」回到 `form` 并清空编辑器，仍受频率限制约束）；提交前 ConfirmDialog 展示 AI 审核告知文案；失败（429/400/409）回到表单态并给出明确提示；未开始/已结束/已归档展示状态提示并禁用编辑器；
 - **MarkdownEditor**（`features/markdown/MarkdownEditor.tsx`）：`@uiw/react-md-editor`，`"use client"` + `next/dynamic` `ssr: false`（静态导出无 SSR，但避免构建期 window 依赖）；工具栏保留加粗/斜体/标题/列表/引用/链接/代码等常用按钮；
 - **MarkdownView**（`features/markdown/MarkdownView.tsx`）：`react-markdown + remark-gfm`，不启用 `rehype-raw`（禁原始 HTML，防 XSS）；
 - 视觉：后台三页严格按 `docs/design/03-backdoor-design.md`（无氛围动效、token 色、紧凑控件）；收集页按公开站口径。
@@ -250,11 +258,13 @@ sequenceDiagram
 | AI 接入 | openai + @anthropic-ai/sdk 官方 SDK | 裸 fetch 自拟请求 | A | PRD 明确「接入一个 ai 的 sdk」；官方 SDK 处理鉴权/重试/流式细节，type 二选一封装 |
 | AI 配置校验时机 | 启动时 fail-fast | 首次使用时校验 | A | PRD 明确「要求启动前配置」；测试/本地经 stub 注入 |
 | 主题状态 | 读取时派生（now vs startAt/endAt + collectingStopped + archived） | 入库存 status 字段 | A | 时间驱动状态入库必然过期；派生为纯函数，单测直推 |
+| 访客标识 | localStorage 标识 + HttpOnly 访客 Cookie + IP 三维度 | 仅 localStorage + IP | A | 需求要求颁发 Cookie 并纳入限速；Cookie 由服务端颁发且 HttpOnly，与可清除的 localStorage 标识互补 |
+| 投递响应 | 仅 `{ ok: true }` | 返回 id + 审核状态 | A | 访客只需知道是否提交成功；不暴露审核机制细节，避免访客试探审核规则；前端以提交完成结果视图反馈 |
 | 公开收集页路由 | 路径参数 `/topics/[id]`（占位参数静态导出） | 查询串 `/topics?id=` | A（备选 B） | PRD 明确路由 `/topics/{topic-id}`；GitHub Pages 无重写能力，若直达 404 无法绕正则降级 B（实现时验证，见 5.2 实现点 4） |
 | Markdown 编辑器 | @uiw/react-md-editor | 自建 textarea + 工具栏 | A | PRD 允许开源库且要求富文本体验；自建工具栏 + 预览成本高于引入成熟库；库体量为可接受的一次性成本 |
 | Markdown 渲染 | react-markdown + remark-gfm | marked + 自行 sanitize | A | React 组件化渲染、默认不渲染原始 HTML（XSS 安全默认）、生态主流 |
 | 限速维度存储 | Redis 固定窗口计数 | MongoDB 计数 | A | 沿用登录限速先例；O(1)、自动过期 |
-| clientKey 存储 | 服务端存 sha256 | 存原文 | A | 标识等价于弱凭据，哈希存储降低泄露面 |
+| 访客标识存储 | 服务端存 sha256 | 存原文 | A | 标识等价于弱凭据，哈希存储降低泄露面（clientKey 与 visitorId 同口径） |
 | 后台可见角色 | superadmin / admin | 含 member | A | 涉及 UGC 内容审阅与管理操作，从严；与「用户管理」以外的既有全角色入口不同属内容管理域 |
 
 ### 6.2 依赖与约束
@@ -285,6 +295,7 @@ servers/api/
 │   │   ├── topics.ts                        # 新增：Topic model + CRUD + 派生状态纯函数
 │   │   └── marshmallows.ts                  # 新增：Marshmallow model + CRUD
 │   ├── topics/
+│   │   ├── visitorCookie.ts                 # 新增：访客 Cookie 颁发与解析中间件
 │   │   ├── rateLimit.ts                     # 新增：FixedWindowLimiter（Redis/内存）
 │   │   ├── reviewQueue.ts                   # 新增：队列接口 + Redis/内存实现
 │   │   ├── reviewPrompt.ts                  # 新增：system 审核提示词常量
@@ -305,12 +316,13 @@ apps/bookstore/
 │   │   ├── MarkdownEditor.tsx               # 新增：@uiw/react-md-editor 封装
 │   │   └── MarkdownView.tsx                 # 新增：react-markdown 渲染
 │   └── topics/
-│       ├── api.ts                           # 新增：端点封装（沿用 backdoor/api 口径）
+│       ├── api.ts                           # 新增：端点封装（沿用 backdoor/api 口径，公开页 credentials: include）
 │       ├── types.ts                         # 新增：Zod schema 对齐契约
 │       ├── status.ts                        # 新增：状态派生/文案纯函数
 │       ├── components/                      # 新增：TopicCard / TopicFormDialog /
 │       │                                    #   CollapsibleMarkdown / MarshmallowCard /
-│       │                                    #   AiReviewOverlay / ConfirmDialog / 幻灯片组件
+│       │                                    #   AiReviewOverlay / ConfirmDialog /
+│       │                                    #   SubmitDoneView / 幻灯片组件
 │       └── ...
 └── tests/unit/                              # 新增对应单测
 
@@ -328,18 +340,18 @@ infra/aspire/apphost.cs                      # 修改：api 注入 SUMIRE_REVIEW
 
 ### 8.1 测试覆盖要求
 
-- 服务端单测（Vitest，内存 stub）：派生状态纯函数（未开始/进行中/已结束/手动停止/归档边界）；FixedWindowLimiter（窗口内放行/超限拒绝/过期重置）；reviewQueue 内存实现入队消费；reviewWorker（mock AI：approved/rejected/异常重试/幂等跳过）；
-- tests/api 黑盒（以契约为准，CookieJar + 角色助手）：主题 CRUD 与权限矩阵（member 403、未登录 401）；字段校验（字数限制边界 100/10000、日期先后、缺字段 400）；停止/继续/归档对投递的影响；公开 GET/POST 无鉴权可用；投递限速（clientKey 与 IP 各自 1/min、5/h，429 文案）；启用/未启用 AI 审核的 aiReview 字段形态；PATCH adopted / ignoreAiFilter；AI 经本地 HTTP stub 断言异步回写（轮询等待 status 迁移）；
-- 前端单测：status 纯函数、CollapsibleMarkdown 折叠交互、MarshmallowCard 三态覆盖层（rejected 持久化/pending 临时/null 无）、表单校验（字数边界、默认勾选）、localStorage 读写（clientKey 颁发、字号、引导记录损坏回退）；
-- e2e（Playwright）：后台——导航入口 → 新建主题 → 详情采用/覆盖层操作 → 幻灯片翻页与字号持久化；公开——收集页展示 → AI 告知弹窗 → 投递成功 → 连续投递触发 429 提示。
+- 服务端单测（Vitest，内存 stub）：派生状态纯函数（未开始/进行中/已结束/手动停止/归档边界）；visitorCookie 中间件（无 Cookie 颁发新值并 Set-Cookie、合法 Cookie 透传、非法值重颁）；FixedWindowLimiter（窗口内放行/超限拒绝/过期重置）；reviewQueue 内存实现入队消费；reviewWorker（mock AI：approved/rejected/异常重试/幂等跳过）；
+- tests/api 黑盒（以契约为准，CookieJar + 角色助手）：主题 CRUD 与权限矩阵（member 403、未登录 401）；字段校验（字数限制边界 100/10000、日期先后、缺字段 400）；停止/继续/归档对投递的影响；公开 GET/POST 无鉴权可用；**首次公开请求响应带 `sumire_vid` Set-Cookie（HttpOnly），后续回带不重复颁发**；**投递成功响应体严格为 `{ ok: true }`，不含 id/aiReview 等字段**；投递限速（clientKey、访客 Cookie、IP 三个维度各自 1/min、5/h，429 文案；清除 Cookie 后其余维度仍生效）；启用/未启用 AI 审核的 aiReview 字段形态（仅管理端点可见）；PATCH adopted / ignoreAiFilter；AI 经本地 HTTP stub 断言异步回写（轮询等待 status 迁移）；
+- 前端单测：status 纯函数、CollapsibleMarkdown 折叠交互、MarshmallowCard 三态覆盖层（rejected 持久化/pending 临时/null 无）、表单校验（字数边界、默认勾选）、收集页三态视图切换（提交成功进 done 视图且不含审核字段、再投一条回 form 并清空）、localStorage 读写（clientKey 颁发、字号、引导记录损坏回退）；
+- e2e（Playwright）：后台——导航入口 → 新建主题 → 详情采用/覆盖层操作 → 幻灯片翻页与字号持久化；公开——收集页展示 → AI 告知弹窗 → 投递成功出现提交完成视图 → 再投一条连续投递触发 429 提示。
 
 ### 8.2 测试类型
 
 | 类型 | 工具 | 覆盖范围 |
 |------|------|---------|
-| 单元测试 | Vitest（api + bookstore） | 纯函数、限速、队列、worker、组件交互 |
-| 集成测试 | tests/api（Vitest + fetch + CookieJar） | 全部契约端点、权限、限速、AI stub 异步审核 |
-| e2e | Playwright | 后台三页主流程、公开投递主流程 |
+| 单元测试 | Vitest（api + bookstore） | 纯函数、访客 Cookie、限速、队列、worker、组件交互 |
+| 集成测试 | tests/api（Vitest + fetch + CookieJar） | 全部契约端点、权限、Cookie 颁发、限速、响应体形态、AI stub 异步审核 |
+| e2e | Playwright | 后台三页主流程、公开投递与提交完成视图主流程 |
 
 ## 9. 部署方案
 
@@ -369,7 +381,7 @@ infra/aspire/apphost.cs                      # 修改：api 注入 SUMIRE_REVIEW
 - [ ] `contract/topics.openapi.yaml` 与实现、tests/api 三者一致
 - [ ] 后台导航「棉花糖」（superadmin/admin），列表/新建/修改/停止继续/归档行为符合 PRD F1–F3
 - [ ] 详情页折叠描述、棉花糖列表、采用切换、AI 覆盖层三态符合 PRD F4–F5
-- [ ] 公开收集页展示与投递、AI 告知弹窗、双重限速 429 符合 PRD F6
+- [ ] 公开收集页展示与投递、AI 告知弹窗、访客 Cookie 颁发、三维度限速 429、提交完成结果视图（响应与视图均不含审核字段）符合 PRD F6
 - [ ] 幻灯片页采用条目、翻页、字号持久化、首次引导符合 PRD F8
 - [ ] AI 审核异步执行：pending → approved/rejected 回写正确；失败重试后按 rejected 兜底；`SUMIRE_REVIEW_AI_*` 缺失启动失败
 - [ ] 全部测试全绿：`pnpm lint && pnpm test && pnpm build`（api + bookstore）、tests/api、tests/e2e

@@ -1,5 +1,5 @@
 ---
-description: 棉花糖（提问箱）实现方案——基于 PRD v1.1 与技术提案 v1.1 的实施计划（单一开发分支 feat/marshmallow-topics：契约先行，后端 topics 域管理/公开端点 + 访客 Cookie + 三维度限速 + Redis List 异步 AI 审核 worker，前端 features/markdown 与 features/topics 四页（后台三页 + 公开收集页），Aspire 注入 SUMIRE_REVIEW_AI_*，API 集成与 e2e；分支策略、TDD 步骤、验证与验收）
+description: 棉花糖（提问箱）实现方案——基于 PRD v1.1 与技术提案 v1.1 的实施计划（单一开发分支 feat/marshmallow-topics：契约先行，后端 topics 域管理/公开端点 + 访客 Cookie + 三维度限速 + Redis List 异步 AI 审核 worker，前端 features/markdown 与 features/topics 四页（后台三页 + 公开收集页）含设计概览与布局细节，Aspire 注入 SUMIRE_REVIEW_AI_*，API 集成与 e2e；分支策略、TDD 步骤、验证与验收）
 type: Permanent
 ---
 
@@ -11,7 +11,7 @@ type: Permanent
 **关联设计**: [[../../design/03-backdoor-design.md]]
 **需求总分支**: `prd/marshmallow-topics`
 **开发分支**: `feat/marshmallow-topics`（自需求总分支切出，**唯一开发分支**，契约与实现同在此分支）
-**版本**: v1.0（2026-09-06）
+**版本**: v1.1（2026-09-06，按打回意见补充 §4 前端设计概览与布局细节）
 **作者**: sumire workflow
 
 本方案将技术提案 v1.1 落实为可执行的实施计划。**前提事实**（已核对主线与本分支代码）：
@@ -86,7 +86,7 @@ type: Permanent
 
 ### 步骤 3：前端实现（subagent，TDD）
 
-加载 `apps/bookstore/AGENTS.md`、`docs/engineering/frontend-rules.md`、`docs/design/03-backdoor-design.md` 与契约。注意 `apps/bookstore/AGENTS.md` 提示：动手前先读 `node_modules/next/dist/docs/` 对应指南。全程 TDD。改动面（提案 §7）：
+加载 `apps/bookstore/AGENTS.md`、`docs/engineering/frontend-rules.md`、`docs/design/03-backdoor-design.md` 与契约。**页面布局与设计细节以本文档 §4 为实施依据**（§4 与 PRD 冲突时以 PRD 为准）。注意 `apps/bookstore/AGENTS.md` 提示：动手前先读 `node_modules/next/dist/docs/` 对应指南。全程 TDD。改动面（提案 §7）：
 
 1. 新增依赖 `react-markdown`、`remark-gfm`、`@uiw/react-md-editor`（PR 说明中注明）；
 2. `features/markdown/MarkdownEditor.tsx`：`@uiw/react-md-editor` 封装，`"use client"` + `next/dynamic` `ssr: false`，工具栏保留加粗/斜体/标题/列表/引用/链接/代码等常用按钮；`MarkdownView.tsx`：`react-markdown + remark-gfm`，不启用 `rehype-raw`（禁原始 HTML 防 XSS）；
@@ -143,7 +143,120 @@ type: Permanent
 3. 核对提案 §10 验收标准与 PRD §1.3 成功标准逐条通过；
 4. 推送 `feat/marshmallow-topics` 并提 PR 至 `prd/marshmallow-topics`，结束流程等待 review。
 
-## 4. 依赖与风险
+## 4. 前端设计概览与布局细节
+
+本节为前端四页（后台三页 + 公开收集页）与共享组件的设计实施依据，布局与交互细节落到可执行粒度。视觉规则：后台三页严格遵循 [[../../design/03-backdoor-design.md]]（深色 `--color-bg` 底、`--color-bg-raised`/`--color-vine` 卡片与描边、紧凑控件、无氛围动效、控件过渡 ≤200ms 且尊重 `prefers-reduced-motion`、图标 Lucide 1.5px 细线）；公开收集页遵循公开站口径（[[../../design/02-page-design.md]]），兼顾移动端窄屏。全部仅用 `@theme` token 色，禁止硬编码色值。
+
+### 4.1 设计总览
+
+| 页面 | 路由 | 布局环境 | 气质 |
+|------|------|----------|------|
+| 主题列表 | `/backdoor/topics` | 后台骨架（TopBar + SideNav + 内容区） | 管理工作台，卡片栅格 |
+| 主题详情 | `/backdoor/topics/{id}` | 后台骨架，内容区改为**满高 flex 列** | 审阅工作台，列表内部滚动 |
+| 幻灯片 | `/backdoor/topics/{id}/presentation` | **独立页**（不经 `(dashboard)` 布局，无 TopBar/SideNav，`window.open` 打开） | 放映厅，暗底聚焦内容 |
+| 公开收集页 | `/topics/{id}` | 公开站 `(site)/(content)` 布局（NavBar + Footer） | 店面投递口，窄列居中 |
+
+后台三页复用 `(dashboard)/layout.tsx` 会话守卫与 `RequireRole`（superadmin/admin）；幻灯片页虽独立渲染，同样经会话/权限守卫（客户端校验完成前只渲染 GuardLoading 加载态）。内容区沿用后台骨架口径（最大宽度 `64rem`、内边距 `2rem`、移动 `1.25rem`），详情页与幻灯片页为满高场景做如下例外：内容区改为 `h-full flex flex-col`，列表容器 `flex-1 min-h-0 overflow-y-auto`。
+
+### 4.2 主题列表页 `/backdoor/topics`
+
+```mermaid
+flowchart TD
+    A[页头：标题 + 新建主题按钮] --> B[卡片栅格]
+    B --> C[卡片：标题/状态徽标]
+    C --> D[卡片：操作按钮行]
+    A -.点击.-> E[TopicFormDialog 弹窗]
+    D -.点击.-> E
+```
+
+- **页头**：Noto Serif SC `--text-h2`「棉花糖」+ 一行 `--color-ink-dim` 小字（如「提问箱主题管理」），右侧主按钮「新建主题」（`PrimaryButton` 口径）；
+- **卡片栅格**：`grid gap-4`，≥1024px 三列、640–1024px 两列、<640px 单列；
+- **卡片**（`--color-bg-raised` 底 + `1px --color-vine` 描边 + 圆角 `0.75rem`，padding `1rem`）：
+  - 第一行（flex 两端对齐）：左侧标题（`--text-body` 加粗，超长截断），右侧状态徽标——胶囊描边标签（沿用 `RoleBadge` 不铺色口径）：进行中 `--color-flower` 描边、未开始 `--color-primary` 描边、已结束 `--color-ink-dim` 描边；
+  - 第二行（按钮行，与标题区间隔 `0.75rem`）：「停止收集」/「继续收集」（同一按钮随状态切换文字）、「归档」、「修改」，均为小尺寸文字按钮（`--text-small`，描边样式）；按钮点击 `stopPropagation`；
+  - 卡片其余区域整体可点（`cursor-pointer`），点击跳 `/backdoor/topics/{id}`；hover 时描边过渡为 `--color-primary`（≤200ms）；
+- **空态**：无主题时栅格位置展示 `--color-ink-dim` 提示（如「还没有主题，点击右上角新建」）；
+- **归档主题**不出现在默认列表（`?archived=true` 为 API 预留，本期 UI 不提供入口）。
+
+### 4.3 主题表单弹窗（新建 / 修改复用）
+
+- 居中 modal：`--color-bg-raised` 底 + `--color-vine` 描边，宽 `28rem`（移动横向留白 `1.25rem`），深色遮罩；`createPortal` 挂 `document.body`，Esc / 遮罩点击 / 关闭按钮收起（沿用后台既有 dialog 口径）；
+- 标题「新建主题」/「修改主题」+ `--color-ink-dim` 小字说明；
+- 表单字段纵向排列（间距 `0.75rem`，标签 `--text-small`）：
+  1. **标题**：`TextField` 单行输入；
+  2. **描述**：`MarkdownEditor`（工具栏置顶：加粗/斜体/标题/列表/引用/链接/代码；编辑区最小高 `10rem`，深色输入面 `--color-bg-soft`）；
+  3. **开始日期 / 结束日期**：两个 `datetime-local` 输入并排（<640px 纵向堆叠）；
+  4. **字数限制**：number 输入，右侧带 `--color-ink-dim` 小字「100–10000 字」；
+  5. **启用AI前置审核**：checkbox + 标签，**默认勾选**，下方 `--text-small --color-ink-dim` 说明「勾选后投递内容将经 AI 自动审核」；
+- 底部按钮行右置：「取消」（文字按钮）+ 主按钮「创建」/「保存」（提交中禁用）；
+- 校验失败在按钮上方错误区展示（`role="alert"`，固定高度防跳动）：缺字段 / 字数越界 / 开始日期晚于结束日期；接口错误按 `{ error }` 中文文案展示。
+
+### 4.4 主题详情页 `/backdoor/topics/{id}`
+
+```mermaid
+flowchart TD
+    A[页头：大标题 + 可折叠描述] --> B[工具栏：幻灯片/开始结束收集/修改主题]
+    B --> C[棉花糖列表容器 flex-1 内部滚动]
+    C --> D[MarshmallowCard × N<br/>含 AiReviewOverlay 三态]
+```
+
+- **页头区**（flex 列，不滚动）：
+  - 第一行（flex 两端对齐）：左侧大标题（Noto Serif SC `--text-h1`，即主题标题）；右侧工具栏三个按钮——「幻灯片」（`window.open` 打开 presentation 页）、「开始收集」/「结束收集」（随状态切换）、「修改主题」（开 TopicFormDialog）；
+  - 第二行：`CollapsibleMarkdown`——描述经 `MarkdownView` 渲染，`line-clamp-3` 截断，**默认折叠**；内容超过 3 行时右下角显示「展开」/「收起」文字按钮（`--text-small --color-primary`）；起止时间与状态徽标以 `--text-small --color-ink-dim` 一行展示于描述下方；
+- **列表容器**：`flex-1 min-h-0 overflow-y-auto`，占满剩余高度、容器内部滚动；条目纵向间距 `0.75rem`；
+- **MarshmallowCard**（每条棉花糖）：全宽（`w-full`），高度按内容自适应；`--color-bg-raised` 底 + `--color-vine` 描边；内容为 `MarkdownView` 渲染；右上工具区「采用」/「取消采用」文字按钮；**已采用态**：整条透明度降低（如 `opacity-60`）并在状态位展示「已采用」标记（`--color-flower` 描边胶囊）；卡片底部 `--text-small --color-ink-dim` 展示投递时间；
+- **AiReviewOverlay**（仅主题启用 AI 审核时渲染，覆盖卡片内容区的绝对定位层，`--color-bg` 80% 底 + 居中内容）：
+  - `rejected`：提示文案「这个棉花糖可能会有有害内容，AI拒绝原因：{filteredReason}」+ 主按钮「显示这条棉花糖」（点击 PATCH `ignoreAiFilter`，持久化后不再覆盖）；
+  - `pending`：提示「这条内容AI正在审核中」+ 文字按钮「提前查看」（仅本地 state 临时展示，不持久化，刷新恢复覆盖）；
+  - `approved` 或 `aiReview === null`：不渲染覆盖层；
+- **空态**：无棉花糖时容器内居中 `--color-ink-dim` 提示「还没有收到棉花糖」。
+
+### 4.5 幻灯片放映页 `/backdoor/topics/{id}/presentation`
+
+```mermaid
+flowchart TD
+    A[页头：标题 + 可折叠描述 + 字号工具栏] --> B[放映区：满高条目 max-w-50% 居中]
+    C[左侧全高翻页按钮 ChevronLeft] --> B
+    B --> D[右侧全高翻页按钮 ChevronRight]
+    E[首次引导遮盖层] -.首次打开.-> B
+```
+
+- **独立页**：整页 `100svh` flex 列，`--color-bg` 纯色暗底；不经后台骨架（无 TopBar/SideNav），但保留客户端会话/权限守卫与 GuardLoading；
+- **页头**（不滚动）：居中窄列——主题标题（Noto Serif SC `--text-h2`）+ `CollapsibleMarkdown`（同 §4.4：line-clamp-3、默认折叠）；右侧（或标题行尾部）字号工具栏「A− / A＋」两个文字按钮，步进调节条目字号，持久化 localStorage `topics.presentation.fontSize`（损坏回退默认）；
+- **放映区**（`flex-1 min-h-0`）：当前条目占满整个高度（`h-full`），宽度 `max-w-[50%] mx-auto`（<1024px 放宽为 `max-w-[90%]`，桌面优先但保证可用）；条目内容超高时**条目内部 Y 向滚动**（`overflow-y-auto`），`MarkdownView` 渲染；仅渲染被「采用」的条目；
+- **翻页按钮**：左右各一个占满放映区高度的按钮（固定于视口两侧，宽约 `3rem`，Lucide `ChevronLeft` / `ChevronRight`，`aria-label`「上一条」/「下一条」）；首条时左按钮禁用、末条时右按钮禁用（`--color-ink-dim` + 不可点）；hover 显色过渡 ≤200ms；
+- **首次引导遮盖层**：localStorage `topics.presentation.guideSeen` 未记录时展示——全屏深色遮罩（`--color-bg` 85%）+ 居中说明卡（左右翻页、条目内滚动、字号调节三条图文说明 + 「知道了」主按钮），关闭时写入 localStorage，之后不再出现；
+- **空态**：无已采用条目时放映区居中 `--color-ink-dim` 提示「还没有已采用的棉花糖，请先在详情页采用」。
+
+### 4.6 公开收集页 `/topics/{id}`
+
+- 位于公开站 `(site)/(content)` 布局（NavBar + 流式 Footer），窄列居中（内容最大宽约 `40rem`，移动横向留白 `1.25rem`），视觉遵循公开站口径（[[../../design/02-page-design.md]]）；
+- **主题信息区**：主题标题（Noto Serif SC `--text-h1`）+ 状态徽标与起止时间一行（`--text-small --color-ink-dim`，与后台同口径文案：未开始/进行中/已结束）+ 描述 `MarkdownView` 完整渲染（公开页不折叠）；
+- **投递区**（页面三态视图 `form` / `submitting` / `done`）：
+  - `form`：`MarkdownEditor`（同 §4.3 工具栏口径，编辑区最小高 `12rem`）+ 字数提示（`--text-small --color-ink-dim`，「最多 {charLimit} 字」+ 实时计数）+ 主按钮「投递棉花糖」（宽度全列，提交中禁用显示「投递中…」）；
+  - `submitting`：编辑器只读 + 按钮禁用（form 内联状态，不单独成屏）；
+  - `done`（提交完成结果视图）：编辑器与按钮整体替换为居中结果卡——`--color-flower` 标题「提交成功，感谢你的棉花糖」+ 文字按钮「再投一条」（点击回 `form` 并清空编辑器，仍受频率限制约束）；**视图不出现任何审核相关字段**；
+- **提交前弹窗**（ConfirmDialog）：点「投递棉花糖」先弹居中 modal，文案「内容会被AI审核，如果有有害信息，则会判定为未通过AI审核，默认隐藏」+「确认投递」/「再想想」按钮；确认后才发请求；
+- **失败与状态提示**：429 提示「操作频率过快」、400/409/410 按 `{ error }` 文案展示于表单上方错误区（`role="alert"`）；主题未开始/已结束/已归档时投递区整体替换为对应状态提示（编辑器不渲染或禁用）；主题不存在展示不存在提示；
+- **移动端**：单列布局天然适配窄屏；编辑器工具栏允许横向滚动不折行挤压。
+
+### 4.7 共享组件清单
+
+| 组件 | 位置 | 说明 | 关键状态 |
+|------|------|------|---------|
+| `MarkdownEditor` | `features/markdown/` | @uiw/react-md-editor 封装（`next/dynamic ssr:false`，深色输入面） | 默认 / 只读（submitting） |
+| `MarkdownView` | `features/markdown/` | react-markdown + remark-gfm 渲染，禁原始 HTML | — |
+| `CollapsibleMarkdown` | `features/topics/components/` | MarkdownView + line-clamp-3 折叠（默认收起） | 折叠 / 展开 |
+| `TopicCard` | `features/topics/components/` | 列表页卡片（标题/状态徽标/三按钮） | 三状态徽标；hover |
+| `TopicFormDialog` | `features/topics/components/` | 新建/修改主题弹窗（含 MarkdownEditor） | 新建 / 修改 / 提交中 / 校验失败 |
+| `MarshmallowCard` | `features/topics/components/` | 详情页棉花糖条目 + 采用切换 | 默认 / 已采用（置灰） |
+| `AiReviewOverlay` | `features/topics/components/` | 卡片覆盖层三态 | rejected / pending / 无 |
+| `ConfirmDialog` | `features/topics/components/` | 提交前 AI 审核告知弹窗 | 打开 / 关闭 |
+| `SubmitDoneView` | `features/topics/components/` | 提交完成结果视图（仅成功提示 + 再投一条） | — |
+| `PresentationNavButton` | `features/topics/components/` | 幻灯片左右全高翻页按钮 | 默认 / 禁用 |
+| `GuideOverlay` | `features/topics/components/` | 幻灯片首次引导遮盖层 | 展示 / 已读（不渲染） |
+
+## 5. 依赖与风险
 
 - **依赖**：既有基础设施全部复用（Session-Cookie + Redis + RBAC + MongoDB + Aspire）；新增外部依赖 AI 审核服务（OpenAI 兼容 / Claude）；新增 npm 依赖 `openai`、`@anthropic-ai/sdk`（api）与 `react-markdown`、`remark-gfm`、`@uiw/react-md-editor`（bookstore）——均为首次引入；
 - **并行协调**：单一开发分支 `feat/marshmallow-topics`，契约先行（后端/前端/测试均依赖）；后端与前端 subagent 串行；编排注入随后端完成；API 集成测试依赖后端就绪，e2e 依赖前端就绪；
@@ -156,10 +269,10 @@ type: Permanent
   - `@uiw/react-md-editor` 构建期 window 依赖——`next/dynamic` `ssr: false` 封装（步骤 3.2）；
   - stub 端口冲突——AI stub 用 `9879`，与 9876/9877/9878 隔离（步骤 4/5）。
 
-## 5. 相关文档
+## 6. 相关文档
 
 - PRD：[[../../product/requirements/draft/2026-09-06-marshmallow-topics-prd.md]]（v1.1）
 - 技术提案：[[../proposals/2026-09-06-marshmallow-topics-proposal.md]]（v1.1）
 - 前端规范：[[../frontend-rules.md]]；后端规范：[[../backend-rules.md]]
-- 后台设计：[[../../design/03-backdoor-design.md]]
+- 后台设计：[[../../design/03-backdoor-design.md]]；公开站页面设计：[[../../design/02-page-design.md]]
 - 既有契约：`contract/backdoor-auth.openapi.yaml`、`contract/stream-plans.openapi.yaml`、`contract/live-history.openapi.yaml`

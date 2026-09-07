@@ -32,7 +32,9 @@ var api = builder
     // AI 审核配置：host 环境变量优先，缺省指向本地 stub 占位
     .WithEnvironment("SUMIRE_REVIEW_AI_TYPE", Environment.GetEnvironmentVariable("SUMIRE_REVIEW_AI_TYPE") ?? "openai")
     .WithEnvironment("SUMIRE_REVIEW_AI_ENDPOINT", Environment.GetEnvironmentVariable("SUMIRE_REVIEW_AI_ENDPOINT") ?? "http://127.0.0.1:9879")
-    .WithEnvironment("SUMIRE_REVIEW_AI_API_KEY", Environment.GetEnvironmentVariable("SUMIRE_REVIEW_AI_API_KEY") ?? "dev-stub-key");
+    .WithEnvironment("SUMIRE_REVIEW_AI_API_KEY", Environment.GetEnvironmentVariable("SUMIRE_REVIEW_AI_API_KEY") ?? "dev-stub-key")
+    // AI 审核模型（可选）：未设置时后端回退各分支默认
+    .WithEnvironment("SUMIRE_REVIEW_AI_MODEL", Environment.GetEnvironmentVariable("SUMIRE_REVIEW_AI_MODEL") ?? "");
 
 var bookstore = builder
     .AddNextJsApp("bookstore", "../../apps/bookstore", runScriptName: "dev")

@@ -87,7 +87,7 @@ aiReview 结构：
 
 ### 配置
 
-环境变量 `SUMIRE_REVIEW_AI_TYPE`（openai/claude）、`SUMIRE_REVIEW_AI_ENDPOINT`、`SUMIRE_REVIEW_AI_API_KEY`。
+环境变量 `SUMIRE_REVIEW_AI_TYPE`（openai/claude）、`SUMIRE_REVIEW_AI_ENDPOINT`、`SUMIRE_REVIEW_AI_API_KEY`；可选 `SUMIRE_REVIEW_AI_MODEL` 指定审核模型，不设置时回退各分支默认（openai→`gpt-4o-mini`、claude→`claude-3-haiku-20240307`）。
 
 启动时 fail-fast：任一已配置则三者必须齐全，否则启动失败。
 

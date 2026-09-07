@@ -119,7 +119,7 @@ type: Fleeting
 
 - 路由 `/backdoor/topics/{topic-id}`；
 - 页头：以主题「标题」为大标题；「描述」渲染 Markdown，**最多显示 3 行**，支持折叠/展开，**默认折叠**；
-- 工具按钮：「幻灯片」（打开 `/backdoor/topics/{topic-id}/presentation`）、「开始/结束收集」（与 F3 同语义）、「修改主题」；
+- 工具按钮：「分享」（打开浮层展示投递链接 + 二维码 + 下载 PNG）、「幻灯片」（打开 `/backdoor/topics/{topic-id}/presentation`）、「开始/结束收集」（与 F3 同语义）、「修改主题」；
 - 页面剩余区域为一个占满剩余高度、容器内部滚动的「棉花糖」列表；
 - 每条棉花糖占满整个宽度，高度不限（按内容自适应）；
 - 每条棉花糖带工具按钮「采用」：点击后该条变灰并展示「已采用」标记，按钮变为「取消采用」；取消采用恢复原状。
@@ -267,7 +267,7 @@ type: Fleeting
 ### 5.1 依赖
 
 - 既有基础设施：会话鉴权与 `requireRole`、Redis（会话/限速，本期复用同一实例做审核队列）、MongoDB（新增集合）、Aspire 编排；
-- 新增外部依赖：AI 审核服务（OpenAI 兼容 / Claude），经 `SUMIRE_REVIEW_AI_` 前缀环境变量配置。
+- 新增外部依赖：AI 审核服务（OpenAI 兼容 / Claude），经 `SUMIRE_REVIEW_AI_` 前缀环境变量配置；审核模型可选由 `SUMIRE_REVIEW_AI_MODEL` 指定，未设置回退各分支默认。
 
 ### 5.2 约束
 

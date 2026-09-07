@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import CollapsibleMarkdown from "@/features/topics/components/CollapsibleMarkdown";
 import MarshmallowCard from "@/features/topics/components/MarshmallowCard";
 import TopicFormDialog from "@/features/topics/components/TopicFormDialog";
+import ShareTopicDialog from "@/features/topics/components/ShareTopicDialog";
 import { RequireRole } from "@/features/backdoor/RequireRole";
 import {
   getTopic,
@@ -27,6 +28,7 @@ export default function TopicDetailView() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [showEdit, setShowEdit] = useState(false);
+  const [showShare, setShowShare] = useState(false);
 
   // I17: 区分加载中与不存在
   const [notFound, setNotFound] = useState(false);
@@ -136,6 +138,13 @@ export default function TopicDetailView() {
           <div className="flex gap-2">
             <button
               type="button"
+              onClick={() => setShowShare(true)}
+              className="text-xs text-ink-dim hover:text-ink border border-vine rounded px-2 py-1"
+            >
+              分享
+            </button>
+            <button
+              type="button"
               onClick={() => window.open(`/backdoor/topics/presentation?id=${id}`, "_blank")}
               className="text-xs text-ink-dim hover:text-ink border border-vine rounded px-2 py-1"
             >
@@ -234,6 +243,10 @@ export default function TopicDetailView() {
           onSubmit={handleUpdate}
           onClose={() => setShowEdit(false)}
         />
+      )}
+
+      {showShare && (
+        <ShareTopicDialog topic={topic} onClose={() => setShowShare(false)} />
       )}
     </div>
     </RequireRole>

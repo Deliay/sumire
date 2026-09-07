@@ -48,6 +48,8 @@ export const config = {
   reviewAiType: envOr("SUMIRE_REVIEW_AI_TYPE"), // "openai" | "claude"
   reviewAiEndpoint: envOr("SUMIRE_REVIEW_AI_ENDPOINT"),
   reviewAiApiKey: envOr("SUMIRE_REVIEW_AI_API_KEY"),
+  // 可选：指定 AI 审核模型；不设置时用各分支默认（openai→gpt-4o-mini、claude→claude-3-haiku-20240307）
+  reviewAiModel: envOr("SUMIRE_REVIEW_AI_MODEL"),
 };
 
 export const COOKIE_NAME = "sumire_sid";

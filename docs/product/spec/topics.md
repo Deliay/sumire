@@ -62,6 +62,7 @@
 - 审核结果：`approved`（通过）或 `rejected`（拒绝，含原因）
 - 管理员可「显示这条棉花糖」（设置 `ignoredByAdmin = true`）
 - 未启用时：`aiReview = null`
+- 审核模型可通过环境变量 `SUMIRE_REVIEW_AI_MODEL` 指定（可选），不设置时回退 openai→`gpt-4o-mini`、claude→`claude-3-haiku-20240307`
 
 ## 后台页面
 
@@ -76,12 +77,15 @@
 - 查询串方案（与公开收集页一致，GitHub Pages 静态导出兼容动态路由）
 - 可折叠描述（Markdown，默认折叠）
 - 棉花糖列表（采用/取消采用，AI 覆盖层三态）
-- 工具栏：幻灯片、开始/结束收集、修改主题
+- 工具栏：分享、幻灯片、开始/结束收集、修改主题
+- **分享**：弹窗展示投递链接（`${origin}/topics?id={topicId}`，可复制）+ 二维码图片 + 下载 PNG（文件名 `投递二维码-{sanitize(主题)}.png`）
 
 ### 幻灯片页（`/backdoor/topics/presentation?id={topicId}`）
 
 - 查询串方案，独立页，不经后台骨架
-- 仅展示已采用的棉花糖
+- **单行页头**：左起标题（衬线，过长省略）+ 紧随单行纯文本描述（`max-w-[25%]` 省略）；右侧「字体」label + 字号预设档位（小14/中16/大20）
+- 页头与放映区以明线（`border-t border-vine`）分割
+- 仅展示已采用的棉花糖，条目 `max-w-[50%]` 居中、文本左对齐
 - 左右翻页，字号调节（localStorage 持久化）
 - 首次引导遮盖层
 

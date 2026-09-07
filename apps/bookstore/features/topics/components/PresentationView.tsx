@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import MarkdownView from "@/features/markdown/MarkdownView";
-import CollapsibleMarkdown from "@/features/topics/components/CollapsibleMarkdown";
+import { toSingleLinePlainText } from "@/features/markdown/toSingleLinePlainText";
 import { RequireRole } from "@/features/backdoor/RequireRole";
 import { getTopic, listMarshmallows } from "@/features/topics/api";
 import type { Topic, Marshmallow } from "@/features/topics/types";
@@ -122,32 +122,39 @@ export default function PresentationView() {
         </div>
       ) : (
         <div className="h-screen flex flex-col bg-night text-ink">
-          {/* 页头 */}
-          <div className="shrink-0 p-4 text-center">
-            <h1 className="font-serif text-2xl font-semibold">{topic.title}</h1>
-            <div className="mt-1">
-              <CollapsibleMarkdown content={topic.description} />
+          {/* 页头（单行：左标题+单行描述，右字号控件） */}
+          <div className="shrink-0 px-4 py-3 flex items-center justify-between gap-4 min-w-0">
+            <div className="flex items-baseline gap-3 min-w-0">
+              <h1 className="font-serif text-2xl font-semibold truncate min-w-0">
+                {topic.title}
+              </h1>
+              <span className="max-w-[25%] truncate text-sm text-ink-dim">
+                {toSingleLinePlainText(topic.description)}
+              </span>
             </div>
-            <div
-              className="inline-flex items-center gap-1 mt-3 border border-vine rounded overflow-hidden"
-              role="group"
-              aria-label="字号"
-            >
-              {FONT_PRESETS.map((preset) => (
-                <button
-                  key={preset.size}
-                  type="button"
-                  onClick={() => handleFontSize(preset.size)}
-                  aria-pressed={fontSize === preset.size}
-                  className={`px-3 py-1 text-sm ${
-                    fontSize === preset.size
-                      ? "bg-primary/20 text-ink"
-                      : "text-ink-dim hover:text-ink hover:bg-raised"
-                  }`}
-                >
-                  {preset.label}
-                </button>
-              ))}
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-sm text-ink-dim">字体</span>
+              <div
+                className="inline-flex items-center gap-1 border border-vine rounded overflow-hidden"
+                role="group"
+                aria-label="字号"
+              >
+                {FONT_PRESETS.map((preset) => (
+                  <button
+                    key={preset.size}
+                    type="button"
+                    onClick={() => handleFontSize(preset.size)}
+                    aria-pressed={fontSize === preset.size}
+                    className={`px-3 py-1 text-sm ${
+                      fontSize === preset.size
+                        ? "bg-primary/20 text-ink"
+                        : "text-ink-dim hover:text-ink hover:bg-raised"
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 

@@ -164,12 +164,15 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 | `ConfirmDialog` | 投递前 AI 审核告知弹窗 |
 | `SubmitDoneView` | 提交完成结果视图 |
 | `TopicPublicPage` | 公开收集页主体 |
+| `ShareTopicDialog` | 分享投递链接 + 二维码（`qrcode` 客户端生成 dataURL，下载文件名 `投递二维码-{sanitize(主题)}.png`） |
+| `sanitizeFilename` | 二维码下载文件名 sanitize 纯函数 |
+| `toSingleLinePlainText` | Markdown→单行纯文本工具（去除标题/列表/链接/粗体等标记、换行折叠为空格） |
 
 ### 后台页面
 
 - **列表页**（`/backdoor/topics`）：RequireRole("admin") 守卫，卡片栅格，编辑弹窗
-- **详情页**（`/backdoor/topics/detail?id={topicId}`）：RequireRole("admin") 守卫，折叠描述，棉花糖列表。查询串方案（GitHub Pages 静态导出兼容动态路由），id 经客户端 `useSearchParams` 读取并包 Suspense
-- **幻灯片页**（`/backdoor/topics/presentation?id={topicId}`）：查询串方案，独立页，RequireRole("admin") 守卫，分页拉取所有棉花糖
+- **详情页**（`/backdoor/topics/detail?id={topicId}`）：RequireRole("admin") 守卫，折叠描述，棉花糖列表，工具栏含「分享」（ShareTopicDialog 浮层：投递链接复制 + 二维码展示/下载）。查询串方案（GitHub Pages 静态导出兼容动态路由），id 经客户端 `useSearchParams` 读取并包 Suspense
+- **幻灯片页**（`/backdoor/topics/presentation?id={topicId}`）：查询串方案，独立页，RequireRole("admin") 守卫，分页拉取所有棉花糖；**单行页头**（左标题衬线+单行纯文本描述 max-w-25% 省略，右「字体」label+字号预设档位 小/中/大），页头与放映区 `border-t border-vine` 分割，条目 `max-w-[50%]` 居中文本左对齐
 
 ### 公开收集页
 

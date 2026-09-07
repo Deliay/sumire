@@ -9,6 +9,14 @@ export interface AiClient {
   chat(content: string): Promise<{ filtered: boolean; filteredReason: string }>;
 }
 
+const OPENAI_DEFAULT_MODEL = "gpt-4o-mini";
+const CLAUDE_DEFAULT_MODEL = "claude-3-haiku-20240307";
+
+/** 解析审核模型：配置 SUMIRE_REVIEW_AI_MODEL 时用之，否则按分支回退默认。 */
+export function resolveReviewModel(type: string | undefined): string {
+  return config.reviewAiModel ?? (type === "claude" ? CLAUDE_DEFAULT_MODEL : OPENAI_DEFAULT_MODEL);
+}
+
 async function createOpenAiClient(): Promise<AiClient> {
   // Dynamic import with error handling for optional dependency
   const OpenAIModule = await import("openai").catch(() => null);
@@ -23,7 +31,7 @@ async function createOpenAiClient(): Promise<AiClient> {
   return {
     async chat(content: string) {
       const resp = await client.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: resolveReviewModel(config.reviewAiType),
         messages: [
           { role: "system", content: REVIEW_SYSTEM_PROMPT },
           { role: "user", content },
@@ -59,7 +67,7 @@ async function createClaudeClient(): Promise<AiClient> {
   return {
     async chat(content: string) {
       const resp = await client.messages.create({
-        model: "claude-3-haiku-20240307",
+        model: resolveReviewModel("claude"),
         max_tokens: 1024,
         system: REVIEW_SYSTEM_PROMPT,
         messages: [{ role: "user", content }],

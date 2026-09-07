@@ -20,7 +20,7 @@ test.describe("backdoor 棉花糖（主题管理）", () => {
 
     const run = Date.now().toString(36);
     const title = `e2e棉花糖_${run}`;
-    const desc = `e2e描述 ${run}`;
+    const desc = `# 主题描述\n\n${"这是一段用于验证幻灯片页头单行省略的很长描述。".repeat(8)}`;
     const content = `e2e内容 ${run}`;
 
     // 1. 新建主题（开始=现在、结束=明天，关闭 AI 前置审核以避开审核覆盖层）
@@ -60,6 +60,22 @@ test.describe("backdoor 棉花糖（主题管理）", () => {
     await page.getByRole("button", { name: "采用" }).click();
     await expect(page.getByText("已采用")).toBeVisible();
 
+    // 4.5 分享投递链接与二维码浮层
+    await page.getByRole("button", { name: "分享" }).click();
+    const shareDlg = page.locator("div.fixed.inset-0.z-50");
+    await expect(shareDlg).toBeVisible();
+    await expect(page.getByLabel("投递链接")).toHaveValue(
+      new RegExp(`/topics\\?id=${id}$`),
+    );
+    await expect(page.getByRole("button", { name: "复制" })).toBeVisible();
+    await expect(page.getByAltText("投递二维码")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("link", { name: "下载二维码" })).toHaveAttribute(
+      "download",
+      `投递二维码-${title}.png`,
+    );
+    await page.getByRole("button", { name: "关闭" }).click();
+    await expect(shareDlg).not.toBeVisible();
+
     // 5. 幻灯片页展示已采用条目（首次引导遮盖层点「知道了」）
     await page.goto(`${BASE}/backdoor/topics/presentation?id=${id}`);
     await expect(page.getByRole("heading", { name: title })).toBeVisible();
@@ -89,5 +105,25 @@ test.describe("backdoor 棉花糖（主题管理）", () => {
       /Noto Serif SC|serif/,
     );
     await expect(page.locator("div.border-t.border-vine").first()).toBeVisible();
+
+    // 8. 幻灯片页头单行布局：标题/描述/字号控件同一行，「字体」label 可见，长描述限宽省略
+    await expect(page.getByText("字体")).toBeVisible();
+    await expect(page.getByRole("button", { name: "大" })).toBeVisible();
+    const heading = page.getByRole("heading", { name: title, exact: true });
+    const headingBox = await heading.boundingBox();
+    const fontLabelBox = await page.getByText("字体").boundingBox();
+    expect(headingBox).not.toBeNull();
+    expect(fontLabelBox).not.toBeNull();
+    expect(Math.abs(fontLabelBox!.y - headingBox!.y)).toBeLessThan(20); // 同一行
+    // 单行描述：text-ink-dim truncate span 存在、宽度 ≤ 25% 视口、且发生省略
+    const descSpan = page.locator("span.truncate.text-ink-dim");
+    await expect(descSpan).toBeVisible();
+    const descBox = await descSpan.boundingBox();
+    const vw = page.viewportSize()?.width ?? 1280;
+    expect(descBox!.width).toBeLessThanOrEqual(vw * 0.26 + 1);
+    const isTruncated = await descSpan.evaluate(
+      (el) => (el as HTMLElement).scrollWidth > (el as HTMLElement).clientWidth,
+    );
+    expect(isTruncated).toBe(true);
   });
 });

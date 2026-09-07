@@ -224,6 +224,7 @@ sequenceDiagram
   - `SUMIRE_REVIEW_AI_TYPE`：`openai` | `claude`；
   - `SUMIRE_REVIEW_AI_ENDPOINT`：API base URL；
   - `SUMIRE_REVIEW_AI_API_KEY`：凭据；
+  - `SUMIRE_REVIEW_AI_MODEL`（可选）：指定审核模型；未设置时回退各分支默认（openai→`gpt-4o-mini`、claude→`claude-3-haiku-20240307`），经 `resolveReviewModel(type)` 解析；
 - **启动前校验**：`index.ts` 启动时三者缺失或 type 非法即抛错退出（PRD「要求启动前配置」）；tests/api 与 Aspire 注入指向本地 stub 的值（沿用上游 stub 先例），生产经部署环境注入；
 - system 提示词（`reviewPrompt.ts` 纯数据常量）：常规内容审核要求（以骂人为目的的脏话、只为追求快感的性描写、儿童色情内容、人身攻击与威胁、违法信息等），结尾明确表述「user 发送的内容都是要进行审核的内容」；
 - user 消息为棉花糖原文；
@@ -241,8 +242,8 @@ sequenceDiagram
 - `SideNav.tsx` `NAV_ITEMS` 追加 `{ href: "/backdoor/topics", label: "棉花糖", roles: ["superadmin", "admin"] }`；
 - **列表页** `/backdoor/topics`：卡片栅格；卡片首行标题 + 状态徽标（未开始/进行中/已结束，token 色区分），次行「停止收集/继续收集」「归档」「修改」按钮（按钮点击 `stopPropagation`，卡面其余区域 Link 跳详情）；「新建主题」按钮开表单弹窗；
 - **主题表单弹窗**（新建/修改复用）：标题（文本）、描述（MarkdownEditor）、开始/结束日期（datetime-local）、字数限制（number，100–10000 校验）、启用AI前置审核（checkbox 默认勾选）；复用后台既有 dialog 口径（`createPortal` 挂 body、Esc/遮罩关闭、`role="alert"` 错误区）；
-- **详情页** `/backdoor/topics/[id]`：大标题 + CollapsibleMarkdown（描述渲染，line-clamp-3，默认折叠，展开/收起按钮）；工具栏「幻灯片」（`window.open` 独立页）「开始/结束收集」「修改主题」；列表容器 `flex-1 overflow-y-auto` 内部滚动；条目组件 MarshmallowCard：全宽、内容 MarkdownView 渲染、采用切换（已采用变灰 + 「已采用」标记）；AI 覆盖层按 `aiReview.status` 三态渲染（rejected：原因 + 「显示这条棉花糖」→ PATCH ignoreAiFilter；pending：提示 + 「提前查看」→ 本地 state 临时展示；null：无覆盖层）；
-- **幻灯片页** `/backdoor/topics/[id]/presentation`：仅 adopted 条目；条目满高（`h-full`）内部 Y 滚动、`max-w-[50%] mx-auto`；左右全高按钮（lucide `ChevronLeft`/`ChevronRight`，首末条禁用）；页头标题 + CollapsibleMarkdown；字号工具栏（A-/A+，存 localStorage `topics.presentation.fontSize`）；首次引导遮盖层（localStorage `topics.presentation.guideSeen`，关闭后写入）；
+- **详情页** `/backdoor/topics/[id]`：大标题 + CollapsibleMarkdown（描述渲染，line-clamp-3，默认折叠，展开/收起按钮）；工具栏「分享」（ShareTopicDialog 浮层：投递链接 `${origin}/topics?id=` 可复制 + `qrcode` 客户端生成二维码 + 下载 `投递二维码-{sanitize(主题)}.png`）「幻灯片」（`window.open` 独立页）「开始/结束收集」「修改主题」；列表容器 `flex-1 overflow-y-auto` 内部滚动；条目组件 MarshmallowCard：全宽、内容 MarkdownView 渲染、采用切换（已采用变灰 + 「已采用」标记）；AI 覆盖层按 `aiReview.status` 三态渲染（rejected：原因 + 「显示这条棉花糖」→ PATCH ignoreAiFilter；pending：提示 + 「提前查看」→ 本地 state 临时展示；null：无覆盖层）；
+- **幻灯片页** `/backdoor/topics/[id]/presentation`：仅 adopted 条目；条目满高（`h-full`）内部 Y 滚动、`max-w-[50%] mx-auto` 居中文本左对齐；左右全高按钮（lucide `ChevronLeft`/`ChevronRight`，首末条禁用）；**单行页头**——左起标题（衬线 `font-serif text-2xl font-semibold`，过长省略）+ 紧随单行纯文本描述（`toSingleLinePlainText` sanitize 后 `max-w-[25%] truncate text-sm text-ink-dim`），右侧「字体」label + 字号预设档位（小14/中16/大20，`aria-pressed`，localStorage `topics.presentation.fontSize`）；页头与放映区以 `border-t border-vine` 分割；首次引导遮盖层（localStorage `topics.presentation.guideSeen`，关闭后写入）；
 - **收集页** `/topics/[id]`：主题信息区 + MarkdownEditor + 提交按钮，页面级三态视图——`form`（编辑投递）/ `submitting` / `done`（**提交完成结果视图**：仅展示「提交成功，感谢你的棉花糖」+「再投一条」按钮，不展示任何审核字段；「再投一条」回到 `form` 并清空编辑器，仍受频率限制约束）；提交前 ConfirmDialog 展示 AI 审核告知文案；失败（429/400/409）回到表单态并给出明确提示；未开始/已结束/已归档展示状态提示并禁用编辑器；
 - **MarkdownEditor**（`features/markdown/MarkdownEditor.tsx`）：`@uiw/react-md-editor`，`"use client"` + `next/dynamic` `ssr: false`（静态导出无 SSR，但避免构建期 window 依赖）；工具栏保留加粗/斜体/标题/列表/引用/链接/代码等常用按钮；
 - **MarkdownView**（`features/markdown/MarkdownView.tsx`）：`react-markdown + remark-gfm`，不启用 `rehype-raw`（禁原始 HTML，防 XSS）；

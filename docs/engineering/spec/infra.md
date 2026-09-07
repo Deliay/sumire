@@ -14,7 +14,7 @@
 ## 依赖与注入
 
 - `api`：`WithReference(redis/mongodb)` 注入 `REDIS_URI` 与 `ConnectionStrings__mongodb`；注入 `SESSION_SECRET=dev-secret`、种子超管 `BACKDOOR_USERNAME=supersumire` 与 `BACKDOOR_PASSWORD_HASH`（salamander 的 bcrypt）。
-- 上游覆盖：`LIVE_HISTORY_UPSTREAM_URL` / `LIVE_EVENTS_UPSTREAM_URL` / `LIVE_STATUS_UPSTREAM_URL` 可被编排进程环境变量覆盖（测试时指向 stub），否则回退内网 `http://vtuber.internal.fffdan.com`（房间 1727076670；live-status 回退完整 `state/current` 路径）。
+- 上游覆盖：`LIVE_HISTORY_UPSTREAM_URL` / `LIVE_EVENTS_UPSTREAM_URL` / `LIVE_STATUS_UPSTREAM_URL` / `LIVE_PEER_STATUS_UPSTREAM_URL` 可被编排进程环境变量覆盖（测试时指向 stub），否则回退内网 `http://vtuber.internal.fffdan.com`（房间 1727076670；live-status 回退完整 `state/current` 路径）。其中 `LIVE_PEER_STATUS_UPSTREAM_URL` 为 base URL 模式（端点路径由 api 侧按白名单 roomId 拼接），与 `LIVE_STATUS_UPSTREAM_URL`（含完整路径）不同。
 - `bookstore`：`WithReference(api)`，`NEXT_PUBLIC_API_BASE_URL` 注入 api 的 http 端点。
 - `api` 的 `CORS_ORIGINS` 反向引用 bookstore 端点（声明在 bookstore 之后）。
 

@@ -39,11 +39,22 @@ export const config = {
     "LIVE_STATUS_UPSTREAM_URL",
     "http://vtuber.internal.fffdan.com/api/b/live/1727076670/state/current",
   ),
+  // 同期直播状态上游 base URL：端点路径由 livePeerStatus.ts 拼接（内置缺省值，不得抛错）
+  livePeerStatusUpstreamUrl: getEnv(
+    "LIVE_PEER_STATUS_UPSTREAM_URL",
+    "http://vtuber.internal.fffdan.com",
+  ),
   // B 站视频封面上游地址（内置缺省值，不得抛错）
   biliCoverUpstreamUrl: getEnv(
     "BILI_COVER_UPSTREAM_URL",
     "http://ayelet-tools.internal.fffdan.com/api/v1/bilibili/cover",
   ),
+  // AI 审核配置（fail-fast 校验在 index.ts 启动时执行）
+  reviewAiType: envOr("SUMIRE_REVIEW_AI_TYPE"), // "openai" | "claude"
+  reviewAiEndpoint: envOr("SUMIRE_REVIEW_AI_ENDPOINT"),
+  reviewAiApiKey: envOr("SUMIRE_REVIEW_AI_API_KEY"),
+  // 可选：指定 AI 审核模型；不设置时用各分支默认（openai→gpt-4o-mini、claude→claude-3-haiku-20240307）
+  reviewAiModel: envOr("SUMIRE_REVIEW_AI_MODEL"),
 };
 
 export const COOKIE_NAME = "sumire_sid";

@@ -160,7 +160,8 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 | `TopicCard` | 列表页卡片（标题/状态徽标/三按钮） |
 | `TopicFormDialog` | 新建/修改主题弹窗（含 MarkdownEditor） |
 | `CollapsibleMarkdown` | 可折叠 Markdown（line-clamp-3） |
-| `MarshmallowCard` | 棉花糖条目 + 采用切换 + AI 覆盖层三态 |
+| `MarshmallowCard` | 棉花糖条目（内容默认折叠 5 行，超限底部渐变层「点击查看全文」开 `MarshmallowDetailDialog`）+ 采用切换 + AI 覆盖层三态（不透明实色覆盖） |
+| `MarshmallowDetailDialog` | 棉花糖全文弹窗（`max-h-[75vh]` 内部滚动，内含采用/取消采用按钮） |
 | `ConfirmDialog` | 投递前 AI 审核告知弹窗 |
 | `SubmitDoneView` | 提交完成结果视图 |
 | `TopicPublicPage` | 公开收集页主体 |
@@ -171,7 +172,7 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 ### 后台页面
 
 - **列表页**（`/backdoor/topics`）：RequireRole("admin") 守卫，卡片栅格，编辑弹窗
-- **详情页**（`/backdoor/topics/detail?id={topicId}`）：RequireRole("admin") 守卫，折叠描述，棉花糖列表，工具栏含「分享」（ShareTopicDialog 浮层：投递链接复制 + 二维码展示/下载）。查询串方案（GitHub Pages 静态导出兼容动态路由），id 经客户端 `useSearchParams` 读取并包 Suspense
+- **详情页**（`/backdoor/topics/detail?id={topicId}`）：RequireRole("admin") 守卫，折叠描述，棉花糖列表（条目默认折叠 5 行，超限渐变层「点击查看全文」开全文弹窗，弹窗 `max-h-[75vh]` 内部滚动且含采用按钮；AI 覆盖层不透明），工具栏含「分享」（ShareTopicDialog 浮层：投递链接复制 + 二维码展示/下载）。查询串方案（GitHub Pages 静态导出兼容动态路由），id 经客户端 `useSearchParams` 读取并包 Suspense
 - **幻灯片页**（`/backdoor/topics/presentation?id={topicId}`）：查询串方案，独立页，RequireRole("admin") 守卫，分页拉取所有棉花糖；**单行页头**（左标题衬线+单行纯文本描述 max-w-25% 省略，右「字体」label+字号预设档位 小/中/大），页头与放映区 `border-t border-vine` 分割，条目 `max-w-[50%]` 居中文本左对齐
 
 ### 公开收集页

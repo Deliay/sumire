@@ -75,11 +75,6 @@ export default function TopicPublicPage() {
     }
   }, [content, topic, topicId]);
 
-  const handleAgain = () => {
-    setContent("");
-    setViewState("form");
-  };
-
   if (notFound) {
     return (
       <div className="max-w-[40rem] mx-auto px-5 py-8 text-center text-ink-dim">
@@ -117,7 +112,7 @@ export default function TopicPublicPage() {
 
       {/* 投递区 */}
       {viewState === "done" ? (
-        <SubmitDoneView onAgain={handleAgain} />
+        <SubmitDoneView />
       ) : (
         <>
           {status === "upcoming" && (

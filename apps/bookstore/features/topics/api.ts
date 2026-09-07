@@ -1,5 +1,5 @@
 import { request, API_BASE_URL, API_CONFIGURED } from "@/features/backdoor/api";
-import type { Topic, Marshmallow } from "./types";
+import type { Topic, TopicPublicInfo, Marshmallow } from "./types";
 
 // ===== 管理端点 =====
 
@@ -57,6 +57,13 @@ export async function archiveTopic(id: string) {
   );
 }
 
+export async function restoreTopic(id: string) {
+  return request<{ ok: boolean } | { error: string }>(
+    `/api/topics/${id}/restore`,
+    { method: "POST" },
+  );
+}
+
 export async function listMarshmallows(
   topicId: string,
   options?: { page?: number; pageSize?: number },
@@ -93,6 +100,18 @@ export async function getTopicPublic(id: string) {
   const data = await res.json();
   return { status: res.status, data };
 }
+
+// round 9：公开「进行中的棉花糖」列表（无需鉴权）
+export async function listOngoingTopics() {
+  if (!API_CONFIGURED) return { status: 0, data: null };
+  const res = await fetch(`${API_BASE_URL}/api/topics/public`, {
+    credentials: "include",
+  });
+  const data = await res.json();
+  return { status: res.status, data };
+}
+
+export type { TopicPublicInfo };
 
 export async function submitMarshmallow(
   topicId: string,

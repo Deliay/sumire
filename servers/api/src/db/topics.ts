@@ -176,3 +176,12 @@ export async function archiveTopic(id: string): Promise<boolean> {
   );
   return res !== null;
 }
+
+export async function restoreTopic(id: string): Promise<boolean> {
+  const res = await TopicModel.findByIdAndUpdate(
+    id,
+    { $set: { archived: false, updatedAt: new Date() } },
+    { new: true },
+  );
+  return res !== null;
+}

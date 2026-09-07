@@ -76,8 +76,13 @@ export default function NavBar({ siteName, tools }: NavBarProps) {
   }, [isHome]);
 
   const baseLinks = buildBaseLinks();
+  // round 9：独立路由「棉花糖」入口（/topics 进行中列表页），不走首页 deck 锚点翻页；仅 API 已配置时显示
+  const ongoingLink = API_CONFIGURED
+    ? [{ navKey: "topics" as string, label: "棉花糖", anchor: "/topics", route: "/topics" }]
+    : [];
   const links = [
     ...baseLinks,
+    ...ongoingLink,
     ...tools.map((tool) => ({
       navKey: `tool-${tool.slug}` as string,
       label: tool.name,

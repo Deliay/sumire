@@ -15,6 +15,8 @@ test.describe("backdoor 棉花糖（主题管理）", () => {
     test.setTimeout(90_000);
     const accounts = getAccounts();
     await loginViaUi(page, accounts.superadmin, BASE);
+    // 自动接受 confirm 对话框（归档/恢复/删除确认）
+    page.on("dialog", (d) => d.accept());
     await page.goto(`${BASE}/backdoor/topics`);
     await expect(page.getByRole("heading", { name: "棉花糖", exact: true })).toBeVisible();
 
@@ -55,6 +57,12 @@ test.describe("backdoor 棉花糖（主题管理）", () => {
     await page.getByRole("button", { name: "投递棉花糖" }).click();
     await page.getByRole("button", { name: "确认投递" }).click();
     await expect(page.getByText("提交成功，感谢你的棉花糖")).toBeVisible();
+    // round 9：done 态为「查看进行中的棉花糖」链接，无「再投一条」
+    await expect(page.getByRole("link", { name: "查看进行中的棉花糖" })).toHaveAttribute(
+      "href",
+      "/topics",
+    );
+    await expect(page.getByText("再投一条")).toHaveCount(0);
 
     // 4. 回详情页采用该条
     await page.goto(`${BASE}/backdoor/topics/detail?id=${id}`);
@@ -144,5 +152,47 @@ test.describe("backdoor 棉花糖（主题管理）", () => {
     await expect(detailDlg.getByRole("button", { name: "取消采用" })).toBeVisible();
     await detailDlg.getByRole("button", { name: "关闭" }).click();
     await expect(detailDlg).not.toBeVisible();
+
+    // 10. 公开「进行中的棉花糖」列表页 + NavBar「棉花糖」入口
+    await page.goto(`${BASE}/topics`);
+    await expect(page.getByRole("heading", { name: "进行中的棉花糖" })).toBeVisible();
+    await expect(page.getByText(title)).toBeVisible(); // 进行中主题出现在列表
+    // NavBar 入口：独立路由 /topics，当前页高亮（exact 匹配，避免命中列表卡片标题）
+    const navTopics = page.getByRole("link", { name: "棉花糖", exact: true });
+    await expect(navTopics).toHaveAttribute("href", "/topics");
+    await expect(navTopics).toHaveAttribute("aria-current", "page");
+    // 点击卡片回收集页
+    await page.getByText(title).first().click();
+    await page.waitForURL(new RegExp(`/topics\\?id=${id}$`));
+    await expect(page.getByRole("heading", { name: title })).toBeVisible();
+
+    // 11. 归档 → 已归档视图 → 详情只读 → 恢复回「主题」列表
+    await page.goto(`${BASE}/backdoor/topics/detail?id=${id}`);
+    await page.getByRole("button", { name: "归档" }).click();
+    await page.goto(`${BASE}/backdoor/topics`);
+    await page.getByRole("button", { name: "已归档主题", exact: true }).click();
+    const archCard = page.locator("div.rounded-lg", { has: page.getByText(title, { exact: true }) });
+    await expect(archCard).toBeVisible();
+    // 已归档卡片仅「恢复」，无「归档」「修改」
+    await expect(archCard.getByRole("button", { name: "恢复" })).toBeVisible();
+    await expect(archCard.getByRole("button", { name: "修改" })).toHaveCount(0);
+    // 点击卡片进入已归档详情（只读：仅 分享/幻灯片，无写操作入口）
+    await archCard.getByText(title, { exact: true }).click();
+    await page.waitForURL(new RegExp(`/backdoor/topics/detail\\?id=${id}$`));
+    await expect(page.getByRole("button", { name: "分享" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "幻灯片" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "修改主题" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /开始收集|结束收集/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "采用" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "取消采用" })).toHaveCount(0);
+    // 回已归档视图 → 恢复 → 该主题回到「主题」列表
+    await page.goto(`${BASE}/backdoor/topics`);
+    await page.getByRole("button", { name: "已归档主题", exact: true }).click();
+    await page
+      .locator("div.rounded-lg", { has: page.getByText(title, { exact: true }) })
+      .getByRole("button", { name: "恢复" })
+      .click();
+    await page.getByRole("button", { name: "主题", exact: true }).click();
+    await expect(page.getByText(title, { exact: true })).toBeVisible();
   });
 });

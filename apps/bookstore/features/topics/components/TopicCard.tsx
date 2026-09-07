@@ -7,6 +7,8 @@ interface TopicCardProps {
   id: string;
   title: string;
   status: TopicStatus;
+  archived?: boolean;
+  onRestore?: () => void;
   onStartStop?: () => void;
   onArchive?: () => void;
   onEdit?: () => void;
@@ -16,6 +18,8 @@ interface TopicCardProps {
 export default function TopicCard({
   title,
   status,
+  archived,
+  onRestore,
   onStartStop,
   onArchive,
   onEdit,
@@ -30,29 +34,42 @@ export default function TopicCard({
         <h3 className="font-medium text-ink truncate">{title}</h3>
         <span className={getStatusBadgeClass(status)}>{getStatusText(status)}</span>
       </div>
-      <div className="flex gap-2 text-xs" onClick={(e) => e.stopPropagation()}>
-        <button
-          type="button"
-          onClick={onStartStop}
-          className="text-ink-dim hover:text-ink border border-vine rounded px-2 py-1 transition-colors duration-150"
-        >
-          {status === "collecting" ? "停止收集" : "继续收集"}
-        </button>
-        <button
-          type="button"
-          onClick={onArchive}
-          className="text-ink-dim hover:text-ink border border-vine rounded px-2 py-1 transition-colors duration-150"
-        >
-          归档
-        </button>
-        <button
-          type="button"
-          onClick={onEdit}
-          className="text-ink-dim hover:text-ink border border-vine rounded px-2 py-1 transition-colors duration-150"
-        >
-          修改
-        </button>
-      </div>
+      {/* round 9：已归档卡片操作行仅「恢复」 */}
+      {archived ? (
+        <div className="flex gap-2 text-xs" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            onClick={onRestore}
+            className="text-ink-dim hover:text-ink border border-vine rounded px-2 py-1 transition-colors duration-150"
+          >
+            恢复
+          </button>
+        </div>
+      ) : (
+        <div className="flex gap-2 text-xs" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            onClick={onStartStop}
+            className="text-ink-dim hover:text-ink border border-vine rounded px-2 py-1 transition-colors duration-150"
+          >
+            {status === "collecting" ? "停止收集" : "继续收集"}
+          </button>
+          <button
+            type="button"
+            onClick={onArchive}
+            className="text-ink-dim hover:text-ink border border-vine rounded px-2 py-1 transition-colors duration-150"
+          >
+            归档
+          </button>
+          <button
+            type="button"
+            onClick={onEdit}
+            className="text-ink-dim hover:text-ink border border-vine rounded px-2 py-1 transition-colors duration-150"
+          >
+            修改
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -9,6 +9,7 @@ import {
   updateTopic,
   setCollectingStopped,
   archiveTopic,
+  restoreTopic,
   deriveStatus,
 } from "../db/topics";
 import {
@@ -92,6 +93,28 @@ export function createTopicsRouter(deps: TopicsRouterDeps): Router {
       aiReviewEnabled: aiReviewEnabled !== false,
     });
     res.status(201).json({ ok: true, id: topic.id });
+  });
+
+  // 公开：进行中的主题列表（round 9）。无鉴权、不挂 visitorCookie；
+  // 须注册在 GET /:id 之前，否则 `public` 会被 :id 捕获为非法 ObjectId 返 404。
+  router.get("/public", async (req: Request, res: Response) => {
+    const topics = await listTopics({ archived: false });
+    const now = new Date();
+    const ongoing = topics.filter(
+      (t) => !t.archived && deriveStatus(t, now) === "collecting",
+    );
+    res.json({
+      ok: true,
+      topics: ongoing.map((t) => ({
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        startAt: t.startAt,
+        endAt: t.endAt,
+        charLimit: t.charLimit,
+        status: t.status,
+      })),
+    });
   });
 
   router.get("/:id", requireRole("admin"), async (req: Request, res: Response) => {
@@ -210,6 +233,26 @@ export function createTopicsRouter(deps: TopicsRouterDeps): Router {
       return;
     }
     await archiveTopic(id);
+    res.json({ ok: true });
+  });
+
+  // round 9：恢复已归档主题
+  router.post("/:id/restore", requireRole("admin"), async (req: Request, res: Response) => {
+    const id = String(req.params.id);
+    if (!isValidObjectId(id)) {
+      res.status(404).json({ error: "主题不存在" });
+      return;
+    }
+    const topic = await findTopic(id);
+    if (!topic) {
+      res.status(404).json({ error: "主题不存在" });
+      return;
+    }
+    if (!topic.archived) {
+      res.status(409).json({ error: "主题未归档，无需恢复" });
+      return;
+    }
+    await restoreTopic(id);
     res.json({ ok: true });
   });
 

@@ -5,12 +5,15 @@ import { useRouter } from "next/navigation";
 import TopicCard from "@/features/topics/components/TopicCard";
 import TopicFormDialog from "@/features/topics/components/TopicFormDialog";
 import { RequireRole } from "@/features/backdoor/RequireRole";
-import { listTopics, createTopic, updateTopic, setCollecting, archiveTopic } from "@/features/topics/api";
+import { listTopics, createTopic, updateTopic, setCollecting, archiveTopic, restoreTopic } from "@/features/topics/api";
 import type { Topic } from "@/features/topics/types";
+
+type ViewMode = "active" | "archived";
 
 export default function TopicsPage() {
   const router = useRouter();
   const [topics, setTopics] = useState<Topic[]>([]);
+  const [view, setView] = useState<ViewMode>("active");
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   // I18: 编辑状态
@@ -19,16 +22,22 @@ export default function TopicsPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data } = await listTopics();
-      if (!cancelled && data?.ok) setTopics(data.topics);
+      setLoading(true);
+      const { data } = await listTopics({ archived: view === "archived" });
+      if (!cancelled && data?.ok) {
+        // round 9：已归档视图前端再按 archived === true 过滤（列表接口含归档时全量返回）
+        setTopics(view === "archived" ? data.topics.filter((t) => t.archived) : data.topics);
+      }
       if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [view]);
 
   const reload = async () => {
-    const { data } = await listTopics();
-    if (data?.ok) setTopics(data.topics);
+    const { data } = await listTopics({ archived: view === "archived" });
+    if (data?.ok) {
+      setTopics(view === "archived" ? data.topics.filter((t) => t.archived) : data.topics);
+    }
   };
 
   const handleCreate = async (data: Parameters<typeof createTopic>[0]) => {
@@ -63,13 +72,41 @@ export default function TopicsPage() {
     await reload();
   };
 
+  const handleRestore = async (id: string) => {
+    if (!confirm("确定要恢复这个主题吗？")) return;
+    await restoreTopic(id);
+    await reload();
+  };
+
   return (
     <RequireRole role="admin">
     <div>
       <div className="flex items-center justify-between mb-6">
-        <div>
+        <div className="flex items-center gap-4">
           <h1 className="font-serif text-2xl font-semibold text-ink">棉花糖</h1>
-          <p className="mt-1 text-ink-dim">提问箱主题管理</p>
+          {/* round 9：主题 / 已归档主题 视图切换 */}
+          <div className="flex items-center gap-1 border border-vine rounded overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setView("active")}
+              aria-pressed={view === "active"}
+              className={`px-3 py-1 text-sm ${
+                view === "active" ? "bg-primary/20 text-ink" : "text-ink-dim hover:text-ink"
+              }`}
+            >
+              主题
+            </button>
+            <button
+              type="button"
+              onClick={() => setView("archived")}
+              aria-pressed={view === "archived"}
+              className={`px-3 py-1 text-sm ${
+                view === "archived" ? "bg-primary/20 text-ink" : "text-ink-dim hover:text-ink"
+              }`}
+            >
+              已归档主题
+            </button>
+          </div>
         </div>
         <button
           type="button"
@@ -83,7 +120,9 @@ export default function TopicsPage() {
       {loading ? (
         <div className="text-center text-ink-dim py-8">加载中…</div>
       ) : topics.length === 0 ? (
-        <div className="text-center text-ink-dim py-8">还没有主题，点击右上角新建</div>
+        <div className="text-center text-ink-dim py-8">
+          {view === "archived" ? "没有已归档的主题" : "还没有主题，点击右上角新建"}
+        </div>
       ) : (
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {topics.map((topic) => (
@@ -92,10 +131,12 @@ export default function TopicsPage() {
               id={topic.id}
               title={topic.title}
               status={topic.status}
-              onStartStop={() => handleStartStop(topic.id, topic.status)}
-              onArchive={() => handleArchive(topic.id)}
+              archived={view === "archived"}
+              onRestore={view === "archived" ? () => handleRestore(topic.id) : undefined}
+              onStartStop={view === "archived" ? undefined : () => handleStartStop(topic.id, topic.status)}
+              onArchive={view === "archived" ? undefined : () => handleArchive(topic.id)}
               // I18: 修改按钮打开表单而非跳转详情
-              onEdit={() => setEditingTopic(topic)}
+              onEdit={view === "archived" ? undefined : () => setEditingTopic(topic)}
               onClick={() => router.push(`/backdoor/topics/detail?id=${topic.id}`)}
             />
           ))}

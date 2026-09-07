@@ -128,6 +128,9 @@ export default function TopicDetailView() {
     return <div className="text-center text-ink-dim py-8">加载中…</div>;
   }
 
+  // round 9：已归档主题只读——隐藏一切写操作入口
+  const isArchived = topic.archived;
+
   return (
     <RequireRole role="admin">
     <div className="flex flex-col h-full">
@@ -150,27 +153,31 @@ export default function TopicDetailView() {
             >
               幻灯片
             </button>
-            <button
-              type="button"
-              onClick={handleStartStop}
-              className="text-xs text-ink-dim hover:text-ink border border-vine rounded px-2 py-1"
-            >
-              {topic.status === "collecting" ? "结束收集" : "开始收集"}
-            </button>
-            <button
-              type="button"
-              onClick={handleArchive}
-              className="text-xs text-ink-dim hover:text-ink border border-vine rounded px-2 py-1"
-            >
-              归档
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowEdit(true)}
-              className="text-xs text-ink-dim hover:text-ink border border-vine rounded px-2 py-1"
-            >
-              修改主题
-            </button>
+            {!isArchived && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleStartStop}
+                  className="text-xs text-ink-dim hover:text-ink border border-vine rounded px-2 py-1"
+                >
+                  {topic.status === "collecting" ? "结束收集" : "开始收集"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleArchive}
+                  className="text-xs text-ink-dim hover:text-ink border border-vine rounded px-2 py-1"
+                >
+                  归档
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowEdit(true)}
+                  className="text-xs text-ink-dim hover:text-ink border border-vine rounded px-2 py-1"
+                >
+                  修改主题
+                </button>
+              </>
+            )}
           </div>
         </div>
         <CollapsibleMarkdown content={topic.description} />
@@ -196,8 +203,8 @@ export default function TopicDetailView() {
             <MarshmallowCard
               key={marsh.id}
               marshmallow={marsh}
-              onToggleAdopt={handleToggleAdopt}
-              onShowAnyway={handleShowAnyway}
+              onToggleAdopt={isArchived ? undefined : handleToggleAdopt}
+              onShowAnyway={isArchived ? undefined : handleShowAnyway}
             />
           ))
         )}

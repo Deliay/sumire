@@ -4,6 +4,8 @@ import {
   request,
   asSuperadmin,
   waitForReady,
+  createRoleAccount,
+  strongPassword,
 } from "./client.js";
 
 // 投递限速 key 清理用（经 aspire describe redis 取端点注入）；未提供则跳过清理，
@@ -266,5 +268,139 @@ describe("PATCH /api/marshmallows/:id（更新棉花糖状态）", () => {
     });
     expect(patchRes.status).toBe(200);
     expect((patchRes.body as { ok: boolean }).ok).toBe(true);
+  });
+});
+
+// ===== round 9：恢复已归档主题 =====
+
+async function createCollectingTopic(sa: Awaited<ReturnType<typeof asSuperadmin>>, title: string) {
+  const res = await request("/api/topics", {
+    method: "POST",
+    jar: sa,
+    body: {
+      title,
+      description: "测试",
+      startAt: new Date(Date.now() - 86400000).toISOString(),
+      endAt: new Date(Date.now() + 86400000).toISOString(),
+      charLimit: 1000,
+      aiReviewEnabled: false,
+    },
+  });
+  return (res.body as { id: string }).id;
+}
+
+describe("POST /api/topics/:id/restore（恢复已归档主题）", () => {
+  it("topics-restore-200: 归档后可恢复，archived 置回 false", async () => {
+    const sa = await asSuperadmin();
+    const id = await createCollectingTopic(sa, `恢复测试_${rand()}`);
+    await request(`/api/topics/${id}/archive`, { method: "POST", jar: sa });
+
+    const res = await request(`/api/topics/${id}/restore`, { method: "POST", jar: sa });
+    expect(res.status).toBe(200);
+    expect((res.body as { ok: boolean }).ok).toBe(true);
+
+    const detail = await request(`/api/topics/${id}`, { jar: sa });
+    expect((detail.body as { topic: { archived: boolean } }).topic.archived).toBe(false);
+  });
+
+  it("topics-restore-404: 非法 ID → 404", async () => {
+    const sa = await asSuperadmin();
+    const res = await request(`/api/topics/${INVALID_OBJECT_ID}/restore`, {
+      method: "POST",
+      jar: sa,
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("topics-restore-404: 不存在的 ID → 404", async () => {
+    const sa = await asSuperadmin();
+    const res = await request(`/api/topics/${new Array(24).fill("a").join("")}/restore`, {
+      method: "POST",
+      jar: sa,
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("topics-restore-409: 未归档主题 → 409", async () => {
+    const sa = await asSuperadmin();
+    const id = await createCollectingTopic(sa, `未归档恢复测试_${rand()}`);
+    const res = await request(`/api/topics/${id}/restore`, { method: "POST", jar: sa });
+    expect(res.status).toBe(409);
+    expect((res.body as { error: string }).error).toContain("无需恢复");
+  });
+
+  it("topics-restore-401: 未登录 → 401", async () => {
+    const sa = await asSuperadmin();
+    const id = await createCollectingTopic(sa, `未登录恢复测试_${rand()}`);
+    const res = await request(`/api/topics/${id}/restore`, { method: "POST" });
+    expect(res.status).toBe(401);
+  });
+
+  it("topics-restore-403: member 角色 → 403", async () => {
+    const member = await createRoleAccount("member", `m_${rand()}`, strongPassword);
+    const sa = await asSuperadmin();
+    const id = await createCollectingTopic(sa, `member恢复测试_${rand()}`);
+    const res = await request(`/api/topics/${id}/restore`, { method: "POST", jar: member });
+    expect(res.status).toBe(403);
+  });
+});
+
+// ===== round 9：公开进行中主题列表 =====
+
+describe("GET /api/topics/public（进行中主题列表）", () => {
+  it("topics-ongoing-200: 未登录可获取进行中主题列表", async () => {
+    const sa = await asSuperadmin();
+    await createCollectingTopic(sa, `进行中列表_${rand()}`);
+
+    const res = await request("/api/topics/public");
+    expect(res.status).toBe(200);
+    const body = res.body as { ok: boolean; topics: Array<{ title: string; status: string }> };
+    expect(body.ok).toBe(true);
+    expect(Array.isArray(body.topics)).toBe(true);
+    // 新建的 collecting 主题应出现在列表中
+    expect(body.topics.some((t) => t.title.startsWith("进行中列表_"))).toBe(true);
+  });
+
+  it("topics-ongoing-filter: 仅包含 collecting，且不含归档/审核管理字段", async () => {
+    const sa = await asSuperadmin();
+    // 未开始（upcoming）
+    const upcomingId = await (
+      await request("/api/topics", {
+        method: "POST",
+        jar: sa,
+        body: {
+          title: `upcoming_${rand()}`,
+          description: "测试",
+          startAt: new Date(Date.now() + 86400000).toISOString(),
+          endAt: new Date(Date.now() + 2 * 86400000).toISOString(),
+          charLimit: 1000,
+          aiReviewEnabled: false,
+        },
+      })
+    ).body?.id;
+    // 已归档（archived）
+    const archId = await createCollectingTopic(sa, `归档排除_${rand()}`);
+    await request(`/api/topics/${archId}/archive`, { method: "POST", jar: sa });
+
+    const res = await request("/api/topics/public");
+    const topics = (res.body as { topics: Array<{ title: string; status: string }> }).topics;
+    // upcoming 主题不应出现
+    expect(topics.some((t) => t.title.startsWith("upcoming_"))).toBe(false);
+    // 归档主题不应出现
+    expect(topics.some((t) => t.title.startsWith("归档排除_"))).toBe(false);
+    // 每条均为 collecting 且不含审核/管理字段
+    for (const t of topics) {
+      expect(t.status).toBe("collecting");
+      expect("aiReviewEnabled" in t).toBe(false);
+      expect("archived" in t).toBe(false);
+      expect("collectingStopped" in t).toBe(false);
+    }
+    void upcomingId;
+  });
+
+  it("topics-ongoing-cookie: GET /public 不挂访客 Cookie", async () => {
+    const res = await request("/api/topics/public");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("set-cookie")).toBeNull();
   });
 });

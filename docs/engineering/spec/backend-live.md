@@ -28,6 +28,16 @@
 
 契约：`contract/live-status.openapi.yaml`。
 
+## GET /api/live/:name/status（同期直播状态，公开）
+
+- 白名单映射：`viridis` → `1727071052`、`komichi` → `1700301235`、`chu2u` → `1727074031`（`routes/livePeerStatus.ts` `PEER_ROOMS`，服务端内置防 SSRF）；未知 name 404 `{ error: "未知的同期主播" }`。
+- 上游：`GET {LIVE_PEER_STATUS_UPSTREAM_URL}/api/b/live/{roomId}/state/current`（base URL 模式，缺省 `http://vtuber.internal.fffdan.com`，env `LIVE_PEER_STATUS_UPSTREAM_URL`）；`AbortSignal.timeout(5000)`，`fetchFn` 可注入。
+- 防御式归一化复用 `normalizeLiveStatus`（零改动）；处理链与 `/api/live/status` 完全同构。
+- Redis 缓存键 `live-peer-status:{name}`，TTL **30s**（按 name 隔离，与本人 `live-status:latest` 独立）；**上游失败 stale-if-error 重读缓存，仍无则降级 200 + `{ok:false, status:null}`，永不 5xx**。
+- 缓存抽象复用 `infra/liveStatusCache.ts`（与 live-status 共享同一实例，按 key 隔离）；装配挂载 `/api/live` 路由，router 内 `GET /:name/status`。
+
+契约：`contract/live-status.openapi.yaml`。
+
 ## LiveEvent 归一化（liveEvents/normalize.ts）
 
 防御式归一化：上游信封 type（danmaku / super_chat / gift / gift_v2 / guard_buy）→ 契约 `LiveEvent`；无法识别返回 null + `console.warn`，绝不抛错中断流。
@@ -57,6 +67,7 @@ kuroshiro+kuromoji（懒加载字典）→ 失败则 OpenCC 简→日汉字重�
 | 方法+路径 | 鉴权 | 要点 |
 |---|---|---|
 | GET `/api/live/status` | 公开 | 无参数；防御式归一化；Redis `live-status:latest` TTL 30s；上游失败 stale-if-error + 200 降级 `{ok:false, status:null}`，永不 5xx |
+| GET `/api/live/:name/status` | 公开 | name 白名单（viridis/komichi/chu2u），未知 404；防御式归一化复用；Redis `live-peer-status:{name}` TTL 30s（按 name 隔离）；上游 base URL `LIVE_PEER_STATUS_UPSTREAM_URL`；上游失败 stale-if-error + 200 降级，永不 5xx |
 | GET `/api/live-events` | member+ | `type` 可重复（五类枚举：danmaku/super_chat/gift/guard_buy/online_rank_count，非法 400）；`page`≥1 默认 1、`pageSize` 1–100 默认 50；`minPrice` 可选（number 0–100，0 或不传不筛选，非法 400）；上游失败 502；items 已归一化 + read 合并 + 罗马音；`type=gift` 向上游请求时展开为 `["gift", "gift_v2"]`；`type=online_rank_count` 透传上游原始信封（不归一化、无 read/罗马音），与其余归一化条目混存 |
 | GET `/api/live-events/search` | member+ | `stringCriteria` 必填（string 1–200，trim 后非空）；`page`≥1 默认 1、`pageSize` 1–100 默认 20；上游失败 502；items 已归一化 + read 合并 + 罗马音 |
 | GET `/api/live-events/stream` | member+ | SSE，见下；`type=gift` 同样展开为 `["gift", "gift_v2"]` |
@@ -75,5 +86,5 @@ kuroshiro+kuromoji（懒加载字典）→ 失败则 OpenCC 简→日汉字重�
 
 ## 存储汇总
 
-- Redis（ioredis 单实例四用）：会话 `session:*`、登录限流 `login:*`、历史直播缓存 `live-history:latest`、直播状态缓存 `live-status:latest`。
+- Redis（ioredis 单实例五用）：会话 `session:*`、登录限流 `login:*`、历史直播缓存 `live-history:latest`、直播状态缓存 `live-status:latest`、同期直播状态缓存 `live-peer-status:{name}`（name 白名单枚举）。
 - MongoDB：`users`、`streamplans`、`live_event_reads` 三集合。

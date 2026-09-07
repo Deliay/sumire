@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: sumire live status
-  description: 枝堇Sumire 直播状态 API 契约。单一事实源，实现与 tests/api 集成测试均以本文档为准。服务端代理内网上游（http://vtuber.internal.fffdan.com/api/b/live/1727076670/state/current）并做归一化与短 TTL 缓存；上游地址与房间号不出现在客户端可见位置，前端仅经公开接口读取。
+  description: 枝堇Sumire 直播状态 API 契约。单一事实源，实现与 tests/api 集成测试均以本文档为准。包含两个端点：本人房间（固定内置）和同期主播（白名单映射）。服务端代理内网上游并做归一化与短 TTL 缓存；上游地址与房间号不出现在客户端可见位置，前端仅经公开接口读取。
   version: 1.0.0
 servers:
   - url: https://api.sumire.live
@@ -28,6 +28,47 @@ paths:
                       - $ref: "#/components/schemas/LiveStatus"
                       - type: "null"
                     description: 直播状态；ok=false 时恒为 null
+  /api/live/{name}/status:
+    get:
+      summary: 查询同期主播直播状态（公开）
+      description: 无需登录。服务端代理内网上游 state/current 并归一化（房间号服务端内置，不暴露）。name 为白名单枚举（viridis/komichi/chu2u），未知 name 返回 404。短 TTL 缓存（30s，按 name 隔离）。上游不可达/超时/返回结构非法时降级为 200 + { ok: false, status: null }，不产生 5xx。直播状态时效性高，仅保证 live 布尔字段强保证，title/startedAt 上游缺字段时为 null。
+      security: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: 同期主播标识（白名单）
+          schema:
+            type: string
+            enum: [viridis, komichi, chu2u]
+      responses:
+        "200":
+          description: 同期主播直播状态；ok=false 表示上游不可用（静默降级体，status 为 null）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, status]
+                properties:
+                  ok:
+                    type: boolean
+                    description: true 表示成功取回直播状态；false 表示上游不可用，status 为 null
+                  status:
+                    anyOf:
+                      - $ref: "#/components/schemas/LiveStatus"
+                      - type: "null"
+                    description: 直播状态；ok=false 时恒为 null
+        "404":
+          description: 未知的同期主播
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error:
+                    type: string
+                    description: 未知的同期主播
 components:
   schemas:
     LiveStatus:

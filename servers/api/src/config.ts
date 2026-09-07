@@ -39,6 +39,11 @@ export const config = {
     "LIVE_STATUS_UPSTREAM_URL",
     "http://vtuber.internal.fffdan.com/api/b/live/1727076670/state/current",
   ),
+  // 同期直播状态上游 base URL：端点路径由 livePeerStatus.ts 拼接（内置缺省值，不得抛错）
+  livePeerStatusUpstreamUrl: getEnv(
+    "LIVE_PEER_STATUS_UPSTREAM_URL",
+    "http://vtuber.internal.fffdan.com",
+  ),
   // B 站视频封面上游地址（内置缺省值，不得抛错）
   biliCoverUpstreamUrl: getEnv(
     "BILI_COVER_UPSTREAM_URL",

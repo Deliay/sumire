@@ -21,7 +21,9 @@ test.describe("backdoor 棉花糖（主题管理）", () => {
     const run = Date.now().toString(36);
     const title = `e2e棉花糖_${run}`;
     const desc = `# 主题描述\n\n${"这是一段用于验证幻灯片页头单行省略的很长描述。".repeat(8)}`;
-    const content = `e2e内容 ${run}`;
+    const contentHead = `e2e内容 ${run}`;
+    // 长正文：确保棉花糖卡片内容超过 5 行以触发折叠渐变层
+    const content = `# ${contentHead}\n\n${"这是一段用于测试棉花糖卡片折叠与全文弹窗的正文，写足够长以确保超过五行展示。".repeat(8)}`;
 
     // 1. 新建主题（开始=现在、结束=明天，关闭 AI 前置审核以避开审核覆盖层）
     await page.getByRole("button", { name: "新建主题" }).click();
@@ -56,7 +58,7 @@ test.describe("backdoor 棉花糖（主题管理）", () => {
 
     // 4. 回详情页采用该条
     await page.goto(`${BASE}/backdoor/topics/detail?id=${id}`);
-    await expect(page.getByText(content)).toBeVisible();
+    await expect(page.getByRole("heading", { name: contentHead })).toBeVisible();
     await page.getByRole("button", { name: "采用" }).click();
     await expect(page.getByText("已采用")).toBeVisible();
 
@@ -81,10 +83,10 @@ test.describe("backdoor 棉花糖（主题管理）", () => {
     await expect(page.getByRole("heading", { name: title })).toBeVisible();
     const guide = page.getByRole("button", { name: "知道了" });
     if (await guide.isVisible().catch(() => false)) await guide.click();
-    await expect(page.getByText(content)).toBeVisible();
+    await expect(page.getByRole("heading", { name: contentHead })).toBeVisible();
 
     // 6. 字号预设档位真实生效（回归：prose 自带 font-size:1rem 曾覆盖容器继承导致点击无效果）
-    const prose = page.locator("div.prose", { hasText: content }).first();
+    const prose = page.locator("div.prose", { hasText: contentHead }).first();
     await expect(prose).toBeVisible();
     await expect(prose).toHaveCSS("font-size", "16px"); // 默认「中」
     await expect(prose).toHaveCSS("text-align", "left"); // 容器居中、条目内文本左对齐
@@ -125,5 +127,22 @@ test.describe("backdoor 棉花糖（主题管理）", () => {
       (el) => (el as HTMLElement).scrollWidth > (el as HTMLElement).clientWidth,
     );
     expect(isTruncated).toBe(true);
+
+    // 9. 棉花糖卡片折叠 + 全文弹窗（长正文超 5 行 → 渐变层「点击查看全文」→ 弹窗内含采用切换）
+    await page.goto(`${BASE}/backdoor/topics/detail?id=${id}`);
+    await expect(page.getByRole("heading", { name: contentHead })).toBeVisible();
+    await expect(page.getByRole("button", { name: "点击查看全文" })).toBeVisible();
+    await page.getByRole("button", { name: "点击查看全文" }).click();
+    const detailDlg = page.locator("div.fixed.inset-0.z-50");
+    await expect(detailDlg).toBeVisible();
+    await expect(page.getByText("棉花糖全文")).toBeVisible();
+    // 弹窗内采用切换（当前已采用 → 取消采用 → 再采用恢复，两处状态一致）
+    await expect(detailDlg.getByRole("button", { name: "取消采用" })).toBeVisible();
+    await detailDlg.getByRole("button", { name: "取消采用" }).click();
+    await expect(detailDlg.getByRole("button", { name: "采用" })).toBeVisible();
+    await detailDlg.getByRole("button", { name: "采用" }).click();
+    await expect(detailDlg.getByRole("button", { name: "取消采用" })).toBeVisible();
+    await detailDlg.getByRole("button", { name: "关闭" }).click();
+    await expect(detailDlg).not.toBeVisible();
   });
 });

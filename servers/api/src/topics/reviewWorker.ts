@@ -4,6 +4,7 @@ import { MarshmallowModel, writeReviewResult } from "../db/marshmallows";
 import { TopicModel } from "../db/topics";
 import { REVIEW_SYSTEM_PROMPT } from "./reviewPrompt";
 import { config } from "../config";
+import { randomUUID } from "node:crypto";
 
 export interface AiClient {
   chat(content: string): Promise<{ filtered: boolean; filteredReason: string }>;
@@ -27,6 +28,10 @@ async function createOpenAiClient(): Promise<AiClient> {
   const client = new OpenAI({
     apiKey: config.reviewAiApiKey,
     baseURL: config.reviewAiEndpoint,
+    defaultHeaders: {
+      'x-opencode-session': randomUUID(),
+      'User-Agent': 'Sumire Article & Coding Agent v1.2.5',
+    },
   });
   return {
     async chat(content: string) {

@@ -115,6 +115,30 @@ describe("NavBar 锚点化", () => {
     expect(screen.getByRole("link", { name: "档案" })).toBeTruthy();
   });
 
+  it("API 已配置时渲染「棉花糖」独立路由入口，href=/topics 且 /topics 高亮（round 9）", () => {
+    mockPathname = "/topics";
+    render(<NavBar siteName="枝堇" tools={tools} />);
+    const topics = screen.getByRole("link", { name: "棉花糖" });
+    // 独立路由，非首页锚点
+    expect(topics.getAttribute("href")).toBe("/topics");
+    expect(topics.getAttribute("aria-current")).toBe("page");
+  });
+
+  it("非 /topics 路径下「棉花糖」不高亮", () => {
+    mockPathname = "/about";
+    render(<NavBar siteName="枝堇" tools={tools} />);
+    expect(
+      screen.getByRole("link", { name: "棉花糖" }).getAttribute("aria-current"),
+    ).not.toBe("page");
+  });
+
+  it("未配置 API 无「棉花糖」项", () => {
+    configured = false;
+    vi.resetModules();
+    render(<NavBar siteName="枝堇" tools={tools} />);
+    expect(screen.queryByRole("link", { name: "棉花糖" })).toBeNull();
+  });
+
   it("移动端菜单项 href 与桌面一致", () => {
     render(<NavBar siteName="枝堇" tools={tools} />);
     act(() => {

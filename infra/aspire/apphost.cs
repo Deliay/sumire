@@ -28,7 +28,13 @@ var api = builder
     // 直播事件上游地址：base URL，端点路径由 api 侧拼接；测试时可用环境变量指向 stub
     .WithEnvironment("LIVE_EVENTS_UPSTREAM_URL", Environment.GetEnvironmentVariable("LIVE_EVENTS_UPSTREAM_URL") ?? "http://vtuber.internal.fffdan.com")
     // 直播状态上游地址：未设置编排进程环境变量时回退 PRD 内网地址，保证 aspire start 开箱即用
-    .WithEnvironment("LIVE_STATUS_UPSTREAM_URL", Environment.GetEnvironmentVariable("LIVE_STATUS_UPSTREAM_URL") ?? "http://vtuber.internal.fffdan.com/api/b/live/1727076670/state/current");
+    .WithEnvironment("LIVE_STATUS_UPSTREAM_URL", Environment.GetEnvironmentVariable("LIVE_STATUS_UPSTREAM_URL") ?? "http://vtuber.internal.fffdan.com/api/b/live/1727076670/state/current")
+    // AI 审核配置：host 环境变量优先，缺省指向本地 stub 占位
+    .WithEnvironment("SUMIRE_REVIEW_AI_TYPE", Environment.GetEnvironmentVariable("SUMIRE_REVIEW_AI_TYPE") ?? "openai")
+    .WithEnvironment("SUMIRE_REVIEW_AI_ENDPOINT", Environment.GetEnvironmentVariable("SUMIRE_REVIEW_AI_ENDPOINT") ?? "http://127.0.0.1:9879")
+    .WithEnvironment("SUMIRE_REVIEW_AI_API_KEY", Environment.GetEnvironmentVariable("SUMIRE_REVIEW_AI_API_KEY") ?? "dev-stub-key")
+    // AI 审核模型（可选）：未设置时后端回退各分支默认
+    .WithEnvironment("SUMIRE_REVIEW_AI_MODEL", Environment.GetEnvironmentVariable("SUMIRE_REVIEW_AI_MODEL") ?? "");
 
 var bookstore = builder
     .AddNextJsApp("bookstore", "../../apps/bookstore", runScriptName: "dev")

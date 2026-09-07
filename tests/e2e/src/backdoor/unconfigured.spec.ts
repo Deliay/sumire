@@ -58,5 +58,7 @@ test.describe("backdoor 未配置形态 404", () => {
     // 未配置形态不渲染直播状态 / 今日日程组件
     await expect(page.getByRole("link", { name: /直播中|未开播|直播状态/ })).toHaveCount(0);
     await expect(page.getByText("今日暂无安排")).toHaveCount(0);
+    // round 9：未配置形态导航无「棉花糖」入口
+    await expect(page.getByRole("link", { name: "棉花糖", exact: true })).toHaveCount(0);
   });
 });

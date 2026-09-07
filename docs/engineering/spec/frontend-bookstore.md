@@ -140,6 +140,56 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 
 - SideNav `NAV_ITEMS` 追加 `{ href: "/backdoor/danmaku-tools", label: "弹幕工具", roles: ["superadmin", "admin", "member"] }`；选中态最长前缀匹配，`/backdoor/danmaku-tools/vote` 命中「弹幕工具」而非「弹幕看板」。
 
+## 棉花糖（features/topics）
+
+### 模块结构
+
+| 文件 | 职责 |
+|------|------|
+| `features/topics/types.ts` | Zod schema（Topic / Marshmallow / TopicPublicInfo） |
+| `features/topics/api.ts` | 管理端点 + 公开端点封装 |
+| `features/topics/status.ts` | 状态文案/徽标色纯函数 |
+| `features/topics/clientKey.ts` | localStorage 客户端标识读写 |
+| `features/markdown/MarkdownEditor.tsx` | @uiw/react-md-editor 封装（`next/dynamic ssr:false`） |
+| `features/markdown/MarkdownView.tsx` | react-markdown + remark-gfm（禁原始 HTML） |
+
+### 组件
+
+| 组件 | 说明 |
+|------|------|
+| `TopicCard` | 列表页卡片（标题/状态徽标/三按钮） |
+| `TopicFormDialog` | 新建/修改主题弹窗（含 MarkdownEditor） |
+| `CollapsibleMarkdown` | 可折叠 Markdown（line-clamp-3） |
+| `MarshmallowCard` | 棉花糖条目（内容默认折叠 5 行，超限底部渐变层「点击查看全文」开 `MarshmallowDetailDialog`）+ 采用切换 + AI 覆盖层三态（不透明实色覆盖） |
+| `MarshmallowDetailDialog` | 棉花糖全文弹窗（`max-h-[75vh]` 内部滚动，内含采用/取消采用按钮） |
+| `ConfirmDialog` | 投递前 AI 审核告知弹窗 |
+| `SubmitDoneView` | 提交完成结果视图（成功提示 + 「查看进行中的棉花糖」链接 → `/topics`） |
+| `TopicPublicPage` | 公开收集页主体 |
+| `TopicsOngoingPage` | 公开「进行中的棉花糖」列表页主体（`/topics` 无 `id` 查询串时渲染） |
+| `ShareTopicDialog` | 分享投递链接 + 二维码（`qrcode` 客户端生成 dataURL，下载文件名 `投递二维码-{sanitize(主题)}.png`） |
+| `sanitizeFilename` | 二维码下载文件名 sanitize 纯函数 |
+| `toSingleLinePlainText` | Markdown→单行纯文本工具（去除标题/列表/链接/粗体等标记、换行折叠为空格） |
+
+### 后台页面
+
+- **列表页**（`/backdoor/topics`）：RequireRole("admin") 守卫，页头视图切换「主题 / 已归档主题」，卡片栅格，编辑弹窗；已归档视图卡片仅「恢复」（confirm → POST restore）与进详情
+- **详情页**（`/backdoor/topics/detail?id={topicId}`）：RequireRole("admin") 守卫，折叠描述，棉花糖列表（条目默认折叠 5 行，超限渐变层「点击查看全文」开全文弹窗，弹窗 `max-h-[75vh]` 内部滚动且含采用按钮；AI 覆盖层不透明），工具栏含「分享」（ShareTopicDialog 浮层：投递链接复制 + 二维码展示/下载）。查询串方案（GitHub Pages 静态导出兼容动态路由），id 经客户端 `useSearchParams` 读取并包 Suspense。**已归档主题只读**：工具栏仅保留「分享」「幻灯片」，棉花糖卡片与全文弹窗不渲染采用按钮，AI 覆盖层不渲染「显示这条棉花糖」
+- **幻灯片页**（`/backdoor/topics/presentation?id={topicId}`）：查询串方案，独立页，RequireRole("admin") 守卫，分页拉取所有棉花糖；**单行页头**（左标题衬线+单行纯文本描述 max-w-25% 省略，右「字体」label+字号预设档位 小/中/大），页头与放映区 `border-t border-vine` 分割，条目 `max-w-[50%]` 居中文本左对齐
+
+### 公开收集页
+
+- 查询串方案（`/topics?id={topicId}`），GitHub Pages 静态导出兼容；id 经客户端 `useSearchParams` 读取并包 Suspense
+- 三态视图：form / submitting / done
+- done 态展示成功提示 + 「查看进行中的棉花糖」链接（→ `/topics`），不含审核字段，无「再投一条」
+
+### 公开「进行中的棉花糖」页
+
+- 同 `/topics` 路由：无 `id` 查询串时渲染 `TopicsOngoingPage` 进行中列表（`GET /api/topics/public`，无需鉴权）
+- 列表项卡片：标题 + 描述截断 + 起止时间，整卡 Link → `/topics?id={topicId}`；空态「暂无进行中的棉花糖」
+- NavBar 追加「棉花糖」入口（独立路由链接 `/topics`，不走首页 deck 锚点翻页，选中态 `pathname === "/topics"`，移动端折叠菜单同步；仅 `API_CONFIGURED` 时显示，照「日历」过滤口径）；NavBar 保持 `fixed inset-x-0 top-0`，不随页面滑动
+
+SideNav `NAV_ITEMS` 追加 `{ href: "/backdoor/topics", label: "棉花糖", roles: ["superadmin", "admin"] }`。
+
 ## 悬停胶囊栏（features/danmaku）
 
 ### 纯函数与 Hook

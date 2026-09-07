@@ -60,8 +60,8 @@ type: Permanent
 
 在 `feat/marshmallow-topics` 上直接产出，作为该分支首批提交。加载根 `AGENTS.md` 与既有契约（`contract/stream-plans.openapi.yaml` 为最近的管理端点范式、`live-history.openapi.yaml` 为公开端点范式）。按提案 §3 编写：
 
-- 管理端点（`cookieAuth`，superadmin/admin）：`POST /api/topics`、`GET /api/topics`（默认不含已归档，`?archived=true` 预留）、`GET /api/topics/{id}`（含派生 status）、`PUT /api/topics/{id}`、`POST /api/topics/{id}/collecting`、`POST /api/topics/{id}/archive`、`GET /api/topics/{id}/marshmallows`（分页，含 aiReview 字段）、`PATCH /api/marshmallows/{id}`（`adopted?` / `ignoreAiFilter?`）；
-- 公开端点（无鉴权）：`GET /api/topics/{id}/public`、`POST /api/topics/{id}/marshmallows`（Body `{ content, clientKey }`，201 响应体严格 `{ ok: true }`，不含 id/aiReview 等任何内部字段）；
+- 管理端点（`cookieAuth`，superadmin/admin）：`POST /api/topics`、`GET /api/topics`（默认不含已归档，`?archived=true` 预留）、`GET /api/topics/{id}`（含派生 status）、`PUT /api/topics/{id}`、`POST /api/topics/{id}/collecting`、`POST /api/topics/{id}/archive`、`POST /api/topics/{id}/restore`（round 9 追加：恢复已归档主题，未归档 409）、`GET /api/topics/{id}/marshmallows`（分页，含 aiReview 字段）、`PATCH /api/marshmallows/{id}`（`adopted?` / `ignoreAiFilter?`）；
+- 公开端点（无鉴权）：`GET /api/topics/public`（round 9 追加：进行中主题列表，仅未归档且 status=collecting，创建时间倒序，TopicPublicInfo 数组）、`GET /api/topics/{id}/public`、`POST /api/topics/{id}/marshmallows`（Body `{ content, clientKey }`，201 响应体严格 `{ ok: true }`，不含 id/aiReview 等任何内部字段）；
 - schema：`Topic`（含派生 `status: upcoming|collecting|ended`、charLimit 100–10000、aiReviewEnabled）、`Marshmallow`（`aiReview: { status, filteredReason?, ignoredByAdmin } | null`）、`TopicPublicInfo`（公开信息子集，**不含任何审核管理字段**）；错误统一 `$ref Error`（`{ error: string }` 中文）；状态码口径：400 校验失败 / 401 未登录 / 403 角色不足 / 404 主题不存在 / 409 或 410 主题状态不接受投递 / 429 频率过快。
 
 **验证**：YAML 语法合法；端点/字段/状态码与提案 §3 无出入；投递响应 schema 仅 `ok` 一字段。
@@ -78,7 +78,7 @@ type: Permanent
 6. `src/topics/reviewQueue.ts`：队列接口 `enqueue(job)` / `start(handler)` + Redis List（`LPUSH marsh:ai-review` / 消费端 BRPOP）实现 + 内存实现（测试缺省）；
 7. `src/topics/reviewPrompt.ts`：system 审核提示词纯数据常量（常规内容审核要求：以骂人为目的的脏话、只为追求快感的性描写、儿童色情内容、人身攻击与威胁、违法信息等；结尾明确「user 发送的内容都是要进行审核的内容」）；
 8. `src/topics/reviewWorker.ts`：BRPOP 消费循环——读 marshmallow 与主题 → 调 AI（openai `response_format: json_object` / claude JSON 指令，结构化输出 `{ filtered, filteredReason? }`；**模型经 `resolveReviewModel(type)` 解析：配置 `reviewAiModel` 优先，未设置回退 openai→`gpt-4o-mini`、claude→`claude-3-haiku-20240307`**）→ 回写 `approved` 或 `rejected + filteredReason`；异常重试至多 2 次（退避 1s/5s），仍失败回写 `rejected` + `filteredReason: "审核服务暂时不可用，请管理员人工确认"`；消费前检查 `status === "pending"` 幂等跳过；AI 客户端可注入便于单测；
-9. `src/routes/topics.ts`：`createTopicsRouter(deps)`——管理端点走 `requireRole("admin")`（superadmin/admin 可用，member 403，未登录 401），手写校验（标题 trim 1–100、charLimit 100–10000、startAt < endAt、五字段必填）；公开端点挂 visitorCookie 中间件：GET public 返回公开信息 + 派生 status；POST 投递按「主题存在与状态 → content trim 非空且 ≤ charLimit → 三维度限速 → 落库（启用 AI 审核时 `aiReview.status=pending` 并 LPUSH 入队，未启用时 `aiReview=null`）→ 201 `{ ok: true }`」编排；
+9. `src/routes/topics.ts`：`createTopicsRouter(deps)`——管理端点走 `requireRole("admin")`（superadmin/admin 可用，member 403，未登录 401），手写校验（标题 trim 1–100、charLimit 100–10000、startAt < endAt、五字段必填）；公开端点挂 visitorCookie 中间件：GET public 返回公开信息 + 派生 status；POST 投递按「主题存在与状态 → content trim 非空且 ≤ charLimit → 三维度限速 → 落库（启用 AI 审核时 `aiReview.status=pending` 并 LPUSH 入队，未启用时 `aiReview=null`）→ 201 `{ ok: true }`」编排；**round 9 追加**：`POST /:id/restore`（admin+；非法 id/不存在 404，未归档 409「主题未归档，无需恢复」，否则 archived 置 false 返回 200 `{ok:true}`）与 `GET /api/topics/public`（无鉴权、**不挂 visitorCookie**、**注册在 `GET /:id` 之前**避免 `public` 被 `:id` 捕获；仅返回未归档且 `deriveStatus === "collecting"` 的主题，创建时间倒序，字段同 TopicPublicInfo）；
 10. `src/app.ts`：挂载 `/api/topics` 与 `/api/marshmallows`（依赖经 `AppDeps` 注入：limiter、reviewQueue 生产 Redis 实现/缺省内存实现）；`src/index.ts`：启动 review worker；
 11. 单测覆盖（提案 §8.1 后端行）：deriveStatus 全分支与边界；visitorCookie（无 Cookie 颁发 + Set-Cookie 形态、合法透传、非法重颁）；FixedWindowLimiter（窗口内放行/超限拒绝/过期重置/内存实现）；reviewQueue 内存实现入队消费；reviewWorker（mock AI：approved / rejected / 异常重试 / 最终失败兜底回写 / 非 pending 幂等跳过）；routes 层鉴权矩阵与校验分支。
 
@@ -93,11 +93,13 @@ type: Permanent
 3. `features/topics/types.ts`：Zod schema 对齐契约（Topic / Marshmallow / TopicPublicInfo / 派生 status 枚举）；`api.ts`：管理端点封装（复用 `features/backdoor/api.ts` 的 `request()`）与公开端点封装（`credentials: "include"`，`API_CONFIGURED` 未配置短路不 fetch）；`status.ts`：状态文案/徽标色纯函数（复用服务端同一判定口径展示）；
 4. `clientKey.ts`：localStorage `topics.clientKey` 读写（首次生成 `crypto.randomUUID()`，损坏回退重颁）；
 5. SideNav `NAV_ITEMS` 追加 `{ href: "/backdoor/topics", label: "棉花糖", roles: ["superadmin", "admin"] }`；
-6. 后台列表页 `app/backdoor/(dashboard)/topics/page.tsx`：卡片栅格（首行标题 + 状态徽标，次行「停止收集/继续收集」「归档」「修改」，按钮 `stopPropagation`，卡面其余区域跳详情）+「新建主题」按钮；`TopicFormDialog`（新建/修改复用：标题、描述 MarkdownEditor、起止日期 datetime-local、字数限制 100–10000、启用AI前置审核 checkbox 默认勾选；沿用后台既有 dialog 口径——createPortal 挂 body、Esc/遮罩关闭、`role="alert"` 错误区）；
-7. 后台详情页 `app/backdoor/(dashboard)/topics/[id]/page.tsx`：大标题 + `CollapsibleMarkdown`（line-clamp-3 默认折叠，展开/收起按钮）；工具栏「分享」（`ShareTopicDialog` 浮层，见 §4.4）「幻灯片」（`window.open` 独立页）「开始/结束收集」「修改主题」；列表容器 `flex-1 overflow-y-auto` 内部滚动；`MarshmallowCard` 全宽 + MarkdownView 渲染 + 采用切换（已采用变灰 + 「已采用」标记，PATCH 持久化）+ **内容默认折叠最高 5 行、超限时底部渐变层「点击查看全文」开 `MarshmallowDetailDialog`（`max-h-[75vh]` 内部滚动，弹窗内亦有采用按钮）**；`AiReviewOverlay` 三态：rejected（原因 + 「显示这条棉花糖」→ PATCH ignoreAiFilter 持久化）/ pending（「这条内容AI正在审核中」+「提前查看」仅本地 state 临时展示）/ null（不渲染），**覆盖层为不透明实色底（或叠加 blur），不透出底下内容**；
+6. 后台列表页 `app/backdoor/(dashboard)/topics/page.tsx`：卡片栅格（首行标题 + 状态徽标，次行「停止收集/继续收集」「归档」「修改」，按钮 `stopPropagation`，卡面其余区域跳详情）+「新建主题」按钮；`TopicFormDialog`（新建/修改复用：标题、描述 MarkdownEditor、起止日期 datetime-local、字数限制 100–10000、启用AI前置审核 checkbox 默认勾选；沿用后台既有 dialog 口径——createPortal 挂 body、Esc/遮罩关闭、`role="alert"` 错误区）；**round 9 追加**：页头视图切换「主题 / 已归档主题」，已归档视图（`?archived=true` + 前端过滤 archived）卡片操作行仅「恢复」（confirm → POST restore，成功后刷新两视图），见 §4.2；
+7. 后台详情页 `app/backdoor/(dashboard)/topics/[id]/page.tsx`：大标题 + `CollapsibleMarkdown`（line-clamp-3 默认折叠，展开/收起按钮）；工具栏「分享」（`ShareTopicDialog` 浮层，见 §4.4）「幻灯片」（`window.open` 独立页）「开始/结束收集」「修改主题」；列表容器 `flex-1 overflow-y-auto` 内部滚动；`MarshmallowCard` 全宽 + MarkdownView 渲染 + 采用切换（已采用变灰 + 「已采用」标记，PATCH 持久化）+ **内容默认折叠最高 5 行、超限时底部渐变层「点击查看全文」开 `MarshmallowDetailDialog`（`max-h-[75vh]` 内部滚动，弹窗内亦有采用按钮）**；`AiReviewOverlay` 三态：rejected（原因 + 「显示这条棉花糖」→ PATCH ignoreAiFilter 持久化）/ pending（「这条内容AI正在审核中」+「提前查看」仅本地 state 临时展示）/ null（不渲染），**覆盖层为不透明实色底（或叠加 blur），不透出底下内容**；**round 9 追加**：`topic.archived` 时详情页只读——工具栏仅「分享」「幻灯片」，卡片与弹窗不渲染采用按钮，rejected 覆盖层不渲染「显示这条棉花糖」，见 §4.4 末条；
 8. 幻灯片页 `app/backdoor/(dashboard)/topics/[id]/presentation/page.tsx`：仅 adopted 条目；条目满高内部 Y 滚动 + `max-w-[50%]` 居中文本左对齐；左右全高翻页按钮（lucide ChevronLeft/Right，首末条禁用，可访问名称）；**单行页头**（左标题衬线 truncate + `toSingleLinePlainText` 单行描述 `max-w-[25%]`，右「字体」label + 小/中/大 字号预设档位，localStorage `topics.presentation.fontSize`；页头与放映区 `border-t border-vine` 分割）；首次引导遮盖层（localStorage `topics.presentation.guideSeen`，损坏视为首次）；无 adopted 条目空态提示；
-9. 公开收集页 `app/(site)/(content)/topics/[id]/page.tsx`：`generateStaticParams() { return [{ id: "_" }] }` + `export const dynamicParams = false`，`"use client"` 运行时 `useParams()` 取真实 id（提案 §5.2 实现点 4；**实现时先验证直达形态，GitHub Pages 404 不可绕过时降级为 `/topics?id=` 查询串方案并同步契约无关的前端路由**）；页面三态视图 `form` / `submitting` / `done`：form 态主题信息区（标题/MarkdownView 描述/状态/起止时间）+ MarkdownEditor + 提交按钮；提交前 ConfirmDialog 展示 AI 审核告知文案；done 态为提交完成结果视图（仅「提交成功，感谢你的棉花糖」+「再投一条」，**不展示任何审核字段**；「再投一条」回 form 并清空编辑器）；429/400/409 回 form 并提示（429 提示「操作频率过快」）；未开始/已结束/已归档展示状态提示并禁用编辑器；`API_CONFIGURED === false` 按既有口径渲染 NotFoundPage；
-10. 单测覆盖（提案 §8.1 前端行）：status 纯函数、CollapsibleMarkdown 折叠交互、MarshmallowCard 三态覆盖层（rejected 持久化 / pending 临时 / null 无）与折叠交互（超 5 行显示渐变层、点击开全文弹窗、弹窗内采用切换）、TopicFormDialog 校验（字数边界、日期先后、默认勾选）、收集页三态视图切换（成功进 done 且不含审核字段、再投一条回 form 清空）、localStorage 读写（clientKey 颁发、字号、引导记录损坏回退）；
+9. 公开收集页 `app/(site)/(content)/topics/[id]/page.tsx`：`generateStaticParams() { return [{ id: "_" }] }` + `export const dynamicParams = false`，`"use client"` 运行时 `useParams()` 取真实 id（提案 §5.2 实现点 4；**实现时先验证直达形态，GitHub Pages 404 不可绕过时降级为 `/topics?id=` 查询串方案并同步契约无关的前端路由**）；页面三态视图 `form` / `submitting` / `done`：form 态主题信息区（标题/MarkdownView 描述/状态/起止时间）+ MarkdownEditor + 提交按钮；提交前 ConfirmDialog 展示 AI 审核告知文案；done 态为提交完成结果视图（仅「提交成功，感谢你的棉花糖」+「**查看进行中的棉花糖**」链接 → `/topics`，**不展示任何审核字段**；round 9 起**移除「再投一条」**，done 态不再回 form）；429/400/409 回 form 并提示（429 提示「操作频率过快」）；未开始/已结束/已归档展示状态提示并禁用编辑器；`API_CONFIGURED === false` 按既有口径渲染 NotFoundPage；
+9.1. **公开「进行中的棉花糖」页（round 9 追加）**：`/topics` 无 `id` 查询串时渲染 `TopicsOngoingPage`（同 page.tsx 内按 searchParams 分派，均包 Suspense）；数据 `GET /api/topics/public`；卡片列表（标题 + 描述 line-clamp-3 + 起止时间，整卡 Link → `/topics?id=`）+ 空态「暂无进行中的棉花糖」，见 §4.6.1；
+9.2. **NavBar「棉花糖」入口（round 9 追加）**：独立路由链接 `/topics`，不走首页 deck 锚点翻页（参照 tools 项 `hrefOf` 口径），选中态 `pathname === "/topics"`，移动端折叠菜单同步；仅 `API_CONFIGURED` 时显示（照「日历」filter 口径）；NavBar 保持 `fixed` 不随页面滑动，见 §4.6.1；
+10. 单测覆盖（提案 §8.1 前端行）：status 纯函数、CollapsibleMarkdown 折叠交互、MarshmallowCard 三态覆盖层（rejected 持久化 / pending 临时 / null 无）与折叠交互（超 5 行显示渐变层、点击开全文弹窗、弹窗内采用切换）、TopicFormDialog 校验（字数边界、日期先后、默认勾选）、收集页三态视图切换（成功进 done 且不含审核字段、done 态含「查看进行中的棉花糖」链接且无「再投一条」）、localStorage 读写（clientKey 颁发、字号、引导记录损坏回退）；**round 9 追加**：列表页已归档视图切换与「恢复」回调、详情页归档只读（无采用/修改入口）、TopicsOngoingPage 列表渲染与空态、NavBar「棉花糖」入口渲染与 href；
 11. 视觉约束：后台三页严格按 `docs/design/03-backdoor-design.md`（仅 token 色、无氛围动效、过渡 ≤200ms 且尊重 prefers-reduced-motion）；收集页兼顾移动端窄屏；不出现未上线功能占位。
 
 **验证**：`pnpm -C apps/bookstore lint && pnpm -C apps/bookstore test && pnpm -C apps/bookstore build` 全绿。
@@ -122,7 +124,8 @@ type: Permanent
 3. 公开端点：无鉴权可用；**首次公开请求响应带 `sumire_vid` Set-Cookie（HttpOnly / Path=/ / SameSite=Lax），合法回带不重复颁发，非法值重颁**；**投递成功响应体严格 `{ ok: true }`，不含 id/aiReview 等字段**；超过 charLimit 400；
 4. 限速（串行执行，照 `zz-rate-limit.test.ts` 先例）：clientKey、访客 Cookie、IP 三维度各自 1/min 第 2 条与 1/h 第 6 条 429「操作频率过快」，三维度独立计数；清除 Cookie 后其余维度仍生效；限速用例前置直连 Redis 清理 `marsh:*` key（REDIS_URL 缺失则跳过清理）；
 5. AI 审核：启用 AI 审核主题投递后经管理端点轮询断言 `pending → approved/rejected` 异步回写（stub 分别返回 filtered=false/true 与非 JSON/超时故障——故障口径回写 rejected 兜底）；未启用主题 `aiReview` 为 null 且 stub 无调用；PATCH adopted / ignoreAiFilter 生效；
-6. 更新 `tests/api/AGENTS.md` 运行方式段（新增 topics 用例启动口径与 stub 端口约定）。
+6. **round 9 追加**：`GET /api/topics/public`——无鉴权 200；仅含未归档且 collecting 主题（upcoming/ended/已归档均不出现）；响应字段不含审核管理字段；`POST /api/topics/{id}/restore`——未登录 401、member 403、不存在/非法 id 404、未归档 409、已归档 200 且恢复后 `archived=false`、status 按起止时间重新推导（恢复后可正常投递/管理）；
+7. 更新 `tests/api/AGENTS.md` 运行方式段（新增 topics 用例启动口径与 stub 端口约定）。
 
 **验证**：Aspire 编排下 `tests/api` 全量通过（含既有用例回归）。
 
@@ -130,9 +133,9 @@ type: Permanent
 
 加载 `tests/e2e/AGENTS.md`：
 
-1. 新增 `tests/e2e/src/backdoor/topics.spec.ts`：登录 admin → 导航「棉花糖」→ 新建主题（含 Markdown 描述与默认勾选 AI 审核）→ 卡片状态与停止/继续/归档操作 → 详情页折叠描述、采用/取消采用、AI 覆盖层三态（mock 数据经 `page.route` 拦截 `**/api/topics*` 与 `**/api/marshmallows*`，不依赖真实 AI）→ 幻灯片翻页（首末禁用）、字号调节刷新保留、首次引导遮盖层关闭后不再出现；member 账号不见导航入口、直达 403 口径；
-2. 新增 `tests/e2e/src/bookstore/topics.spec.ts`：收集页展示（标题/描述/状态/起止）→ 提交前 AI 告知弹窗 → 投递成功出现提交完成视图（断言视图不含审核字段）→「再投一条」→ 连续投递触发 429 提示（`page.route` 拦截返回 429）；未开始/已结束主题禁用编辑器并展示状态提示；
-3. `unconfigured.spec.ts` 补充：未配置形态下 `/backdoor/topics` 与 `/topics/{id}` 同为 404、导航无入口；
+1. 新增 `tests/e2e/src/backdoor/topics.spec.ts`：登录 admin → 导航「棉花糖」→ 新建主题（含 Markdown 描述与默认勾选 AI 审核）→ 卡片状态与停止/继续/归档操作 → 详情页折叠描述、采用/取消采用、AI 覆盖层三态（mock 数据经 `page.route` 拦截 `**/api/topics*` 与 `**/api/marshmallows*`，不依赖真实 AI）→ 幻灯片翻页（首末禁用）、字号调节刷新保留、首次引导遮盖层关闭后不再出现；member 账号不见导航入口、直达 403 口径；**round 9 追加**：归档后「已归档主题」视图可见该卡片 → 详情页只读（无采用/修改/开始结束收集入口）→ 幻灯片可查看 → 回列表「恢复」→ 主题回到「主题」视图且可正常管理；
+2. 新增 `tests/e2e/src/bookstore/topics.spec.ts`：收集页展示（标题/描述/状态/起止）→ 提交前 AI 告知弹窗 → 投递成功出现提交完成视图（断言视图不含审核字段）→「查看进行中的棉花糖」跳转 `/topics` 进行中列表（断言列表含该主题卡片、无「再投一条」）→ 点卡片回收集页；连续投递触发 429 提示（`page.route` 拦截返回 429）；未开始/已结束主题禁用编辑器并展示状态提示；**round 9 追加**：顶部导航「棉花糖」入口可见且跳转 `/topics`；
+3. `unconfigured.spec.ts` 补充：未配置形态下 `/backdoor/topics` 与 `/topics/{id}` 同为 404、导航无入口（含 NavBar 无「棉花糖」项）；
 4. 回归既有 e2e 全量用例。
 
 **验证**：Aspire 编排下配置/未配置两种形态 e2e 分别全绿。
@@ -177,7 +180,7 @@ flowchart TD
   - 第二行（按钮行，与标题区间隔 `0.75rem`）：「停止收集」/「继续收集」（同一按钮随状态切换文字）、「归档」、「修改」，均为小尺寸文字按钮（`--text-small`，描边样式）；按钮点击 `stopPropagation`；
   - 卡片其余区域整体可点（`cursor-pointer`），点击跳 `/backdoor/topics/{id}`；hover 时描边过渡为 `--color-primary`（≤200ms）；
 - **空态**：无主题时栅格位置展示 `--color-ink-dim` 提示（如「还没有主题，点击右上角新建」）；
-- **归档主题**不出现在默认列表（`?archived=true` 为 API 预留，本期 UI 不提供入口）。
+- **已归档主题入口**（UI 验收 round 9）：页头「新建主题」旁提供视图切换（Tab 或文字按钮组）「主题」（默认）/「已归档主题」；已归档视图调 `GET /api/topics?archived=true` 并前端按 `archived === true` 过滤，卡片第一行同口径（标题 + 已结束徽标），**操作行仅「恢复」**（confirm「确定要恢复这个主题吗？」→ `POST /api/topics/{id}/restore`，成功后该卡从已归档视图移除、回到「主题」列表），不渲染「停止/继续收集」「归档」「修改」；卡片其余区域仍可点击进详情页；已归档视图空态提示「没有已归档的主题」。
 
 ### 4.3 主题表单弹窗（新建 / 修改复用）
 
@@ -214,6 +217,7 @@ flowchart TD
   - `pending`：提示「这条内容AI正在审核中」+ 文字按钮「提前查看」（仅本地 state 临时展示，不持久化，刷新恢复覆盖）；
   - `approved` 或 `aiReview === null`：不渲染覆盖层；
 - **空态**：无棉花糖时容器内居中 `--color-ink-dim` 提示「还没有收到棉花糖」。
+- **已归档主题只读**（UI 验收 round 9）：`topic.archived === true` 时详情页整体只读——工具栏仅保留「分享」「幻灯片」（「开始/结束收集」「修改主题」不渲染）；棉花糖卡片与 `MarshmallowDetailDialog` 均不渲染「采用/取消采用」；AiReviewOverlay rejected 态仅展示原因文案、不渲染「显示这条棉花糖」（pending 态「提前查看」可保留，纯本地只读）；幻灯片页可正常进入查看已采用条目（放映本身无写操作，无需改动）。
 
 ### 4.5 幻灯片放映页 `/backdoor/topics/{id}/presentation`
 
@@ -239,10 +243,18 @@ flowchart TD
 - **投递区**（页面三态视图 `form` / `submitting` / `done`）：
   - `form`：`MarkdownEditor`（同 §4.3 工具栏口径，编辑区最小高 `12rem`）+ 字数提示（`--text-small --color-ink-dim`，「最多 {charLimit} 字」+ 实时计数）+ 主按钮「投递棉花糖」（宽度全列，提交中禁用显示「投递中…」）；
   - `submitting`：编辑器只读 + 按钮禁用（form 内联状态，不单独成屏）；
-  - `done`（提交完成结果视图）：编辑器与按钮整体替换为居中结果卡——`--color-flower` 标题「提交成功，感谢你的棉花糖」+ 文字按钮「再投一条」（点击回 `form` 并清空编辑器，仍受频率限制约束）；**视图不出现任何审核相关字段**；
+  - `done`（提交完成结果视图）：编辑器与按钮整体替换为居中结果卡——`--color-flower` 标题「提交成功，感谢你的棉花糖」+ 文字链接「**查看进行中的棉花糖**」（`Link` → `/topics` 进行中列表页；UI 验收 round 9 起**移除「再投一条」**，done 态不再回 form）；**视图不出现任何审核相关字段**；
 - **提交前弹窗**（ConfirmDialog）：点「投递棉花糖」先弹居中 modal，文案「内容会被AI审核，如果有有害信息，则会判定为未通过AI审核，默认隐藏」+「确认投递」/「再想想」按钮；确认后才发请求；
 - **失败与状态提示**：429 提示「操作频率过快」、400/409/410 按 `{ error }` 文案展示于表单上方错误区（`role="alert"`）；主题未开始/已结束/已归档时投递区整体替换为对应状态提示（编辑器不渲染或禁用）；主题不存在展示不存在提示；
 - **移动端**：单列布局天然适配窄屏；编辑器工具栏允许横向滚动不折行挤压。
+
+### 4.6.1 公开「进行中的棉花糖」页 `/topics`（无 `id` 查询串，UI 验收 round 9）
+
+- 与收集页同路由 `/topics`：`useSearchParams` 无 `id` 时渲染新组件 `TopicsOngoingPage`，有 `id` 时渲染既有 `TopicPublicPage`（同一 `page.tsx` 内分派，均包 Suspense）；
+- **数据源**：新公开端点 `GET /api/topics/public`（无需登录、不挂 visitorCookie），返回未归档且派生 status 为 `collecting` 的主题（创建时间倒序，字段口径同 TopicPublicInfo，不含任何审核管理字段）；
+- **列表**：窄列居中（同收集页 `40rem` 口径）；卡片（`--color-bg-raised` 底 + `--color-vine` 描边 + 圆角）——标题（`--text-body` 加粗截断）+ 描述 `MarkdownView`（`line-clamp-3` 截断）+ 起止时间一行（`--text-small --color-ink-dim`）；整卡 `Link` → `/topics?id={topic.id}`，hover 描边过渡 ≤200ms；
+- **空态**：居中 `--color-ink-dim` 提示「暂无进行中的棉花糖」；加载失败展示错误提示与重试；
+- **导航入口**：`NavBar` 追加「棉花糖」项——独立路由链接（`route: "/topics"`），**不走首页 deck 锚点翻页逻辑**（参照 tools 项 `hrefOf` 口径直接以 route 为 href），选中态 `pathname === "/topics"`，移动端折叠菜单同步包含；仅 `API_CONFIGURED` 时显示（照「日历」`filter` 口径），未配置形态下该入口与 `/topics` 页同为 NotFoundPage 口径；NavBar 保持 `fixed inset-x-0 top-0 z-40` 固定视口顶部、**不随页面滑动**（现态已满足，不得回归）。
 
 ### 4.7 共享组件清单
 
@@ -256,7 +268,8 @@ flowchart TD
 | `MarshmallowCard` | `features/topics/components/` | 详情页棉花糖条目 + 采用切换 | 默认 / 已采用（置灰） |
 | `AiReviewOverlay` | `features/topics/components/` | 卡片覆盖层三态 | rejected / pending / 无 |
 | `ConfirmDialog` | `features/topics/components/` | 提交前 AI 审核告知弹窗 | 打开 / 关闭 |
-| `SubmitDoneView` | `features/topics/components/` | 提交完成结果视图（仅成功提示 + 再投一条） | — |
+| `SubmitDoneView` | `features/topics/components/` | 提交完成结果视图（成功提示 + 「查看进行中的棉花糖」链接 → `/topics`） | — |
+| `TopicsOngoingPage` | `features/topics/components/` | 公开「进行中的棉花糖」列表页主体（`/topics` 无 id 时） | 加载中 / 列表 / 空态 / 错误 |
 | `PresentationNavButton` | `features/topics/components/` | 幻灯片左右全高翻页按钮 | 默认 / 禁用 |
 | `GuideOverlay` | `features/topics/components/` | 幻灯片首次引导遮盖层 | 展示 / 已读（不渲染） |
 

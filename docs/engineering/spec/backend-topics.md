@@ -120,6 +120,7 @@ aiReview 结构：
 | PUT `/api/topics/:id` | 编辑 |
 | POST `/api/topics/:id/collecting` | 开始/停止收集 |
 | POST `/api/topics/:id/archive` | 归档（已归档 410） |
+| POST `/api/topics/:id/restore` | 恢复已归档主题（未归档 409；archived 置 false，status 按起止时间与 collectingStopped 重新推导） |
 | GET `/api/topics/:id/marshmallows` | 棉花糖列表（分页，pageSize ≤100） |
 | PATCH `/api/marshmallows/:id` | 采用/忽略 AI 过滤 |
 
@@ -127,6 +128,7 @@ aiReview 结构：
 
 | 方法+路径 | 要点 |
 |---|---|
+| GET `/api/topics/public` | 进行中的主题列表（仅未归档且派生 status=collecting，创建时间倒序；字段同 TopicPublicInfo，不含审核字段；**路由须注册在 `GET /:id` 之前**，不挂 visitorCookie 中间件） |
 | GET `/api/topics/:id/public` | 公开信息（不含审核字段） |
 | POST `/api/topics/:id/marshmallows` | 投递（返回 `{ ok: true }`） |
 

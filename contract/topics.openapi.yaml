@@ -78,6 +78,27 @@ paths:
         "403":
           description: 已登录但角色权限不足（member）
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+  /api/topics/public:
+    get:
+      summary: 查询进行中的主题列表（公开）
+      description: |
+        无需登录。返回未归档且派生 status 为 `collecting` 的主题（按创建时间倒序），
+        字段口径同 `GET /api/topics/{id}/public` 的 topic 对象，不含任何审核管理字段。
+        实现注意：该路由须注册在 `GET /api/topics/{id}` 之前，否则 `public` 会被 `:id` 捕获。
+      security: []
+      responses:
+        "200":
+          description: 进行中的主题列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, topics]
+                properties:
+                  ok: { type: boolean, const: true }
+                  topics:
+                    type: array
+                    items: { $ref: "#/components/schemas/TopicPublicInfo" }
   /api/topics/{id}:
     get:
       summary: 查询主题详情（管理）
@@ -237,6 +258,42 @@ paths:
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
         "410":
           description: 主题已归档
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+  /api/topics/{id}/restore:
+    post:
+      summary: 恢复已归档主题（管理）
+      description: |
+        需登录，角色限 superadmin / admin。将 `archived` 置回 false；
+        恢复后派生 status 由起止时间与 collectingStopped 重新推导
+        （已超 endAt 或曾手动停止则为 ended，可再「继续收集」）。
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: 恢复成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean, const: true }
+        "401":
+          description: 未登录或会话已失效
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "403":
+          description: 已登录但角色权限不足
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404":
+          description: 主题不存在
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "409":
+          description: 主题未归档，无需恢复
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
   /api/topics/{id}/marshmallows:
     get:

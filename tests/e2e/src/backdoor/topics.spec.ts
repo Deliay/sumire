@@ -185,6 +185,16 @@ test.describe("backdoor 棉花糖（主题管理）", () => {
     await expect(page.getByRole("button", { name: /开始收集|结束收集/ })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "采用" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "取消采用" })).toHaveCount(0);
+    // 归档只读详情仍可进入幻灯片查看（建议项）
+    const [presentation] = await Promise.all([
+      page.waitForEvent("popup"),
+      page.getByRole("button", { name: "幻灯片" }).click(),
+    ]);
+    await presentation.waitForLoadState();
+    await expect(
+      presentation.getByRole("heading", { name: title, exact: true }),
+    ).toBeVisible();
+    await presentation.close();
     // 回已归档视图 → 恢复 → 该主题回到「主题」列表
     await page.goto(`${BASE}/backdoor/topics`);
     await page.getByRole("button", { name: "已归档主题", exact: true }).click();

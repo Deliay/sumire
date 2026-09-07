@@ -321,13 +321,12 @@ describe("GET /api/live/:name/status（同期直播状态，公开读代理）",
     }
   });
 
-  it("缺 title/startedAt 归一化为 null", async () => {
+  it("live 模式 title/startedAt 正常透传", async () => {
     stubMode = "live";
     const res = await request("/api/live/viridis/status");
     expect(res.status).toBe(200);
     const body = res.body as { ok: boolean; status: { live: boolean; title: string | null; startedAt: string | null } };
     expect(body.ok).toBe(true);
-    // liveBody() 包含 title 和 startedAt，所以这里应该有值
     expect(typeof body.status.title).toBe("string");
     expect(typeof body.status.startedAt).toBe("string");
   });

@@ -28,7 +28,9 @@ var api = builder
     // 直播事件上游地址：base URL，端点路径由 api 侧拼接；测试时可用环境变量指向 stub
     .WithEnvironment("LIVE_EVENTS_UPSTREAM_URL", Environment.GetEnvironmentVariable("LIVE_EVENTS_UPSTREAM_URL") ?? "http://vtuber.internal.fffdan.com")
     // 直播状态上游地址：未设置编排进程环境变量时回退 PRD 内网地址，保证 aspire start 开箱即用
-    .WithEnvironment("LIVE_STATUS_UPSTREAM_URL", Environment.GetEnvironmentVariable("LIVE_STATUS_UPSTREAM_URL") ?? "http://vtuber.internal.fffdan.com/api/b/live/1727076670/state/current");
+    .WithEnvironment("LIVE_STATUS_UPSTREAM_URL", Environment.GetEnvironmentVariable("LIVE_STATUS_UPSTREAM_URL") ?? "http://vtuber.internal.fffdan.com/api/b/live/1727076670/state/current")
+    // 同期直播状态上游 base URL：测试时可用环境变量指向 stub（无新资源，仅 env passthrough）
+    .WithEnvironment("LIVE_PEER_STATUS_UPSTREAM_URL", Environment.GetEnvironmentVariable("LIVE_PEER_STATUS_UPSTREAM_URL") ?? "http://vtuber.internal.fffdan.com");
 
 var bookstore = builder
     .AddNextJsApp("bookstore", "../../apps/bookstore", runScriptName: "dev")

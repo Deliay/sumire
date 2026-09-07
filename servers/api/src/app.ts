@@ -9,6 +9,7 @@ import { createStreamPlansRouter } from "./routes/streamPlans";
 import { createLiveHistoryRouter } from "./routes/liveHistory";
 import { createLiveEventsRouter } from "./routes/liveEvents";
 import { createLiveStatusRouter } from "./routes/liveStatus";
+import { createLivePeerStatusRouter } from "./routes/livePeerStatus";
 import { createBiliCoverRouter } from "./routes/biliCover";
 import { createLiveEventsUpstream, type LiveEventsUpstream } from "./liveEvents/upstream";
 import { createMemoryLiveHistoryCache, type LiveHistoryCache } from "./infra/liveHistoryCache";
@@ -64,11 +65,20 @@ export function createApp(deps: AppDeps): Application {
       cache: deps.liveHistoryCache ?? createMemoryLiveHistoryCache(),
     }),
   );
+  // 共享直播状态缓存实例（live-status 与 live-peer-status 共用，按 key 隔离）
+  const liveStatusCache = deps.liveStatusCache ?? createMemoryLiveStatusCache();
   api.use(
     "/live/status",
     createLiveStatusRouter({
       upstreamUrl: config.liveStatusUpstreamUrl,
-      cache: deps.liveStatusCache ?? createMemoryLiveStatusCache(),
+      cache: liveStatusCache,
+    }),
+  );
+  api.use(
+    "/live",
+    createLivePeerStatusRouter({
+      upstreamBaseUrl: config.livePeerStatusUpstreamUrl,
+      cache: liveStatusCache,
     }),
   );
   api.use(

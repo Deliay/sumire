@@ -41,8 +41,8 @@ describe("TodaySchedule 今日日程组件", () => {
       status: 200,
       data: {
         plans: [
-          { id: "1", date: "2026-08-31", startTime: "20:00", title: "歌回", createdAt: "" },
-          { id: "2", date: "2026-08-31", startTime: "21:00", title: "杂谈", createdAt: "" },
+          { id: "1", date: "2026-08-31", timeType: "fixed", startTime: "20:00", title: "歌回", createdAt: "" },
+          { id: "2", date: "2026-08-31", timeType: "fixed", startTime: "21:00", title: "杂谈", createdAt: "" },
         ],
       },
     });

@@ -2,14 +2,14 @@ openapi: 3.1.0
 info:
   title: sumire stream plans
   description: 枝堇Sumire 周表（直播日程）API 契约。单一事实源，实现与 tests/api 集成测试均以本文档为准。公开读、受限写（superadmin/admin）。
-  version: 1.1.0
+  version: 1.2.0
 servers:
   - url: https://api.sumire.live
 paths:
   /api/stream-plans:
     get:
       summary: 查询直播计划（公开）
-      description: 无需登录。按日期区间返回直播计划（按 date + startTime 升序）。from/to 缺省返回全部。
+      description: 无需登录。按日期区间返回直播计划（按 date 升序，同日按 全天 → 固定时间（startTime 升序）→ 时间待定）。from/to 缺省返回全部。
       parameters:
         - name: from
           in: query
@@ -23,7 +23,7 @@ paths:
           description: 结束日期（含），YYYY-MM-DD
       responses:
         "200":
-          description: 直播计划列表（按 date + startTime 升序）
+          description: 直播计划列表（按 date 升序，同日按 全天 → 固定时间（startTime 升序）→ 时间待定）
           content:
             application/json:
               schema:
@@ -37,7 +37,7 @@ paths:
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
     post:
       summary: 新增直播计划（受限）
-      description: 需登录，角色限 superadmin / admin（复用 rbac 层级判定）。同日同时间同主题判重返回 409。
+      description: 需登录，角色限 superadmin / admin（复用 rbac 层级判定）。`timeType` 缺省 `fixed`；`fixed` 时 `startTime` 必填且合法；`tbd`/`allDay` 时 `startTime` 必须为空（null 或缺省），携带非空 `startTime` 返回 400。同日同类型同时间同主题判重返回 409。
       security:
         - cookieAuth: []
       requestBody:
@@ -46,10 +46,15 @@ paths:
           application/json:
             schema:
               type: object
-              required: [date, startTime, title]
+              required: [date, title]
               properties:
                 date: { $ref: "#/components/schemas/Date" }
-                startTime: { $ref: "#/components/schemas/StartTime" }
+                timeType: { $ref: "#/components/schemas/TimeType" }
+                startTime:
+                  anyOf:
+                    - $ref: "#/components/schemas/StartTime"
+                    - type: "null"
+                  description: 仅 timeType=fixed 时有值；tbd/allDay 为 null
                 title: { $ref: "#/components/schemas/Title" }
       responses:
         "201":
@@ -58,15 +63,19 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [ok, id, date, startTime, title]
+                required: [ok, id, date, timeType, startTime, title]
                 properties:
                   ok: { type: boolean, const: true }
                   id: { type: string }
                   date: { $ref: "#/components/schemas/Date" }
-                  startTime: { $ref: "#/components/schemas/StartTime" }
+                  timeType: { $ref: "#/components/schemas/TimeType" }
+                  startTime:
+                    anyOf:
+                      - $ref: "#/components/schemas/StartTime"
+                      - type: "null"
                   title: { $ref: "#/components/schemas/Title" }
         "400":
-          description: 日期/开始时间非法或缺失、主题为空或超 50 字符
+          description: 日期/主题非法或缺失、timeType 非法、timeType 与 startTime 组合非法
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
         "401":
           description: 未登录或会话已失效
@@ -75,12 +84,12 @@ paths:
           description: 已登录但角色权限不足（member）
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
         "409":
-          description: 同日同时间同主题已存在
+          description: 同日同类型同时间同主题已存在（编辑排除自身）
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
   /api/stream-plans/{id}:
     put:
       summary: 编辑直播计划（受限）
-      description: 需登录，角色限 superadmin / admin。三个字段（日期/开始时间/主题）均可修改，改日期即改期。与其他计划重复（排除自身）返回 409。
+      description: 需登录，角色限 superadmin / admin。日期/主题均可修改，改日期即改期。`timeType` 缺省 `fixed`；`fixed` 时 `startTime` 必填且合法；`tbd`/`allDay` 时 `startTime` 必须为空（null 或缺省），携带非空 `startTime` 返回 400。与其他计划同日同类型同时间同主题重复（排除自身）返回 409。
       security:
         - cookieAuth: []
       parameters:
@@ -95,10 +104,15 @@ paths:
           application/json:
             schema:
               type: object
-              required: [date, startTime, title]
+              required: [date, title]
               properties:
                 date: { $ref: "#/components/schemas/Date" }
-                startTime: { $ref: "#/components/schemas/StartTime" }
+                timeType: { $ref: "#/components/schemas/TimeType" }
+                startTime:
+                  anyOf:
+                    - $ref: "#/components/schemas/StartTime"
+                    - type: "null"
+                  description: 仅 timeType=fixed 时有值；tbd/allDay 为 null
                 title: { $ref: "#/components/schemas/Title" }
       responses:
         "200":
@@ -107,15 +121,19 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [ok, id, date, startTime, title]
+                required: [ok, id, date, timeType, startTime, title]
                 properties:
                   ok: { type: boolean, const: true }
                   id: { type: string }
                   date: { $ref: "#/components/schemas/Date" }
-                  startTime: { $ref: "#/components/schemas/StartTime" }
+                  timeType: { $ref: "#/components/schemas/TimeType" }
+                  startTime:
+                    anyOf:
+                      - $ref: "#/components/schemas/StartTime"
+                      - type: "null"
                   title: { $ref: "#/components/schemas/Title" }
         "400":
-          description: 日期/开始时间非法或缺失、主题为空或超 50 字符、id 非合法 ObjectId
+          description: 日期/主题非法或缺失、timeType 非法、timeType 与 startTime 组合非法、id 非合法 ObjectId
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
         "401":
           description: 未登录或会话已失效
@@ -127,7 +145,7 @@ paths:
           description: 计划不存在
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
         "409":
-          description: 与其他计划同日同时间同主题重复（排除自身）
+          description: 同日同类型同时间同主题已存在（编辑排除自身）
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
     delete:
       summary: 删除直播计划（受限）
@@ -182,13 +200,23 @@ components:
       description: 直播主题，trim 后 1–50 字符
       minLength: 1
       maxLength: 50
+    TimeType:
+      type: string
+      enum: [fixed, tbd, allDay]
+      default: fixed
+      description: 日程类型。fixed（固定时间）：按 startTime 准时开播；tbd（时间待定）：开播时间未定；allDay（全天）：当天任意时间开播。缺省 fixed 向后兼容存量数据。
     StreamPlan:
       type: object
-      required: [id, date, startTime, title, createdAt]
+      required: [id, date, timeType, title, createdAt]
       properties:
         id: { type: string }
         date: { $ref: "#/components/schemas/Date" }
-        startTime: { $ref: "#/components/schemas/StartTime" }
+        timeType: { $ref: "#/components/schemas/TimeType" }
+        startTime:
+          anyOf:
+            - $ref: "#/components/schemas/StartTime"
+            - type: "null"
+          description: 仅 timeType=fixed 时有值；tbd/allDay 为 null
         title: { $ref: "#/components/schemas/Title" }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time, description: 最近编辑时间，未编辑过则缺省 }

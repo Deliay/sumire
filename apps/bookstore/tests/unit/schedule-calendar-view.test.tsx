@@ -16,6 +16,7 @@ function todayStr(): string {
 const makePlan = (date: string, title: string, startTime = "20:00", id = title): StreamPlan => ({
   id,
   date,
+  timeType: "fixed",
   startTime,
   title,
   createdAt: "",

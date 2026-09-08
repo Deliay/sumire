@@ -5,6 +5,7 @@ import { CalendarDays } from "lucide-react";
 import { API_CONFIGURED } from "@/features/backdoor/api";
 import { listPlans, type StreamPlan } from "@/features/schedule/api";
 import { toDateStr } from "@/features/schedule/dateUtils";
+import { comparePlans, planTimeSlot } from "@/features/schedule/timeType";
 
 /** 本地时区当天 YYYY-MM-DD（与日历页口径一致）。 */
 function todayStr(): string {
@@ -50,7 +51,7 @@ export default function TodaySchedule() {
   }
 
   const plans = state.kind === "loaded" ? state.plans : [];
-  const sorted = [...plans].sort((a, b) => a.startTime.localeCompare(b.startTime));
+  const sorted = [...plans].sort(comparePlans);
 
   return (
     <div className="w-fit rounded-lg border border-vine/40 bg-raised/60 p-4">
@@ -64,7 +65,7 @@ export default function TodaySchedule() {
         <ul className="mt-2 flex flex-col gap-1.5">
           {sorted.map((p) => (
             <li key={p.id} className="flex items-center gap-2 text-sm">
-              <span className="tabular-nums text-ink-dim">{p.startTime}</span>
+              <span className="tabular-nums text-ink-dim">{planTimeSlot(p)}</span>
               <span className="text-ink">{p.title}</span>
             </li>
           ))}

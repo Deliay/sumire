@@ -187,3 +187,140 @@ test.describe("backdoor 直播计划移动端周视图", () => {
     }
   });
 });
+
+test.describe("backdoor 直播计划 timeType（时间待定/全天）", () => {
+  test("schedule-timeType-tbd: 选「时间待定」→ 时间控件隐藏 → 保存成功 → 日历格子与当日详情显示 TBD 标识", async ({ page }) => {
+    const accounts = getAccounts();
+    await loginViaUi(page, accounts.superadmin, BASE);
+    await page.getByRole("link", { name: "直播计划" }).click();
+    await expect(page.getByRole("heading", { name: "直播计划" })).toBeVisible();
+
+    const run = Date.now().toString(36);
+    const title = `e2e_tbd_${run}`;
+    const today = todayStr();
+
+    // 点击今天 → 增加计划
+    const todayCell = page.locator(`[data-testid="calendar-day"][data-date="${today}"]`);
+    await todayCell.click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.getByRole("button", { name: /增加计划/ }).click();
+    await expect(page.getByRole("dialog").filter({ hasText: "增加直播计划" })).toBeVisible();
+
+    // 选择「时间待定」
+    await page.getByLabel("时间待定").click();
+    // 时间控件应隐藏
+    await expect(page.getByLabel("开始时间")).toHaveCount(0);
+    // 填写主题
+    await page.getByLabel("直播主题").fill(title);
+    // 提交
+    await page.getByRole("button", { name: "确认" }).click();
+
+    // 保存后当日弹层可见新计划，显示 TBD 标识
+    await expect(page.getByRole("dialog").getByText(title)).toBeVisible();
+    await expect(page.getByRole("dialog").getByText("TBD")).toBeVisible();
+
+    // 关闭弹层，检查日历格子摘要
+    await page.getByRole("dialog").getByRole("button", { name: "关闭" }).click();
+    await expect(page.getByTestId("calendar-day").filter({ hasText: "TBD" })).toBeVisible();
+
+    // 点击打开当日详情，确认 TBD 标识
+    await todayCell.click();
+    await expect(page.getByRole("dialog").getByText("TBD")).toBeVisible();
+    await expect(page.getByRole("dialog").getByText(title)).toBeVisible();
+
+    // 清理：删除
+    await page.getByRole("button", { name: `删除 ${title}` }).click();
+    await page.getByRole("button", { name: "确认删除" }).click();
+    await expect(page.getByRole("dialog").getByText(title)).toHaveCount(0);
+  });
+
+  test("schedule-timeType-allday: 选「全天」→ 时间控件隐藏 → 保存成功 → 日历格子与当日详情显示全天标识", async ({ page }) => {
+    const accounts = getAccounts();
+    await loginViaUi(page, accounts.superadmin, BASE);
+    await page.getByRole("link", { name: "直播计划" }).click();
+    await expect(page.getByRole("heading", { name: "直播计划" })).toBeVisible();
+
+    const run = Date.now().toString(36);
+    const title = `e2e_allday_${run}`;
+    const today = todayStr();
+
+    // 点击今天 → 增加计划
+    const todayCell = page.locator(`[data-testid="calendar-day"][data-date="${today}"]`);
+    await todayCell.click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.getByRole("button", { name: /增加计划/ }).click();
+    await expect(page.getByRole("dialog").filter({ hasText: "增加直播计划" })).toBeVisible();
+
+    // 选择「全天」
+    await page.getByLabel("全天").click();
+    // 时间控件应隐藏
+    await expect(page.getByLabel("开始时间")).toHaveCount(0);
+    // 填写主题
+    await page.getByLabel("直播主题").fill(title);
+    // 提交
+    await page.getByRole("button", { name: "确认" }).click();
+
+    // 保存后当日弹层可见新计划，显示全天标识
+    await expect(page.getByRole("dialog").getByText(title)).toBeVisible();
+    await expect(page.getByRole("dialog").getByText("全天")).toBeVisible();
+
+    // 关闭弹层，检查日历格子摘要
+    await page.getByRole("dialog").getByRole("button", { name: "关闭" }).click();
+    await expect(page.getByTestId("calendar-day").filter({ hasText: "全天" })).toBeVisible();
+
+    // 点击打开当日详情，确认全天标识
+    await todayCell.click();
+    await expect(page.getByRole("dialog").getByText("全天")).toBeVisible();
+    await expect(page.getByRole("dialog").getByText(title)).toBeVisible();
+
+    // 清理：删除
+    await page.getByRole("button", { name: `删除 ${title}` }).click();
+    await page.getByRole("button", { name: "确认删除" }).click();
+    await expect(page.getByRole("dialog").getByText(title)).toHaveCount(0);
+  });
+
+  test("schedule-timeType-edit: 编辑态回显 timeType，切换类型后 startTime 归 null", async ({ page }) => {
+    const accounts = getAccounts();
+    await loginViaUi(page, accounts.superadmin, BASE);
+    await page.getByRole("link", { name: "直播计划" }).click();
+    await expect(page.getByRole("heading", { name: "直播计划" })).toBeVisible();
+
+    const run = Date.now().toString(36);
+    const title = `e2e_edit_${run}`;
+    const today = todayStr();
+
+    // 创建一个固定时间计划
+    const todayCell = page.locator(`[data-testid="calendar-day"][data-date="${today}"]`);
+    await todayCell.click();
+    await page.getByRole("button", { name: /增加计划/ }).click();
+    await page.getByLabel("直播主题").fill(title);
+    const timeInput = page.getByLabel("开始时间");
+    await timeInput.click();
+    await timeInput.fill("20:00");
+    await timeInput.blur();
+    await page.getByRole("button", { name: "确认" }).click();
+    await expect(page.getByRole("dialog").getByText(title)).toBeVisible();
+
+    // 编辑该计划，切换为「时间待定」
+    await page.getByRole("button", { name: `编辑 ${title}` }).click();
+    await expect(page.getByRole("dialog").filter({ hasText: "编辑直播计划" })).toBeVisible();
+    // 固定时间单选应选中
+    await expect(page.getByLabel("固定时间")).toBeChecked();
+    // 切换为时间待定
+    await page.getByLabel("时间待定").click();
+    // 时间控件应隐藏
+    await expect(page.getByLabel("开始时间")).toHaveCount(0);
+    // 提交
+    await page.getByRole("button", { name: "确认" }).click();
+
+    // 验证：当日详情显示 TBD
+    await page.getByRole("dialog").getByRole("button", { name: "关闭" }).click();
+    await todayCell.click();
+    await expect(page.getByRole("dialog").getByText("TBD")).toBeVisible();
+
+    // 清理
+    await page.getByRole("button", { name: `删除 ${title}` }).click();
+    await page.getByRole("button", { name: "确认删除" }).click();
+    await expect(page.getByRole("dialog").getByText(title)).toHaveCount(0);
+  });
+});

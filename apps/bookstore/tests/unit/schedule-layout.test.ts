@@ -10,10 +10,12 @@ import {
   type Measure,
 } from "@/features/schedule/weeklyImage/layout";
 import type { StreamPlan } from "@/features/schedule/api";
+import type { TimeType } from "@/features/schedule/timeType";
 
-const plan = (date: string, startTime: string, title: string, id = title): StreamPlan => ({
+const plan = (date: string, startTime: string, title: string, id = title, timeType: TimeType = "fixed"): StreamPlan => ({
   id,
   date,
+  timeType,
   startTime,
   title,
   createdAt: "",

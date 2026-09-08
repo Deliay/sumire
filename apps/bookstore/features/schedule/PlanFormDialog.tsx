@@ -205,7 +205,7 @@ export default function PlanFormDialog({
           </button>
           {(error || (touched && emptyField)) && (
             <p className="text-sm text-flower" role="alert">
-              {error || "请填写日期、日程类型与直播主题"}
+              {error || "请填写日期与直播主题"}
             </p>
           )}
         </div>

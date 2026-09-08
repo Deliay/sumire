@@ -89,7 +89,14 @@ vi.spyOn(spModule, "createStreamPlan").mockImplementation(async (input: { date: 
   return { id: row.id, date: row.date, timeType: row.timeType, startTime: row.startTime, title: row.title, createdAt: row.createdAt };
 });
 vi.spyOn(spModule, "findStreamPlan").mockImplementation(async (date: string, timeType: TimeType, startTime: string | null, title: string, excludeId?: string) => {
-  const hit = plansStore.find((r) => r.date === date && r.timeType === timeType && r.startTime === (startTime ?? null) && r.title === title && r.id !== excludeId);
+  const hit = plansStore.find((r) => {
+    if (r.date !== date || r.startTime !== (startTime ?? null) || r.title !== title || r.id === excludeId) return false;
+    // fixed 判重需兼容存量文档（无 timeType 字段）
+    if (timeType === "fixed") {
+      return r.timeType === "fixed" || (r as unknown as { timeType?: TimeType }).timeType === undefined;
+    }
+    return r.timeType === timeType;
+  });
   if (!hit) return null;
   return { ...hit, _id: { toString: () => hit.id } } as never;
 });
@@ -279,6 +286,16 @@ describe("POST /api/stream-plans（受限写）", () => {
 
   it("同日同时间同主题 → 409", async () => {
     plansStore.push({ id: "356a192b7913b04c54574d18", date: "2026-08-15", timeType: "fixed", startTime: "20:00", title: "杂谈", createdBy: "a", createdAt: new Date() });
+    const app = createApp({ sessionStore: memSessionStore(), rateLimiter: unlimited });
+    const sid = await login(app, "supersumire", "salamander");
+    const r = await call(app, { method: "POST", path: "/api/stream-plans", cookie: sid, body: { date: "2026-08-15", startTime: "20:00", title: "杂谈" } });
+    expect(r.status).toBe(409);
+  });
+
+  it("存量文档（无 timeType 字段）参与 fixed 判重 → 409", async () => {
+    // 模拟存量文档：无 timeType 字段（使用类型断言）
+    const legacyDoc = { id: "legacy-no-timeType", date: "2026-08-15", startTime: "20:00", title: "杂谈", createdBy: "legacy", createdAt: new Date() } as unknown as Row;
+    plansStore.push(legacyDoc);
     const app = createApp({ sessionStore: memSessionStore(), rateLimiter: unlimited });
     const sid = await login(app, "supersumire", "salamander");
     const r = await call(app, { method: "POST", path: "/api/stream-plans", cookie: sid, body: { date: "2026-08-15", startTime: "20:00", title: "杂谈" } });

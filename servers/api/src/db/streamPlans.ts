@@ -111,10 +111,15 @@ export async function findStreamPlan(
 ): Promise<StreamPlanDoc | null> {
   const conditions: Record<string, unknown> = {
     date,
-    timeType,
     startTime: startTime ?? null,
     title,
   };
+  // fixed 判重需兼容存量文档（无 timeType 字段）
+  if (timeType === "fixed") {
+    conditions.$or = [{ timeType: "fixed" }, { timeType: { $exists: false } }];
+  } else {
+    conditions.timeType = timeType;
+  }
   if (excludeId) conditions._id = { $ne: excludeId };
   return StreamPlanModel.findOne(conditions).lean();
 }

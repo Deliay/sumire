@@ -20,11 +20,13 @@ describe("formatDateLabel", () => {
 describe("DatePicker", () => {
   it("点击展开迷你月历并选中日期", () => {
     const onChange = vi.fn();
-    render(<DatePicker value="" onChange={onChange} />);
+    const now = new Date();
+    const value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+    render(<DatePicker value={value} onChange={onChange} />);
     const input = screen.getByLabelText("日期");
     fireEvent.focus(input);
-    fireEvent.click(screen.getByLabelText(/选择 2026-08-15/));
-    expect(onChange).toHaveBeenCalledWith("2026-08-15");
+    fireEvent.click(screen.getByLabelText(`选择 ${value}`));
+    expect(onChange).toHaveBeenCalledWith(value);
   });
 
   it("日期输入框 autocomplete 属性为 off", () => {

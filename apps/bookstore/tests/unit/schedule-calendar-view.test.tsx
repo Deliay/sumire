@@ -13,14 +13,6 @@ function todayStr(): string {
   return `${now.getFullYear()}-${mm}-${dd}`;
 }
 
-function offsetStr(offset: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + offset);
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${mm}-${dd}`;
-}
-
 const makePlan = (date: string, title: string, startTime = "20:00", id = title): StreamPlan => ({
   id,
   date,
@@ -133,7 +125,14 @@ describe("CalendarView（月视图，默认无 matchMedia）", () => {
   });
 
   it("过去日期计划带已播出样式（opacity 弱化）", () => {
-    const past = offsetStr(-2);
+    const now = new Date();
+    const today = todayStr();
+    // 取「今天之前」且在当月展示网格内的最近日期（月初时可能落到上月末补位格），规避跨月/时区硬编码
+    const past = monthGrid(now.getFullYear(), now.getMonth() + 1)
+      .map((c) => c.dateStr)
+      .filter((d) => d < today)
+      .sort()
+      .at(-1)!;
     render(<CalendarView entries={[planEntry(makePlan(past, "已播", "20:00"))]} />);
     const dayCells = screen.getAllByTestId("calendar-day");
     const cell = dayCells.find((el) => el.getAttribute("data-date") === past);

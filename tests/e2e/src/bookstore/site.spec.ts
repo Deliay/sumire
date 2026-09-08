@@ -177,13 +177,14 @@ test.describe("bookstore 主页（整页滚动叙事容器）", () => {
   test("site-home-archive-parallax-overscan: 档案屏立绘最大视差位移时底边仍被裁剪容器覆盖（不露截断边）", async ({ page }) => {
     await page.goto(`${BASE}/#archive-1`);
     await page.waitForTimeout(1200);
-    const layer = page.locator("[data-section='archive-1'] [data-testid='parallax-layer']");
+    // 桌面错位立绘层位于分栏 grid 内（移动端 hero 口径背景立绘层是 grid 外兄弟节点，排除）
+    const layer = page.locator("[data-section='archive-1'] .grid [data-testid='parallax-layer']");
     await expect(layer).toBeVisible();
     // 指针移到视口底/右 → 立绘向最大负向偏移（视差反向），验证裁剪容器与立绘边缘关系
     await page.mouse.move(1439, 899);
     await page.waitForTimeout(600);
     const geometry = await page.evaluate(() => {
-      const l = document.querySelector("[data-section='archive-1'] [data-testid='parallax-layer']") as HTMLElement | null;
+      const l = document.querySelector("[data-section='archive-1'] .grid [data-testid='parallax-layer']") as HTMLElement | null;
       const clip = l?.parentElement as HTMLElement | null;
       if (!l || !clip) return null;
       const clipRect = clip.getBoundingClientRect();
@@ -252,7 +253,7 @@ test.describe("bookstore 主页（整页滚动叙事容器）", () => {
     await page.goto(`${BASE}/#archive-1`);
     await page.waitForTimeout(1200);
     const info = await page.evaluate(() => {
-      const layer = document.querySelector("[data-section='archive-1'] [data-testid='parallax-layer']");
+      const layer = document.querySelector("[data-section='archive-1'] .grid [data-testid='parallax-layer']");
       const clip = layer?.parentElement as HTMLElement | null;
       if (!clip) return null;
       const clipRect = clip.getBoundingClientRect();

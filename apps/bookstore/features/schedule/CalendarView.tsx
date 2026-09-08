@@ -16,7 +16,7 @@ import {
   weekDates,
 } from "@/features/schedule/dateUtils";
 import { useMediaQuery } from "@/lib/useMediaQuery";
-import { comparePlans, planTimeSlot, formatPlanLabel } from "@/features/schedule/timeType";
+import { comparePlans, planTimeSlot } from "@/features/schedule/timeType";
 
 const MONTH_MAX_SUMMARIES = 2;
 const WEEK_MAX_SUMMARIES = 4;
@@ -33,7 +33,7 @@ interface CalendarViewProps {
 }
 
 function entryTitle(entry: CalendarEntry): string {
-  if (entry.kind === "plan") return formatPlanLabel(entry.plan);
+  if (entry.kind === "plan") return entry.plan.title;
   return entry.record.title;
 }
 

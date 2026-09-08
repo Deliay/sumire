@@ -8,10 +8,16 @@ test.describe("主页", () => {
       page.getByRole("heading", { name: /枝堇/ }),
     ).toBeVisible();
     await expect(page.getByText("是老书屋的一株藤蔓")).toBeVisible();
-    await expect(page.getByRole("link", { name: /主播档案/ })).toBeVisible();
-    await expect(page.getByRole("link", { name: /周边素材/ })).toBeVisible();
+    // 整页滚动叙事：导航为锚点入口（档案/素材）
     await expect(
-      page.getByRole("main").getByRole("link", { name: /直播间/ }),
+      page.getByRole("banner").getByRole("link", { name: "档案" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("banner").getByRole("link", { name: "素材" }),
+    ).toBeVisible();
+    // 素材站尾部流式 Footer 内直播间外链
+    await expect(
+      page.getByRole("main").getByRole("link", { name: "直播间", exact: true }),
     ).toHaveAttribute("href", /live\.bilibili\.com/);
   });
 
@@ -40,7 +46,7 @@ test.describe("素材库", () => {
   test("展示版权声明、筛选与下载", async ({ page }) => {
     await page.goto("/assets");
     await expect(
-      page.getByRole("main").getByText(/非官方粉丝作品/),
+      page.getByRole("main").getByText(/非官方粉丝作品/).first(),
     ).toBeVisible();
 
     // 分类筛选
@@ -73,11 +79,15 @@ test.describe("移动端", () => {
     await expect(
       page.getByRole("heading", { name: /枝堇/ }),
     ).toBeVisible();
+    // 打开移动端菜单，点击「档案」锚点翻页至档案首屏
     await page.getByRole("button", { name: "打开菜单" }).click();
-    await page.getByRole("link", { name: "档案", exact: true }).click();
-    await expect(page).toHaveURL(/\/about/);
+    await page
+      .getByRole("banner")
+      .getByRole("link", { name: "档案", exact: true })
+      .click();
+    await expect(page).toHaveURL(/#archive-1/);
     await expect(
-      page.getByRole("heading", { name: "枝堇图鉴" }),
+      page.getByText(/信息 · Profile|设定 · Story|喜好 · Taste/).first(),
     ).toBeVisible();
   });
 });

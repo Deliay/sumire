@@ -99,9 +99,9 @@ test.describe("弹幕投票", () => {
     await page.getByPlaceholder("匹配关键字").fill("游戏");
     await page.getByRole("button", { name: "添加选项" }).click();
 
-    // 断言选项已添加
-    await expect(page.getByText("唱歌")).toBeVisible();
-    await expect(page.getByText("游戏")).toBeVisible();
+    // 断言选项已添加（使用 cell 角色避免 strict mode violation）
+    await expect(page.getByRole("cell", { name: "唱歌", exact: true })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "游戏", exact: true })).toBeVisible();
 
     // 5. 冲突拒绝：尝试添加与已有选项关键字冲突的选项
     await page.getByPlaceholder("名称").fill("唱歌跳舞");
@@ -160,8 +160,8 @@ test.describe("弹幕投票", () => {
     // 9. 刷新页面断言数据保留
     await page.reload();
     await expect(page.getByText("已处理 3 条弹幕，其中 1 条匹配")).toBeVisible();
-    await expect(page.getByText("唱歌")).toBeVisible();
-    await expect(page.getByText("游戏")).toBeVisible();
+    await expect(page.getByRole("cell", { name: "唱歌", exact: true })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "游戏", exact: true })).toBeVisible();
 
     // 10. 清空投票：先取消断言无变化
     await page.getByRole("button", { name: "清空投票" }).click();
@@ -174,7 +174,7 @@ test.describe("弹幕投票", () => {
     await page.getByRole("button", { name: "清空投票" }).click();
     await page.getByRole("button", { name: "确认清空" }).click();
     await expect(page.getByText("已处理 0 条弹幕，其中 0 条匹配")).toBeVisible();
-    await expect(page.getByText("唱歌")).toHaveCount(0);
-    await expect(page.getByText("游戏")).toHaveCount(0);
+    await expect(page.getByRole("cell", { name: "唱歌", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("cell", { name: "游戏", exact: true })).toHaveCount(0);
   });
 });

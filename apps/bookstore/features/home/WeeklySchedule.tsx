@@ -6,6 +6,7 @@ import { CalendarDays } from "lucide-react";
 import { listPlans, type StreamPlan } from "@/features/schedule/api";
 import { toDateStr } from "@/features/schedule/dateUtils";
 import VineDivider from "@/components/VineDivider";
+import { comparePlans, planTimeSlot } from "@/features/schedule/timeType";
 
 const WEEK_LABEL = ["一", "二", "三", "四", "五", "六", "日"] as const;
 const WEEK_EN = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] as const;
@@ -95,7 +96,7 @@ export default function WeeklySchedule() {
             <ul className="flex flex-col gap-2">
               {WEEK_LABEL.map((_, i) => {
                 const key = dayKey(mondayBase, i);
-                const dayPlans = plans.filter((p) => p.date === key);
+                const dayPlans = plans.filter((p) => p.date === key).sort(comparePlans);
                 return (
                   <li
                     key={key}
@@ -111,7 +112,7 @@ export default function WeeklySchedule() {
                       {dayPlans.length > 0 ? (
                         dayPlans.map((p) => (
                           <span key={p.id} className="inline-flex items-center gap-1.5 text-ink-on-paper">
-                            <span className="tabular-nums text-ink-on-paper/60">{p.startTime}</span>
+                            <span className="tabular-nums text-ink-on-paper/60">{planTimeSlot(p)}</span>
                             {p.title}
                           </span>
                         ))

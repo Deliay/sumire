@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { isValidObjectId } from "mongoose";
 import {
+  type TimeType,
   createStreamPlan,
   listStreamPlans,
   findStreamPlan,
@@ -11,6 +12,7 @@ import { requireRole } from "../rbac/requireRole";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const VALID_TIME_TYPES = ["fixed", "tbd", "allDay"] as const;
 
 /** 校验 YYYY-MM-DD 且为真实存在的日期（拒绝 2026-02-30 之类）。 */
 export function isValidDate(value: string): boolean {
@@ -29,27 +31,74 @@ export function isValidTime(value: string): boolean {
   return TIME_RE.test(value);
 }
 
-/** 统一解析并校验三字段（date / startTime / title）。返回 { ok, data?, error? }。 */
+/** 统一解析并校验字段（date / timeType / startTime / title）。返回 { ok, data?, error? }。 */
 function parseFields(body: unknown): {
   ok: boolean;
-  data?: { date: string; startTime: string; title: string };
+  data?: { date: string; timeType: TimeType; startTime: string | null; title: string };
   error?: string;
 } {
-  const { date, startTime, title } = (body ?? {}) as Record<string, unknown>;
+  const { date, timeType: rawTimeType, startTime: rawStartTime, title } = (body ?? {}) as Record<string, unknown>;
+  
   if (typeof date !== "string" || !isValidDate(date)) {
     return { ok: false, error: "日期格式非法" };
   }
-  if (typeof startTime !== "string" || !isValidTime(startTime)) {
-    return { ok: false, error: "开始时间格式非法" };
+  
+  // timeType：缺省/未提供 → fixed；已提供但不在枚举内 → 400
+  const hasTimeType = rawTimeType !== null && rawTimeType !== undefined && rawTimeType !== "";
+  if (!hasTimeType) {
+    // 未提供 timeType，缺省 fixed（兼容旧请求）
+    const timeType: TimeType = "fixed";
+    // startTime 校验：fixed 时必填且合法
+    if (typeof rawStartTime !== "string" || !isValidTime(rawStartTime)) {
+      return { ok: false, error: "开始时间格式非法" };
+    }
+    const startTime = rawStartTime;
+    if (typeof title !== "string" || title.trim().length === 0) {
+      return { ok: false, error: "直播主题不能为空" };
+    }
+    const trimmed = title.trim();
+    if (trimmed.length > 50) {
+      return { ok: false, error: "直播主题不能超过 50 字符" };
+    }
+    return { ok: true, data: { date, timeType, startTime, title: trimmed } };
   }
-  if (typeof title !== "string" || title.trim().length === 0) {
-    return { ok: false, error: "直播主题不能为空" };
+  
+  // 已提供 timeType，校验是否在枚举内
+  if (typeof rawTimeType !== "string" || !VALID_TIME_TYPES.includes(rawTimeType as TimeType)) {
+    return { ok: false, error: "日程类型非法" };
   }
-  const trimmed = title.trim();
-  if (trimmed.length > 50) {
-    return { ok: false, error: "直播主题不能超过 50 字符" };
+  const timeType = rawTimeType as TimeType;
+  
+  // startTime 校验：fixed 时必填且合法，tbd/allDay 时必须为空
+  if (timeType === "fixed") {
+    if (typeof rawStartTime !== "string" || !isValidTime(rawStartTime)) {
+      return { ok: false, error: "开始时间格式非法" };
+    }
+    const startTime = rawStartTime;
+    if (typeof title !== "string" || title.trim().length === 0) {
+      return { ok: false, error: "直播主题不能为空" };
+    }
+    const trimmed = title.trim();
+    if (trimmed.length > 50) {
+      return { ok: false, error: "直播主题不能超过 50 字符" };
+    }
+    return { ok: true, data: { date, timeType, startTime, title: trimmed } };
+  } else {
+    // tbd/allDay：startTime 必须为空
+    const hasStartTime = rawStartTime !== null && rawStartTime !== undefined && rawStartTime !== "";
+    if (hasStartTime) {
+      const errorMsg = timeType === "tbd" ? "时间待定日程无需填写开始时间" : "全天日程无需填写开始时间";
+      return { ok: false, error: errorMsg };
+    }
+    if (typeof title !== "string" || title.trim().length === 0) {
+      return { ok: false, error: "直播主题不能为空" };
+    }
+    const trimmed = title.trim();
+    if (trimmed.length > 50) {
+      return { ok: false, error: "直播主题不能超过 50 字符" };
+    }
+    return { ok: true, data: { date, timeType, startTime: null, title: trimmed } };
   }
-  return { ok: true, data: { date, startTime, title: trimmed } };
 }
 
 export function createStreamPlansRouter(): Router {
@@ -76,14 +125,18 @@ export function createStreamPlansRouter(): Router {
       res.status(400).json({ error: parsed.error ?? "参数不合法" });
       return;
     }
-    const { date, startTime, title } = parsed.data;
-    const existing = await findStreamPlan(date, startTime, title);
+    const { date, timeType, startTime, title } = parsed.data;
+    const existing = await findStreamPlan(date, timeType, startTime, title);
     if (existing) {
-      res.status(409).json({ error: "该日该时间已有相同主题的直播计划" });
+      const errorMsg = timeType === "fixed"
+        ? "该日该时间已有相同主题的直播计划"
+        : "该日已有相同主题的同类型日程";
+      res.status(409).json({ error: errorMsg });
       return;
     }
     const created = await createStreamPlan({
       date,
+      timeType,
       startTime,
       title,
       createdBy: req.user?.username ?? "unknown",
@@ -92,6 +145,7 @@ export function createStreamPlansRouter(): Router {
       ok: true,
       id: created.id,
       date: created.date,
+      timeType: created.timeType,
       startTime: created.startTime,
       title: created.title,
     });
@@ -108,13 +162,16 @@ export function createStreamPlansRouter(): Router {
       res.status(400).json({ error: parsed.error ?? "参数不合法" });
       return;
     }
-    const { date, startTime, title } = parsed.data;
-    const conflicting = await findStreamPlan(date, startTime, title, id);
+    const { date, timeType, startTime, title } = parsed.data;
+    const conflicting = await findStreamPlan(date, timeType, startTime, title, id);
     if (conflicting) {
-      res.status(409).json({ error: "该日该时间已有相同主题的直播计划" });
+      const errorMsg = timeType === "fixed"
+        ? "该日该时间已有相同主题的直播计划"
+        : "该日已有相同主题的同类型日程";
+      res.status(409).json({ error: errorMsg });
       return;
     }
-    const updated = await updateStreamPlan(id, { date, startTime, title });
+    const updated = await updateStreamPlan(id, { date, timeType, startTime, title });
     if (!updated) {
       res.status(404).json({ error: "直播计划不存在" });
       return;
@@ -123,6 +180,7 @@ export function createStreamPlansRouter(): Router {
       ok: true,
       id: updated.id,
       date: updated.date,
+      timeType: updated.timeType,
       startTime: updated.startTime,
       title: updated.title,
     });

@@ -1,7 +1,8 @@
 import type { StreamPlan, LiveRecord } from "./api";
+import { comparePlans, type TimeType } from "./timeType";
 
 export type CalendarEntry =
-  | { kind: "plan"; plan: StreamPlan; date: string; startTime: string }
+  | { kind: "plan"; plan: StreamPlan; date: string; startTime: string | null }
   | {
       kind: "history";
       record: LiveRecord;
@@ -24,8 +25,15 @@ export function localDateTime(iso: string): { date: string; time: string } | nul
   };
 }
 
+/** 条目类型秩：allDay 计划 0 / 历史与 fixed 计划 1 / tbd 计划 2 */
+function entryTypeRank(entry: CalendarEntry): number {
+  if (entry.kind === "history") return 1; // 历史视同 fixed 秩
+  const t = entry.plan.timeType ?? "fixed";
+  return t === "allDay" ? 0 : t === "fixed" ? 1 : 2;
+}
+
 /**
- * 归一化合并人工计划与历史直播记录为统一日历条目，按 date + startTime 升序混排。
+ * 归一化合并人工计划与历史直播记录为统一日历条目，按 date 升序，同日按 全天 → 固定时间（startTime 升序）→ 时间待定 混排。
  * 历史记录按 startDate 本地时区归入开播当日（跨天归开播当日）；缺 title/startDate 丢弃；
  * 已过 now 的「未来」记录（上游异常）不纳入。同日同时两条都保留不去重。
  */
@@ -59,7 +67,11 @@ export function mergeEntries(
     entries.push(entry);
   }
 
-  return entries.sort(
-    (a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime),
-  );
+  return entries.sort((a, b) => {
+    const dateCmp = a.date.localeCompare(b.date);
+    if (dateCmp !== 0) return dateCmp;
+    const rankCmp = entryTypeRank(a) - entryTypeRank(b);
+    if (rankCmp !== 0) return rankCmp;
+    return (a.startTime ?? "").localeCompare(b.startTime ?? "");
+  });
 }

@@ -100,8 +100,8 @@ describe("scheme", () => {
   describe("buildDaySchedulesText", () => {
     it("should join plans sorted by startTime", () => {
       const plans: StreamPlan[] = [
-        { id: "1", date: "2026-08-24", startTime: "12:00", title: "Stream B", createdAt: "2026-08-01T00:00:00Z" },
-        { id: "2", date: "2026-08-24", startTime: "10:00", title: "Stream A", createdAt: "2026-08-01T00:00:00Z" },
+        { id: "1", date: "2026-08-24", timeType: "fixed", startTime: "12:00", title: "Stream B", createdAt: "2026-08-01T00:00:00Z" },
+        { id: "2", date: "2026-08-24", timeType: "fixed", startTime: "10:00", title: "Stream A", createdAt: "2026-08-01T00:00:00Z" },
       ];
       const result = buildDaySchedulesText(plans);
       expect(result).toBe("10:00 Stream A / 12:00 Stream B");
@@ -114,7 +114,7 @@ describe("scheme", () => {
 
     it("should handle single plan", () => {
       const plans: StreamPlan[] = [
-        { id: "3", date: "2026-08-24", startTime: "10:00", title: "Stream A", createdAt: "2026-08-01T00:00:00Z" },
+        { id: "3", date: "2026-08-24", timeType: "fixed", startTime: "10:00", title: "Stream A", createdAt: "2026-08-01T00:00:00Z" },
       ];
       const result = buildDaySchedulesText(plans);
       expect(result).toBe("10:00 Stream A");

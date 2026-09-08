@@ -8,6 +8,7 @@ import type { CalendarEntry } from "@/features/schedule/mergeEntries";
 const makePlan = (id: string, startTime: string, title: string): StreamPlan => ({
   id,
   date: "2026-08-15",
+  timeType: "fixed",
   startTime,
   title,
   createdAt: "",

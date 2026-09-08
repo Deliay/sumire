@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { StreamPlan } from "../api";
 import type { ISOWeek } from "./weekUtils";
+import { comparePlans, formatPlanLabel } from "../timeType";
 
 export const TextAlignSchema = z.enum(["left", "center", "right"]);
 export type TextAlign = z.infer<typeof TextAlignSchema>;
@@ -133,8 +134,8 @@ export function resolveEffectiveScheme(
 }
 
 export function buildDaySchedulesText(plans: StreamPlan[]): string {
-  const sorted = [...plans].sort((a, b) => a.startTime.localeCompare(b.startTime));
-  return sorted.map((p) => `${p.startTime} ${p.title}`).join(" / ");
+  const sorted = [...plans].sort(comparePlans);
+  return sorted.map(formatPlanLabel).join(" / ");
 }
 
 export function resolveDayText(template: string, schedules: string): string {

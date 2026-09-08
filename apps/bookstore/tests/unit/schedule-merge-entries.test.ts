@@ -5,6 +5,7 @@ import type { StreamPlan, LiveRecord } from "@/features/schedule/api";
 const plan = (date: string, startTime: string, title: string, id = title): StreamPlan => ({
   id,
   date,
+  timeType: "fixed",
   startTime,
   title,
   createdAt: "",

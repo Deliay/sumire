@@ -1,16 +1,19 @@
 import { API_BASE_URL, API_CONFIGURED } from "@/features/backdoor/api";
+import type { TimeType } from "./timeType";
 
 export interface StreamPlan {
   id: string;
   date: string;
-  startTime: string;
+  timeType: TimeType;
+  startTime: string | null;
   title: string;
   createdAt: string;
 }
 
 export interface StreamPlanInput {
   date: string;
-  startTime: string;
+  timeType: TimeType;
+  startTime?: string | null;
   title: string;
 }
 
@@ -33,7 +36,8 @@ interface OkResponse {
   ok: true;
   id: string;
   date: string;
-  startTime: string;
+  timeType: TimeType;
+  startTime: string | null;
   title: string;
 }
 
@@ -71,16 +75,23 @@ export async function listPlans(
   if (from) params.set("from", from);
   if (to) params.set("to", to);
   const qs = params.toString();
-  return request(qs ? `/api/stream-plans?${qs}` : "/api/stream-plans");
+  const response = await request<{ plans: Array<{ id: string; date: string; timeType?: string; startTime: string | null; title: string; createdAt: string }> } | ApiError>(qs ? `/api/stream-plans?${qs}` : "/api/stream-plans");
+  // 归一化 timeType ?? "fixed" 防御存量数据
+  if (response.status === 200 && "plans" in response.data) {
+    const plans = response.data.plans.map(p => ({
+      ...p,
+      timeType: (p.timeType ?? "fixed") as TimeType,
+    }));
+    return { ...response, data: { plans } };
+  }
+  return response as { status: number; data: { plans: StreamPlan[] } | ApiError };
 }
 
 /** 新增直播计划（受限写，superadmin/admin）。 */
 export async function createPlan(
-  date: string,
-  startTime: string,
-  title: string,
+  input: StreamPlanInput,
 ): Promise<{ status: number; data: OkResponse | ApiError }> {
-  return request("/api/stream-plans", { method: "POST", body: { date, startTime, title } });
+  return request("/api/stream-plans", { method: "POST", body: input });
 }
 
 /** 编辑直播计划（受限写；改日期即改期）。 */

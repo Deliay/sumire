@@ -5,6 +5,7 @@ import type { SessionStore } from "../src/session/store";
 import type { RateLimiter } from "../src/auth/rateLimit";
 import { hashPassword } from "../src/auth/password";
 import { isValidTime } from "../src/routes/streamPlans";
+import type { TimeType } from "../src/db/streamPlans";
 
 function memSessionStore(): SessionStore {
   const map = new Map<string, { sid: string; data: unknown }>();
@@ -58,7 +59,8 @@ async function seedUsers() {
 interface Row {
   id: string;
   date: string;
-  startTime: string;
+  timeType: TimeType;
+  startTime: string | null;
   title: string;
   createdBy: string;
   createdAt: Date;
@@ -80,23 +82,33 @@ vi.spyOn(dbModule, "findUserByUsername").mockImplementation(async (name: string)
 });
 
 const spModule = await import("../src/db/streamPlans");
-vi.spyOn(spModule, "createStreamPlan").mockImplementation(async (input: { date: string; startTime: string; title: string; createdBy: string }) => {
-  const row: Row = { id: oid(`sp-${++seq}`), date: input.date, startTime: input.startTime, title: input.title, createdBy: input.createdBy, createdAt: new Date() };
+vi.spyOn(spModule, "createStreamPlan").mockImplementation(async (input: { date: string; timeType: TimeType; startTime: string | null; title: string; createdBy: string }) => {
+  const startTime = input.timeType === "fixed" ? input.startTime : null;
+  const row: Row = { id: oid(`sp-${++seq}`), date: input.date, timeType: input.timeType, startTime, title: input.title, createdBy: input.createdBy, createdAt: new Date() };
   plansStore.push(row);
-  return { id: row.id, date: row.date, startTime: row.startTime, title: row.title, createdAt: row.createdAt };
+  return { id: row.id, date: row.date, timeType: row.timeType, startTime: row.startTime, title: row.title, createdAt: row.createdAt };
 });
-vi.spyOn(spModule, "findStreamPlan").mockImplementation(async (date: string, startTime: string, title: string, excludeId?: string) => {
-  const hit = plansStore.find((r) => r.date === date && r.startTime === startTime && r.title === title && r.id !== excludeId);
-  return hit ? { ...hit, _id: { toString: () => hit.id } } : null;
+vi.spyOn(spModule, "findStreamPlan").mockImplementation(async (date: string, timeType: TimeType, startTime: string | null, title: string, excludeId?: string) => {
+  const hit = plansStore.find((r) => {
+    if (r.date !== date || r.startTime !== (startTime ?? null) || r.title !== title || r.id === excludeId) return false;
+    // fixed 判重需兼容存量文档（无 timeType 字段）
+    if (timeType === "fixed") {
+      return r.timeType === "fixed" || (r as unknown as { timeType?: TimeType }).timeType === undefined;
+    }
+    return r.timeType === timeType;
+  });
+  if (!hit) return null;
+  return { ...hit, _id: { toString: () => hit.id } } as never;
 });
-vi.spyOn(spModule, "updateStreamPlan").mockImplementation(async (id: string, input: { date: string; startTime: string; title: string }) => {
+vi.spyOn(spModule, "updateStreamPlan").mockImplementation(async (id: string, input: { date: string; timeType: TimeType; startTime: string | null; title: string }) => {
   const row = plansStore.find((r) => r.id === id);
   if (!row) return null;
   row.date = input.date;
-  row.startTime = input.startTime;
+  row.timeType = input.timeType;
+  row.startTime = input.timeType === "fixed" ? input.startTime : null;
   row.title = input.title;
   row.updatedAt = new Date();
-  return { id: row.id, date: row.date, startTime: row.startTime, title: row.title, createdAt: row.createdAt, updatedAt: row.updatedAt };
+  return { id: row.id, date: row.date, timeType: row.timeType, startTime: row.startTime, title: row.title, createdAt: row.createdAt, updatedAt: row.updatedAt };
 });
 vi.spyOn(spModule, "deleteStreamPlan").mockImplementation(async (id: string) => {
   const before = plansStore.length;
@@ -104,12 +116,18 @@ vi.spyOn(spModule, "deleteStreamPlan").mockImplementation(async (id: string) => 
   return plansStore.length !== before;
 });
 vi.spyOn(spModule, "listStreamPlans").mockImplementation(async (from?: string, to?: string) => {
-  return plansStore
-    .filter((r) => (!from || r.date >= from) && (!to || r.date <= to))
-    .sort((a, b) =>
-      a.date === b.date ? a.startTime.localeCompare(b.startTime) : a.date.localeCompare(b.date),
-    )
-    .map((r) => ({ id: r.id, date: r.date, startTime: r.startTime, title: r.title, createdAt: r.createdAt, updatedAt: r.updatedAt }));
+  const filtered = plansStore
+    .filter((r) => (!from || r.date >= from) && (!to || r.date <= to));
+  // 应用层排序：date 升序 → 类型秩 → startTime 升序
+  const timeTypeRank = (t: TimeType) => t === "allDay" ? 0 : t === "fixed" ? 1 : 2;
+  filtered.sort((a, b) => {
+    const dateCmp = a.date.localeCompare(b.date);
+    if (dateCmp !== 0) return dateCmp;
+    const rankCmp = timeTypeRank(a.timeType) - timeTypeRank(b.timeType);
+    if (rankCmp !== 0) return rankCmp;
+    return (a.startTime ?? "").localeCompare(b.startTime ?? "");
+  });
+  return filtered.map((r) => ({ id: r.id, date: r.date, timeType: r.timeType, startTime: r.startTime, title: r.title, createdAt: r.createdAt, updatedAt: r.updatedAt }));
 });
 
 async function call(app: ReturnType<typeof createApp>, req: {
@@ -185,9 +203,9 @@ describe("GET /api/stream-plans（公开读）", () => {
 
   it("按 from/to 区间过滤且按 date + startTime 升序", async () => {
     plansStore.push(
-      { id: "356a192b7913b04c54574d18", date: "2026-08-15", startTime: "20:00", title: "晚场", createdBy: "a", createdAt: new Date() },
-      { id: "da4b9237bacccdf19c0760ca", date: "2026-08-15", startTime: "13:00", title: "午场", createdBy: "a", createdAt: new Date() },
-      { id: "77de68daecd823babbb58edb", date: "2026-08-20", startTime: "08:00", title: "早场", createdBy: "a", createdAt: new Date() },
+      { id: "356a192b7913b04c54574d18", date: "2026-08-15", timeType: "fixed", startTime: "20:00", title: "晚场", createdBy: "a", createdAt: new Date() },
+      { id: "da4b9237bacccdf19c0760ca", date: "2026-08-15", timeType: "fixed", startTime: "13:00", title: "午场", createdBy: "a", createdAt: new Date() },
+      { id: "77de68daecd823babbb58edb", date: "2026-08-20", timeType: "fixed", startTime: "08:00", title: "早场", createdBy: "a", createdAt: new Date() },
     );
     const app = createApp({ sessionStore: memSessionStore(), rateLimiter: unlimited });
     const r = await call(app, { method: "GET", path: "/api/stream-plans?from=2026-08-12&to=2026-08-18" });
@@ -267,7 +285,17 @@ describe("POST /api/stream-plans（受限写）", () => {
   });
 
   it("同日同时间同主题 → 409", async () => {
-    plansStore.push({ id: "356a192b7913b04c54574d18", date: "2026-08-15", startTime: "20:00", title: "杂谈", createdBy: "a", createdAt: new Date() });
+    plansStore.push({ id: "356a192b7913b04c54574d18", date: "2026-08-15", timeType: "fixed", startTime: "20:00", title: "杂谈", createdBy: "a", createdAt: new Date() });
+    const app = createApp({ sessionStore: memSessionStore(), rateLimiter: unlimited });
+    const sid = await login(app, "supersumire", "salamander");
+    const r = await call(app, { method: "POST", path: "/api/stream-plans", cookie: sid, body: { date: "2026-08-15", startTime: "20:00", title: "杂谈" } });
+    expect(r.status).toBe(409);
+  });
+
+  it("存量文档（无 timeType 字段）参与 fixed 判重 → 409", async () => {
+    // 模拟存量文档：无 timeType 字段（使用类型断言）
+    const legacyDoc = { id: "legacy-no-timeType", date: "2026-08-15", startTime: "20:00", title: "杂谈", createdBy: "legacy", createdAt: new Date() } as unknown as Row;
+    plansStore.push(legacyDoc);
     const app = createApp({ sessionStore: memSessionStore(), rateLimiter: unlimited });
     const sid = await login(app, "supersumire", "salamander");
     const r = await call(app, { method: "POST", path: "/api/stream-plans", cookie: sid, body: { date: "2026-08-15", startTime: "20:00", title: "杂谈" } });
@@ -275,7 +303,7 @@ describe("POST /api/stream-plans（受限写）", () => {
   });
 
   it("同日期不同时间不同主题不判重 → 201", async () => {
-    plansStore.push({ id: "356a192b7913b04c54574d18", date: "2026-08-15", startTime: "20:00", title: "杂谈", createdBy: "a", createdAt: new Date() });
+    plansStore.push({ id: "356a192b7913b04c54574d18", date: "2026-08-15", timeType: "fixed", startTime: "20:00", title: "杂谈", createdBy: "a", createdAt: new Date() });
     const app = createApp({ sessionStore: memSessionStore(), rateLimiter: unlimited });
     const sid = await login(app, "supersumire", "salamander");
     const r = await call(app, { method: "POST", path: "/api/stream-plans", cookie: sid, body: { date: "2026-08-15", startTime: "13:00", title: "午场" } });
@@ -306,7 +334,7 @@ describe("PUT /api/stream-plans/:id（受限写）", () => {
   });
 
   it("改期（日期+时间+主题）→ 200 且返回更新值", async () => {
-    plansStore.push({ id: "a0cdba16ea800a2e157e18fd", date: "2026-08-15", startTime: "20:00", title: "杂谈", createdBy: "a", createdAt: new Date() });
+    plansStore.push({ id: "a0cdba16ea800a2e157e18fd", date: "2026-08-15", timeType: "fixed", startTime: "20:00", title: "杂谈", createdBy: "a", createdAt: new Date() });
     const app = createApp({ sessionStore: memSessionStore(), rateLimiter: unlimited });
     const sid = await login(app, "supersumire", "salamander");
     const r = await call(app, { method: "PUT", path: "/api/stream-plans/a0cdba16ea800a2e157e18fd", cookie: sid, body: { date: "2026-08-16", startTime: "21:00", title: "歌杂" } });
@@ -327,8 +355,8 @@ describe("PUT /api/stream-plans/:id（受限写）", () => {
 
   it("与他人计划重复（排除自身）→ 409", async () => {
     plansStore.push(
-      { id: "a0cdba16ea800a2e157e18fd", date: "2026-08-15", startTime: "20:00", title: "杂谈", createdBy: "a", createdAt: new Date() },
-      { id: "6392a306f40cac2d5a649f28", date: "2026-08-16", startTime: "21:00", title: "歌杂", createdBy: "a", createdAt: new Date() },
+      { id: "a0cdba16ea800a2e157e18fd", date: "2026-08-15", timeType: "fixed", startTime: "20:00", title: "杂谈", createdBy: "a", createdAt: new Date() },
+      { id: "6392a306f40cac2d5a649f28", date: "2026-08-16", timeType: "fixed", startTime: "21:00", title: "歌杂", createdBy: "a", createdAt: new Date() },
     );
     const app = createApp({ sessionStore: memSessionStore(), rateLimiter: unlimited });
     const sid = await login(app, "supersumire", "salamander");
@@ -338,7 +366,7 @@ describe("PUT /api/stream-plans/:id（受限写）", () => {
   });
 
   it("保留自身原值不算重复 → 200", async () => {
-    plansStore.push({ id: "a0cdba16ea800a2e157e18fd", date: "2026-08-15", startTime: "20:00", title: "杂谈", createdBy: "a", createdAt: new Date() });
+    plansStore.push({ id: "a0cdba16ea800a2e157e18fd", date: "2026-08-15", timeType: "fixed", startTime: "20:00", title: "杂谈", createdBy: "a", createdAt: new Date() });
     const app = createApp({ sessionStore: memSessionStore(), rateLimiter: unlimited });
     const sid = await login(app, "supersumire", "salamander");
     const r = await call(app, { method: "PUT", path: "/api/stream-plans/a0cdba16ea800a2e157e18fd", cookie: sid, body: { date: "2026-08-15", startTime: "20:00", title: "杂谈" } });
@@ -369,7 +397,7 @@ describe("DELETE /api/stream-plans/:id（受限写）", () => {
   });
 
   it("删除存在的计划 → 200", async () => {
-    plansStore.push({ id: "a0cdba16ea800a2e157e18fd", date: "2026-08-15", startTime: "20:00", title: "杂谈", createdBy: "a", createdAt: new Date() });
+    plansStore.push({ id: "a0cdba16ea800a2e157e18fd", date: "2026-08-15", timeType: "fixed", startTime: "20:00", title: "杂谈", createdBy: "a", createdAt: new Date() });
     const app = createApp({ sessionStore: memSessionStore(), rateLimiter: unlimited });
     const sid = await login(app, "supersumire", "salamander");
     const r = await call(app, { method: "DELETE", path: "/api/stream-plans/a0cdba16ea800a2e157e18fd", cookie: sid });

@@ -74,6 +74,26 @@ describe("GET /api/stream-plans（公开读）", () => {
     expect(times).toEqual(["08:00", "13:00", "20:00"]);
   });
 
+  it("stream-plans-get-sort-timeType: 同日混合类型排序（全天 → fixed 升序 → TBD）", async () => {
+    const sa = await asSuperadmin();
+    const d = dateStr(14);
+    const title = `mixsort_${rand()}`;
+    // 创建混合类型
+    await request("/api/stream-plans", { method: "POST", jar: sa, body: { date: d, timeType: "tbd", title: `${title}_tbd` } });
+    await request("/api/stream-plans", { method: "POST", jar: sa, body: { date: d, timeType: "fixed", startTime: "20:00", title: `${title}_fixed20` } });
+    await request("/api/stream-plans", { method: "POST", jar: sa, body: { date: d, timeType: "allDay", title: `${title}_allday` } });
+    await request("/api/stream-plans", { method: "POST", jar: sa, body: { date: d, timeType: "fixed", startTime: "10:00", title: `${title}_fixed10` } });
+    const res = await request(`/api/stream-plans?from=${d}&to=${d}`);
+    const items = (res.body as { plans: Array<{ title: string; timeType: string; startTime: string | null }> }).plans
+      .filter((p) => p.title.startsWith(title));
+    expect(items.map((p) => `${p.timeType}:${p.title}`)).toEqual([
+      `allDay:${title}_allday`,
+      `fixed:${title}_fixed10`,
+      `fixed:${title}_fixed20`,
+      `tbd:${title}_tbd`,
+    ]);
+  });
+
   it("stream-plans-get-400: 非法日期参数 → 400", async () => {
     const r1 = await request("/api/stream-plans?from=2026/08/15");
     const r2 = await request("/api/stream-plans?to=2026-13-01");
@@ -149,6 +169,80 @@ describe("POST /api/stream-plans（受限写）", () => {
     const otherTime = await request("/api/stream-plans", { method: "POST", jar: sa, body: { date: d, startTime: "22:00", title } });
     expect(otherTime.status).toBe(201);
   });
+
+  it("stream-plans-post-timeType: 三类型创建成功（tbd/allDay 不带 startTime → 输出 startTime: null）", async () => {
+    const sa = await asSuperadmin();
+    const d = dateStr(10);
+    const titleTbd = `tbd_${rand()}`;
+    const titleAllDay = `allday_${rand()}`;
+    // tbd
+    const rTbd = await request("/api/stream-plans", { method: "POST", jar: sa, body: { date: d, timeType: "tbd", title: titleTbd } });
+    expect(rTbd.status).toBe(201);
+    const bTbd = rTbd.body as { ok: boolean; timeType: string; startTime: string | null; title: string };
+    expect(bTbd.ok).toBe(true);
+    expect(bTbd.timeType).toBe("tbd");
+    expect(bTbd.startTime).toBeNull();
+    expect(bTbd.title).toBe(titleTbd);
+    // allDay
+    const rAllDay = await request("/api/stream-plans", { method: "POST", jar: sa, body: { date: d, timeType: "allDay", title: titleAllDay } });
+    expect(rAllDay.status).toBe(201);
+    const bAllDay = rAllDay.body as { ok: boolean; timeType: string; startTime: string | null; title: string };
+    expect(bAllDay.ok).toBe(true);
+    expect(bAllDay.timeType).toBe("allDay");
+    expect(bAllDay.startTime).toBeNull();
+    expect(bAllDay.title).toBe(titleAllDay);
+  });
+
+  it("stream-plans-post-timeType-default: 不携带 timeType 按 fixed 处理（兼容旧请求）", async () => {
+    const sa = await asSuperadmin();
+    const d = dateStr(11);
+    const st = timeStr();
+    const title = `compat_${rand()}`;
+    const r = await request("/api/stream-plans", { method: "POST", jar: sa, body: { date: d, startTime: st, title } });
+    expect(r.status).toBe(201);
+    const b = r.body as { ok: boolean; timeType: string; startTime: string; title: string };
+    expect(b.timeType).toBe("fixed");
+    expect(b.startTime).toBe(st);
+  });
+
+  it("stream-plans-post-timeType-400: 非法 timeType / tbd 携带 startTime / fixed 缺 startTime → 400", async () => {
+    const sa = await asSuperadmin();
+    const d = dateStr(12);
+    // 非法 timeType
+    const r1 = await request("/api/stream-plans", { method: "POST", jar: sa, body: { date: d, timeType: "invalid", title: "x" } });
+    expect(r1.status).toBe(400);
+    expect((r1.body as { error?: string }).error).toBe("日程类型非法");
+    // tbd 携带 startTime
+    const r2 = await request("/api/stream-plans", { method: "POST", jar: sa, body: { date: d, timeType: "tbd", startTime: "20:00", title: "x" } });
+    expect(r2.status).toBe(400);
+    expect((r2.body as { error?: string }).error).toBe("时间待定日程无需填写开始时间");
+    // allDay 携带 startTime
+    const r3 = await request("/api/stream-plans", { method: "POST", jar: sa, body: { date: d, timeType: "allDay", startTime: "20:00", title: "x" } });
+    expect(r3.status).toBe(400);
+    expect((r3.body as { error?: string }).error).toBe("全天日程无需填写开始时间");
+    // fixed 缺 startTime
+    const r4 = await request("/api/stream-plans", { method: "POST", jar: sa, body: { date: d, timeType: "fixed", title: "x" } });
+    expect(r4.status).toBe(400);
+  });
+
+  it("stream-plans-post-timeType-409: 同日同 TBD 同主题 / 同日同全天同主题 → 409；TBD 与全天同主题 → 不冲突", async () => {
+    const sa = await asSuperadmin();
+    const d = dateStr(13);
+    const title = `typedupe_${rand()}`;
+    // 创建 TBD
+    const rTbd = await request("/api/stream-plans", { method: "POST", jar: sa, body: { date: d, timeType: "tbd", title } });
+    expect(rTbd.status).toBe(201);
+    // 重复 TBD → 409
+    const dupTbd = await request("/api/stream-plans", { method: "POST", jar: sa, body: { date: d, timeType: "tbd", title } });
+    expect(dupTbd.status).toBe(409);
+    expect((dupTbd.body as { error?: string }).error).toBe("该日已有相同主题的同类型日程");
+    // 创建 allDay 同主题
+    const rAllDay = await request("/api/stream-plans", { method: "POST", jar: sa, body: { date: d, timeType: "allDay", title } });
+    expect(rAllDay.status).toBe(201);
+    // 重复 allDay → 409
+    const dupAllDay = await request("/api/stream-plans", { method: "POST", jar: sa, body: { date: d, timeType: "allDay", title } });
+    expect(dupAllDay.status).toBe(409);
+  });
 });
 
 describe("PUT /api/stream-plans/:id（受限写）", () => {
@@ -179,9 +273,10 @@ describe("PUT /api/stream-plans/:id（受限写）", () => {
     const id = (create.body as { id: string }).id;
     const r = await request(`/api/stream-plans/${id}`, { method: "PUT", jar: sa, body: { date: dNew, startTime: "21:00", title: `${title}_改` } });
     expect(r.status).toBe(200);
-    const body = r.body as { ok: boolean; date: string; startTime: string; title: string };
+    const body = r.body as { ok: boolean; date: string; timeType: string; startTime: string; title: string };
     expect(body.ok).toBe(true);
     expect(body.date).toBe(dNew);
+    expect(body.timeType).toBe("fixed");
     expect(body.startTime).toBe("21:00");
     expect(body.title).toBe(`${title}_改`);
     // 原区间不再包含，新区间包含
@@ -189,6 +284,21 @@ describe("PUT /api/stream-plans/:id（受限写）", () => {
     expect((oldRange.body as { plans: Array<{ id: string }> }).plans.some((p) => p.id === id)).toBe(false);
     const newRange = await request(`/api/stream-plans?from=${dNew}&to=${dNew}`);
     expect((newRange.body as { plans: Array<{ id: string }> }).plans.some((p) => p.id === id)).toBe(true);
+  });
+
+  it("stream-plans-put-timeType: 编辑改类型（fixed→tbd）200 且 startTime 归 null", async () => {
+    const sa = await asSuperadmin();
+    const d = dateStr(15);
+    const title = `puttype_${rand()}`;
+    const create = await request("/api/stream-plans", { method: "POST", jar: sa, body: { date: d, startTime: "20:00", title } });
+    expect(create.status).toBe(201);
+    const id = (create.body as { id: string }).id;
+    // 改为 tbd
+    const r = await request(`/api/stream-plans/${id}`, { method: "PUT", jar: sa, body: { date: d, timeType: "tbd", title } });
+    expect(r.status).toBe(200);
+    const body = r.body as { ok: boolean; timeType: string; startTime: string | null };
+    expect(body.timeType).toBe("tbd");
+    expect(body.startTime).toBeNull();
   });
 
   it("stream-plans-put-404: 计划不存在 → 404", async () => {

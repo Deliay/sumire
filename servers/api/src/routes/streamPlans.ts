@@ -43,14 +43,31 @@ function parseFields(body: unknown): {
     return { ok: false, error: "日期格式非法" };
   }
   
-  // timeType 缺省 fixed
-  const timeType: TimeType = (typeof rawTimeType === "string" && VALID_TIME_TYPES.includes(rawTimeType as TimeType))
-    ? (rawTimeType as TimeType)
-    : "fixed";
+  // timeType：缺省/未提供 → fixed；已提供但不在枚举内 → 400
+  const hasTimeType = rawTimeType !== null && rawTimeType !== undefined && rawTimeType !== "";
+  if (!hasTimeType) {
+    // 未提供 timeType，缺省 fixed（兼容旧请求）
+    const timeType: TimeType = "fixed";
+    // startTime 校验：fixed 时必填且合法
+    if (typeof rawStartTime !== "string" || !isValidTime(rawStartTime)) {
+      return { ok: false, error: "开始时间格式非法" };
+    }
+    const startTime = rawStartTime;
+    if (typeof title !== "string" || title.trim().length === 0) {
+      return { ok: false, error: "直播主题不能为空" };
+    }
+    const trimmed = title.trim();
+    if (trimmed.length > 50) {
+      return { ok: false, error: "直播主题不能超过 50 字符" };
+    }
+    return { ok: true, data: { date, timeType, startTime, title: trimmed } };
+  }
   
-  if (!VALID_TIME_TYPES.includes(timeType)) {
+  // 已提供 timeType，校验是否在枚举内
+  if (typeof rawTimeType !== "string" || !VALID_TIME_TYPES.includes(rawTimeType as TimeType)) {
     return { ok: false, error: "日程类型非法" };
   }
+  const timeType = rawTimeType as TimeType;
   
   // startTime 校验：fixed 时必填且合法，tbd/allDay 时必须为空
   if (timeType === "fixed") {

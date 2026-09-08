@@ -16,6 +16,7 @@ import {
   weekDates,
 } from "@/features/schedule/dateUtils";
 import { useMediaQuery } from "@/lib/useMediaQuery";
+import { comparePlans, planTimeSlot } from "@/features/schedule/timeType";
 
 const MONTH_MAX_SUMMARIES = 2;
 const WEEK_MAX_SUMMARIES = 4;
@@ -32,7 +33,8 @@ interface CalendarViewProps {
 }
 
 function entryTitle(entry: CalendarEntry): string {
-  return entry.kind === "plan" ? entry.plan.title : entry.record.title;
+  if (entry.kind === "plan") return entry.plan.title;
+  return entry.record.title;
 }
 
 /** 当天 YYYY-MM-DD（本地日期，规避时区）。 */
@@ -74,7 +76,7 @@ function DaySummaries({ entries, isPast, maxSummaries, showEmpty, immersive = fa
                 isHistory ? "bg-vine" : "bg-eye"
               }`}
             />
-            <span className="tabular-nums">{e.startTime}</span> {entryTitle(e)}
+            <span className="tabular-nums">{e.kind === "plan" ? planTimeSlot(e.plan) : e.startTime}</span> {entryTitle(e)}
           </span>
         );
       })}
@@ -158,7 +160,15 @@ export default function CalendarView({ entries, onRangeChange, onSelectDay, vari
       arr.push(e);
       map.set(e.date, arr);
     }
-    for (const arr of map.values()) arr.sort((a, b) => a.startTime.localeCompare(b.startTime));
+    for (const arr of map.values()) {
+      arr.sort((a, b) => {
+        // 历史条目视同 fixed 秩
+        const aRank = a.kind === "plan" ? (a.plan.timeType === "allDay" ? 0 : a.plan.timeType === "fixed" ? 1 : 2) : 1;
+        const bRank = b.kind === "plan" ? (b.plan.timeType === "allDay" ? 0 : b.plan.timeType === "fixed" ? 1 : 2) : 1;
+        if (aRank !== bRank) return aRank - bRank;
+        return (a.startTime ?? "").localeCompare(b.startTime ?? "");
+      });
+    }
     return map;
   }, [entries]);
 

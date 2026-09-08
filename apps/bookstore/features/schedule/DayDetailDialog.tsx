@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import type { StreamPlan } from "@/features/schedule/api";
 import type { CalendarEntry } from "@/features/schedule/mergeEntries";
 import { parseDateStr } from "@/features/schedule/dateUtils";
+import { planTimeSlot, formatPlanLabel } from "@/features/schedule/timeType";
 
 const WEEKDAY_LABEL = ["日", "一", "二", "三", "四", "五", "六"] as const;
 
@@ -58,7 +59,13 @@ export default function DayDetailDialog({
 
   if (!open) return null;
 
-  const sorted = [...entries].sort((a, b) => a.startTime.localeCompare(b.startTime));
+  const sorted = [...entries].sort((a, b) => {
+    // 历史条目视同 fixed 秩
+    const aRank = a.kind === "plan" ? (a.plan.timeType === "allDay" ? 0 : a.plan.timeType === "fixed" ? 1 : 2) : 1;
+    const bRank = b.kind === "plan" ? (b.plan.timeType === "allDay" ? 0 : b.plan.timeType === "fixed" ? 1 : 2) : 1;
+    if (aRank !== bRank) return aRank - bRank;
+    return (a.startTime ?? "").localeCompare(b.startTime ?? "");
+  });
 
   function handleClose() {
     setConfirmId(null);
@@ -111,7 +118,7 @@ export default function DayDetailDialog({
                 className={`flex items-center gap-3 border-b ${divider} py-3 last:border-b-0`}
               >
                 <span className={`w-12 shrink-0 text-right font-display text-sm tabular-nums ${textSub}`}>
-                  {p.startTime}
+                  {planTimeSlot(p)}
                 </span>
                 <span className={`flex-1 text-sm ${textMain}`}>{p.title}</span>
                 {!readOnly && onEdit && onDelete && (
@@ -136,7 +143,7 @@ export default function DayDetailDialog({
                 )}
                 {!readOnly && confirmId === p.id && (
                   <span className="flex shrink-0 items-center gap-2 rounded bg-soft px-2 py-1">
-                    <span className={`text-xs ${textMain}`}>确认删除 {p.startTime} {p.title}？</span>
+                    <span className={`text-xs ${textMain}`}>确认删除 {formatPlanLabel(p)}？</span>
                     <button
                       type="button"
                       onClick={() => {

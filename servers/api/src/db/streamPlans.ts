@@ -1,9 +1,12 @@
 import { Schema, model, type Model } from "mongoose";
 
+export type TimeType = "fixed" | "tbd" | "allDay";
+
 export interface StreamPlanDoc {
   _id: { toString(): string };
   date: string;
-  startTime: string;
+  timeType?: TimeType;
+  startTime?: string;
   title: string;
   createdBy: string;
   createdAt: Date;
@@ -13,7 +16,8 @@ export interface StreamPlanDoc {
 const streamPlanSchema = new Schema<StreamPlanDoc>(
   {
     date: { type: String, required: true, index: true },
-    startTime: { type: String, required: true },
+    timeType: { type: String, enum: ["fixed", "tbd", "allDay"], required: true, default: "fixed" },
+    startTime: { type: String },
     title: { type: String, required: true, trim: true },
     createdBy: { type: String, required: true },
     createdAt: { type: Date, required: true, default: Date.now },
@@ -30,7 +34,8 @@ export const StreamPlanModel: Model<StreamPlanDoc> = model<StreamPlanDoc>(
 export interface StreamPlanOutput {
   id: string;
   date: string;
-  startTime: string;
+  timeType: TimeType;
+  startTime: string | null;
   title: string;
   createdAt: Date;
   updatedAt?: Date;
@@ -40,7 +45,8 @@ function toOutput(doc: StreamPlanDoc): StreamPlanOutput {
   return {
     id: doc._id.toString(),
     date: doc.date,
-    startTime: doc.startTime,
+    timeType: doc.timeType ?? "fixed",
+    startTime: doc.startTime ?? null,
     title: doc.title,
     createdAt: doc.createdAt,
     ...(doc.updatedAt ? { updatedAt: doc.updatedAt } : {}),
@@ -49,18 +55,34 @@ function toOutput(doc: StreamPlanDoc): StreamPlanOutput {
 
 export async function createStreamPlan(input: {
   date: string;
-  startTime: string;
+  timeType: TimeType;
+  startTime: string | null;
   title: string;
   createdBy: string;
 }): Promise<StreamPlanOutput> {
   const doc = new StreamPlanModel({
     date: input.date,
-    startTime: input.startTime,
+    timeType: input.timeType,
+    startTime: input.timeType === "fixed" ? input.startTime : null,
     title: input.title,
     createdBy: input.createdBy,
   });
   await doc.save();
   return toOutput(doc.toObject());
+}
+
+/** 类型秩：allDay 0 / fixed 1 / tbd 2 */
+function timeTypeRank(t: TimeType): number {
+  return t === "allDay" ? 0 : t === "fixed" ? 1 : 2;
+}
+
+/** 比较两个计划：date 升序 → 类型秩 → startTime 升序（null 兜底空串） */
+function comparePlans(a: StreamPlanOutput, b: StreamPlanOutput): number {
+  const dateCmp = a.date.localeCompare(b.date);
+  if (dateCmp !== 0) return dateCmp;
+  const rankCmp = timeTypeRank(a.timeType) - timeTypeRank(b.timeType);
+  if (rankCmp !== 0) return rankCmp;
+  return (a.startTime ?? "").localeCompare(b.startTime ?? "");
 }
 
 export async function listStreamPlans(
@@ -72,30 +94,46 @@ export async function listStreamPlans(
   else if (from) conditions.date = { $gte: from };
   else if (to) conditions.date = { $lte: to };
   const docs = await StreamPlanModel.find(conditions)
-    .sort({ date: 1, startTime: 1 })
+    .sort({ date: 1 })
     .lean();
-  return docs.map(toOutput);
+  const outputs = docs.map(toOutput);
+  outputs.sort(comparePlans);
+  return outputs;
 }
 
-/** 按 (date, startTime, title) 判重；excludeId 时排除自身（编辑场景）。 */
+/** 按 (date, timeType, startTime, title) 判重；excludeId 时排除自身（编辑场景）。 */
 export async function findStreamPlan(
   date: string,
-  startTime: string,
+  timeType: TimeType,
+  startTime: string | null,
   title: string,
   excludeId?: string,
 ): Promise<StreamPlanDoc | null> {
-  const conditions: Record<string, unknown> = { date, startTime, title };
+  const conditions: Record<string, unknown> = {
+    date,
+    timeType,
+    startTime: startTime ?? null,
+    title,
+  };
   if (excludeId) conditions._id = { $ne: excludeId };
   return StreamPlanModel.findOne(conditions).lean();
 }
 
 export async function updateStreamPlan(
   id: string,
-  input: { date: string; startTime: string; title: string },
+  input: { date: string; timeType: TimeType; startTime: string | null; title: string },
 ): Promise<StreamPlanOutput | null> {
   const doc = await StreamPlanModel.findByIdAndUpdate(
     id,
-    { $set: { date: input.date, startTime: input.startTime, title: input.title, updatedAt: new Date() } },
+    {
+      $set: {
+        date: input.date,
+        timeType: input.timeType,
+        startTime: input.timeType === "fixed" ? input.startTime : null,
+        title: input.title,
+        updatedAt: new Date(),
+      },
+    },
     { new: true },
   ).lean();
   return doc ? toOutput(doc) : null;

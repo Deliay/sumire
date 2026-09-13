@@ -149,3 +149,79 @@ describe("NavBar 锚点化", () => {
     mobileArchive.forEach((a) => expect(a.getAttribute("href")).toBe("/#archive-1"));
   });
 });
+
+describe("外链 小密室", () => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    window.history.replaceState(null, "", "/");
+    mockPathname = "/";
+  });
+
+  beforeEach(() => {
+    configured = true;
+    vi.stubGlobal("matchMedia", matchMediaStub);
+    window.scrollY = 0;
+  });
+
+  it("渲染「小密室」链接：href、target、rel 正确", () => {
+    render(<NavBar siteName="枝堇" tools={tools} />);
+    const link = screen.getByRole("link", { name: "小密室" });
+    expect(link.getAttribute("href")).toBe("https://sumire.icu");
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.getAttribute("rel")).toContain("noopener");
+    expect(link.getAttribute("rel")).toContain("noreferrer");
+  });
+
+  it("首页任意 hash 下无 aria-current", () => {
+    render(<NavBar siteName="枝堇" tools={tools} />);
+    const link = screen.getByRole("link", { name: "小密室" });
+    expect(link.getAttribute("aria-current")).toBeNull();
+    window.history.replaceState(null, "", "#archive-1");
+    act(() => {
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    });
+    expect(link.getAttribute("aria-current")).toBeNull();
+  });
+
+  it("非首页路由下无 aria-current", () => {
+    mockPathname = "/about";
+    render(<NavBar siteName="枝堇" tools={tools} />);
+    const link = screen.getByRole("link", { name: "小密室" });
+    expect(link.getAttribute("aria-current")).toBeNull();
+  });
+
+  it("首页内点击「小密室」：无事件派发、hash 不变", () => {
+    const spy = vi.fn();
+    window.addEventListener("sumire:navigate", spy);
+    render(<NavBar siteName="枝堇" tools={tools} />);
+    act(() => {
+      fireEvent.click(screen.getByRole("link", { name: "小密室" }));
+    });
+    expect(spy).toHaveBeenCalledTimes(0);
+    expect(window.location.hash).toBe("");
+    window.removeEventListener("sumire:navigate", spy);
+  });
+
+  it("移动端双份渲染且属性一致", () => {
+    render(<NavBar siteName="枝堇" tools={tools} />);
+    act(() => {
+      (screen.getByRole("button", { name: "打开菜单" }) as HTMLButtonElement).click();
+    });
+    const mobileLinks = screen.getAllByRole("link", { name: "小密室" });
+    expect(mobileLinks.length).toBe(2);
+    mobileLinks.forEach((link) => {
+      expect(link.getAttribute("href")).toBe("https://sumire.icu");
+      expect(link.getAttribute("target")).toBe("_blank");
+      expect(link.getAttribute("rel")).toContain("noopener");
+      expect(link.getAttribute("rel")).toContain("noreferrer");
+    });
+  });
+
+  it("configured = false 时「小密室」仍渲染", () => {
+    configured = false;
+    vi.resetModules();
+    render(<NavBar siteName="枝堇" tools={tools} />);
+    expect(screen.getByRole("link", { name: "小密室" })).toBeTruthy();
+  });
+});

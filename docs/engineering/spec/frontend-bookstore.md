@@ -186,7 +186,7 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 
 - 同 `/topics` 路由：无 `id` 查询串时渲染 `TopicsOngoingPage` 进行中列表（`GET /api/topics/public`，无需鉴权）
 - 列表项卡片：标题 + 描述截断 + 起止时间，整卡 Link → `/topics?id={topicId}`；空态「暂无进行中的棉花糖」
-- NavBar 追加「棉花糖」入口（独立路由链接 `/topics`，不走首页 deck 锚点翻页，选中态 `pathname === "/topics"`，移动端折叠菜单同步；仅 `API_CONFIGURED` 时显示，照「日历」过滤口径）；NavBar 保持 `fixed inset-x-0 top-0`，不随页面滑动
+- NavBar 追加「棉花糖」入口（独立路由链接 `/topics`，不走首页 deck 锚点翻页，选中态 `pathname === "/topics"`，移动端折叠菜单同步；仅 `API_CONFIGURED` 时显示，照「日历」过滤口径）；NavBar 保持 `fixed inset-x-0 top-0`，不随页面滑动；导航列表末尾固定外链项「小密室」（`https://sumire.icu`，新窗口打开，`rel="noopener noreferrer"`），不参与站内锚点选中态与 NAVIGATE_EVENT，恒显示不受 API 配置降级影响；外链项以 `EXTERNAL_LINKS` 常量定义，渲染时走独立分支（原生 `<a>` 标签，不使用 `next/link`），与站内项通过 `isExternal` 辅助函数区分。
 
 SideNav `NAV_ITEMS` 追加 `{ href: "/backdoor/topics", label: "棉花糖", roles: ["superadmin", "admin"] }`。
 

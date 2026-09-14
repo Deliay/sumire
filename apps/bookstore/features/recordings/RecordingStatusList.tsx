@@ -1,15 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { getRecordingStatus, liveAudioUrl, type RecordingStatusItem } from "@/features/recordings/api";
+import { useState } from "react";
+import { liveAudioUrl } from "@/features/recordings/api";
 import LiveAudioButton from "@/features/recordings/LiveAudioButton";
-
-const POLL_INTERVAL = 30_000;
-
-type StatusState =
-  | { kind: "loading" }
-  | { kind: "ok"; items: RecordingStatusItem[] }
-  | { kind: "degraded" };
+import type { RecordingStatusState } from "@/features/recordings/useRecordingStatus";
 
 function formatUpdatedAt(iso: string): string {
   const date = new Date(iso);
@@ -22,55 +16,9 @@ function formatUpdatedAt(iso: string): string {
   });
 }
 
-/**
- * 实时录制状态列表（F2）+ 听直播（F3）：首拉 + 30s 轮询，页面隐藏时暂停、恢复可见即刷。
- */
-export default function RecordingStatusList() {
-  const [state, setState] = useState<StatusState>({ kind: "loading" });
+/** 实时录制状态列表（F2）+ 听直播（F3）：展示层，数据由 useRecordingStatus 提供。 */
+export default function RecordingStatusList({ state }: { state: RecordingStatusState }) {
   const [playingRoomId, setPlayingRoomId] = useState<number | null>(null);
-  const timerRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    let active = true;
-
-    const run = async () => {
-      const res = await getRecordingStatus();
-      if (!active) return;
-      setState(res.ok ? { kind: "ok", items: res.items } : { kind: "degraded" });
-    };
-
-    const start = () => {
-      if (timerRef.current !== null) return;
-      timerRef.current = window.setInterval(() => {
-        void run();
-      }, POLL_INTERVAL);
-    };
-
-    const stop = () => {
-      if (timerRef.current !== null) {
-        window.clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    };
-
-    const onVisibilityChange = () => {
-      if (document.hidden) {
-        stop();
-      } else {
-        void run();
-        start();
-      }
-    };
-
-    void run();
-    start();
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => {
-      active = false;
-      stop();
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-    };
-  }, []);
 
   return (
     <section aria-labelledby="recording-status-heading" className="flex flex-col gap-4">

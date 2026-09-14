@@ -105,8 +105,8 @@ describe("RecordingsApp 门控与状态列表", () => {
     ]);
     const { container } = render(<RecordingsApp />);
 
-    expect(await screen.findByText("枝堇")).toBeTruthy();
-    expect(screen.getByText("另一间")).toBeTruthy();
+    expect((await screen.findAllByText("枝堇")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("另一间").length).toBeGreaterThan(0);
     expect(screen.getByText("录制中")).toBeTruthy();
     expect(screen.getByText("未在直播")).toBeTruthy();
     expect(screen.getByText("夜读会")).toBeTruthy();
@@ -168,7 +168,7 @@ describe("听直播", () => {
       statusItem({ roomId: 2, mid: 200, streamerName: "另一间", state: "not_live" }),
     ]);
     render(<RecordingsApp />);
-    await screen.findByText("枝堇");
+    await screen.findAllByText("枝堇");
 
     const buttons = screen.getAllByRole("button", { name: /听直播/ });
     expect(buttons).toHaveLength(1);
@@ -191,7 +191,7 @@ describe("听直播", () => {
   it("切换到另一房间：旧 player destroy、新 player 创建（全局单例）", async () => {
     mockStatus([statusItem({ roomId: 1 }), statusItem({ roomId: 2, mid: 200, streamerName: "另一间" })]);
     render(<RecordingsApp />);
-    await screen.findByText("枝堇");
+    await screen.findAllByText("枝堇");
 
     await act(async () => {
       fireEvent.click(screen.getAllByRole("button", { name: /听直播/ })[0]);
@@ -208,7 +208,7 @@ describe("听直播", () => {
   it("组件卸载销毁 player", async () => {
     mockStatus([statusItem({ roomId: 1 })]);
     const { unmount } = render(<RecordingsApp />);
-    await screen.findByText("枝堇");
+    await screen.findAllByText("枝堇");
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /听直播/ }));

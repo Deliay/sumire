@@ -55,12 +55,12 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 
 ## 录播（features/recordings）
 
-纯前端模块，直连外部录播服务（无 `servers/api`/契约/编排变更）。基址 `NEXT_PUBLIC_RECORDINGS_BASE_URL` 构建期注入，`RECORDINGS_CONFIGURED` 门控；请求不带凭据（公开只读独立基址，不复用后台 `request()`）。
+纯前端模块，直连外部录播服务（无 `servers/api`/契约变更）。基址 `NEXT_PUBLIC_RECORDINGS_BASE_URL` 构建期注入（生产由 `deploy.yml` 注入外网地址；本地由 `infra/aspire/apphost.cs` 注入内网地址，可用同名 host 环境变量覆盖），`RECORDINGS_CONFIGURED` 门控；请求不带凭据（公开只读独立基址，不复用后台 `request()`）。
 
 - `api.ts`：导出 `RECORDINGS_BASE_URL`/`RECORDINGS_CONFIGURED` 与类型 `RecordingStatusItem`/`RecordingFile`；`joinUrl(base,path)` 归一拼接（单斜杠）、`liveAudioUrl(roomId)`、`recordingFileUrl(roomId,fileName)`（`encodeURIComponent`）；`getRecordingStatus()`（`{ok,items}`，归一化 `streamer.name→streamerName`、未知 `state→not_live`、缺 `sessionTitle→null`）、`getRoomRecordings(roomId)`（`{ok,files}`，过滤非法项）；未配置或非 200/非法 JSON/fetch 失败均静默降级 `{ok:false,...}`。
 - `useRecordingStatus.ts`：首拉 + 30s 轮询 + `visibilitychange` 暂停/恢复即刷；未配置时不发请求。
-- `player.ts`：全局单例播放器，mpegts.js 经浏览器端**动态 `import`**（避免 SSG 期求值 `self` 导致构建失败）；`play(url,videoEl,{isLive,onError})` 前先 `destroy` 旧实例、以代次号丢弃加载期被取代的实例；`destroyPlayer`/`pausePlayer`/`resumePlayer`/`isPlaybackSupported`。
-- 组件：`RecordingsApp`（页主体，装配状态列表 + 录播列表 + 播放区，持有选中文件 state）、`RecordingStatusList`（F2/F3 展示层 + 听直播按钮）、`LiveAudioButton`（单例音频流，录制中房间渲染）、`RoomRecordingsGroup`（F4 折叠展开 + 按需拉取一次 + `createdAt` 倒序 + 20/页前端分页 + 分组内错误重试）、`FlvPlayerPanel`（F5 顺序流播放 + `isPlaybackSupported()` 降级 + 原生下载）、`RecordingsEmpty`、`format.ts`（`formatFileSize`/`formatCreatedAt`）。
+- `player.ts`：全局单例播放器，mpegts.js 经浏览器端**动态 `import`**（避免 SSG 期求值 `self` 导致构建失败）；记录当前播放归属 `currentUrl` 并对外暴露 `subscribePlayer`/`getPlayingUrl`（`useSyncExternalStore` 供组件校正播放态）；`destroyPlayer(url?)` 传入 url 时**仅当当前播放归属匹配才销毁**（组件卸载清理不误断他路播放）；`play(url,videoEl,{isLive,onError})` 前先销毁旧实例、以代次号丢弃加载期被取代的实例；`pausePlayer`/`resumePlayer`/`isPlaybackSupported`。
+- 组件：`RecordingsApp`（页主体，装配状态列表 + 录播列表 + 播放区，持有选中文件 state）、`RecordingStatusList`（F2/F3 展示层 + 听直播按钮）、`LiveAudioButton`（单例音频流，录制中房间渲染；播放归属由全局单例维护，他处接管自动复位）、`RoomRecordingsGroup`（F4 折叠展开 + 按需拉取一次 + `createdAt` 倒序 + 20/页前端分页 + 分组内错误重试且重试重置页码）、`FlvPlayerPanel`（F5 顺序流播放 + `isPlaybackSupported()` 降级 + 原生下载；被其它流接管时复位为可重播）、`RecordingsEmpty`、`format.ts`（`formatFileSize`/`formatCreatedAt`）。
 - `app/(site)/(content)/recordings/page.tsx`：服务端壳，`metadata` + `RECORDINGS_CONFIGURED` 守卫（未配置渲染 `RecordingsEmpty reason="unconfigured"`，对齐 `/calendar` 的构建时守卫模式）。
 - 依赖：`mpegts.js`（唯一新增运行时依赖）。
 

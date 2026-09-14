@@ -1,29 +1,24 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Headphones, Square } from "lucide-react";
-import { destroyPlayer, play } from "@/features/recordings/player";
-
-interface LiveAudioButtonProps {
-  roomId: number;
-  url: string;
-  playing: boolean;
-  onStarted: () => void;
-  onStopped: () => void;
-}
+import { destroyPlayer, getPlayingUrl, play, subscribePlayer } from "@/features/recordings/player";
 
 /** 「听直播」按钮：点击经全局单例 player 播放实时音频流，播放中变「停止」。 */
-export default function LiveAudioButton({ url, playing, onStarted, onStopped }: LiveAudioButtonProps) {
+export default function LiveAudioButton({ url }: { url: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [failed, setFailed] = useState(false);
+  // 播放归属由全局单例维护：他处接管播放时本按钮自动复位为「听直播」
+  const activeUrl = useSyncExternalStore(subscribePlayer, getPlayingUrl, () => null);
+  const playing = activeUrl === url;
 
-  useEffect(() => () => destroyPlayer(), []);
+  // 卸载清理仅销毁本组件所属的流，避免误断其它组件正在播放的流
+  useEffect(() => () => destroyPlayer(url), [url]);
 
   const handleClick = () => {
     if (playing) {
-      destroyPlayer();
+      destroyPlayer(url);
       setFailed(false);
-      onStopped();
       return;
     }
     const video = videoRef.current;
@@ -33,10 +28,9 @@ export default function LiveAudioButton({ url, playing, onStarted, onStopped }: 
       isLive: true,
       onError: () => {
         setFailed(true);
-        onStopped();
+        destroyPlayer(url);
       },
     });
-    onStarted();
   };
 
   return (

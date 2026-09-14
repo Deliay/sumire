@@ -38,6 +38,7 @@ export default function RoomRecordingsGroup({
   const [page, setPage] = useState(1);
 
   const load = async () => {
+    setPage(1);
     setState({ kind: "loading" });
     const res = await getRoomRecordings(roomId);
     setState(res.ok ? { kind: "ok", files: res.files } : { kind: "error" });

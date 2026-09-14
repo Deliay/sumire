@@ -59,11 +59,11 @@ vi.mock("mpegts.js", () => ({
   },
 }));
 
-const room = (roomId: number, streamerName: string) => ({
+const room = (roomId: number, streamerName: string, state = "not_live") => ({
   roomId,
   mid: roomId * 100,
   streamerName,
-  state: "not_live",
+  state,
   sessionTitle: null,
   updatedAt: "2026-09-14T12:00:00.000Z",
 });
@@ -202,5 +202,35 @@ describe("FLV 在线预览", () => {
     await vi.waitFor(() => expect(mp.players).toHaveLength(1));
     cleanup();
     expect(mp.players[0].destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it("被「听直播」接管后播放区复位，可重新播放录播", async () => {
+    h.getRecordingStatus.mockResolvedValue({ ok: true, items: [room(1, "枝堇", "recording")] });
+    h.getRoomRecordings.mockResolvedValue({ ok: true, files: [file("回放.flv")] });
+    render(<RecordingsApp />);
+
+    const header = await screen.findByRole("button", { name: /枝堇/ });
+    await act(async () => {
+      fireEvent.click(header);
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "回放.flv" }));
+    });
+    expect(await screen.findByRole("button", { name: "暂停" })).toBeTruthy();
+    expect(mp.players).toHaveLength(1);
+
+    // 「听直播」接管：录播预览失去播放归属，按钮复位为「播放」
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "听直播" }));
+    });
+    await vi.waitFor(() => expect(mp.players).toHaveLength(2));
+    expect(await screen.findByRole("button", { name: "播放" })).toBeTruthy();
+
+    // 点击「播放」重新加载录播
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "播放" }));
+    });
+    await vi.waitFor(() => expect(mp.players).toHaveLength(3));
+    expect(await screen.findByRole("button", { name: "暂停" })).toBeTruthy();
   });
 });

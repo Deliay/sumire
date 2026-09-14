@@ -1,9 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Download, Pause, Play, Volume2, X } from "lucide-react";
 import { recordingFileUrl, type RecordingFile } from "@/features/recordings/api";
-import { destroyPlayer, isPlaybackSupported, pausePlayer, play, resumePlayer } from "@/features/recordings/player";
+import {
+  destroyPlayer,
+  getPlayingUrl,
+  isPlaybackSupported,
+  pausePlayer,
+  play,
+  resumePlayer,
+  subscribePlayer,
+} from "@/features/recordings/player";
 
 interface FlvPlayerPanelProps {
   roomId: number;
@@ -23,12 +31,32 @@ function formatClock(seconds: number): string {
 export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanelProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [supported, setSupported] = useState<boolean | null>(null);
-  const [playing, setPlaying] = useState(true);
+  const [paused, setPaused] = useState(false);
   const [failed, setFailed] = useState(false);
   const [volume, setVolume] = useState(1);
   const [currentTime, setCurrentTime] = useState(0);
 
   const url = recordingFileUrl(roomId, file.name);
+
+  // 播放归属由全局单例维护：被「听直播」等其它流接管时自动复位为未播放
+  const activeUrl = useSyncExternalStore(subscribePlayer, getPlayingUrl, () => null);
+  const owns = activeUrl === url;
+  const playing = owns && !paused;
+
+  const start = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    setFailed(false);
+    setPaused(false);
+    setCurrentTime(0);
+    void play(url, video, {
+      isLive: false,
+      onError: () => {
+        setFailed(true);
+        destroyPlayer(url);
+      },
+    });
+  }, [url]);
 
   useEffect(() => {
     let active = true;
@@ -42,37 +70,31 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
 
   useEffect(() => {
     if (supported !== true) return;
-    const video = videoRef.current;
-    if (!video) return;
-    setFailed(false);
-    setPlaying(true);
-    setCurrentTime(0);
-    void play(url, video, {
-      isLive: false,
-      onError: () => {
-        setFailed(true);
-        setPlaying(false);
-      },
-    });
-    return () => destroyPlayer();
-  }, [url, supported]);
+    start();
+    return () => destroyPlayer(url);
+  }, [url, supported, start]);
 
   useEffect(() => {
     if (videoRef.current) videoRef.current.volume = volume;
   }, [volume]);
 
   const togglePlay = () => {
-    if (playing) {
-      pausePlayer();
-      setPlaying(false);
-    } else {
+    if (!owns) {
+      // 本流已被接管或已停止：重新加载本录播
+      start();
+      return;
+    }
+    if (paused) {
       resumePlayer();
-      setPlaying(true);
+      setPaused(false);
+    } else {
+      pausePlayer();
+      setPaused(true);
     }
   };
 
   const handleClose = () => {
-    destroyPlayer();
+    destroyPlayer(url);
     onClose();
   };
 

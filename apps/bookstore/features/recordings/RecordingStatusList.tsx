@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { liveAudioUrl } from "@/features/recordings/api";
 import LiveAudioButton from "@/features/recordings/LiveAudioButton";
 import type { RecordingStatusState } from "@/features/recordings/useRecordingStatus";
@@ -18,8 +17,6 @@ function formatUpdatedAt(iso: string): string {
 
 /** 实时录制状态列表（F2）+ 听直播（F3）：展示层，数据由 useRecordingStatus 提供。 */
 export default function RecordingStatusList({ state }: { state: RecordingStatusState }) {
-  const [playingRoomId, setPlayingRoomId] = useState<number | null>(null);
-
   return (
     <section aria-labelledby="recording-status-heading" className="flex flex-col gap-4">
       <h2 id="recording-status-heading" className="font-serif text-h2 text-ink">
@@ -70,15 +67,7 @@ export default function RecordingStatusList({ state }: { state: RecordingStatusS
                   <time dateTime={item.updatedAt} className="text-tiny text-ink-dim">
                     更新于 {formatUpdatedAt(item.updatedAt)}
                   </time>
-                  {recording && (
-                    <LiveAudioButton
-                      roomId={item.roomId}
-                      url={liveAudioUrl(item.roomId)}
-                      playing={playingRoomId === item.roomId}
-                      onStarted={() => setPlayingRoomId(item.roomId)}
-                      onStopped={() => setPlayingRoomId((current) => (current === item.roomId ? null : current))}
-                    />
-                  )}
+                  {recording && <LiveAudioButton url={liveAudioUrl(item.roomId)} />}
                 </div>
               </li>
             );

@@ -14,7 +14,7 @@ cd tests/e2e && BOOKSTORE_BASE_URL=http://localhost:<bookstore-port> \
   pnpm test
 ```
 
-`BOOKSTORE_BASE_URL` 必填；`API_BASE_URL` 供 globalSetup 准备账号与 spec 内建号使用。
+`BOOKSTORE_BASE_URL` 必填；`API_BASE_URL` 供 globalSetup 准备账号与 spec 内建号使用。`aspire start` 会为 bookstore 注入非空 `NEXT_PUBLIC_RECORDINGS_BASE_URL`（`apphost.cs` 回退内网地址，可用同名 host 环境变量覆盖），录播页 e2e 依赖该门控为真、并以 `page.route` 拦截浏览器侧请求（基址值本身不参与真实网络）。
 
 ### 未配置形态（独立命令）
 
@@ -41,3 +41,4 @@ cd tests/e2e && pnpm test:unconfigured
 - 预置账号带运行标识后缀，避免与 `tests/api` 基态相互污染；
 - 改密类用例自建独立账号，不改动其它用例共享的预置账号密码；
 - 历史直播混合展示/降级用例用 Playwright `page.route` 拦截 `**/api/live-history` 返回 mock 体（历史记录 `startDate` 取当日本地 00:00，保证归入当日且已过），不在 e2e 依赖内网上游可用。
+- 录播页用例（`src/bookstore/recordings.spec.ts`）用 `page.route("**/api/b/live/**")` 拦截录播服务四组端点返回夹具，不依赖内网录播服务；`NEXT_PUBLIC_RECORDINGS_BASE_URL` 由 `apphost.cs` 注入非空值即可。

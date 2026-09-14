@@ -185,7 +185,7 @@ describe("听直播", () => {
     });
     expect(mp.players[0].attachMediaElement).toHaveBeenCalledTimes(1);
     expect(mp.players[0].load).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("button", { name: /停止/ })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: /停止/ })).toBeTruthy();
   });
 
   it("切换到另一房间：旧 player destroy、新 player 创建（全局单例）", async () => {
@@ -217,5 +217,34 @@ describe("听直播", () => {
 
     unmount();
     expect(mp.players[0].destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it("其他房间卸载不打断正在播放的流（卸载清理按归属判断）", async () => {
+    vi.useFakeTimers();
+    mockStatus([statusItem({ roomId: 1 }), statusItem({ roomId: 2, mid: 200, streamerName: "另一间" })]);
+    render(<RecordingsApp />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getAllByRole("button", { name: /听直播/ })).toHaveLength(2);
+
+    // 播放房间 1
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole("button", { name: /听直播/ })[0]);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(mp.players).toHaveLength(1);
+    expect(screen.getByRole("button", { name: /停止/ })).toBeTruthy();
+
+    // 房间 2 翻转为未在直播 → 其「听直播」按钮卸载，但不得切断房间 1 的播放
+    mockStatus([statusItem({ roomId: 1 })]);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+
+    expect(mp.players[0].destroy).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /停止/ })).toBeTruthy();
   });
 });

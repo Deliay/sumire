@@ -6,9 +6,30 @@ type MpegtsPlayer = ReturnType<Mpegts["createPlayer"]>;
 
 /** 全局唯一 player 实例引用（保证任何时刻至多一路播放）。 */
 let currentPlayer: MpegtsPlayer | null = null;
+/** 当前播放归属的流地址（用于卸载清理按归属判断、供组件校正 UI）。 */
+let currentUrl: string | null = null;
 let loadPromise: Promise<Mpegts> | null = null;
 /** 播放代次：play 异步加载期间被 destroy/supersede 时用于丢弃过期实例。 */
 let generation = 0;
+
+const listeners = new Set<() => void>();
+
+function emit(): void {
+  for (const listener of listeners) listener();
+}
+
+/** 订阅当前播放归属变化（供组件以 useSyncExternalStore 校正播放态）。 */
+export function subscribePlayer(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+/** 当前正在播放的流地址（无播放为 null）。 */
+export function getPlayingUrl(): string | null {
+  return currentUrl;
+}
 
 function loadMpegts(): Promise<Mpegts> {
   loadPromise ??= import("mpegts.js").then((mod) => mod.default);
@@ -26,20 +47,29 @@ export async function isPlaybackSupported(): Promise<boolean> {
   return mpegts.isSupported();
 }
 
-/** 销毁当前 player（幂等）；组件卸载/切换流前调用。 */
-export function destroyPlayer(): void {
+/**
+ * 销毁当前 player（幂等）。
+ * 传入 `url` 时仅当当前播放正归属该 url 才销毁——组件卸载清理用，避免误断其它组件的播放。
+ */
+export function destroyPlayer(url?: string): void {
+  if (url !== undefined && currentUrl !== url) return;
   generation += 1;
-  if (!currentPlayer) return;
-  try {
-    currentPlayer.destroy();
-  } catch {
-    // destroy 失败忽略，避免影响 UI 复位
+  if (currentPlayer) {
+    try {
+      currentPlayer.destroy();
+    } catch {
+      // destroy 失败忽略，避免影响 UI 复位
+    }
   }
+  const changed = currentPlayer !== null || currentUrl !== null;
   currentPlayer = null;
+  currentUrl = null;
+  if (changed) emit();
 }
 
 /** 以 FLV 加载指定 url（先销毁旧实例，保证单例）。 */
 export async function play(url: string, videoEl: HTMLVideoElement, options: PlayOptions): Promise<void> {
+  if (currentUrl === url && currentPlayer) return;
   destroyPlayer();
   const token = generation;
   const mpegts = await loadMpegts();
@@ -53,6 +83,8 @@ export async function play(url: string, videoEl: HTMLVideoElement, options: Play
   player.load();
   void player.play();
   currentPlayer = player;
+  currentUrl = url;
+  emit();
 }
 
 /** 暂停当前 player（无实例时忽略）。 */

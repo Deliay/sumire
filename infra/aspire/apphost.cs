@@ -44,7 +44,10 @@ var bookstore = builder
     .WithHttpEndpoint(env: "PORT")
     .WithExternalHttpEndpoints()
     .WithReference(api)
-    .WithEnvironment("NEXT_PUBLIC_API_BASE_URL", api.GetEndpoint("http"));
+    .WithEnvironment("NEXT_PUBLIC_API_BASE_URL", api.GetEndpoint("http"))
+    // 录播服务基址：未设置编排进程环境变量时回退内网地址，保证 aspire start / e2e 开箱即用
+    // （e2e 以 page.route 拦截浏览器侧请求，基址只需非空）
+    .WithEnvironment("NEXT_PUBLIC_RECORDINGS_BASE_URL", Environment.GetEnvironmentVariable("NEXT_PUBLIC_RECORDINGS_BASE_URL") ?? "http://vtuber.internal.fffdan.com");
 
 // api 的 CORS 白名单引用 bookstore 端点（声明在 bookstore 之后）
 api.WithEnvironment("CORS_ORIGINS", bookstore.GetEndpoint("http"));

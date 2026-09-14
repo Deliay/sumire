@@ -1,14 +1,17 @@
 "use client";
 
-import { RECORDINGS_CONFIGURED } from "@/features/recordings/api";
+import { useState } from "react";
+import { RECORDINGS_CONFIGURED, type RecordingFile } from "@/features/recordings/api";
 import RecordingsEmpty from "@/features/recordings/RecordingsEmpty";
 import RecordingStatusList from "@/features/recordings/RecordingStatusList";
 import RoomRecordingsGroup from "@/features/recordings/RoomRecordingsGroup";
+import FlvPlayerPanel from "@/features/recordings/FlvPlayerPanel";
 import { useRecordingStatus } from "@/features/recordings/useRecordingStatus";
 
 /** 录播页客户端主体：实时录制状态（F2/F3）+ 录播列表（F4）+ 播放区（F5）。 */
 export default function RecordingsApp() {
   const status = useRecordingStatus();
+  const [selected, setSelected] = useState<{ roomId: number; file: RecordingFile } | null>(null);
 
   if (!RECORDINGS_CONFIGURED) {
     return (
@@ -38,11 +41,21 @@ export default function RecordingsApp() {
                 <RoomRecordingsGroup
                   roomId={item.roomId}
                   streamerName={item.streamerName || `直播间 ${item.roomId}`}
+                  onSelectFile={(file) => setSelected({ roomId: item.roomId, file })}
+                  selectedFileName={selected?.roomId === item.roomId ? selected.file.name : null}
                 />
               </li>
             ))}
           </ul>
         </section>
+      )}
+
+      {selected && (
+        <FlvPlayerPanel
+          roomId={selected.roomId}
+          file={selected.file}
+          onClose={() => setSelected(null)}
+        />
       )}
     </div>
   );

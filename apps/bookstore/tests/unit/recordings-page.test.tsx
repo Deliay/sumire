@@ -35,7 +35,7 @@ interface MockPlayer {
 
 const mp = vi.hoisted(() => {
   const players: MockPlayer[] = [];
-  const createPlayer = vi.fn((_source: unknown) => {
+  const createPlayer = vi.fn<(source: unknown) => MockPlayer>(() => {
     const player: MockPlayer = {
       destroy: vi.fn(),
       attachMediaElement: vi.fn(),

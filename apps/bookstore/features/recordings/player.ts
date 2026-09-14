@@ -31,3 +31,13 @@ export function play(url: string, videoEl: HTMLVideoElement, options: PlayOption
   void player.play();
   currentPlayer = player;
 }
+
+/** 暂停当前 player（无实例时忽略）。 */
+export function pausePlayer(): void {
+  currentPlayer?.pause();
+}
+
+/** 继续播放当前 player（无实例时忽略）。 */
+export function resumePlayer(): void {
+  void currentPlayer?.play();
+}

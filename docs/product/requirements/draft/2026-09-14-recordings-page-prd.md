@@ -6,7 +6,7 @@ type: Fleeting
 # 录播页（Recordings Page）
 
 **功能名称**: 录播页（Recordings Page）
-**PRD 版本**: v1.0
+**PRD 版本**: v1.1（返工修订：数据通路改为前端直连录播服务，线上 CDN 已配置跨域，本地开发内部接口走转发，无需本站 API 代理）
 **创建日期**: 2026-09-14
 **作者**: sumire workflow
 
@@ -16,7 +16,7 @@ type: Fleeting
 
 录播服务（内网 `http://vtuber.internal.fffdan.com`，外网 `https://recordings.vtuber.fffdan.com`）已对本社主播直播间进行自动录制，并提供录制状态、录播文件列表、单场录播文件与实时直播音频流四组 API。本站（堇色书屋）目前没有任何录播相关内容入口，访客无法获知录制状态，也无法回听录播。
 
-经实测，上游服务响应无 CORS 头（`OPTIONS` 预检 405、无 `Access-Control-Allow-Origin`），浏览器无法从前端源站直接跨域调用，需由本站 API（`servers/api`）按既有「上游代理 + 短缓存 + 静默降级」模式（参照 live-status / live-history）进行中转。
+数据通路：线上 CDN 已为站点源（`https://sumire.live`）配置跨域放行（实测返回 `Access-Control-Allow-Origin: https://sumire.live`），前端构建产物可直接跨域调用外网录播服务；本地开发时内部接口走转发，无需额外跨域设置。因此本期为**纯前端功能**，不改动 `servers/api`、不新增契约。
 
 导航现态以 `docs/product/spec/site-pages.md` 与 `apps/bookstore/components/NavBar.tsx` 为准：导航末尾现有「小密室」外链项（`https://sumire.icu`，2026-09-13 上线）。本期将其从导航下架，移至 Footer 外链区，腾出导航位置给「录播」。
 
@@ -33,7 +33,7 @@ type: Fleeting
 - [ ] 点击录播文件可在线播放，也可下载到本地；
 - [ ] 桌面端与移动端导航均出现「录播」，点击跳转 `/recordings`，且在 `/recordings` 下呈现选中态；
 - [ ] 导航中不再出现「小密室」；Footer 外链区出现「小密室」（`https://sumire.icu`，新窗口打开）；
-- [ ] 上游不可用 / 未配置 API 时页面静默降级（空态提示），不产生报错页。
+- [ ] 上游不可用 / 未配置录播服务地址时页面静默降级（空态提示），不产生报错页。
 
 ## 二、用户分析
 
@@ -53,9 +53,9 @@ type: Fleeting
 
 ### 3.1 功能概述
 
-本期新增公开页 `/recordings`（置于 `(site)/(content)` 路由组，自动获得 NavBar + Footer 外壳），数据全部来自录播服务四组 API（经本站 API 代理，详见技术提案）；同步调整导航与 Footer。登录态无关：全部功能面向匿名访客。
+本期新增公开页 `/recordings`（置于 `(site)/(content)` 路由组，自动获得 NavBar + Footer 外壳），数据由前端**直连录播服务**四组 API（基址由构建期环境变量注入：生产为外网地址，本地开发为转发后的内网地址；详见技术提案）。登录态无关：全部功能面向匿名访客。本站不存储任何录播数据。
 
-上游 API（单一事实源为录播服务，本站不存储任何录播数据）：
+上游 API（录播服务为单一事实源）：
 
 | 上游端点 | 用途 | 实测响应要点 |
 |----------|------|--------------|
@@ -72,7 +72,7 @@ type: Fleeting
 
 - 导航栏新增「录播」站内路由项，指向 `/recordings`，位置在「日历/棉花糖」之后、工具项之前（与既有独立路由项同组）；
 - 该项在 `/recordings` 路由下呈现选中态高亮；首页内点击不触发 deck 翻页（独立路由跳转，与「棉花糖」一致）；
-- 仅 `NEXT_PUBLIC_API_BASE_URL` 已配置（`API_CONFIGURED`）时显示（与「日历」「棉花糖」的门控一致）；未配置时不渲染该入口；
+- 仅录播服务地址已配置（构建期环境变量非空）时显示（与「日历」「棉花糖」按 `API_CONFIGURED` 门控的先例一致）；未配置时不渲染该入口；
 - 导航移除「小密室」外链项；Footer 外链区（B 站空间 / 直播间 / 萌娘百科之后）新增「小密室」，指向 `https://sumire.icu`，`target="_blank"` + `rel="noopener noreferrer"`，样式与既有 Footer 外链一致。
 
 **验收标准**:
@@ -81,7 +81,7 @@ type: Fleeting
 - [ ] `/recordings` 下「录播」项有 `aria-current` 选中态；其他路由下无；
 - [ ] 导航（桌面 + 移动）不再渲染「小密室」；
 - [ ] Footer 渲染「小密室」外链，`href="https://sumire.icu"`、`target="_blank"`、`rel` 含 `noopener` 与 `noreferrer`；
-- [ ] 未配置 API 时「录播」入口不显示，Footer「小密室」仍显示（Footer 为纯静态）；
+- [ ] 未配置录播服务地址时「录播」入口不显示，Footer「小密室」仍显示（Footer 为纯静态）；
 - [ ] 既有导航项（主页/档案/素材/日历/棉花糖/工具项）行为零回归。
 
 #### F2 实时录制状态列表
@@ -163,8 +163,8 @@ type: Fleeting
 
 | 情况 | 预期行为 |
 |------|----------|
-| 未配置 API（`API_CONFIGURED=false`） | 导航无「录播」入口；直接访问 `/recordings` 展示「服务未配置」空态，不发起请求 |
-| 上游录播服务不可用 | 各区块静默降级为空态/错误态，页面不白屏、无 5xx 传导 |
+| 未配置录播服务地址 | 导航无「录播」入口；直接访问 `/recordings` 展示「服务未配置」空态，不发起请求 |
+| 上游录播服务不可用 | 各区块静默降级为空态/错误态，页面不白屏 |
 | `recording-status` 中直播间无任何录播文件 | 分组可展开，展示「暂无录播」 |
 | 录播文件在播放/下载途中被上游删除 | 播放区/下载报错提示，列表下次刷新后该项消失 |
 | 文件名含中文与特殊字符 | 正确编码请求路径，下载文件名保持原样 |
@@ -176,13 +176,12 @@ type: Fleeting
 ### 4.1 性能
 
 - 站点为静态导出（SSG），本页动态数据全部客户端按需拉取；录制状态 30s 轮询，录播文件列表仅展开时拉取一次；
-- 音频流与 FLV 预览为流式传输，前端不做整文件缓冲；大文件（实测单场可达数 GB）下载交给浏览器原生下载；
-- 代理层对媒体流不做缓存（`no-store`），对元数据接口做短 TTL 缓存（对齐 live-status 30s 模式）。
+- 音频流与 FLV 预览为流式传输，前端直连上游、不做整文件缓冲；大文件（实测单场可达数 GB）下载交给浏览器原生下载，流量不经本站中转。
 
 ### 4.2 安全性
 
 - 全部端点公开只读，不涉及登录态与用户数据；
-- 代理仅放行白名单化的上游路径（roomId 数字校验、fileName 防路径穿越），不开放任意 URL 转发；
+- 录播服务基址为构建期固定值，不接受运行时输入；`roomId`/`fileName` 仅作路径编码拼接，前端校验格式后请求；
 - 页面渲染文件名、场次标题等上游文本时按纯文本处理，不注入 HTML。
 
 ### 4.3 兼容性
@@ -194,16 +193,17 @@ type: Fleeting
 
 ### 5.1 依赖
 
-- 录播服务可用：内网 `http://vtuber.internal.fffdan.com`（API 代理上游），外网 `https://recordings.vtuber.fffdan.com`；
+- 录播服务可用：外网 `https://recordings.vtuber.fffdan.com`（生产直连），内网 `http://vtuber.internal.fffdan.com`（本地开发转发）；
+- 线上 CDN 对站点源的跨域放行保持有效；
 - 上游四组 API 形态保持当前实测结构不变。
 
 ### 5.2 约束
 
-- 遵循契约式开发：新增 `contract/` 契约文件作为本站代理端点的单一事实源；
-- 遵循 `docs/engineering/frontend-rules.md` 与 `docs/engineering/backend-rules.md`，TDD（先测试后实现）；
+- 仅改动 `apps/bookstore` 前端（含构建期环境变量），不动 `servers/api`、契约与编排资源配置；
+- 遵循 `docs/engineering/frontend-rules.md` 与 TDD（先测试后实现）；
 - 分支命名 `<type>/<slug>`：`prd/recordings-page` 需求总分支，禁 rebase/squash；
 - 未上线前导航不出现「录播」入口（遵循「未上线功能不出现在 UI」约定，入口随实现 PR 一并上线）；
-- 实现 PR 内同步 `docs/product/spec/site-pages.md` 与 `docs/engineering/spec/` 对应文件。
+- 实现 PR 内同步 `docs/product/spec/site-pages.md` 与 `docs/engineering/spec/frontend-bookstore.md`。
 
 ## 六、后续可能（本期不做）
 
@@ -217,4 +217,3 @@ type: Fleeting
 - 本期技术提案：`docs/engineering/proposals/2026-09-14-recordings-page-proposal.md`
 - 站点页面 Spec（现态）：`docs/product/spec/site-pages.md`
 - 前端 Spec（现态）：`docs/engineering/spec/frontend-bookstore.md`
-- 后端 Spec（现态）：`docs/engineering/spec/backend-live.md`

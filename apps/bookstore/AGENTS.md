@@ -77,6 +77,14 @@ pnpm lint         # ESLint
   - `parallax.ts`（视差纯函数：`pointerOffset`/`tiltOffset`（倾角 ±25° 钳制）/`lerp`，无 DOM 可单测）、`useParallax.ts`（`useParallax(ref)` 接管 transform：window 级被动 `pointermove` + rAF lerp 直写 `ref.style.transform` 不触发 React 重渲染、`pointerleave`/`blur` 回中、收敛停帧；移动端 `deviceorientation` 特性检测，iOS 首次 `touchend` 静默 `requestPermission` 成功挂监听/失败静默放弃）、`ParallaxLayer.tsx`（`"use client"` 视差容器，透传 children 与调用方 className，立绘定位类由调用方决定）、`glowParticles.ts`（粒子纯函数：`spawnPosition`（指针偏置概率 0.6/半径 160px，越界钳制）/`createParticle`/`stepParticles`（可选 `flow` 叠加不破坏现签名）/`maxParticles`，冲量 `createFlow`/`impulse`（方向 ±、强度钳制 `IMPULSE_CAP`）/`decayFlow`（指数衰减半衰期），注入 random 可确定性测试）、`GlowParticles.tsx`（Canvas 2D 粒子层 `canvas[aria-hidden] pointer-events-none fixed inset-0` 常驻视口，rAF 主循环 spawn→step→draw 叠加 `decayFlow`+`impulse` 流场冲量（监听 `IMPULSE_EVENT`/`SCROLL_IMPULSE_EVENT`）、DPR/resize、真实帧间隔 dt、`document.hidden` 暂停、挂载时 `getComputedStyle` 读 `--color-flower`/`--color-primary`/`--color-eye` token 取色，禁硬编码；公开站氛围层对 reduced-motion 不降级）；`app/(site)/page.tsx` 渲染 `<FullpageDeck profile site heroAsset archivePortraits assets />`（Server 外壳，deck 为 Client 叶子），`NavBar` 锚点 href 取自 `sections.ts` 注册表（首页/非首页均锚点，非首页经 hash 直落定位）、选中态首页按 hash/SECTION_CHANGE_EVENT、非首页按 pathname；首页内点击导航派发 `NAVIGATE_EVENT` 由 deck 平滑翻页（Next Link pushState 不触发 hashchange，故不用 hashchange 驱动导航点击）；翻页后经 `SECTION_CHANGE_EVENT` 同步 NavBar 选中态；`DayDetailDialog` 打开时锁 `body.overflow` 供全站弹层屏蔽整页翻页。
 - **公开站氛围层不降级 reduced-motion（展示向口径）**：本网站为展示向粉丝站，视差/粒子/翻页转场/冲量流场等氛围动效为核心卖点，**公开站首页氛围层对 `prefers-reduced-motion: reduce` 不降级**——reduced 用户获得与常规一致的完整视差幅度（±12px）、粒子全上限/明灭/冲量、整页 rAF 转场与粒子耦合。此口径**仅限公开站氛围层**（`features/home/*` 与首页 `/`）；后台 `/backdoor` 不适用，仍严格执行 `docs/engineering/frontend-rules.md` 的 reduced-motion 规范。
 
+## 录播页约定
+
+- `features/recordings/`：公开 `/recordings` 录播页（纯前端直连外部录播服务，无契约/后端/编排变更）。环境变量 `NEXT_PUBLIC_RECORDINGS_BASE_URL`（构建期注入：生产 `https://recordings.vtuber.fffdan.com`，本地经 `.env.local` 注入转发地址）；`api.ts` 导出 `RECORDINGS_CONFIGURED`（非空即已配置）——未配置时导航不渲染「录播」项、页面渲染「服务未配置」空态且请求层短路不 `fetch`（双保险，对齐 `API_CONFIGURED` 口径，独立于后台 API）。
+- `api.ts` 消费上游四组端点：`/api/b/live/recording-status`、`/api/b/live/:roomId/recordings`、`/api/b/live/:roomId/recordings/:fileName`（`encodeURIComponent`）、`/api/b/live/:roomId/live-stream/audio`；请求不带凭据，失败静默降级 `{ok:false,...}`。
+- `useRecordingStatus.ts`（30s 轮询 + 可见性暂停）、`RecordingStatusList`（F2/F3 展示 + 听直播）、`RoomRecordingsGroup`（F4 折叠 + 20/页前端分页）、`FlvPlayerPanel`（F5 mpegts.js 顺序流预览 + MSE 不可用降级为下载）、`RecordingsApp`（装配 + 选中文件 state）、`player.ts`（全局单例，mpegts.js 浏览器端动态 `import` 以防 SSG 求值 `self`）。
+- 页脚：非首页 `(content)` 路由组渲染流式单行 `Footer`，其外链含 `site.links.secretRoom`（「小密室」，原导航外链迁移至此）；导航不再有外链项。
+- e2e：`tests/e2e/src/bookstore/recordings.spec.ts` 以 `page.route` mock 四组端点（浏览器侧拦截，基址只需非空），运行需 bookstore 构建/启动时带非空 `NEXT_PUBLIC_RECORDINGS_BASE_URL`。
+
 提交前 `pnpm lint && pnpm test && pnpm build` 全绿。
 
 <!-- BEGIN:nextjs-agent-rules -->

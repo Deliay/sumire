@@ -7,13 +7,14 @@ Next.js 15 App Router，`output: "export"` 全静态导出（部署 GitHub Pages
 - `next.config.ts`：`basePath` 由 `NEXT_PUBLIC_BASE_PATH` 注入；`images.unoptimized`（缩略图构建期预生成）。
 - 根布局加载三套 Google Fonts（Noto Serif SC / Noto Sans SC / Cormorant Garamond），metadata 模板 `%s · 堇色书屋`。
 - **API 配置口径**：`API_CONFIGURED = NEXT_PUBLIC_API_BASE_URL !== ""`（`features/backdoor/api.ts`）是全局唯一判定，控制多处：`/calendar` 路由存在性、NavBar「日历」入口、首页「直播状态 / 今日日程」组件存在性。
+- **录播服务配置口径**：`RECORDINGS_CONFIGURED = NEXT_PUBLIC_RECORDINGS_BASE_URL !== ""`（`features/recordings/api.ts`），独立于 `API_CONFIGURED`，控制 NavBar「录播」入口与 `/recordings` 页面守卫/请求短路。
 - 未配置时双保险：`app/backdoor/layout.tsx` 直接渲染站点 404（不挂载 SessionProvider、不发请求），且 `api.ts` 的 `request()` 短路返回 `{status:0}` 不 fetch——杜绝静态站向主站自身发 `/api/*`。
 - `app/globals.css` 的 `@theme` 中定义 `--animate-pulse: pulse 3.2s cubic-bezier(0.4, 0, 0.6, 1) infinite`，覆盖 Tailwind v4 内置 2s 周期，全站 4 处骨架统一降速；`prefers-reduced-motion` 兜底不变。
 - `@theme` 另定义 `--text-*` 字阶 token（`--text-display` 4rem / `--text-h1` 2.5rem / `--text-h2` 1.625rem / `--text-body` 1.0625rem / `--text-small` 0.9375rem / `--text-tiny` 0.8125rem），body 默认字号取 `--text-body`，整体较旧版本上调一档；页面标题类（`text-6xl/7xl` 等内置字阶）替换为字阶 token。
 
 ## 路由结构
 
-- `app/(site)/`：公开页路由组（`/`、`/about`、`/assets`、`/calendar`）。**页脚按页面形态分派**：`(site)/layout.tsx` 仅渲染 NavBar + `<main>`（不渲染 Footer）；非首页（`/about` `/assets` `/calendar`，位于子路由组 `app/(site)/(content)/`）经 `(content)/layout.tsx` 渲染流式单行 `Footer`；首页 `page.tsx`（100svh 封面页）在页内底部渲染**通栏贴底毛玻璃条** `Footer floating`（免责声明全端展示）——确保首页单 footer 且不可滚动。
+- `app/(site)/`：公开页路由组（`/`、`/about`、`/assets`、`/calendar`、`/topics`、`/recordings`）。**页脚按页面形态分派**：`(site)/layout.tsx` 仅渲染 NavBar + `<main>`（不渲染 Footer）；非首页（`/about` `/assets` `/calendar` `/topics` `/recordings`，位于子路由组 `app/(site)/(content)/`）经 `(content)/layout.tsx` 渲染流式单行 `Footer`；首页 `page.tsx`（100svh 封面页）在页内底部渲染**通栏贴底毛玻璃条** `Footer floating`（免责声明全端展示）——确保首页单 footer 且不可滚动。
 - `app/backdoor/`：后台路由区——`login`、`change-password`（独立卡片，无后台布局）、`(dashboard)/`（布局 = TopBar + SideNav + 内容区；子页 `page`、`users`、`schedule`、`danmaku`）。
 - `app/not-found.tsx` 复用 `components/NotFoundPage.tsx`。
 
@@ -28,7 +29,7 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 
 ## 内容管道
 
-- `content/{site,profile,assets}.yaml` + `lib/content/`：`readFileSync` + YAML + Zod 校验（`schemas.ts`：颜色 `#xxxxxx`、日期 `YYYY-MM-DD`、素材 id `[a-z0-9-]+`）+ React `cache`，构建期读取。
+- `content/{site,profile,assets}.yaml` + `lib/content/`：`readFileSync` + YAML + Zod 校验（`schemas.ts`：颜色 `#xxxxxx`、日期 `YYYY-MM-DD`、素材 id `[a-z0-9-]+`）+ React `cache`，构建期读取。`site.links` 含 `bilibili`/`live`/`moegirl`/`secretRoom` 四个必填 URL，其中 `secretRoom`（`https://sumire.icu`）供 Footer「小密室」外链。
 - 素材 URL：`{BASE_PATH}/assets/thumbnails/{id}.webp` / `{BASE_PATH}/assets/original/{file}`；缩略图由 `scripts/generate-thumbnails.ts`（sharp，最长边 1000px、q82 webp、保透明）从 `content/assets.yaml` 驱动生成。
 - `lib/tools/registry.ts` 工具注册表当前为空（无 /tools 路由，未上线功能无占位入口）。
 
@@ -51,6 +52,17 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 - `features/home/TodaySchedule.tsx`（Client）：`API_CONFIGURED` 守卫；`listPlans(today, today)`（本地时区当天，与日历页口径一致，不混入历史）；渲染「今日日程」标题 + 当天计划 `HH:mm 主题`；无计划/失败展示「今日暂无安排」空态；固定尺寸骨架。
 - 已删除：`features/home/ColorChip.tsx`（应援色复制按钮）、`features/home/EntryCard.tsx`（入口卡）；`WeeklySchedule.tsx` 不再由首页挂载（保留文件但无引用）。
 - 内容 `content/profile.yaml` 扩展字段：`bookAnimeTypes`（书籍/动漫类型）、`musicTypes`（音乐类型）、`gameGenre`（游戏偏好类型），`/about` 喜好区块同步展示。
+
+## 录播（features/recordings）
+
+纯前端模块，直连外部录播服务（无 `servers/api`/契约/编排变更）。基址 `NEXT_PUBLIC_RECORDINGS_BASE_URL` 构建期注入，`RECORDINGS_CONFIGURED` 门控；请求不带凭据（公开只读独立基址，不复用后台 `request()`）。
+
+- `api.ts`：导出 `RECORDINGS_BASE_URL`/`RECORDINGS_CONFIGURED` 与类型 `RecordingStatusItem`/`RecordingFile`；`joinUrl(base,path)` 归一拼接（单斜杠）、`liveAudioUrl(roomId)`、`recordingFileUrl(roomId,fileName)`（`encodeURIComponent`）；`getRecordingStatus()`（`{ok,items}`，归一化 `streamer.name→streamerName`、未知 `state→not_live`、缺 `sessionTitle→null`）、`getRoomRecordings(roomId)`（`{ok,files}`，过滤非法项）；未配置或非 200/非法 JSON/fetch 失败均静默降级 `{ok:false,...}`。
+- `useRecordingStatus.ts`：首拉 + 30s 轮询 + `visibilitychange` 暂停/恢复即刷；未配置时不发请求。
+- `player.ts`：全局单例播放器，mpegts.js 经浏览器端**动态 `import`**（避免 SSG 期求值 `self` 导致构建失败）；`play(url,videoEl,{isLive,onError})` 前先 `destroy` 旧实例、以代次号丢弃加载期被取代的实例；`destroyPlayer`/`pausePlayer`/`resumePlayer`/`isPlaybackSupported`。
+- 组件：`RecordingsApp`（页主体，装配状态列表 + 录播列表 + 播放区，持有选中文件 state）、`RecordingStatusList`（F2/F3 展示层 + 听直播按钮）、`LiveAudioButton`（单例音频流，录制中房间渲染）、`RoomRecordingsGroup`（F4 折叠展开 + 按需拉取一次 + `createdAt` 倒序 + 20/页前端分页 + 分组内错误重试）、`FlvPlayerPanel`（F5 顺序流播放 + `isPlaybackSupported()` 降级 + 原生下载）、`RecordingsEmpty`、`format.ts`（`formatFileSize`/`formatCreatedAt`）。
+- `app/(site)/(content)/recordings/page.tsx`：服务端壳，`metadata` + `RECORDINGS_CONFIGURED` 守卫（未配置渲染 `RecordingsEmpty reason="unconfigured"`，对齐 `/calendar` 的构建时守卫模式）。
+- 依赖：`mpegts.js`（唯一新增运行时依赖）。
 
 ## 弹幕前端（features/danmaku）
 
@@ -186,7 +198,7 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 
 - 同 `/topics` 路由：无 `id` 查询串时渲染 `TopicsOngoingPage` 进行中列表（`GET /api/topics/public`，无需鉴权）
 - 列表项卡片：标题 + 描述截断 + 起止时间，整卡 Link → `/topics?id={topicId}`；空态「暂无进行中的棉花糖」
-- NavBar 追加「棉花糖」入口（独立路由链接 `/topics`，不走首页 deck 锚点翻页，选中态 `pathname === "/topics"`，移动端折叠菜单同步；仅 `API_CONFIGURED` 时显示，照「日历」过滤口径）；NavBar 保持 `fixed inset-x-0 top-0`，不随页面滑动；导航列表末尾固定外链项「小密室」（`https://sumire.icu`，新窗口打开，`rel="noopener noreferrer"`），不参与站内锚点选中态与 NAVIGATE_EVENT，恒显示不受 API 配置降级影响；外链项以 `EXTERNAL_LINKS` 常量定义，渲染时走独立分支（原生 `<a>` 标签，不使用 `next/link`），与站内项通过 `isExternal` 辅助函数区分。
+- NavBar 追加「棉花糖」入口（独立路由链接 `/topics`，不走首页 deck 锚点翻页，选中态 `pathname === "/topics"`，移动端折叠菜单同步；仅 `API_CONFIGURED` 时显示，照「日历」过滤口径）；「录播」入口（独立路由 `/recordings`，选中态 `pathname === "/recordings"`，位置在「棉花糖」同组、工具项之前；仅 `RECORDINGS_CONFIGURED` 时显示）；NavBar 保持 `fixed inset-x-0 top-0`，不随页面滑动；**导航不再包含外链项**——原「小密室」外链（`https://sumire.icu`）迁至 Footer 外链区（数据源 `site.links.secretRoom`），`NavBar` 的 `EXTERNAL_LINKS`/`ExternalLink`/`isExternal` 与外链渲染分支已移除，链接模型回归纯站内 `BaseLink`（`navKey`/`label`/`anchor`/`route`/`sectionId`/`kind:"internal"`）。
 
 SideNav `NAV_ITEMS` 追加 `{ href: "/backdoor/topics", label: "棉花糖", roles: ["superadmin", "admin"] }`。
 

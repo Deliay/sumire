@@ -148,6 +148,37 @@ describe("NavBar 锚点化", () => {
     expect(mobileArchive.length).toBeGreaterThan(1);
     mobileArchive.forEach((a) => expect(a.getAttribute("href")).toBe("/#archive-1"));
   });
+
+  it("移动端默认态即带背景模糊条件类，不再无条件透明", () => {
+    render(<NavBar siteName="枝堇" tools={tools} />);
+    const header = document.querySelector("header") as HTMLElement;
+    expect(header.className).toContain("max-md:bg-night/85");
+    expect(header.className).toContain("max-md:backdrop-blur-md");
+    expect(header.className).toContain("max-md:shadow-[0_1px_0_0_var(--color-vine)]");
+    // 桌面端默认仍透明：不再使用无条件 bg-transparent
+    expect(header.className).not.toContain("bg-transparent");
+  });
+
+  it("滚动后仍走既有雾化态（回归）", () => {
+    render(<NavBar siteName="枝堇" tools={tools} />);
+    window.scrollY = 100;
+    act(() => {
+      window.dispatchEvent(new Event("scroll"));
+    });
+    const header = document.querySelector("header") as HTMLElement;
+    expect(header.className).toContain("bg-night/85");
+    expect(header.className).toContain("backdrop-blur-md");
+  });
+
+  it("菜单展开态仍走既有雾化态（回归）", () => {
+    render(<NavBar siteName="枝堇" tools={tools} />);
+    act(() => {
+      (screen.getByRole("button", { name: "打开菜单" }) as HTMLButtonElement).click();
+    });
+    const header = document.querySelector("header") as HTMLElement;
+    expect(header.className).toContain("bg-night/85");
+    expect(header.className).toContain("backdrop-blur-md");
+  });
 });
 
 describe("外链 小密室", () => {

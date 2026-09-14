@@ -177,7 +177,7 @@ describe("听直播", () => {
       fireEvent.click(buttons[0]);
     });
 
-    expect(mp.createPlayer).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(mp.createPlayer).toHaveBeenCalledTimes(1));
     expect(mp.createPlayer.mock.calls[0][0]).toMatchObject({
       type: "flv",
       isLive: true,
@@ -196,12 +196,12 @@ describe("听直播", () => {
     await act(async () => {
       fireEvent.click(screen.getAllByRole("button", { name: /听直播/ })[0]);
     });
-    expect(mp.players).toHaveLength(1);
+    await vi.waitFor(() => expect(mp.players).toHaveLength(1));
 
     await act(async () => {
       fireEvent.click(screen.getAllByRole("button", { name: /听直播/ })[0]);
     });
-    expect(mp.players).toHaveLength(2);
+    await vi.waitFor(() => expect(mp.players).toHaveLength(2));
     expect(mp.players[0].destroy).toHaveBeenCalledTimes(1);
   });
 
@@ -213,7 +213,7 @@ describe("听直播", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /听直播/ }));
     });
-    expect(mp.players).toHaveLength(1);
+    await vi.waitFor(() => expect(mp.players).toHaveLength(1));
 
     unmount();
     expect(mp.players[0].destroy).toHaveBeenCalledTimes(1);

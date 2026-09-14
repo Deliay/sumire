@@ -101,7 +101,7 @@ describe("FLV 在线预览", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "回放 一.flv" }));
     });
-    expect(mp.createPlayer).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(mp.createPlayer).toHaveBeenCalledTimes(1));
     expect(mp.createPlayer.mock.calls[0][0]).toMatchObject({
       type: "flv",
       isLive: false,
@@ -112,7 +112,7 @@ describe("FLV 在线预览", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "回放二.flv" }));
     });
-    expect(mp.players).toHaveLength(2);
+    await vi.waitFor(() => expect(mp.players).toHaveLength(2));
     expect(mp.players[0].destroy).toHaveBeenCalledTimes(1);
   });
 
@@ -122,7 +122,7 @@ describe("FLV 在线预览", () => {
       fireEvent.click(screen.getByRole("button", { name: "回放 一.flv" }));
     });
 
-    expect(screen.getByRole("button", { name: "暂停" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "暂停" })).toBeTruthy();
     expect(screen.getByRole("slider", { name: "音量" })).toBeTruthy();
 
     await act(async () => {
@@ -137,6 +137,8 @@ describe("FLV 在线预览", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "回放 一.flv" }));
     });
+    await screen.findByRole("button", { name: "暂停" });
+
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "暂停" }));
     });
@@ -154,7 +156,7 @@ describe("FLV 在线预览", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "回放 一.flv" }));
     });
-    expect(screen.getByText(/当前浏览器不支持在线播放/)).toBeTruthy();
+    expect(await screen.findByText(/当前浏览器不支持在线播放/)).toBeTruthy();
     expect(mp.createPlayer).not.toHaveBeenCalled();
     const panel = screen.getByLabelText("录播播放区");
     const download = within(panel).getByRole("link", { name: /下载/ });
@@ -168,6 +170,7 @@ describe("FLV 在线预览", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "回放 一.flv" }));
     });
+    await vi.waitFor(() => expect(mp.players).toHaveLength(1));
     const errorCall = mp.players[0].on.mock.calls.find(([evt]) => evt === "error");
     expect(errorCall).toBeTruthy();
 
@@ -179,7 +182,7 @@ describe("FLV 在线预览", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "回放二.flv" }));
     });
-    expect(mp.players).toHaveLength(2);
+    await vi.waitFor(() => expect(mp.players).toHaveLength(2));
   });
 
   it("文件项「下载」链接与播放同源且文件名经编码", async () => {
@@ -196,7 +199,7 @@ describe("FLV 在线预览", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "回放 一.flv" }));
     });
-    expect(mp.players).toHaveLength(1);
+    await vi.waitFor(() => expect(mp.players).toHaveLength(1));
     cleanup();
     expect(mp.players[0].destroy).toHaveBeenCalledTimes(1);
   });

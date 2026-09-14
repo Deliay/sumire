@@ -29,7 +29,7 @@ export default function LiveAudioButton({ url, playing, onStarted, onStopped }: 
     const video = videoRef.current;
     if (!video) return;
     setFailed(false);
-    play(url, video, {
+    void play(url, video, {
       isLive: true,
       onError: () => {
         setFailed(true);

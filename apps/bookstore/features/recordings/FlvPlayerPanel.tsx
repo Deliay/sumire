@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import mpegts from "mpegts.js";
 import { Download, Pause, Play, Volume2, X } from "lucide-react";
 import { recordingFileUrl, type RecordingFile } from "@/features/recordings/api";
-import { destroyPlayer, pausePlayer, play, resumePlayer } from "@/features/recordings/player";
+import { destroyPlayer, isPlaybackSupported, pausePlayer, play, resumePlayer } from "@/features/recordings/player";
 
 interface FlvPlayerPanelProps {
   roomId: number;
@@ -23,7 +22,7 @@ function formatClock(seconds: number): string {
 /** 录播在线预览区（F5）：mpegts.js 顺序流播放，MSE 不可用时降级为下载。 */
 export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanelProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [supported] = useState(() => mpegts.isSupported());
+  const [supported, setSupported] = useState<boolean | null>(null);
   const [playing, setPlaying] = useState(true);
   const [failed, setFailed] = useState(false);
   const [volume, setVolume] = useState(1);
@@ -32,13 +31,23 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
   const url = recordingFileUrl(roomId, file.name);
 
   useEffect(() => {
-    if (!supported) return;
+    let active = true;
+    void isPlaybackSupported().then((ok) => {
+      if (active) setSupported(ok);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (supported !== true) return;
     const video = videoRef.current;
     if (!video) return;
     setFailed(false);
     setPlaying(true);
     setCurrentTime(0);
-    play(url, video, {
+    void play(url, video, {
       isLive: false,
       onError: () => {
         setFailed(true);
@@ -84,7 +93,9 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
         </button>
       </div>
 
-      {!supported ? (
+      {supported === null && <p className="text-small text-ink-dim">正在准备播放器…</p>}
+
+      {supported === false && (
         <div className="flex flex-col gap-3 rounded-xl border border-vine/40 bg-night/40 px-4 py-5 text-small text-ink-dim">
           <p>当前浏览器不支持在线播放，请下载后收听。</p>
           <a
@@ -95,7 +106,9 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
             <Download size={13} aria-hidden /> 下载
           </a>
         </div>
-      ) : (
+      )}
+
+      {supported === true && (
         <>
           <video
             ref={videoRef}

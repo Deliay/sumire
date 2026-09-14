@@ -88,7 +88,7 @@ vi.mock("@/lib/content", () => ({
   getSite: () => ({
     name: "枝堇",
     disclaimer: "本站为非官方粉丝作品",
-    links: { live: "https://live.example", bilibili: "https://b", moegirl: "https://m" },
+    links: { live: "https://live.example", bilibili: "https://b", moegirl: "https://m", secretRoom: "https://sumire.icu" },
   }),
   getAssetById: () => ({
     id: "standing-01",
@@ -144,7 +144,7 @@ function deckProps(): { profile: Profile; site: Site; heroAsset: Asset; archiveP
       description: "书屋",
       disclaimer: "本站为非官方粉丝作品",
       color: "#b4a6bf",
-      links: { live: "https://live.example", bilibili: "https://b", moegirl: "https://m" },
+      links: { live: "https://live.example", bilibili: "https://b", moegirl: "https://m", secretRoom: "https://sumire.icu" },
     } as Site,
     heroAsset: asset,
     archivePortraits: [asset],

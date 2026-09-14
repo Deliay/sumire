@@ -5,7 +5,7 @@ displayName: 枝堇Sumire
 birthday: "04-02"
 birthdayText: 4月2日
 zodiac: 白羊座
-race: 被人寄生的藤？
+race: 藤蔓？
 height: 165cm（未含藤蔓）
 identity: 小书店店主
 agency: VirtuaReal
@@ -71,6 +71,22 @@ milestones:
     note: 出道次日中午直播达成
   - date: "2026-08-09"
     title: 一万粉丝达成
+  - date: "2026-08-16"
+    title: 同期首次联动
+    note: 与 VR28 期同期一起玩《R.E.P.O.》
+  - date: "2026-08-21"
+    title: 跨期联动
+    note: 与 VR28 期、VR27 期（及弥月、栞栞）联动玩《致命公司》
+  - date: "2026-08-23"
+    title: 两万粉丝达成
+  - date: "2026-08-26"
+    title: 歌回
+    note: 中途连麦围观四时小路与羽啾玩俄罗斯方块（未开直播间麦）
+  - date: "2026-08-27"
+    title: 参加羽啾 28 期鬼故事凸待
+  - date: "2026-09-10"
+    title: VR287 满月联动
+    note: 参与「大家一起喝饮料吧~」
 anecdotes:
   - title: 满屏「妈妈」
     emoji: 😁
@@ -84,6 +100,12 @@ anecdotes:
   - title: 小姨驾到
     emoji: 😁
     body: 2026-08-12 直播中枝堇妹妹意外进入直播间，弹幕疯狂喊「小姨」。
+  - title: 出版过小说
+    emoji: 😁
+    body: 除了守书店，还出版过小说。
+  - title: 被自行车绞到腿
+    emoji: 😁
+    body: 在 VR287 满月联动「我有你没有」环节中透露，自己曾经被自行车绞到腿。
 links:
   - label: B 站个人空间
     url: https://space.bilibili.com/1150976664

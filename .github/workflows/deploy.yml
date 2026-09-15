@@ -47,6 +47,7 @@ jobs:
         working-directory: apps/bookstore
         env:
           NEXT_PUBLIC_API_BASE_URL: https://api.sumire.live
+          NEXT_PUBLIC_RECORDINGS_BASE_URL: https://recordings.vtuber.fffdan.com
         run: pnpm build
 
       - uses: actions/upload-pages-artifact@v3

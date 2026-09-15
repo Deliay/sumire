@@ -10,6 +10,7 @@ export default function Footer({ site }: FooterProps) {
     { href: site.links.bilibili, label: "B 站空间" },
     { href: site.links.live, label: "直播间" },
     { href: site.links.moegirl, label: "萌娘百科" },
+    { href: site.links.secretRoom, label: "小密室" },
   ];
 
   return (

@@ -48,6 +48,27 @@ export async function isPlaybackSupported(): Promise<boolean> {
 }
 
 /**
+ * 探测上游是否支持 HTTP Range（决定进度条能否拖动 seek）。
+ * 发起 `Range: bytes=0-0` 轻量请求，读响应头后立即取消响应体，避免大文件流量。
+ */
+export async function probeSeekable(url: string): Promise<boolean> {
+  const controller = new AbortController();
+  try {
+    const res = await fetch(url, { headers: { Range: "bytes=0-0" }, signal: controller.signal });
+    const ok = res.status === 206 || res.headers.get("accept-ranges") === "bytes";
+    controller.abort();
+    try {
+      await res.body?.cancel();
+    } catch {
+      // 取消失败忽略
+    }
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * 销毁当前 player（幂等）。
  * 传入 `url` 时仅当当前播放正归属该 url 才销毁——组件卸载清理用，避免误断其它组件的播放。
  */

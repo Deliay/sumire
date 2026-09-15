@@ -87,11 +87,17 @@ beforeEach(() => {
   mp.players.length = 0;
   mp.createPlayer.mockClear();
   mp.isSupported.mockReturnValue(true);
+  // 默认上游不支持 Range（探测请求返回 200）
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({ status: 200, headers: { get: () => null }, body: { cancel: async () => {} } }),
+  );
 });
 
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("FLV 在线预览", () => {
@@ -116,13 +122,20 @@ describe("FLV 在线预览", () => {
     expect(mp.players[0].destroy).toHaveBeenCalledTimes(1);
   });
 
-  it("播放区含播放/暂停、音量与关闭；关闭后销毁 player", async () => {
+  it("播放区含可见视频画面、播放/暂停、可拖动进度条与音量；关闭后销毁 player", async () => {
     await renderAndExpand();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "回放 一.flv" }));
     });
 
     expect(await screen.findByRole("button", { name: "暂停" })).toBeTruthy();
+    const video = screen.getByLabelText("录播视频") as HTMLVideoElement;
+    expect(video.hidden).toBe(false);
+    expect(video.getAttribute("aria-hidden")).toBeNull();
+    // 进度条存在；上游不支持 Range（探测 200）时禁用并明示
+    const progress = screen.getByRole("slider", { name: "播放进度" }) as HTMLInputElement;
+    expect(progress.disabled).toBe(true);
+    expect(await screen.findByText(/不支持拖动进度/)).toBeTruthy();
     expect(screen.getByRole("slider", { name: "音量" })).toBeTruthy();
 
     await act(async () => {
@@ -130,6 +143,62 @@ describe("FLV 在线预览", () => {
     });
     expect(screen.queryByRole("button", { name: "关闭播放区" })).toBeNull();
     expect(mp.players[0].destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it("上游支持 Range 且获知时长后可拖动进度条 seek 到指定位置", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ status: 206, headers: { get: () => null }, body: { cancel: async () => {} } }),
+    );
+    await renderAndExpand();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "回放 一.flv" }));
+    });
+    await screen.findByRole("button", { name: "暂停" });
+
+    const video = screen.getByLabelText("录播视频") as HTMLVideoElement;
+    Object.defineProperty(video, "duration", { configurable: true, value: 120 });
+    Object.defineProperty(video, "currentTime", { configurable: true, writable: true, value: 0 });
+    await act(async () => {
+      fireEvent.loadedMetadata(video);
+    });
+
+    const progress = screen.getByRole("slider", { name: "播放进度" }) as HTMLInputElement;
+    await vi.waitFor(() => expect(progress.disabled).toBe(false));
+    expect(screen.queryByText(/不支持拖动进度/)).toBeNull();
+    expect(screen.getByText("00:00 / 02:00")).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.change(progress, { target: { value: "60" } });
+    });
+    expect(video.currentTime).toBe(60);
+    expect(screen.getByText("01:00 / 02:00")).toBeTruthy();
+  });
+
+  it("再次点击播放中的文件项折叠并销毁 player；同一时间仅一个播放区", async () => {
+    await renderAndExpand();
+    const first = screen.getByRole("button", { name: "回放 一.flv" });
+    await act(async () => {
+      fireEvent.click(first);
+    });
+    await vi.waitFor(() => expect(mp.players).toHaveLength(1));
+    expect(screen.getAllByLabelText("录播播放区")).toHaveLength(1);
+
+    // 点击另一文件项：前一个折叠销毁、仅一个新播放区
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "回放二.flv" }));
+    });
+    await vi.waitFor(() => expect(mp.players).toHaveLength(2));
+    expect(mp.players[0].destroy).toHaveBeenCalledTimes(1);
+    expect(first.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.getAllByLabelText("录播播放区")).toHaveLength(1);
+
+    // 再次点击当前文件项：折叠销毁
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "回放二.flv" }));
+    });
+    expect(screen.queryAllByLabelText("录播播放区")).toHaveLength(0);
+    expect(mp.players[1].destroy).toHaveBeenCalledTimes(1);
   });
 
   it("暂停按钮切换播放/暂停", async () => {

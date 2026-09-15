@@ -8,6 +8,7 @@ import {
   type RecordingFile,
 } from "@/features/recordings/api";
 import { formatCreatedAt, formatFileSize } from "@/features/recordings/format";
+import FlvPlayerPanel from "@/features/recordings/FlvPlayerPanel";
 
 const PAGE_SIZE = 20;
 
@@ -20,18 +21,21 @@ type LoadState =
 interface RoomRecordingsGroupProps {
   roomId: number;
   streamerName: string;
-  /** 点击文件项回调（在线预览）。 */
-  onSelectFile?: (file: RecordingFile) => void;
-  /** 当前选中文件名（高亮）。 */
-  selectedFileName?: string | null;
+  /** 本分组当前展开的录制文件（无则 null）。 */
+  openFile: RecordingFile | null;
+  /** 点击文件项：展开 / 折叠该文件的播放器。 */
+  onToggleFile: (file: RecordingFile) => void;
+  /** 折叠当前播放器。 */
+  onClosePlayer: () => void;
 }
 
-/** 单直播间录播分组（F4）：折叠展开按需拉取一次、createdAt 倒序、前端分页。 */
+/** 单直播间录播分组（F4）：折叠展开按需拉取一次、createdAt 倒序、前端分页；播放器内联展开于文件项下方（F5）。 */
 export default function RoomRecordingsGroup({
   roomId,
   streamerName,
-  onSelectFile,
-  selectedFileName,
+  openFile,
+  onToggleFile,
+  onClosePlayer,
 }: RoomRecordingsGroupProps) {
   const [expanded, setExpanded] = useState(false);
   const [state, setState] = useState<LoadState>({ kind: "idle" });
@@ -97,30 +101,33 @@ export default function RoomRecordingsGroup({
             <>
               <ul className="flex flex-col divide-y divide-vine/20">
                 {pageFiles.map((file) => {
-                  const selected = selectedFileName === file.name;
+                  const open = openFile?.name === file.name;
                   return (
-                    <li key={file.name} className="flex items-center gap-3 py-2">
-                      <button
-                        type="button"
-                        onClick={() => onSelectFile?.(file)}
-                        aria-pressed={selected}
-                        className={`flex-1 truncate text-left text-small transition-colors ${
-                          selected ? "text-flower" : "text-ink hover:text-flower"
-                        }`}
-                      >
-                        {file.name}
-                      </button>
-                      <span className="shrink-0 text-tiny text-ink-dim">{formatFileSize(file.size)}</span>
-                      <time dateTime={file.createdAt} className="shrink-0 text-tiny text-ink-dim">
-                        {formatCreatedAt(file.createdAt)}
-                      </time>
-                      <a
-                        href={recordingFileUrl(roomId, file.name)}
-                        download
-                        className="shrink-0 text-tiny text-ink-dim transition-colors hover:text-flower"
-                      >
-                        下载
-                      </a>
+                    <li key={file.name} className="flex flex-col gap-3 py-2">
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => onToggleFile(file)}
+                          aria-expanded={open}
+                          className={`flex-1 truncate text-left text-small transition-colors ${
+                            open ? "text-flower" : "text-ink hover:text-flower"
+                          }`}
+                        >
+                          {file.name}
+                        </button>
+                        <span className="shrink-0 text-tiny text-ink-dim">{formatFileSize(file.size)}</span>
+                        <time dateTime={file.createdAt} className="shrink-0 text-tiny text-ink-dim">
+                          {formatCreatedAt(file.createdAt)}
+                        </time>
+                        <a
+                          href={recordingFileUrl(roomId, file.name)}
+                          download
+                          className="shrink-0 text-tiny text-ink-dim transition-colors hover:text-flower"
+                        >
+                          下载
+                        </a>
+                      </div>
+                      {open && <FlvPlayerPanel roomId={roomId} file={file} onClose={onClosePlayer} />}
                     </li>
                   );
                 })}

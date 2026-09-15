@@ -9,6 +9,7 @@ import {
   isPlaybackSupported,
   pausePlayer,
   play,
+  probeSeekable,
   resumePlayer,
   subscribePlayer,
 } from "@/features/recordings/player";
@@ -27,7 +28,7 @@ function formatClock(seconds: number): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-/** 录播在线预览区（F5）：mpegts.js 顺序流播放，MSE 不可用时降级为下载。 */
+/** 录播在线预览区（F5）：mpegts.js 视频播放（可见画面 + 可拖动进度条），MSE 不可用时降级为下载。 */
 export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanelProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [supported, setSupported] = useState<boolean | null>(null);
@@ -35,6 +36,9 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
   const [failed, setFailed] = useState(false);
   const [volume, setVolume] = useState(1);
   const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  // 上游 Range 支持（null=检测中）：决定进度条能否拖动 seek
+  const [rangeSupported, setRangeSupported] = useState<boolean | null>(null);
 
   const url = recordingFileUrl(roomId, file.name);
 
@@ -42,6 +46,7 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
   const activeUrl = useSyncExternalStore(subscribePlayer, getPlayingUrl, () => null);
   const owns = activeUrl === url;
   const playing = owns && !paused;
+  const canSeek = rangeSupported === true && Number.isFinite(duration) && duration > 0;
 
   const start = useCallback(() => {
     const video = videoRef.current;
@@ -49,6 +54,7 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
     setFailed(false);
     setPaused(false);
     setCurrentTime(0);
+    setDuration(0);
     void play(url, video, {
       isLive: false,
       onError: () => {
@@ -68,6 +74,17 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
     };
   }, []);
 
+  // 探测上游 Range 支持（失败/不支持则进度条禁用并明示）
+  useEffect(() => {
+    let active = true;
+    void probeSeekable(url).then((ok) => {
+      if (active) setRangeSupported(ok);
+    });
+    return () => {
+      active = false;
+    };
+  }, [url]);
+
   useEffect(() => {
     if (supported !== true) return;
     start();
@@ -77,6 +94,18 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
   useEffect(() => {
     if (videoRef.current) videoRef.current.volume = volume;
   }, [volume]);
+
+  const syncMediaState = (video: HTMLVideoElement) => {
+    setCurrentTime(video.currentTime);
+    setDuration(Number.isFinite(video.duration) ? video.duration : 0);
+  };
+
+  const handleSeek = (value: number) => {
+    const video = videoRef.current;
+    if (!video || !canSeek) return;
+    video.currentTime = value;
+    setCurrentTime(value);
+  };
 
   const togglePlay = () => {
     if (!owns) {
@@ -101,24 +130,24 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
   return (
     <section
       aria-label="录播播放区"
-      className="flex flex-col gap-3 rounded-2xl border border-vine/60 bg-raised px-5 py-4"
+      className="flex flex-col gap-3 rounded-xl border border-vine/50 bg-night/40 px-4 py-3"
     >
       <div className="flex items-center justify-between gap-3">
-        <h3 className="truncate font-serif text-ink">{file.name}</h3>
+        <span className="truncate text-tiny text-ink-dim">{file.name}</span>
         <button
           type="button"
           onClick={handleClose}
           aria-label="关闭播放区"
           className="shrink-0 text-ink-dim transition-colors hover:text-flower focus-visible:outline focus-visible:outline-2 focus-visible:outline-flower"
         >
-          <X size={18} aria-hidden />
+          <X size={16} aria-hidden />
         </button>
       </div>
 
       {supported === null && <p className="text-small text-ink-dim">正在准备播放器…</p>}
 
       {supported === false && (
-        <div className="flex flex-col gap-3 rounded-xl border border-vine/40 bg-night/40 px-4 py-5 text-small text-ink-dim">
+        <div className="flex flex-col gap-3 rounded-lg border border-vine/40 bg-night/40 px-4 py-5 text-small text-ink-dim">
           <p>当前浏览器不支持在线播放，请下载后收听。</p>
           <a
             href={url}
@@ -132,39 +161,62 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
 
       {supported === true && (
         <>
-          <video
-            ref={videoRef}
-            hidden
-            aria-hidden
-            onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-          />
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={togglePlay}
-              aria-label={playing ? "暂停" : "播放"}
-              className="inline-flex size-9 items-center justify-center rounded-full border border-vine text-ink-dim transition-colors hover:border-flower hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-flower"
-            >
-              {playing ? <Pause size={15} aria-hidden /> : <Play size={15} aria-hidden />}
-            </button>
+          <div className="aspect-video w-full overflow-hidden rounded-lg bg-black">
+            <video
+              ref={videoRef}
+              aria-label="录播视频"
+              playsInline
+              className="h-full w-full"
+              onTimeUpdate={(e) => syncMediaState(e.currentTarget)}
+              onLoadedMetadata={(e) => syncMediaState(e.currentTarget)}
+              onDurationChange={(e) => syncMediaState(e.currentTarget)}
+              onProgress={(e) => syncMediaState(e.currentTarget)}
+            />
+          </div>
 
-            <span className="flex items-center gap-1.5 text-tiny text-ink-dim">
-              <Volume2 size={14} aria-hidden />
-              <input
-                type="range"
-                aria-label="音量"
-                min={0}
-                max={1}
-                step={0.1}
-                value={volume}
-                onChange={(e) => setVolume(Number(e.target.value))}
-                className="w-24 accent-flower"
-              />
-            </span>
+          <div className="flex flex-col gap-2">
+            <input
+              type="range"
+              aria-label="播放进度"
+              min={0}
+              max={duration || 0}
+              step={0.1}
+              value={currentTime}
+              disabled={!canSeek}
+              onChange={(e) => handleSeek(Number(e.target.value))}
+              className="w-full accent-flower disabled:opacity-40"
+            />
 
-            <span className="text-tiny text-ink-dim" aria-label="已播放时长">
-              已播放 {formatClock(currentTime)}
-            </span>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={togglePlay}
+                aria-label={playing ? "暂停" : "播放"}
+                className="inline-flex size-9 items-center justify-center rounded-full border border-vine text-ink-dim transition-colors hover:border-flower hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-flower"
+              >
+                {playing ? <Pause size={15} aria-hidden /> : <Play size={15} aria-hidden />}
+              </button>
+
+              <span className="text-tiny text-ink-dim" aria-label="播放时间">
+                {formatClock(currentTime)} / {formatClock(duration)}
+              </span>
+
+              <span className="ml-auto flex items-center gap-1.5 text-tiny text-ink-dim">
+                <Volume2 size={14} aria-hidden />
+                <input
+                  type="range"
+                  aria-label="音量"
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  value={volume}
+                  onChange={(e) => setVolume(Number(e.target.value))}
+                  className="w-24 accent-flower"
+                />
+              </span>
+            </div>
+
+            {rangeSupported === false && <p className="text-tiny text-ink-dim">当前上游不支持拖动进度</p>}
           </div>
 
           {failed && (

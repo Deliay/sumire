@@ -5,13 +5,12 @@ import { RECORDINGS_CONFIGURED, type RecordingFile } from "@/features/recordings
 import RecordingsEmpty from "@/features/recordings/RecordingsEmpty";
 import RecordingStatusList from "@/features/recordings/RecordingStatusList";
 import RoomRecordingsGroup from "@/features/recordings/RoomRecordingsGroup";
-import FlvPlayerPanel from "@/features/recordings/FlvPlayerPanel";
 import { useRecordingStatus } from "@/features/recordings/useRecordingStatus";
 
-/** 录播页客户端主体：实时录制状态（F2/F3）+ 录播列表（F4）+ 播放区（F5）。 */
+/** 录播页客户端主体：实时录制状态（F2/F3）+ 录播列表（F4）+ 内联播放器（F5）。 */
 export default function RecordingsApp() {
   const status = useRecordingStatus();
-  const [selected, setSelected] = useState<{ roomId: number; file: RecordingFile } | null>(null);
+  const [openFile, setOpenFile] = useState<{ roomId: number; file: RecordingFile } | null>(null);
 
   if (!RECORDINGS_CONFIGURED) {
     return (
@@ -21,11 +20,17 @@ export default function RecordingsApp() {
     );
   }
 
+  const toggleFile = (roomId: number, file: RecordingFile) => {
+    setOpenFile((current) =>
+      current && current.roomId === roomId && current.file.name === file.name ? null : { roomId, file },
+    );
+  };
+
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-12 px-5 py-24 lg:px-10">
       <header className="flex flex-col gap-2">
         <h1 className="font-serif text-h1 text-ink">录播</h1>
-        <p className="text-ink-dim">实时录制状态、在线收听直播音频与历史录播回放。</p>
+        <p className="text-ink-dim">实时录制状态、在线收听直播音频与历史录播回看。</p>
       </header>
 
       <RecordingStatusList state={status} />
@@ -41,21 +46,14 @@ export default function RecordingsApp() {
                 <RoomRecordingsGroup
                   roomId={item.roomId}
                   streamerName={item.streamerName || `直播间 ${item.roomId}`}
-                  onSelectFile={(file) => setSelected({ roomId: item.roomId, file })}
-                  selectedFileName={selected?.roomId === item.roomId ? selected.file.name : null}
+                  openFile={openFile?.roomId === item.roomId ? openFile.file : null}
+                  onToggleFile={(file) => toggleFile(item.roomId, file)}
+                  onClosePlayer={() => setOpenFile(null)}
                 />
               </li>
             ))}
           </ul>
         </section>
-      )}
-
-      {selected && (
-        <FlvPlayerPanel
-          roomId={selected.roomId}
-          file={selected.file}
-          onClose={() => setSelected(null)}
-        />
       )}
     </div>
   );

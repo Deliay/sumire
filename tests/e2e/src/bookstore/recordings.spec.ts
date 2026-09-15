@@ -123,13 +123,43 @@ test.describe("bookstore 录播页", () => {
     await expect(download).toHaveAttribute("download", "");
   });
 
-  test("recordings-preview: 点击文件项打开在线播放区", async ({ page }) => {
+  test("recordings-preview: 点击文件项内联展开视频播放区与进度条", async ({ page }) => {
     await mockRecordingsUpstream(page);
     await page.goto(`${BASE}/recordings`);
     await page.getByRole("button", { name: /枝堇/ }).click();
-    await page.getByRole("button", { name: "回放-01 中文.flv" }).click();
-    await expect(page.getByRole("button", { name: "关闭播放区" })).toBeVisible();
-    await expect(page.getByRole("region", { name: "录播播放区" })).toContainText("回放-01 中文.flv");
+    const fileRow = page.getByRole("button", { name: "回放-01 中文.flv" });
+    await fileRow.click();
+
+    await expect(fileRow).toHaveAttribute("aria-expanded", "true");
+    const panel = page.getByRole("region", { name: "录播播放区" });
+    await expect(panel).toContainText("回放-01 中文.flv");
+    // 视频画面可见（非 hidden）
+    await expect(panel.getByLabel("录播视频")).toBeVisible();
+    // 可拖动进度条与音量
+    await expect(panel.getByRole("slider", { name: "播放进度" })).toBeVisible();
+    await expect(panel.getByRole("slider", { name: "音量" })).toBeVisible();
+  });
+
+  test("recordings-preview-accordion: 同一时间仅一个播放区，点击另一文件项前一个自动折叠", async ({ page }) => {
+    await mockRecordingsUpstream(page);
+    await page.goto(`${BASE}/recordings`);
+    await page.getByRole("button", { name: /枝堇/ }).click();
+
+    const first = page.getByRole("button", { name: "回放-01 中文.flv" });
+    const second = page.getByRole("button", { name: "回放-02 中文.flv" });
+    await first.click();
+    await expect(page.getByRole("region", { name: "录播播放区" })).toHaveCount(1);
+
+    await second.click();
+    await expect(page.getByRole("region", { name: "录播播放区" })).toHaveCount(1);
+    await expect(first).toHaveAttribute("aria-expanded", "false");
+    await expect(second).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByRole("region", { name: "录播播放区" })).toContainText("回放-02 中文.flv");
+
+    // 再次点击当前文件项折叠
+    await second.click();
+    await expect(page.getByRole("region", { name: "录播播放区" })).toHaveCount(0);
+    await expect(second).toHaveAttribute("aria-expanded", "false");
   });
 
   test("recordings-degrade: recording-status 5xx 时展示空态不白屏", async ({ page }) => {

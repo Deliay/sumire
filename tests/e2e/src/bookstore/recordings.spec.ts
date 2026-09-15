@@ -112,15 +112,38 @@ test.describe("bookstore 录播页", () => {
     expect(listRequests.length).toBe(1);
   });
 
-  test("recordings-download: 下载链接指向编码后的录播文件 URL", async ({ page }) => {
+  test("recordings-download: 下载入口收于下拉菜单，链接指向编码后的录播文件 URL", async ({ page }) => {
     await mockRecordingsUpstream(page);
     await page.goto(`${BASE}/recordings`);
     await page.getByRole("button", { name: /枝堇/ }).click();
-    const download = page.getByRole("link", { name: "下载" }).first();
+
+    // 文件行不再直接渲染裸下载链接
+    await expect(page.getByRole("link", { name: "下载" })).toHaveCount(0);
+
+    await page.getByRole("button", { name: "更多操作" }).first().click();
+    const download = page.getByRole("menuitem", { name: "下载" }).first();
     const href = await download.getAttribute("href");
     expect(href).toContain("/api/b/live/1/recordings/");
     expect(href).toContain(encodeURIComponent("回放-01 中文.flv"));
     await expect(download).toHaveAttribute("download", "");
+  });
+
+  test("recordings-play-actions: 主按钮展开/收起播放区，按钮文案随展开态变化", async ({ page }) => {
+    await mockRecordingsUpstream(page);
+    await page.goto(`${BASE}/recordings`);
+    await page.getByRole("button", { name: /枝堇/ }).click();
+
+    const playButton = page.getByRole("button", { name: "播放", exact: true }).first();
+    await playButton.click();
+
+    const panel = page.getByRole("region", { name: "录播播放区" });
+    await expect(panel).toBeVisible();
+    const collapseButton = page.getByRole("button", { name: "收起", exact: true }).first();
+    await expect(collapseButton).toBeVisible();
+
+    await collapseButton.click();
+    await expect(panel).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "播放", exact: true }).first()).toBeVisible();
   });
 
   test("recordings-preview: 点击文件项内联展开视频播放区与进度条", async ({ page }) => {

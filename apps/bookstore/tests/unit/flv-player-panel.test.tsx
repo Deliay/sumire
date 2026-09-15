@@ -31,6 +31,7 @@ interface MockPlayer {
   pause: ReturnType<typeof vi.fn>;
   on: ReturnType<typeof vi.fn>;
   off: ReturnType<typeof vi.fn>;
+  seekToByteOffset: ReturnType<typeof vi.fn>;
 }
 
 const mp = vi.hoisted(() => {
@@ -44,6 +45,7 @@ const mp = vi.hoisted(() => {
       pause: vi.fn(),
       on: vi.fn(),
       off: vi.fn(),
+      seekToByteOffset: vi.fn(),
     };
     players.push(player);
     return player;
@@ -58,6 +60,9 @@ vi.mock("mpegts.js", () => ({
     Events: { ERROR: "error" },
   },
 }));
+
+const sk = vi.hoisted(() => ({ seekUnbuffered: vi.fn() }));
+vi.mock("@/features/recordings/seek", () => ({ seekUnbuffered: sk.seekUnbuffered }));
 
 const room = (roomId: number, streamerName: string, state = "not_live") => ({
   roomId,
@@ -87,6 +92,8 @@ beforeEach(() => {
   mp.players.length = 0;
   mp.createPlayer.mockClear();
   mp.isSupported.mockReturnValue(true);
+  sk.seekUnbuffered.mockReset();
+  sk.seekUnbuffered.mockResolvedValue(true);
   // 默认上游不支持 Range（探测请求返回 200）
   vi.stubGlobal(
     "fetch",
@@ -145,7 +152,7 @@ describe("FLV 在线预览", () => {
     expect(mp.players[0].destroy).toHaveBeenCalledTimes(1);
   });
 
-  it("上游支持 Range 且获知时长后可拖动进度条 seek 到指定位置", async () => {
+  it("上游支持 Range 且已缓冲落点：直接定位 currentTime，不触发 seekUnbuffered", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({ status: 206, headers: { get: () => null }, body: { cancel: async () => {} } }),
@@ -159,6 +166,10 @@ describe("FLV 在线预览", () => {
     const video = screen.getByLabelText("录播视频") as HTMLVideoElement;
     Object.defineProperty(video, "duration", { configurable: true, value: 120 });
     Object.defineProperty(video, "currentTime", { configurable: true, writable: true, value: 0 });
+    Object.defineProperty(video, "buffered", {
+      configurable: true,
+      value: { length: 1, start: () => 0, end: () => 120 },
+    });
     await act(async () => {
       fireEvent.loadedMetadata(video);
     });
@@ -173,6 +184,114 @@ describe("FLV 在线预览", () => {
     });
     expect(video.currentTime).toBe(60);
     expect(screen.getByText("01:00 / 02:00")).toBeTruthy();
+    expect(sk.seekUnbuffered).not.toHaveBeenCalled();
+  });
+
+  it("未缓冲落点：调用 seekUnbuffered 且不写 currentTime，seek 中展示缓冲反馈", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ status: 206, headers: { get: () => null }, body: { cancel: async () => {} } }),
+    );
+    let resolveSeek!: (value: boolean) => void;
+    sk.seekUnbuffered.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveSeek = resolve;
+        }),
+    );
+    await renderAndExpand();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "回放 一.flv" }));
+    });
+    await screen.findByRole("button", { name: "暂停" });
+
+    const video = screen.getByLabelText("录播视频") as HTMLVideoElement;
+    Object.defineProperty(video, "duration", { configurable: true, value: 120 });
+    Object.defineProperty(video, "currentTime", { configurable: true, writable: true, value: 0 });
+    Object.defineProperty(video, "buffered", { configurable: true, value: { length: 0, start: () => 0, end: () => 0 } });
+    await act(async () => {
+      fireEvent.loadedMetadata(video);
+    });
+
+    const progress = screen.getByRole("slider", { name: "播放进度" }) as HTMLInputElement;
+    await vi.waitFor(() => expect(progress.disabled).toBe(false));
+
+    await act(async () => {
+      fireEvent.change(progress, { target: { value: "60" } });
+    });
+
+    expect(sk.seekUnbuffered).toHaveBeenCalledWith({
+      url: `https://rec.example.com/api/b/live/1/recordings/${encodeURIComponent("回放 一.flv")}`,
+      targetSeconds: 60,
+      durationSeconds: 120,
+      fileSize: 1024,
+    });
+    expect(video.currentTime).toBe(0);
+    expect(screen.getByRole("status")).toBeTruthy();
+
+    await act(async () => {
+      resolveSeek(true);
+    });
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("快速连续 seek：组件以最后落点调用编排（last-wins 由 seek 模块负责）", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ status: 206, headers: { get: () => null }, body: { cancel: async () => {} } }),
+    );
+    sk.seekUnbuffered.mockResolvedValue(true);
+    await renderAndExpand();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "回放 一.flv" }));
+    });
+    await screen.findByRole("button", { name: "暂停" });
+
+    const video = screen.getByLabelText("录播视频") as HTMLVideoElement;
+    Object.defineProperty(video, "duration", { configurable: true, value: 120 });
+    Object.defineProperty(video, "currentTime", { configurable: true, writable: true, value: 0 });
+    Object.defineProperty(video, "buffered", { configurable: true, value: { length: 0, start: () => 0, end: () => 0 } });
+    await act(async () => {
+      fireEvent.loadedMetadata(video);
+    });
+    const progress = screen.getByRole("slider", { name: "播放进度" }) as HTMLInputElement;
+    await vi.waitFor(() => expect(progress.disabled).toBe(false));
+
+    await act(async () => {
+      fireEvent.change(progress, { target: { value: "30" } });
+      fireEvent.change(progress, { target: { value: "80" } });
+    });
+    const calls = sk.seekUnbuffered.mock.calls;
+    expect(calls.length).toBeGreaterThanOrEqual(2);
+    expect(calls[calls.length - 1][0]).toMatchObject({ targetSeconds: 80 });
+  });
+
+  it("seek 失败（seekUnbuffered 返回 false）：展示播放失败提示", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ status: 206, headers: { get: () => null }, body: { cancel: async () => {} } }),
+    );
+    sk.seekUnbuffered.mockResolvedValue(false);
+    await renderAndExpand();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "回放 一.flv" }));
+    });
+    await screen.findByRole("button", { name: "暂停" });
+
+    const video = screen.getByLabelText("录播视频") as HTMLVideoElement;
+    Object.defineProperty(video, "duration", { configurable: true, value: 120 });
+    Object.defineProperty(video, "currentTime", { configurable: true, writable: true, value: 0 });
+    Object.defineProperty(video, "buffered", { configurable: true, value: { length: 0, start: () => 0, end: () => 0 } });
+    await act(async () => {
+      fireEvent.loadedMetadata(video);
+    });
+    const progress = screen.getByRole("slider", { name: "播放进度" }) as HTMLInputElement;
+    await vi.waitFor(() => expect(progress.disabled).toBe(false));
+
+    await act(async () => {
+      fireEvent.change(progress, { target: { value: "60" } });
+    });
+    expect(await screen.findByText(/播放失败/)).toBeTruthy();
   });
 
   it("再次点击播放中的文件项折叠并销毁 player；同一时间仅一个播放区", async () => {
@@ -301,5 +420,138 @@ describe("FLV 在线预览", () => {
     });
     await vi.waitFor(() => expect(mp.players).toHaveLength(3));
     expect(await screen.findByRole("button", { name: "暂停" })).toBeTruthy();
+  });
+});
+
+describe("全屏与网页全屏", () => {
+  const requestFullscreen = vi.fn(() => Promise.resolve());
+  const exitFullscreen = vi.fn(() => Promise.resolve());
+
+  beforeEach(() => {
+    requestFullscreen.mockClear();
+    exitFullscreen.mockClear();
+    Object.defineProperty(document, "fullscreenEnabled", { configurable: true, value: true });
+    Object.defineProperty(document, "fullscreenElement", { configurable: true, writable: true, value: null });
+    (Element.prototype as unknown as { requestFullscreen?: unknown }).requestFullscreen = requestFullscreen;
+    (document as unknown as { exitFullscreen?: unknown }).exitFullscreen = exitFullscreen;
+  });
+
+  afterEach(() => {
+    delete (Element.prototype as unknown as { requestFullscreen?: unknown }).requestFullscreen;
+    delete (document as unknown as { exitFullscreen?: unknown }).exitFullscreen;
+    document.body.style.overflow = "";
+  });
+
+  async function openPanel() {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ status: 206, headers: { get: () => null }, body: { cancel: async () => {} } }),
+    );
+    await renderAndExpand();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "回放 一.flv" }));
+    });
+    await screen.findByRole("button", { name: "暂停" });
+  }
+
+  function fullscreenContainer(): HTMLElement {
+    const container = screen.getByLabelText("录播播放区").querySelector("[data-fullscreen-container]");
+    expect(container).toBeTruthy();
+    return container as HTMLElement;
+  }
+
+  it("控制条渲染「全屏」「网页全屏」按钮", async () => {
+    await openPanel();
+    expect(screen.getByRole("button", { name: "全屏" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "网页全屏" })).toBeTruthy();
+  });
+
+  it("点击「全屏」请求容器全屏并切换为「退出全屏」；ESC（fullscreenchange）复位", async () => {
+    await openPanel();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "全屏" }));
+    });
+    expect(requestFullscreen).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole("button", { name: "退出全屏" })).toBeTruthy();
+
+    Object.defineProperty(document, "fullscreenElement", { configurable: true, writable: true, value: null });
+    await act(async () => {
+      document.dispatchEvent(new Event("fullscreenchange"));
+    });
+    expect(screen.getByRole("button", { name: "全屏" })).toBeTruthy();
+  });
+
+  it("点击「网页全屏」铺满视口并锁定滚动，退出还原", async () => {
+    await openPanel();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "网页全屏" }));
+    });
+    const container = fullscreenContainer();
+    expect(container.className).toContain("fixed");
+    expect(container.className).toContain("inset-0");
+    expect(container.className).toContain("z-50");
+    expect(document.body.style.overflow).toBe("hidden");
+    const exit = await screen.findByRole("button", { name: "退出网页全屏" });
+
+    await act(async () => {
+      fireEvent.click(exit);
+    });
+    expect(container.className).not.toContain("z-50");
+    expect(document.body.style.overflow).toBe("");
+  });
+
+  it("ESC 键退出网页全屏", async () => {
+    await openPanel();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "网页全屏" }));
+    });
+    await screen.findByRole("button", { name: "退出网页全屏" });
+    await act(async () => {
+      fireEvent.keyDown(window, { key: "Escape" });
+    });
+    expect(screen.getByRole("button", { name: "网页全屏" })).toBeTruthy();
+    expect(document.body.style.overflow).toBe("");
+  });
+
+  it("native 与 web 全屏互斥，不叠加", async () => {
+    await openPanel();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "全屏" }));
+    });
+    await screen.findByRole("button", { name: "退出全屏" });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "网页全屏" }));
+    });
+    expect(exitFullscreen).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole("button", { name: "退出网页全屏" })).toBeTruthy();
+    expect(document.body.style.overflow).toBe("hidden");
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "全屏" }));
+    });
+    expect(requestFullscreen).toHaveBeenCalledTimes(2);
+    expect(await screen.findByRole("button", { name: "退出全屏" })).toBeTruthy();
+    expect(document.body.style.overflow).toBe("");
+  });
+
+  it("关闭播放区前复位全屏并还原滚动", async () => {
+    await openPanel();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "网页全屏" }));
+    });
+    await screen.findByRole("button", { name: "退出网页全屏" });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "关闭播放区" }));
+    });
+    expect(screen.queryByLabelText("录播播放区")).toBeNull();
+    expect(document.body.style.overflow).toBe("");
+  });
+
+  it("document.fullscreenEnabled=false：隐藏「全屏」，保留「网页全屏」", async () => {
+    Object.defineProperty(document, "fullscreenEnabled", { configurable: true, value: false });
+    await openPanel();
+    expect(screen.queryByRole("button", { name: "全屏" })).toBeNull();
+    expect(screen.getByRole("button", { name: "网页全屏" })).toBeTruthy();
   });
 });

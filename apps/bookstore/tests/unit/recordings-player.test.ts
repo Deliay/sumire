@@ -46,6 +46,7 @@ import {
   seekToByteOffset,
   configureBufferForBitrate,
   computeBufferConfig,
+  BUFFER_BUDGET_BYTES,
 } from "@/features/recordings/player";
 
 const fakeVideo = () => ({}) as unknown as HTMLVideoElement;
@@ -62,29 +63,47 @@ afterEach(() => {
 });
 
 describe("computeBufferConfig", () => {
-  it("未知码率用保守默认值折算（≈41s 前瞻，≤50MB@10Mbps）", () => {
-    expect(computeBufferConfig(0, 0).lazyLoadMaxDuration).toBe(41);
-    expect(computeBufferConfig(1_000_000, 0).lazyLoadMaxDuration).toBe(41);
+  it("未知码率用保守高码率兜底，初始窗口足够小", () => {
+    const cfg = computeBufferConfig(0, 0);
+    expect(cfg.lazyLoadMaxDuration).toBeLessThanOrEqual(5);
+    expect(cfg.lazyLoadMaxDuration).toBeGreaterThan(0);
+    expect(computeBufferConfig(1_000_000, 0)).toEqual(cfg);
   });
 
-  it("按 size/duration 估算码率折算缓冲秒数", () => {
-    // 400Mbit 预算 / 10Mbps = 40s
+  it("按 size/duration 估算码率折算缓冲秒数（前瞻 60% / 回退 40% 字节预算）", () => {
+    // 50MB 文件 / 40s → 10Mbps；前瞻 30MB→24s，回退 20MB→16s
     const cfg = computeBufferConfig(50 * 1024 * 1024, 40);
-    expect(cfg.lazyLoadMaxDuration).toBe(40);
-    expect(cfg.autoCleanupMaxBackwardDuration).toBe(40);
+    expect(cfg.lazyLoadMaxDuration).toBe(24);
+    expect(cfg.autoCleanupMaxBackwardDuration).toBe(16);
     expect(cfg.autoCleanupMinBackwardDuration).toBeLessThan(cfg.autoCleanupMaxBackwardDuration);
   });
 
-  it("低码率时钳制到上限、且各项为正", () => {
+  it("低码率时钳制到秒数上限、且各项为正", () => {
     const cfg = computeBufferConfig(50 * 1024 * 1024, 5000);
-    expect(cfg.lazyLoadMaxDuration).toBe(120);
+    expect(cfg.lazyLoadMaxDuration).toBe(300);
     expect(cfg.lazyLoadRecoverDuration).toBeGreaterThan(0);
     expect(cfg.autoCleanupMinBackwardDuration).toBeGreaterThan(0);
   });
 
-  it("高码率时钳制到下限（防止缓冲过小）", () => {
+  it("高码率时不再有 30s 下限（小数值秒，避免击穿字节预算）", () => {
+    // 500MB / 100s → 40Mbps；前瞻 30MB→6s
     const cfg = computeBufferConfig(500 * 1024 * 1024, 100);
-    expect(cfg.lazyLoadMaxDuration).toBe(30);
+    expect(cfg.lazyLoadMaxDuration).toBeCloseTo(6, 5);
+    expect(cfg.autoCleanupMaxBackwardDuration).toBeCloseTo(4, 5);
+  });
+
+  it("(前瞻 + 回退) × 码率 恒 ≤ 字节预算（0.5~50Mbps 代表性码率）", () => {
+    const durationSeconds = 1000;
+    for (const mbps of [0.5, 1, 2, 5, 10, 20, 40, 50]) {
+      const bitrate = mbps * 1_000_000;
+      const fileSize = (bitrate / 8) * durationSeconds;
+      const cfg = computeBufferConfig(fileSize, durationSeconds);
+      const bufferedBytes =
+        ((cfg.lazyLoadMaxDuration + cfg.autoCleanupMaxBackwardDuration) * bitrate) / 8;
+      expect(bufferedBytes, `${mbps}Mbps`).toBeLessThanOrEqual(BUFFER_BUDGET_BYTES * 1.000001);
+      expect(cfg.lazyLoadMaxDuration).toBeGreaterThan(0);
+      expect(cfg.autoCleanupMaxBackwardDuration).toBeGreaterThan(0);
+    }
   });
 });
 
@@ -107,7 +126,7 @@ describe("play 缓冲封顶", () => {
     const ok = configureBufferForBitrate(50 * 1024 * 1024, 5000);
     expect(ok).toBe(true);
     expect(mp.players[0].setBufferLimits).toHaveBeenCalledWith(
-      expect.objectContaining({ lazyLoadMaxDuration: 120 }),
+      expect.objectContaining({ lazyLoadMaxDuration: 300 }),
     );
   });
 });

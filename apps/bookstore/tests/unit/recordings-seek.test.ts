@@ -1,10 +1,14 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
+  computeScanBytes,
   estimateByteOffset,
   findNextTagBoundary,
+  findVideoKeyframeBoundary,
   seekUnbuffered,
-  SEEK_WINDOW_BYTES,
+  KEYFRAME_SCAN_SECONDS,
+  MAX_KEYFRAME_SCAN_BYTES,
   MAX_WINDOW_READ_BYTES,
+  SEEK_WINDOW_BYTES,
 } from "@/features/recordings/seek";
 
 /** 构造一个合法 FLV tag：header(11) + data(dataSize) + PrevTagSize(4)。 */
@@ -75,9 +79,22 @@ describe("estimateByteOffset", () => {
   });
 });
 
-describe("findNextTagBoundary", () => {
+describe("computeScanBytes", () => {
+  it("按码率覆盖 KEYFRAME_SCAN_SECONDS 并钳制上下限", () => {
+    expect(computeScanBytes(0)).toBe(SEEK_WINDOW_BYTES);
+    expect(computeScanBytes(-1)).toBe(SEEK_WINDOW_BYTES);
+    // 极低码率：不足最小窗口 → 抬到 SEEK_WINDOW_BYTES
+    expect(computeScanBytes(1000)).toBe(SEEK_WINDOW_BYTES);
+    // 中码率：4Mbps → 0.5MB/s × 10s = 5MB
+    expect(computeScanBytes(4_000_000)).toBe(Math.floor((4_000_000 / 8) * KEYFRAME_SCAN_SECONDS));
+    // 高码率：8Mbps → 1MB/s × 10s = 10MB → 封顶
+    expect(computeScanBytes(8_000_000)).toBe(MAX_KEYFRAME_SCAN_BYTES);
+  });
+});
+
+describe("findNextTagBoundary / findVideoKeyframeBoundary / scanFlvBounds", () => {
   it("跳过前导噪声，定位首个三重校验通过的 tag 边界并读出时间戳", () => {
-    const window = concat(new Uint8Array([1, 2, 3, 4, 5, 6, 7]), buildTag(9, 20, 5000), buildTag(9, 20, 5050));
+    const window = concat(new Uint8Array([1, 2, 3, 4, 5, 6, 7]), buildTag(9, 20, 5000, 0x10), buildTag(9, 20, 5050));
     const boundary = findNextTagBoundary(window, 1_000_000);
     expect(boundary).toEqual({ fileposition: 1_000_007, milliseconds: 5000 });
   });
@@ -86,6 +103,7 @@ describe("findNextTagBoundary", () => {
     const noise = new Uint8Array(2000);
     noise.fill(0x01);
     expect(findNextTagBoundary(noise, 0)).toBeNull();
+    expect(findVideoKeyframeBoundary(noise, 0)).toBeNull();
   });
 
   it("假 tagType 字节（PrevTagSize 不一致）被跳过，命中真实边界", () => {
@@ -95,11 +113,30 @@ describe("findNextTagBoundary", () => {
     expect(boundary).toEqual({ fileposition: 500 + fake.length, milliseconds: 1234 });
   });
 
-  it("窗口尾部截断（不足以校验 PrevTagSize）放宽为单重校验", () => {
-    const full = buildTag(8, 40, 777);
-    const truncated = full.slice(0, 20);
-    const boundary = findNextTagBoundary(truncated, 100);
-    expect(boundary).toEqual({ fileposition: 100, milliseconds: 777 });
+  it("优先命中视频关键帧 tag（frameType=1），忽略其前的音频 tag", () => {
+    const window = concat(
+      new Uint8Array([0, 0]),
+      buildTag(8, 20, 10_000),
+      buildTag(9, 20, 10_040, 0x20),
+      buildTag(9, 20, 10_080, 0x10),
+    );
+    expect(findNextTagBoundary(window, 0)).toEqual({ fileposition: 2, milliseconds: 10_000 });
+    expect(findVideoKeyframeBoundary(window, 0)).toEqual({ fileposition: 2 + 35 + 35, milliseconds: 10_080 });
+  });
+
+  it("仅音频 tag 的窗口：findNextTagBoundary 有值、findVideoKeyframeBoundary 为 null", () => {
+    const window = concat(buildTag(8, 20, 20_000), buildTag(8, 20, 20_040));
+    expect(findVideoKeyframeBoundary(window, 0)).toBeNull();
+    expect(findNextTagBoundary(window, 0)).toEqual({ fileposition: 0, milliseconds: 20_000 });
+  });
+
+  it("未完整（PrevTagSize 不可校验）的假 tag 不阻塞扫描", () => {
+    const fake = new Uint8Array([9, 0, 0, 200, 0, 0, 0, 0, 0, 0, 0]);
+    const window = concat(fake, buildTag(9, 10, 1234, 0x10));
+    expect(findVideoKeyframeBoundary(window, 500)).toEqual({
+      fileposition: 500 + fake.length,
+      milliseconds: 1234,
+    });
   });
 });
 
@@ -141,6 +178,47 @@ describe("seekUnbuffered", () => {
     expect(seek).not.toHaveBeenCalled();
   });
 
+  it("流式分批到达：关键帧 tag 跨批补齐后被识别并取消剩余下载", async () => {
+    const full = concat(
+      new Uint8Array([0, 0]),
+      buildTag(8, 24, 60_000),
+      buildTag(9, 40, 60_080, 0x10),
+    );
+    const chunk1 = full.slice(0, full.length - 4);
+    const chunk2 = full.slice(full.length - 4);
+    let step = 0;
+    const cancel = vi.fn(async () => {});
+    const reader = {
+      read: vi.fn(async () => {
+        step += 1;
+        if (step === 1) return { done: false, value: chunk1 };
+        if (step === 2) return { done: false, value: chunk2 };
+        return { done: true, value: undefined };
+      }),
+      cancel,
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 206,
+        headers: { get: () => null },
+        body: { getReader: () => reader },
+      }),
+    );
+    const seek = vi.fn();
+    const ok = await seekUnbuffered({
+      url: "https://rec.example.com/a.flv",
+      targetSeconds: 60,
+      durationSeconds: 120,
+      fileSize: 1_000_000,
+      seekToByteOffset: seek,
+    });
+    expect(ok).toBe(true);
+    expect(seek).toHaveBeenCalledWith(500_002 + 39, 60_080);
+    expect(cancel).toHaveBeenCalled();
+  });
+
   it("非 206 响应（上游忽略 Range）取消响应体、绝不整文件 buffer 且不触达播放器", async () => {
     const cancel = vi.fn(async () => {});
     const arrayBuffer = vi.fn(async () => new ArrayBuffer(0));
@@ -167,7 +245,7 @@ describe("seekUnbuffered", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
-        windowResponse(window, 206, undefined, String(SEEK_WINDOW_BYTES * 10)),
+        windowResponse(window, 206, undefined, String(MAX_WINDOW_READ_BYTES * 2)),
       ),
     );
     const seek = vi.fn();
@@ -182,7 +260,7 @@ describe("seekUnbuffered", () => {
     expect(seek).not.toHaveBeenCalled();
   });
 
-  it("流式读取超出上限时取消读取器并降级", async () => {
+  it("流式读取超出上限时取消读取器（绝不无限读入）", async () => {
     const cancel = vi.fn(async () => {});
     const hugeChunk = new Uint8Array(MAX_WINDOW_READ_BYTES + 1);
     let step = 0;
@@ -213,7 +291,40 @@ describe("seekUnbuffered", () => {
     });
     expect(ok).toBe(false);
     expect(cancel).toHaveBeenCalled();
-    expect(seek).not.toHaveBeenCalled();
+  });
+
+  it("窗口仅含音频 tag 时回退到任意 tag 边界（不再降级为估算偏移）", async () => {
+    const window = concat(new Uint8Array([0, 0]), buildTag(8, 24, 60_000), buildTag(8, 24, 60_040));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(windowResponse(window)));
+    const seek = vi.fn();
+    const ok = await seekUnbuffered({
+      url: "https://rec.example.com/a.flv",
+      targetSeconds: 60,
+      durationSeconds: 120,
+      fileSize: 1_000_000,
+      seekToByteOffset: seek,
+    });
+    expect(ok).toBe(true);
+    expect(seek).toHaveBeenCalledWith(500_002, 60_000);
+  });
+
+  it("窗口内在音频 tag 之后出现视频关键帧时优先对齐关键帧", async () => {
+    const window = concat(
+      new Uint8Array([0, 0]),
+      buildTag(8, 24, 60_000),
+      buildTag(9, 24, 60_080, 0x10),
+    );
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(windowResponse(window)));
+    const seek = vi.fn();
+    const ok = await seekUnbuffered({
+      url: "https://rec.example.com/a.flv",
+      targetSeconds: 60,
+      durationSeconds: 120,
+      fileSize: 1_000_000,
+      seekToByteOffset: seek,
+    });
+    expect(ok).toBe(true);
+    expect(seek).toHaveBeenCalledWith(500_002 + 39, 60_080);
   });
 
   it("patched 回调返回 false（补丁未生效）时显性失败", async () => {

@@ -43,14 +43,19 @@ export interface PlayOptions {
   fileSize?: number;
 }
 
-/** 播放 buffer 字节预算上限（前瞻 + 回退），约 50MB。 */
+/** 播放 buffer 字节预算上限（前瞻 + 回退合计）。 */
 export const BUFFER_BUDGET_BYTES = 50 * 1024 * 1024;
-/** 前瞻/回退缓冲秒数下限（防止极低码率下缓冲过小）。 */
-const MIN_BUFFER_SECONDS = 30;
-/** 前瞻/回退缓冲秒数上限（防止极低码率下缓冲过大）。 */
-const MAX_BUFFER_SECONDS = 120;
-/** 未知码率时的保守默认码率（bps），按录播产物上界取值以兜底封顶。 */
-const DEFAULT_BITRATE_BPS = 10_000_000;
+/** 前瞻缓冲占字节预算的比例（其余为回退），保证「前瞻 + 回退」合计 ≤ 预算。 */
+export const FORWARD_BUDGET_RATIO = 0.6;
+/** 秒数上限（低码率下防止缓冲窗口过大）。 */
+const MAX_BUFFER_SECONDS = 300;
+/** 秒数下限（仅防零/负数；高码率下允许小数值秒，绝不因下限击穿字节预算）。 */
+const MIN_BUFFER_SECONDS = 0.1;
+/**
+ * 未知码率（duration 未到手）时的保守假定码率（bps）。
+ * 取高值使初始窗口足够小，避免高码率录播（如 ~40Mbps）首播即超预算。
+ */
+const DEFAULT_BITRATE_BPS = 50_000_000;
 
 export interface BufferConfig {
   lazyLoadMaxDuration: number;
@@ -59,26 +64,35 @@ export interface BufferConfig {
   autoCleanupMinBackwardDuration: number;
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
+/** 按字节预算折算秒数（向下取整到 0.1s，保证 `秒数 × 码率 ≤ 预算字节`）。 */
+function secondsForBudget(budgetBytes: number, bitrate: number): number {
+  const raw = (budgetBytes * 8) / bitrate;
+  const clamped = Math.min(Math.max(raw, 0), MAX_BUFFER_SECONDS);
+  return Math.max(MIN_BUFFER_SECONDS, Math.floor(clamped * 10) / 10);
 }
 
 /**
  * 按 `size/duration` 估算码率，把 mpegts 的 lazyLoad / autoCleanup 缓冲窗口
- * 折算到 ≤ `BUFFER_BUDGET_BYTES` 对应的秒数（纯函数，带合理上下限）。
- * `durationSeconds` 未知（≤0）时用保守默认码率兜底。
+ * 折算到**确定性字节预算**内（纯函数）：
+ * `(lazyLoadMaxDuration + autoCleanupMaxBackwardDuration) × 码率 ≤ BUFFER_BUDGET_BYTES`，
+ * 前瞻占 60%、回退占 40%。`durationSeconds` 未知（≤0）时用保守高码率兜底，
+ * 拿到真实时长后再经 `configureBufferForBitrate` 重算。
  */
 export function computeBufferConfig(fileSize: number, durationSeconds: number): BufferConfig {
   const validSize = Number.isFinite(fileSize) && fileSize > 0 ? fileSize : 0;
   const validDuration = Number.isFinite(durationSeconds) && durationSeconds > 0 ? durationSeconds : 0;
   const bitrate = validSize > 0 && validDuration > 0 ? (validSize * 8) / validDuration : DEFAULT_BITRATE_BPS;
-  const budgetSeconds = Math.floor((BUFFER_BUDGET_BYTES * 8) / bitrate);
-  const forward = clamp(budgetSeconds, MIN_BUFFER_SECONDS, MAX_BUFFER_SECONDS);
+
+  const forwardBytes = BUFFER_BUDGET_BYTES * FORWARD_BUDGET_RATIO;
+  const backwardBytes = BUFFER_BUDGET_BYTES * (1 - FORWARD_BUDGET_RATIO);
+  const forward = secondsForBudget(forwardBytes, bitrate);
+  const backward = secondsForBudget(backwardBytes, bitrate);
+
   return {
     lazyLoadMaxDuration: forward,
-    lazyLoadRecoverDuration: clamp(Math.floor(forward / 6), 5, MAX_BUFFER_SECONDS),
-    autoCleanupMaxBackwardDuration: forward,
-    autoCleanupMinBackwardDuration: clamp(Math.floor(forward / 3), 10, MAX_BUFFER_SECONDS),
+    lazyLoadRecoverDuration: secondsForBudget(forwardBytes / 6, bitrate),
+    autoCleanupMaxBackwardDuration: backward,
+    autoCleanupMinBackwardDuration: Math.min(secondsForBudget(backwardBytes / 3, bitrate), backward),
   };
 }
 

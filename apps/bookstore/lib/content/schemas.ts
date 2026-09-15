@@ -15,6 +15,7 @@ export const siteSchema = z.object({
     bilibili: z.url(),
     live: z.url(),
     moegirl: z.url(),
+    secretRoom: z.url(),
   }),
 });
 

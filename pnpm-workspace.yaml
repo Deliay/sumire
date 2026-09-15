@@ -8,3 +8,6 @@ allowBuilds:
   esbuild: true
   sharp: true
   unrs-resolver: false
+
+patchedDependencies:
+  mpegts.js@1.8.2: patches/mpegts.js@1.8.2.patch

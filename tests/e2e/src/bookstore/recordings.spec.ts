@@ -35,7 +35,10 @@ function filesFixture(count: number) {
 }
 
 /** 拦截录播服务四组端点（浏览器侧 mock，基址只需非空）。 */
-async function mockRecordingsUpstream(page: Page, opts: { status?: number; fileCount?: number } = {}) {
+async function mockRecordingsUpstream(
+  page: Page,
+  opts: { status?: number; fileCount?: number; range?: boolean } = {},
+) {
   await page.route("**/api/b/live/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith("/recording-status")) {
@@ -51,6 +54,16 @@ async function mockRecordingsUpstream(page: Page, opts: { status?: number; fileC
       return;
     }
     if (/\/recordings\/[^/]+$/.test(path)) {
+      const hasRange = Boolean(route.request().headers()["range"]);
+      if (opts.range !== false && hasRange) {
+        await route.fulfill({
+          status: 206,
+          contentType: "video/x-flv",
+          headers: { "Accept-Ranges": "bytes", "Content-Range": "bytes 0-0/0" },
+          body: "",
+        });
+        return;
+      }
       await route.fulfill({ status: 200, contentType: "video/x-flv", body: "" });
       return;
     }
@@ -190,5 +203,37 @@ test.describe("bookstore 录播页", () => {
     await page.goto(`${BASE}/recordings`);
     await expect(page.getByText(/录播服务暂时不可用/)).toBeVisible();
     await expect(page.getByRole("heading", { name: "录播", exact: true })).toBeVisible();
+  });
+
+  test("recordings-fullscreen: 支持 Range 时出现全屏/网页全屏，网页全屏铺满并锁定滚动", async ({ page }) => {
+    await mockRecordingsUpstream(page, { range: true });
+    await page.goto(`${BASE}/recordings`);
+    await page.getByRole("button", { name: /枝堇/ }).click();
+    await page.getByRole("button", { name: "回放-01 中文.flv" }).click();
+
+    const panel = page.getByRole("region", { name: "录播播放区" });
+    await expect(panel.getByRole("button", { name: "网页全屏" })).toBeVisible();
+    await expect(panel.getByRole("button", { name: "全屏", exact: true })).toBeVisible();
+
+    const container = panel.locator("[data-fullscreen-container]");
+    await panel.getByRole("button", { name: "网页全屏" }).click();
+    await expect(container).toHaveClass(/fixed/);
+    await expect(container).toHaveClass(/inset-0/);
+    expect(await page.evaluate(() => document.body.style.overflow)).toBe("hidden");
+
+    await panel.getByRole("button", { name: "退出网页全屏" }).click();
+    await expect(container).not.toHaveClass(/fixed/);
+    await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe("");
+  });
+
+  test("recordings-range-unsupported: Range 探测返回 200 时进度条禁用并明示", async ({ page }) => {
+    await mockRecordingsUpstream(page, { range: false });
+    await page.goto(`${BASE}/recordings`);
+    await page.getByRole("button", { name: /枝堇/ }).click();
+    await page.getByRole("button", { name: "回放-01 中文.flv" }).click();
+
+    const panel = page.getByRole("region", { name: "录播播放区" });
+    await expect(panel.getByText(/当前上游不支持拖动进度/)).toBeVisible();
+    await expect(panel.getByRole("slider", { name: "播放进度" })).toBeDisabled();
   });
 });

@@ -366,14 +366,15 @@ describe("FLV 在线预览", () => {
       fireEvent.click(screen.getByRole("button", { name: "回放 一.flv" }));
     });
     await screen.findByRole("button", { name: "暂停" });
+    const panel = screen.getByLabelText("录播播放区");
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "暂停" }));
+      fireEvent.click(within(panel).getByRole("button", { name: "暂停" }));
     });
     expect(mp.players[0].pause).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("button", { name: "播放" })).toBeTruthy();
+    expect(within(panel).getByRole("button", { name: "播放" })).toBeTruthy();
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "播放" }));
+      fireEvent.click(within(panel).getByRole("button", { name: "播放" }));
     });
     expect(mp.players[0].play.mock.calls.length).toBeGreaterThan(1);
   });
@@ -413,9 +414,12 @@ describe("FLV 在线预览", () => {
     await vi.waitFor(() => expect(mp.players).toHaveLength(2));
   });
 
-  it("文件项「下载」链接与播放同源且文件名经编码", async () => {
+  it("文件项「下载」链接与播放同源且文件名经编码（经更多操作菜单）", async () => {
     await renderAndExpand([file("中文 名.flv")]);
-    const download = screen.getByRole("link", { name: /下载/ });
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole("button", { name: "更多操作" })[0]);
+    });
+    const download = screen.getByRole("menuitem", { name: /下载/ });
     expect(download.getAttribute("href")).toBe(
       `https://rec.example.com/api/b/live/1/recordings/${encodeURIComponent("中文 名.flv")}`,
     );

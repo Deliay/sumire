@@ -45,8 +45,8 @@ var bookstore = builder
     .WithExternalHttpEndpoints()
     .WithReference(api)
     .WithEnvironment("NEXT_PUBLIC_API_BASE_URL", api.GetEndpoint("http"))
-    // 录播服务基址：未设置编排进程环境变量时回退内网地址，保证 aspire start / e2e 开箱即用
-    // （e2e 以 page.route 拦截浏览器侧请求，基址只需非空）
+    // 录播服务上游地址（本地 dev 由 next.config.ts rewrites 经 /recordings-proxy 代理转发，规避跨域）：
+    // 未设置编排进程环境变量时回退内网地址，保证 aspire start / e2e 开箱即用
     .WithEnvironment("NEXT_PUBLIC_RECORDINGS_BASE_URL", Environment.GetEnvironmentVariable("NEXT_PUBLIC_RECORDINGS_BASE_URL") ?? "http://vtuber.internal.fffdan.com");
 
 // api 的 CORS 白名单引用 bookstore 端点（声明在 bookstore 之后）

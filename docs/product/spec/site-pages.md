@@ -51,7 +51,7 @@
 
 ## 录播页 `/recordings`
 
-独立公开页（置于 `(site)/(content)/` 路由组，自动获得 NavBar + Footer 外壳；`app/(site)/(content)/recordings/page.tsx` 为服务端壳：`metadata` + `RECORDINGS_CONFIGURED` 守卫 + `<RecordingsApp />`）。数据由前端**直连录播服务**四组端点，基址由构建期环境变量 `NEXT_PUBLIC_RECORDINGS_BASE_URL` 注入（生产外网、本地转发），本站不存储任何录播数据。未配置基址时页面（及 `RecordingsApp` 内层双保险）渲染「录播服务未配置」空态且不发请求。
+独立公开页（置于 `(site)/(content)/` 路由组，自动获得 NavBar + Footer 外壳；`app/(site)/(content)/recordings/page.tsx` 为服务端壳：`metadata` + `RECORDINGS_CONFIGURED` 守卫 + `<RecordingsApp />`）。数据由前端**直连录播服务**四组端点：生产静态导出用构建期 `NEXT_PUBLIC_RECORDINGS_BASE_URL` 绝对公网地址直连（线上 CDN 已为站点源配置跨域），本地开发用同源前缀 `/recordings-proxy` 经 `next.config.ts` dev rewrites 转发到上游（规避跨域）。本站不存储任何录播数据。未配置基址时页面（及 `RecordingsApp` 内层双保险）渲染「录播服务未配置」空态且不发请求。
 
 - **F1 入口**：导航「录播」项（见全局节），`RECORDINGS_CONFIGURED` 门控。
 - **F2 实时录制状态**：顶部区块消费 `GET {BASE}/api/b/live/recording-status`（`{items:[{mid,roomId,state,sessionTitle,updatedAt,streamer:{name}}]}`，前端归一化为 `{roomId,mid,streamerName,state,sessionTitle,updatedAt}`，未知 `state` 归一为 `not_live`，丢弃 `hostName`/`error`）。每项展示主播名、状态药丸（录制中带 `bg-eye animate-pulse` 呼吸点 / 未在直播）、场次标题与更新时间。首拉 + 30s 轮询（`useRecordingStatus`），`document.hidden` 时暂停、`visibilitychange` 恢复可见即刷一次。上游失败展示「录播服务暂时不可用」降级态，不报错页。

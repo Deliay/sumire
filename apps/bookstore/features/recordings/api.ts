@@ -1,11 +1,18 @@
 /** 录播服务请求封装：基址注入、路径编码与降级语义（公开只读独立基址，不带凭据）。 */
 
-const BASE_URL = process.env.NEXT_PUBLIC_RECORDINGS_BASE_URL ?? "";
+import { RECORDINGS_PROXY_PREFIX } from "@/features/recordings/proxy";
 
-export const RECORDINGS_BASE_URL = BASE_URL;
+const RAW_BASE_URL = process.env.NEXT_PUBLIC_RECORDINGS_BASE_URL ?? "";
 
-/** 录播服务基址是否已配置（非空即已配置）；导航门控与页面守卫共用此判断。 */
-export const RECORDINGS_CONFIGURED = BASE_URL !== "";
+/**
+ * 基址按环境分派：
+ * - 本地开发：同源代理前缀（`next.config.ts` dev rewrites 转发到内网录播服务，规避跨域）；
+ * - 生产静态导出：构建期注入的绝对公网地址（线上 CDN 已为站点源配置跨域，直连）。
+ */
+export const RECORDINGS_BASE_URL = process.env.NODE_ENV === "development" ? RECORDINGS_PROXY_PREFIX : RAW_BASE_URL;
+
+/** 录播服务是否已配置（以构建期环境变量是否非空为准）；导航门控与页面守卫共用此判断。 */
+export const RECORDINGS_CONFIGURED = RAW_BASE_URL !== "";
 
 export type RecordingState = "recording" | "not_live";
 

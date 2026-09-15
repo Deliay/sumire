@@ -55,7 +55,7 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 
 ## 录播（features/recordings）
 
-纯前端模块，直连外部录播服务（无 `servers/api`/契约变更）。基址 `NEXT_PUBLIC_RECORDINGS_BASE_URL` 构建期注入（生产由 `deploy.yml` 注入外网地址；本地由 `infra/aspire/apphost.cs` 注入内网地址，可用同名 host 环境变量覆盖），`RECORDINGS_CONFIGURED` 门控；请求不带凭据（公开只读独立基址，不复用后台 `request()`）。
+纯前端模块，直连外部录播服务（无 `servers/api`/契约变更）。基址按环境分派：生产静态导出用构建期 `NEXT_PUBLIC_RECORDINGS_BASE_URL` 绝对公网地址（`deploy.yml` 注入，线上 CDN 已为站点源配置跨域，浏览器直连）；本地开发用同源前缀 `/recordings-proxy`，由 `next.config.ts` 的 dev `rewrites()` 转发到 `NEXT_PUBLIC_RECORDINGS_BASE_URL`（缺省回退内网地址，可用同名 host 环境变量覆盖）以规避跨域——`rewrites` 仅在 `NODE_ENV === "development"` 挂载，与 `output: "export"` 生产构建不冲突。`RECORDINGS_CONFIGURED` 以构建期环境变量是否非空为准（门控语义与生产一致，未配置形态渲染空态、导航无入口）；请求不带凭据（公开只读独立基址，不复用后台 `request()`），相对基址下 `joinUrl`/下载/FLV 地址均为同源相对路径。
 
 - `api.ts`：导出 `RECORDINGS_BASE_URL`/`RECORDINGS_CONFIGURED` 与类型 `RecordingStatusItem`/`RecordingFile`；`joinUrl(base,path)` 归一拼接（单斜杠）、`liveAudioUrl(roomId)`、`recordingFileUrl(roomId,fileName)`（`encodeURIComponent`）；`getRecordingStatus()`（`{ok,items}`，归一化 `streamer.name→streamerName`、未知 `state→not_live`、缺 `sessionTitle→null`）、`getRoomRecordings(roomId)`（`{ok,files}`，过滤非法项）；未配置或非 200/非法 JSON/fetch 失败均静默降级 `{ok:false,...}`。
 - `useRecordingStatus.ts`：首拉 + 30s 轮询 + `visibilitychange` 暂停/恢复即刷；未配置时不发请求。

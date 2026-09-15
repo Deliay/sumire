@@ -2,13 +2,10 @@
 
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import {
-  getRoomRecordings,
-  recordingFileUrl,
-  type RecordingFile,
-} from "@/features/recordings/api";
+import { getRoomRecordings, type RecordingFile } from "@/features/recordings/api";
 import { formatCreatedAt, formatFileSize } from "@/features/recordings/format";
 import FlvPlayerPanel from "@/features/recordings/FlvPlayerPanel";
+import RecordingFileActions from "@/features/recordings/RecordingFileActions";
 
 const PAGE_SIZE = 20;
 
@@ -119,13 +116,12 @@ export default function RoomRecordingsGroup({
                         <time dateTime={file.createdAt} className="shrink-0 text-tiny text-ink-dim">
                           {formatCreatedAt(file.createdAt)}
                         </time>
-                        <a
-                          href={recordingFileUrl(roomId, file.name)}
-                          download
-                          className="shrink-0 text-tiny text-ink-dim transition-colors hover:text-flower"
-                        >
-                          下载
-                        </a>
+                        <RecordingFileActions
+                          roomId={roomId}
+                          file={file}
+                          open={open}
+                          onToggleFile={onToggleFile}
+                        />
                       </div>
                       {open && <FlvPlayerPanel roomId={roomId} file={file} onClose={onClosePlayer} />}
                     </li>

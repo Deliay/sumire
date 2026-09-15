@@ -81,7 +81,7 @@ pnpm lint         # ESLint
 
 - `features/recordings/`：公开 `/recordings` 录播页（纯前端直连外部录播服务，无契约/后端/编排资源变更）。环境变量 `NEXT_PUBLIC_RECORDINGS_BASE_URL`（生产由 `deploy.yml` 注入公网地址、线上 CDN 已为站点源配置跨域直连；本地 `aspire start` 由 `infra/aspire/apphost.cs` 注入内网地址，浏览器请求同源前缀 `/recordings-proxy` 经 `next.config.ts` 的 dev rewrites 转发到该上游，规避跨域）。`api.ts` 导出 `RECORDINGS_CONFIGURED`（以构建期环境变量是否非空为准）——未配置时导航不渲染「录播」项、页面渲染「服务未配置」空态且请求层短路不 `fetch`（双保险，对齐 `API_CONFIGURED` 口径，独立于后台 API）。
 - `api.ts` 消费上游四组端点：`/api/b/live/recording-status`、`/api/b/live/:roomId/recordings`、`/api/b/live/:roomId/recordings/:fileName`（`encodeURIComponent`）、`/api/b/live/:roomId/live-stream/audio`；请求不带凭据，失败静默降级 `{ok:false,...}`。
-- `useRecordingStatus.ts`（30s 轮询 + 可见性暂停）、`RecordingStatusList`（F2/F3 展示 + 听直播）、`RoomRecordingsGroup`（F4 折叠 + 20/页前端分页；播放器内联展开于被点击文件项下方）、`FlvPlayerPanel`（F5 mpegts.js 视频播放——可见画面 + 可拖动进度条 + MSE 不可用降级为下载）、`RecordingsApp`（装配 + 展开文件 state，同一时间仅一个播放器）、`player.ts`（全局单例，mpegts.js 浏览器端动态 `import` 以防 SSG 求值 `self`）。
+- `useRecordingStatus.ts`（30s 轮询 + 可见性暂停）、`RecordingStatusList`（F2/F3 展示 + 听直播）、`RoomRecordingsGroup`（F4 折叠 + 20/页前端分页；播放器内联展开于被点击文件项下方；文件行操作区为 `RecordingFileActions` 按钮组）、`RecordingFileActions`（文件行 split button：主按钮「播放/收起」复用 `onToggleFile` 通路、`▾` 下拉菜单内 `<a download>` 原生下载、`useDismiss` 点击外部/Esc 收起，纯受控零自持播放状态）、`FlvPlayerPanel`（F5 mpegts.js 视频播放——可见画面 + 可拖动进度条 + MSE 不可用降级为下载）、`RecordingsApp`（装配 + 展开文件 state，同一时间仅一个播放器）、`player.ts`（全局单例，mpegts.js 浏览器端动态 `import` 以防 SSG 求值 `self`）。
 - 页脚：非首页 `(content)` 路由组渲染流式单行 `Footer`，其外链含 `site.links.secretRoom`（「小密室」，原导航外链迁移至此）；导航不再有外链项。
 - e2e：`tests/e2e/src/bookstore/recordings.spec.ts` 以 `page.route` mock 四组端点（浏览器侧拦截，基址只需非空），运行需 bookstore 构建/启动时带非空 `NEXT_PUBLIC_RECORDINGS_BASE_URL`。
 

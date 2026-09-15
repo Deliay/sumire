@@ -1,0 +1,82 @@
+diff --git a/dist/mpegts-byte-offset-seek.js b/dist/mpegts-byte-offset-seek.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..d92174f0115c137796cb9ca92dae8f7dfa994b91
+--- /dev/null
++++ b/dist/mpegts-byte-offset-seek.js
+@@ -0,0 +1,63 @@
++/*
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * ============================================================================
++ * 录播优化一期补丁（sumire）
++ * ----------------------------------------------------------------------------
++ * 暴露「按字节偏移续播」能力，用于 FLV 无关键帧索引时的近似 seek。
++ *
++ * 背景：上游录播 FLV（录制端直接 dump）的 onMetaData 不含 keyframes 索引，
++ * 导致 MediaInfo.isSeekable() === false；而 TransmuxingController.seek() 首行即
++ * `if (this._mediaInfo == null || !this._mediaInfo.isSeekable()) return;`，未缓冲
++ * seek 因此静默 no-op，触发 mpegts 每 50ms 的未缓冲 seek 校正死循环（整体卡死）。
++ *
++ * 方案：在 createPlayer 返回的播放器实例上暴露
++ *   player.seekToByteOffset(fileposition, milliseconds)
++ * 它绕过 isSeekable() 门，直接复用 TransmuxingController 既有的「跨段加载」机制
++ * （_loadSegment(0, fileposition)）从指定字节偏移继续加载；remuxer 以期望的
++ * milliseconds 作为时间基准并经 RECOMMEND_SEEKPOINT 回写 currentTime。
++ *
++ * 调用方约束：fileposition 必须对齐到 FLV tag 边界（demuxer 无 mid-stream resync），
++ * 由应用层扫描保证（apps/bookstore/features/recordings/seek.ts）。
++ *
++ * 本补丁仅覆盖主线程引擎（PlayerEngineMainThread，即未开启 enableWorkerForMSE 的
++ * 默认形态）；开启 worker 时该能力不可用（调用会抛错，由应用层捕获降级）。
++ * ============================================================================
++ */
++'use strict';
++
++const mpegts = require('./mpegts.js');
++
++function applyByteOffsetSeek(player, fileposition, milliseconds) {
++  const engine = player && player._player_engine;
++  const transmuxer = engine && engine._transmuxer;
++  const controller = transmuxer && transmuxer._controller;
++  if (!controller || typeof controller._loadSegment !== 'function') {
++    throw new Error('mpegts.js byte-offset seek is unavailable: unexpected internal structure');
++  }
++  controller._internalAbort();
++  if (controller._remuxer) {
++    controller._remuxer.seek(milliseconds);
++    controller._remuxer.insertDiscontinuity();
++  }
++  controller._loadSegment(0, fileposition);
++  controller._pendingResolveSeekPoint = milliseconds;
++}
++
++const originalCreatePlayer = mpegts.createPlayer;
++
++mpegts.createPlayer = function createPlayer(mediaDataSource, config) {
++  const player = originalCreatePlayer.call(this, mediaDataSource, config);
++  if (player && typeof player.seekToByteOffset !== 'function') {
++    player.seekToByteOffset = function seekToByteOffset(fileposition, milliseconds) {
++      applyByteOffsetSeek(this, fileposition, milliseconds);
++    };
++  }
++  return player;
++};
++
++module.exports = mpegts;
+diff --git a/package.json b/package.json
+index 009ab7ff632c69b3eef72cbb3781cb41836724b4..db9f7ac0f1532c26730a9b41ebc5f1de9f2474ce 100644
+--- a/package.json
++++ b/package.json
+@@ -2,7 +2,7 @@
+   "name": "mpegts.js",
+   "version": "1.8.2",
+   "description": "HTML5 MPEG2-TS Stream Player",
+-  "main": "./dist/mpegts.js",
++  "main": "./dist/mpegts-byte-offset-seek.js",
+   "types": "./d.ts/mpegts.d.ts",
+   "repository": {
+     "type": "git",

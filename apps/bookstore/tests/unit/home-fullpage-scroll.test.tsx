@@ -618,4 +618,112 @@ describe("useFullpageScroll", () => {
     expect((scrollBySpy.mock.calls.at(-1)![0] as unknown as { top: number }).top).toBeGreaterThan(0);
     vi.unstubAllGlobals();
   });
+
+  describe("可滚动站边界交接翻页", () => {
+    /** 构造挂 data-fullpage-scrollable 且实际溢出的容器（jsdom 不布局，需注入尺寸）。 */
+    function makeScrollable(opts: {
+      scrollTop: number;
+      clientHeight?: number;
+      scrollHeight?: number;
+    }): HTMLElement {
+      const clientHeight = opts.clientHeight ?? 100;
+      const scrollHeight = opts.scrollHeight ?? 1000;
+      const el = document.createElement("div");
+      el.setAttribute("data-fullpage-scrollable", "");
+      el.style.overflowY = "auto";
+      el.style.height = `${clientHeight}px`;
+      const tall = document.createElement("div");
+      tall.style.height = `${scrollHeight}px`;
+      el.appendChild(tall);
+      document.body.appendChild(el);
+      Object.defineProperty(el, "clientHeight", { value: clientHeight, configurable: true });
+      Object.defineProperty(el, "scrollHeight", { value: scrollHeight, configurable: true });
+      Object.defineProperty(el, "scrollTop", {
+        value: opts.scrollTop,
+        configurable: true,
+        writable: true,
+      });
+      return el;
+    }
+
+    function dispatchTouch(
+      type: "touchstart" | "touchmove" | "touchend",
+      target: EventTarget,
+      clientY: number,
+    ) {
+      const ev = new Event(type, { bubbles: true }) as TouchEvent;
+      Object.defineProperty(ev, "target", { value: target });
+      Object.defineProperty(ev, "touches", {
+        value: type === "touchend" ? [] : [{ identifier: 1, clientY } as Touch],
+      });
+      window.dispatchEvent(ev);
+    }
+
+    it("容器已触底继续下滑交接翻下一页", () => {
+      vi.stubGlobal("performance", { now: (() => { let t = 0; return () => (t += 10); })() });
+      render(<Harness />);
+      const track = document.querySelector("[data-testid='track']") as HTMLElement;
+      const scrollable = makeScrollable({ scrollTop: 900 });
+      act(() => {
+        dispatchTouch("touchstart", scrollable, 300);
+        dispatchTouch("touchmove", scrollable, 100); // 继续下滑（clientY 减小）→ 下一页
+      });
+      expect(track.dataset.index).toBe("1");
+      document.body.removeChild(scrollable);
+      vi.unstubAllGlobals();
+    });
+
+    it("容器已触顶继续上滑交接翻上一页", () => {
+      vi.stubGlobal("performance", { now: (() => { let t = 0; return () => (t += 10); })() });
+      render(<Harness />);
+      const track = document.querySelector("[data-testid='track']") as HTMLElement;
+      act(() => {
+        window.dispatchEvent(new CustomEvent("sumire:navigate", { detail: { id: "archive-1" } }));
+      });
+      expect(track.dataset.index).toBe("1");
+      const scrollable = makeScrollable({ scrollTop: 0 });
+      act(() => {
+        dispatchTouch("touchstart", scrollable, 100);
+        dispatchTouch("touchmove", scrollable, 300); // 继续上滑（clientY 增大）→ 上一页
+      });
+      expect(track.dataset.index).toBe("0");
+      document.body.removeChild(scrollable);
+      vi.unstubAllGlobals();
+    });
+
+    it("触底交接后同一手势继续滑动只翻一页", () => {
+      vi.stubGlobal("performance", { now: (() => { let t = 0; return () => (t += 10); })() });
+      render(<Harness />);
+      const track = document.querySelector("[data-testid='track']") as HTMLElement;
+      const scrollable = makeScrollable({ scrollTop: 900 });
+      act(() => {
+        dispatchTouch("touchstart", scrollable, 300);
+        dispatchTouch("touchmove", scrollable, 100);
+        dispatchTouch("touchmove", scrollable, 0); // 同手势继续下滑
+        dispatchTouch("touchmove", scrollable, -200);
+      });
+      expect(track.dataset.index).toBe("1");
+      document.body.removeChild(scrollable);
+      vi.unstubAllGlobals();
+    });
+
+    it("滚轮在滚动列内触底同向翻下一页、触顶同向翻上一页", () => {
+      vi.stubGlobal("performance", { now: (() => { let t = 0; return () => (t += 1000); })() });
+      render(<Harness />);
+      const track = document.querySelector("[data-testid='track']") as HTMLElement;
+      const bottom = makeScrollable({ scrollTop: 900 });
+      act(() => {
+        bottom.dispatchEvent(new WheelEvent("wheel", { deltaY: 200, bubbles: true }));
+      });
+      expect(track.dataset.index).toBe("1");
+      const top = makeScrollable({ scrollTop: 0 });
+      act(() => {
+        top.dispatchEvent(new WheelEvent("wheel", { deltaY: -200, bubbles: true }));
+      });
+      expect(track.dataset.index).toBe("0");
+      document.body.removeChild(bottom);
+      document.body.removeChild(top);
+      vi.unstubAllGlobals();
+    });
+  });
 });

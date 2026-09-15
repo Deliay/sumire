@@ -16,6 +16,7 @@
     "@tanstack/react-virtual": "^3.14.9",
     "@uiw/react-md-editor": "^4.0.0",
     "lucide-react": "^1.31.0",
+    "mpegts.js": "^1.8.2",
     "next": "16.3.0",
     "qrcode": "^1.5.4",
     "react": "19.2.8",

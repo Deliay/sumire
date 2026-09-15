@@ -2,6 +2,8 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { cleanup, render, screen, fireEvent, act } from "@testing-library/react";
 import CalendarView from "@/features/schedule/CalendarView";
+import CalendarViewPage from "@/features/schedule/CalendarViewPage";
+import CalendarSection from "@/features/home/sections/CalendarSection";
 import { monthGrid, monthGridRange } from "@/features/schedule/dateUtils";
 import type { StreamPlan } from "@/features/schedule/api";
 import type { CalendarEntry } from "@/features/schedule/mergeEntries";
@@ -369,5 +371,27 @@ describe("CalendarView immersive 变体（月视图）", () => {
     expect(screen.queryByTestId("immersive-grid")).toBeNull();
     expect(screen.queryByLabelText("下月")).toBeNull();
     expect(screen.queryByLabelText("上月")).toBeNull();
+  });
+});
+
+describe("日历站 / 独立日历页为固定 NavBar 留位", () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("CalendarViewPage 非 compact 形态顶部留位 pt-28（与 /about 独立页口径一致）", () => {
+    const { container } = render(<CalendarViewPage />);
+    const section = container.querySelector("section")!;
+    expect(section.className).toContain("pt-28");
+    expect(section.className).not.toContain("py-14");
+  });
+
+  it("CalendarSection 顶部留位 pt-20（≥ NavBar 64px + 余量），底部保持 pb-3", () => {
+    const { container } = render(<CalendarSection />);
+    const section = container.querySelector("section")!;
+    expect(section.className).toContain("pt-20");
+    expect(section.className).toContain("pb-3");
+    expect(section.className).not.toContain("py-3");
   });
 });

@@ -13,7 +13,7 @@ export default function AssetsSection({
   site: Site;
 }) {
   return (
-    <section className="flex min-h-svh flex-col px-5 py-6 lg:px-10">
+    <section className="flex min-h-svh flex-col px-5 pb-6 pt-20 lg:px-10 lg:py-6">
       <h2 className="font-serif text-2xl font-semibold text-ink sm:text-3xl">素材架</h2>
       <div className="mt-6">
         <AssetGallery assets={assets} />

@@ -13,6 +13,7 @@ const site = {
     bilibili: "https://example.com/b",
     live: "https://example.com/l",
     moegirl: "https://example.com/m",
+    secretRoom: "https://sumire.icu",
   },
 };
 
@@ -26,6 +27,15 @@ describe("Footer 管理入口", () => {
     expect(screen.queryByRole("link", { name: /管理/ })).toBeNull();
     expect(screen.queryByText("管理 →")).toBeNull();
     expect(container.querySelector('a[href="/backdoor"]')).toBeNull();
+  });
+
+  it("渲染「小密室」外链：href、新窗口、noopener/noreferrer", () => {
+    render(<Footer site={site} />);
+    const link = screen.getByRole("link", { name: /小密室/ });
+    expect(link).toHaveAttribute("href", "https://sumire.icu");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link.getAttribute("rel") ?? "").toContain("noopener");
+    expect(link.getAttribute("rel") ?? "").toContain("noreferrer");
   });
 
   it("单行内容：三外链 href 正确、新窗口、noreferrer", () => {

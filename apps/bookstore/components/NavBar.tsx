@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { API_CONFIGURED } from "@/features/backdoor/api";
+import { RECORDINGS_CONFIGURED } from "@/features/recordings/api";
 import { SECTIONS, SECTION_CHANGE_EVENT, NAVIGATE_EVENT, type SectionChangeDetail, type NavigateDetail } from "@/features/home/sections";
 import type { NavKey } from "@/features/home/sections";
 import type { ToolModule } from "@/lib/tools/registry";
@@ -15,7 +16,7 @@ interface NavBarProps {
 }
 
 interface BaseLink {
-  navKey: NavKey;
+  navKey: string;
   label: string;
   /** 首页内锚点 href。 */
   anchor: string;
@@ -26,16 +27,7 @@ interface BaseLink {
   kind: "internal";
 }
 
-interface ExternalLink {
-  navKey: string;
-  label: string;
-  href: string;
-  kind: "external";
-}
-
-type NavLink = BaseLink | ExternalLink;
-
-const EXTERNAL_LINKS: ExternalLink[] = [{ navKey: "ext-secret-room", label: "小密室", href: "https://sumire.icu", kind: "external" }];
+type NavLink = BaseLink;
 
 /** 从注册表取锚点与独立路由（单一事实源）。 */
 function buildBaseLinks(): BaseLink[] {
@@ -89,27 +81,29 @@ export default function NavBar({ siteName, tools }: NavBarProps) {
 
   const baseLinks = buildBaseLinks();
   // round 9：独立路由「棉花糖」入口（/topics 进行中列表页），不走首页 deck 锚点翻页；仅 API 已配置时显示
-  const ongoingLink = API_CONFIGURED
-    ? [{ navKey: "topics" as string, label: "棉花糖", anchor: "/topics", route: "/topics", kind: "internal" as const }]
-    : [];
+  const ongoingLinks: BaseLink[] = [
+    ...(API_CONFIGURED
+      ? [{ navKey: "topics", label: "棉花糖", anchor: "/topics", route: "/topics", sectionId: "", kind: "internal" as const }]
+      : []),
+    // 录播页入口（/recordings），仅录播服务基址已配置时显示
+    ...(RECORDINGS_CONFIGURED
+      ? [{ navKey: "recordings", label: "录播", anchor: "/recordings", route: "/recordings", sectionId: "", kind: "internal" as const }]
+      : []),
+  ];
   const links: NavLink[] = [
     ...baseLinks,
-    ...ongoingLink,
+    ...ongoingLinks,
     ...tools.map((tool) => ({
-      navKey: `tool-${tool.slug}` as string,
+      navKey: `tool-${tool.slug}`,
       label: tool.name,
       anchor: `/tools/${tool.slug}`,
       route: `/tools/${tool.slug}`,
       sectionId: "",
       kind: "internal" as const,
     })),
-    ...EXTERNAL_LINKS,
-  ] as NavLink[];
-
-  const isExternal = (link: NavLink): link is ExternalLink => link.kind === "external";
+  ];
 
   const isActive = (link: NavLink) => {
-    if (isExternal(link)) return false;
     if (isHome) {
       const activeKey = SECTIONS.find((s) => `#${s.id}` === hash)?.navKey ?? (hash ? undefined : "home");
       return link.navKey === activeKey;
@@ -122,13 +116,11 @@ export default function NavBar({ siteName, tools }: NavBarProps) {
 
   // 基础导航恒为锚点 href（首页/非首页均指向首页对应锚点，deck 挂载时 hash 直落定位）；工具项为独立路由
   const hrefOf = (link: NavLink) => {
-    if (isExternal(link)) return link.href;
     return link.navKey.startsWith("tool-") ? link.route : link.anchor;
   };
 
   // 首页内点击导航：Next Link 到 #hash 用 pushState 不触发 hashchange，改派发 NAVIGATE_EVENT 交由 deck 平滑翻页
   const handleNavClick = (e: React.MouseEvent, link: NavLink) => {
-    if (isExternal(link)) return;
     if (isHome && link.sectionId) {
       e.preventDefault();
       window.dispatchEvent(
@@ -144,7 +136,7 @@ export default function NavBar({ siteName, tools }: NavBarProps) {
       className={`fixed inset-x-0 top-0 z-40 transition-colors duration-500 ${
         scrolled || open
           ? "bg-night/85 shadow-[0_1px_0_0_var(--color-vine)] backdrop-blur-md"
-          : "bg-transparent"
+          : "max-md:bg-night/85 max-md:shadow-[0_1px_0_0_var(--color-vine)] max-md:backdrop-blur-md"
       }`}
     >
       <nav className="mx-auto flex h-16 w-full items-center justify-between px-5 lg:px-10">
@@ -159,30 +151,19 @@ export default function NavBar({ siteName, tools }: NavBarProps) {
 
         <ul className="hidden items-center gap-7 md:flex">
           {links.map((link) => (
-            <li key={link.kind === "external" ? link.href : link.route}>
-              {isExternal(link) ? (
-                <a
-                  href={link.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm tracking-widest transition-colors text-ink-dim hover:text-ink"
-                >
-                  {link.label}
-                </a>
-              ) : (
-                <Link
-                  href={hrefOf(link)}
-                  onClick={(e) => handleNavClick(e, link)}
-                  aria-current={isActive(link) ? "page" : undefined}
-                  className={`text-sm tracking-widest transition-colors ${
-                    isActive(link)
-                      ? "text-primary"
-                      : "text-ink-dim hover:text-ink"
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              )}
+            <li key={link.route}>
+              <Link
+                href={hrefOf(link)}
+                onClick={(e) => handleNavClick(e, link)}
+                aria-current={isActive(link) ? "page" : undefined}
+                className={`text-sm tracking-widest transition-colors ${
+                  isActive(link)
+                    ? "text-primary"
+                    : "text-ink-dim hover:text-ink"
+                }`}
+              >
+                {link.label}
+              </Link>
             </li>
           ))}
         </ul>
@@ -201,28 +182,17 @@ export default function NavBar({ siteName, tools }: NavBarProps) {
       {open && (
         <ul className="border-t border-vine/40 bg-night/95 px-5 py-4 backdrop-blur-md md:hidden">
           {links.map((link) => (
-            <li key={link.kind === "external" ? link.href : link.route} className="py-2">
-              {isExternal(link) ? (
-                <a
-                  href={link.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block text-base tracking-widest text-ink-dim"
-                >
-                  {link.label}
-                </a>
-              ) : (
-                <Link
-                  href={hrefOf(link)}
-                  aria-current={isActive(link) ? "page" : undefined}
-                  onClick={(e) => handleNavClick(e, link)}
-                  className={`block text-base tracking-widest ${
-                    isActive(link) ? "text-primary" : "text-ink-dim"
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              )}
+            <li key={link.route} className="py-2">
+              <Link
+                href={hrefOf(link)}
+                aria-current={isActive(link) ? "page" : undefined}
+                onClick={(e) => handleNavClick(e, link)}
+                className={`block text-base tracking-widest ${
+                  isActive(link) ? "text-primary" : "text-ink-dim"
+                }`}
+              >
+                {link.label}
+              </Link>
             </li>
           ))}
         </ul>

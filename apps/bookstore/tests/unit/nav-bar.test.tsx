@@ -5,11 +5,18 @@ import NavBar from "@/components/NavBar";
 import type { ToolModule } from "@/lib/tools/registry";
 
 let configured = true;
+let recordingsConfigured = true;
 let mockPathname = "/";
 
 vi.mock("@/features/backdoor/api", () => ({
   get API_CONFIGURED() {
     return configured;
+  },
+}));
+
+vi.mock("@/features/recordings/api", () => ({
+  get RECORDINGS_CONFIGURED() {
+    return recordingsConfigured;
   },
 }));
 
@@ -33,6 +40,7 @@ describe("NavBar 锚点化", () => {
 
   beforeEach(() => {
     configured = true;
+    recordingsConfigured = true;
     vi.stubGlobal("matchMedia", matchMediaStub);
     // scrolled 初始 false：scrollY=0
     window.scrollY = 0;
@@ -148,9 +156,40 @@ describe("NavBar 锚点化", () => {
     expect(mobileArchive.length).toBeGreaterThan(1);
     mobileArchive.forEach((a) => expect(a.getAttribute("href")).toBe("/#archive-1"));
   });
+
+  it("移动端默认态即带背景模糊条件类，不再无条件透明", () => {
+    render(<NavBar siteName="枝堇" tools={tools} />);
+    const header = document.querySelector("header") as HTMLElement;
+    expect(header.className).toContain("max-md:bg-night/85");
+    expect(header.className).toContain("max-md:backdrop-blur-md");
+    expect(header.className).toContain("max-md:shadow-[0_1px_0_0_var(--color-vine)]");
+    // 桌面端默认仍透明：不再使用无条件 bg-transparent
+    expect(header.className).not.toContain("bg-transparent");
+  });
+
+  it("滚动后仍走既有雾化态（回归）", () => {
+    render(<NavBar siteName="枝堇" tools={tools} />);
+    window.scrollY = 100;
+    act(() => {
+      window.dispatchEvent(new Event("scroll"));
+    });
+    const header = document.querySelector("header") as HTMLElement;
+    expect(header.className).toContain("bg-night/85");
+    expect(header.className).toContain("backdrop-blur-md");
+  });
+
+  it("菜单展开态仍走既有雾化态（回归）", () => {
+    render(<NavBar siteName="枝堇" tools={tools} />);
+    act(() => {
+      (screen.getByRole("button", { name: "打开菜单" }) as HTMLButtonElement).click();
+    });
+    const header = document.querySelector("header") as HTMLElement;
+    expect(header.className).toContain("bg-night/85");
+    expect(header.className).toContain("backdrop-blur-md");
+  });
 });
 
-describe("外链 小密室", () => {
+describe("导航「录播」入口", () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
@@ -160,68 +199,77 @@ describe("外链 小密室", () => {
 
   beforeEach(() => {
     configured = true;
+    recordingsConfigured = true;
     vi.stubGlobal("matchMedia", matchMediaStub);
     window.scrollY = 0;
   });
 
-  it("渲染「小密室」链接：href、target、rel 正确", () => {
+  it("渲染「录播」项，href=/recordings（独立路由）", () => {
     render(<NavBar siteName="枝堇" tools={tools} />);
-    const link = screen.getByRole("link", { name: "小密室" });
-    expect(link.getAttribute("href")).toBe("https://sumire.icu");
-    expect(link.getAttribute("target")).toBe("_blank");
-    expect(link.getAttribute("rel")).toContain("noopener");
-    expect(link.getAttribute("rel")).toContain("noreferrer");
+    const link = screen.getByRole("link", { name: "录播" });
+    expect(link.getAttribute("href")).toBe("/recordings");
   });
 
-  it("首页任意 hash 下无 aria-current", () => {
+  it("/recordings 下选中，其他路由下不选中", () => {
+    mockPathname = "/recordings";
     render(<NavBar siteName="枝堇" tools={tools} />);
-    const link = screen.getByRole("link", { name: "小密室" });
-    expect(link.getAttribute("aria-current")).toBeNull();
-    window.history.replaceState(null, "", "#archive-1");
-    act(() => {
-      window.dispatchEvent(new HashChangeEvent("hashchange"));
-    });
-    expect(link.getAttribute("aria-current")).toBeNull();
-  });
+    expect(screen.getByRole("link", { name: "录播" }).getAttribute("aria-current")).toBe("page");
 
-  it("非首页路由下无 aria-current", () => {
+    cleanup();
     mockPathname = "/about";
     render(<NavBar siteName="枝堇" tools={tools} />);
-    const link = screen.getByRole("link", { name: "小密室" });
-    expect(link.getAttribute("aria-current")).toBeNull();
+    expect(screen.getByRole("link", { name: "录播" }).getAttribute("aria-current")).not.toBe("page");
   });
 
-  it("首页内点击「小密室」：无事件派发、hash 不变", () => {
+  it("未配置录播服务时无「录播」项", () => {
+    recordingsConfigured = false;
+    render(<NavBar siteName="枝堇" tools={tools} />);
+    expect(screen.queryByRole("link", { name: "录播" })).toBeNull();
+  });
+
+  it("首页内点击「录播」不派发 sumire:navigate（独立路由跳转）", () => {
     const spy = vi.fn();
     window.addEventListener("sumire:navigate", spy);
     render(<NavBar siteName="枝堇" tools={tools} />);
     act(() => {
-      fireEvent.click(screen.getByRole("link", { name: "小密室" }));
+      fireEvent.click(screen.getByRole("link", { name: "录播" }));
     });
     expect(spy).toHaveBeenCalledTimes(0);
-    expect(window.location.hash).toBe("");
     window.removeEventListener("sumire:navigate", spy);
   });
 
-  it("移动端双份渲染且属性一致", () => {
+  it("移动端菜单项 href 与桌面一致（双份渲染）", () => {
     render(<NavBar siteName="枝堇" tools={tools} />);
     act(() => {
       (screen.getByRole("button", { name: "打开菜单" }) as HTMLButtonElement).click();
     });
-    const mobileLinks = screen.getAllByRole("link", { name: "小密室" });
-    expect(mobileLinks.length).toBe(2);
-    mobileLinks.forEach((link) => {
-      expect(link.getAttribute("href")).toBe("https://sumire.icu");
-      expect(link.getAttribute("target")).toBe("_blank");
-      expect(link.getAttribute("rel")).toContain("noopener");
-      expect(link.getAttribute("rel")).toContain("noreferrer");
-    });
+    const links = screen.getAllByRole("link", { name: "录播" });
+    expect(links.length).toBeGreaterThan(1);
+    links.forEach((link) => expect(link.getAttribute("href")).toBe("/recordings"));
+  });
+});
+
+describe("导航不再出现「小密室」", () => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    window.history.replaceState(null, "", "/");
+    mockPathname = "/";
   });
 
-  it("configured = false 时「小密室」仍渲染", () => {
-    configured = false;
-    vi.resetModules();
+  beforeEach(() => {
+    configured = true;
+    recordingsConfigured = true;
+    vi.stubGlobal("matchMedia", matchMediaStub);
+    window.scrollY = 0;
+  });
+
+  it("桌面端与移动端菜单均无「小密室」链接", () => {
     render(<NavBar siteName="枝堇" tools={tools} />);
-    expect(screen.getByRole("link", { name: "小密室" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "小密室" })).toBeNull();
+    act(() => {
+      (screen.getByRole("button", { name: "打开菜单" }) as HTMLButtonElement).click();
+    });
+    expect(screen.queryByRole("link", { name: "小密室" })).toBeNull();
   });
 });

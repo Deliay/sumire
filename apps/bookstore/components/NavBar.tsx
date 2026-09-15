@@ -144,7 +144,7 @@ export default function NavBar({ siteName, tools }: NavBarProps) {
       className={`fixed inset-x-0 top-0 z-40 transition-colors duration-500 ${
         scrolled || open
           ? "bg-night/85 shadow-[0_1px_0_0_var(--color-vine)] backdrop-blur-md"
-          : "bg-transparent"
+          : "max-md:bg-night/85 max-md:shadow-[0_1px_0_0_var(--color-vine)] max-md:backdrop-blur-md"
       }`}
     >
       <nav className="mx-auto flex h-16 w-full items-center justify-between px-5 lg:px-10">

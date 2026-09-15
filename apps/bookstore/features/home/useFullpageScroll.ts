@@ -58,6 +58,8 @@ export function useFullpageScroll({
   const blockedRef = useRef(false);
   const gestureRef = useRef<GestureState>(createGestureState());
   const touchStartRef = useRef<{ y: number; timestamp: number } | null>(null);
+  // 触摸起始命中的实际可滚动容器（用于 touchmove 逐次判边界，到界同向越界时交接翻页）
+  const touchScrollableRef = useRef<Element | null>(null);
   const lastImpulseTimeRef = useRef(0);
   const lastScrollTopRef = useRef(0);
   const lastScrollTimeRef = useRef(0);
@@ -329,56 +331,80 @@ export function useFullpageScroll({
     return () => window.removeEventListener(NAVIGATE_EVENT, onNavigate);
   }, [goTo]);
 
-  /** 判断输入目标是否位于**当前实际可滚动**的兜底列内：命中 data-fullpage-scrollable 且该容器确有纵向溢出
-   *  （scrollHeight > clientHeight，或内容可滚）时才豁免整页手势（交给原生滚动）。
-   *  日历站等整 section 虽挂了标记但月视图在桌面视口不溢出 → 不豁免，滚轮/触摸照常翻页。
+  /** 命中当前**实际可滚动**的兜底列时返回该容器：目标在 `data-fullpage-scrollable` 内且该容器确有纵向溢出
+   *  （scrollHeight > clientHeight，或内容可滚）。未命中返回 null（照常参与整页手势）。
+   *  日历站等整 section 虽挂了标记但月视图在桌面视口不溢出 → 返回 null，滚轮/触摸照常翻页。
    */
-  const isInsideScrollable = useCallback((target: EventTarget | null): boolean => {
-    if (!(target instanceof Element)) return false;
+  const findScrollableContainer = useCallback((target: EventTarget | null): Element | null => {
+    if (!(target instanceof Element)) return null;
     const el = target.closest("[data-fullpage-scrollable]");
-    if (!el) return false;
+    if (!el) return null;
     const style = getComputedStyle(el);
     const scrollable =
       style.overflowY === "auto" || style.overflowY === "scroll" || style.overflowY === "overlay";
     // 仅当容器实际可滚动（内容溢出）时视为可滚动列
-    return scrollable && el.scrollHeight > el.clientHeight + 1;
+    return scrollable && el.scrollHeight > el.clientHeight + 1 ? el : null;
   }, []);
+
+  /** 容器是否已滚动到底部（含 2px 容差，与 free 回收死区口径一致）。 */
+  const isAtScrollBottom = (el: Element): boolean =>
+    el.scrollTop + el.clientHeight >= el.scrollHeight - BOUNDARY_DEADZONE;
+
+  /** 容器是否已滚动到顶部（含 2px 容差）。 */
+  const isAtScrollTop = (el: Element): boolean => el.scrollTop <= BOUNDARY_DEADZONE;
 
   // 事件监听（window 级被动，不 preventDefault）
   useEffect(() => {
     const onWheel = (e: WheelEvent) => {
       if (blockedRef.current) return;
-      // 位于可滚动内容列内的滚轮交给原生滚动，不参与整页手势（与 touchstart 口径一致）
-      if (isInsideScrollable(e.target)) return;
       // 按 deltaMode 归一化为像素（Firefox line-mode 等），否则小步长累积不到阈值
       const delta = normalizeDeltaY(e.deltaY, e.deltaMode, getVh());
+      // 位于可滚动内容列内：仅在列已到边界且滚轮同向时交接翻页，否则交给原生滚动
+      const el = findScrollableContainer(e.target);
+      if (el) {
+        const towardNext = delta > 0 && isAtScrollBottom(el);
+        const towardPrev = delta < 0 && isAtScrollTop(el);
+        if (!towardNext && !towardPrev) return;
+      }
       const intent = feedWheel(gestureRef.current, delta, performance.now());
       if (intent) turn(intent.direction);
     };
     const onTouchStart = (e: TouchEvent) => {
       if (blockedRef.current) return;
-      // 位于可滚动内容列内的触摸交给原生滚动，不参与整页手势
-      if (isInsideScrollable(e.target)) {
-        touchStartRef.current = null;
-        return;
-      }
       const t = e.touches[0];
       touchStartRef.current = t ? { y: t.clientY, timestamp: performance.now() } : null;
+      // 记录起始命中的可滚动容器，touchmove 时逐次判边界（不再整段豁免）
+      touchScrollableRef.current = findScrollableContainer(e.target);
     };
     const onTouchMove = (e: TouchEvent) => {
       if (blockedRef.current || !touchStartRef.current) return;
       const t = e.touches[0];
       if (!t) return;
+      const start = touchStartRef.current;
+      const el = touchScrollableRef.current;
+      // 手势向下（clientY 减小）→ 下一站；向上（clientY 增大）→ 上一站
+      // 可滚动列内仅在已到边界且手势同向越界时交接，否则维持原生滚动
+      const dy = t.clientY - start.y;
+      if (el && !((dy < 0 && isAtScrollBottom(el)) || (dy > 0 && isAtScrollTop(el)))) return;
       const intent = feedTouch(
         gestureRef.current,
-        { y: touchStartRef.current.y },
+        { y: start.y },
         { y: t.clientY },
         performance.now(),
       );
-      if (intent) turn(intent.direction);
+      if (intent) {
+        // 交接后清除容器引用：同一手势不连翻（冷却由 feedTouch 保证）
+        if (el) touchScrollableRef.current = null;
+        turn(intent.direction);
+      }
     };
     const onTouchEnd = () => {
       touchStartRef.current = null;
+      touchScrollableRef.current = null;
+    };
+    const onTouchCancel = () => {
+      touchStartRef.current = null;
+      touchScrollableRef.current = null;
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (blockedRef.current) return;
@@ -448,6 +474,7 @@ export function useFullpageScroll({
     window.addEventListener("touchstart", onTouchStart, { passive: true });
     window.addEventListener("touchmove", onTouchMove, { passive: true });
     window.addEventListener("touchend", onTouchEnd, { passive: true });
+    window.addEventListener("touchcancel", onTouchCancel, { passive: true });
     window.addEventListener("keydown", onKeyDown);
     const container = containerRef.current;
     container?.addEventListener("scroll", onScroll, { passive: true });
@@ -456,10 +483,11 @@ export function useFullpageScroll({
       window.removeEventListener("touchstart", onTouchStart);
       window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("touchend", onTouchEnd);
+      window.removeEventListener("touchcancel", onTouchCancel);
       window.removeEventListener("keydown", onKeyDown);
       container?.removeEventListener("scroll", onScroll);
     };
-  }, [turn, goTo, updateIndex, containerRef, isInsideScrollable, getVh, reclaimToDeck]);
+  }, [turn, goTo, updateIndex, containerRef, findScrollableContainer, getVh, reclaimToDeck]);
 
   // 弹层打开/关闭屏蔽翻页
   const setLocked = useCallback((locked: boolean) => {

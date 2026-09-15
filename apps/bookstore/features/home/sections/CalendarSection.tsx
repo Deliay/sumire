@@ -7,7 +7,7 @@ export default function CalendarSection() {
   return (
     <section
       data-fullpage-scrollable
-      className="flex h-svh flex-col overflow-y-auto overflow-x-hidden px-4 py-3 lg:px-6"
+      className="flex h-svh flex-col overflow-y-auto overflow-x-hidden px-4 pb-3 pt-20 lg:px-6"
     >
       <CalendarViewPage compact />
     </section>

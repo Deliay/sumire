@@ -108,6 +108,19 @@ export async function play(url: string, videoEl: HTMLVideoElement, options: Play
   emit();
 }
 
+/**
+ * 从字节偏移续播（依赖 mpegts.js patch 暴露的 `seekToByteOffset`）。
+ * 无实例 / patch 未生效时静默忽略（幂等），不改变 `currentUrl`/代次语义。
+ */
+export function seekToByteOffset(fileposition: number, milliseconds: number): void {
+  const player = currentPlayer as
+    | (MpegtsPlayer & { seekToByteOffset?: (fileposition: number, milliseconds: number) => void })
+    | null;
+  const apply = player?.seekToByteOffset;
+  if (typeof apply !== "function") return;
+  apply.call(player, fileposition, milliseconds);
+}
+
 /** 暂停当前 player（无实例时忽略）。 */
 export function pausePlayer(): void {
   currentPlayer?.pause();

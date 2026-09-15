@@ -59,6 +59,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("录播列表分组", () => {
@@ -183,5 +184,32 @@ describe("录播列表分组", () => {
       fireEvent.click(header);
     });
     expect(screen.getByText("暂无录播")).toBeTruthy();
+  });
+
+  it("文件项按钮组接线单例播放：点「播放」展开播放器并变「收起」，点「收起」复位", async () => {
+    h.getRecordingStatus.mockResolvedValue({ ok: true, items: [room(1, "枝堇")] });
+    h.getRoomRecordings.mockResolvedValue({ ok: true, files: [file("回放.flv", 100, "2026-09-01T00:00:00.000Z")] });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ status: 200, headers: { get: () => null }, body: { cancel: async () => {} } }),
+    );
+    render(<RecordingsApp />);
+
+    const header = await screen.findByRole("button", { name: /枝堇/ });
+    await act(async () => {
+      fireEvent.click(header);
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "播放" }));
+    });
+    expect(screen.getByLabelText("录播播放区")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "收起" })).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "收起" }));
+    });
+    expect(screen.queryByLabelText("录播播放区")).toBeNull();
+    expect(screen.getByRole("button", { name: "播放" })).toBeTruthy();
   });
 });

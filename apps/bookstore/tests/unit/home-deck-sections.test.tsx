@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, act } from "@testing-library/react";
 import HeroSection from "@/features/home/sections/HeroSection";
 import ArchiveSection from "@/features/home/sections/ArchiveSection";
 import AssetsSection from "@/features/home/sections/AssetsSection";
@@ -131,5 +131,44 @@ describe("首页屏组件", () => {
     expect(layer.className).toContain("absolute");
     expect(layer.className).toContain("-inset-x-3");
     expect(layer.className).toContain("-inset-y-3");
+  });
+
+  it("档案屏移动端内容浮层顶部为固定 NavBar 留位（pt-20 ≥ 64px），桌面端间距不变", () => {
+    render(<ArchiveSection part={2} profile={profile} portraitAssets={portraits} />);
+    const float = document.querySelector("[data-fullpage-scrollable] > div") as HTMLElement;
+    expect(float.className).toContain("pt-20");
+    // 桌面端内容 wrapper 的 lg:py-10 仍生效（观感不变）
+    const wrapper = float.firstElementChild as HTMLElement;
+    expect(wrapper.className).toContain("lg:py-10");
+  });
+
+  it("P4 历程桌面端内容溢出时可滚动且初始锚定底部（默认可见最新条目）", () => {
+    const { container } = render(<ArchiveSection part={4} profile={profile} portraitAssets={portraits} />);
+    const scroller = container.querySelector("[data-fullpage-scrollable]") as HTMLElement;
+    // 桌面端不再 overflow-visible，改为可滚动以便查看完整历程
+    expect(scroller.className).not.toContain("lg:overflow-visible");
+    let scrollTop = 0;
+    Object.defineProperty(scroller, "clientHeight", { value: 600, configurable: true });
+    Object.defineProperty(scroller, "scrollHeight", { value: 1200, configurable: true });
+    Object.defineProperty(scroller, "scrollTop", {
+      get: () => scrollTop,
+      set: (v: number) => {
+        scrollTop = v;
+      },
+      configurable: true,
+    });
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+    // 锚定到底部：可见区域展示最新（末尾）历程条目，而非被裁掉的顶部
+    expect(scrollTop).toBe(1200);
+  });
+
+  it("素材站移动端顶部为固定 NavBar 留位（pt-20 ≥ 64px），桌面端间距不变", () => {
+    render(<AssetsSection assets={assets} site={site} />);
+    const section = document.querySelector("section") as HTMLElement;
+    expect(section.className).toContain("pt-20");
+    // 桌面端仍为 py-6（lg:py-6）
+    expect(section.className).toContain("lg:py-6");
   });
 });

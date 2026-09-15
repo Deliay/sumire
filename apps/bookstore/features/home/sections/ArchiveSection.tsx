@@ -54,8 +54,8 @@ export default function ArchiveSection({
     <section className="relative flex h-svh flex-col overflow-hidden lg:px-10">
       {/* 无纵向 padding：立绘列随 grid h-full 出血至窗口底边；内容呼吸间距由内容区自身 padding 承担
           （移动端零横向 padding，hero 口径背景立绘全宽出血；桌面 lg:px-10 约束分栏） */}
-      <SplitSection portrait={portrait} portraitLeft={portraitLeft} heroMobilePortrait={mobilePortrait}>
-        <div className="w-full py-6 lg:py-10">{content}</div>
+      <SplitSection portrait={portrait} portraitLeft={portraitLeft} heroMobilePortrait={mobilePortrait} anchorContentBottom>
+        <div className="w-full pb-6 lg:py-10">{content}</div>
       </SplitSection>
     </section>
   );

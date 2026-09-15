@@ -56,7 +56,7 @@ export default function CalendarViewPage({ compact = false }: { compact?: boolea
   }
 
   return (
-    <section className={`flex h-full w-full flex-col ${compact ? "" : "mx-auto w-full px-5 py-14 lg:px-10"}`}>
+    <section className={`flex h-full w-full flex-col ${compact ? "" : "mx-auto w-full px-5 pb-14 pt-28 lg:px-10"}`}>
       {!compact && (
         <header className="mb-8 text-center">
           <p className="font-display text-sm italic tracking-[0.4em] text-ink-dim">

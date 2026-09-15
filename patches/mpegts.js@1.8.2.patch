@@ -1,9 +1,9 @@
 diff --git a/dist/mpegts-byte-offset-seek.js b/dist/mpegts-byte-offset-seek.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..d92174f0115c137796cb9ca92dae8f7dfa994b91
+index 0000000000000000000000000000000000000000..aa2e57c0fb1d14ffd51e07f4340cfdec97dbf870
 --- /dev/null
 +++ b/dist/mpegts-byte-offset-seek.js
-@@ -0,0 +1,63 @@
+@@ -0,0 +1,83 @@
 +/*
 + * Licensed under the Apache License, Version 2.0 (the "License");
 + * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@ index 0000000000000000000000000000000000000000..d92174f0115c137796cb9ca92dae8f7d
 + * ============================================================================
 + * 录播优化一期补丁（sumire）
 + * ----------------------------------------------------------------------------
-+ * 暴露「按字节偏移续播」能力，用于 FLV 无关键帧索引时的近似 seek。
++ * 1) 暴露「按字节偏移续播」能力（seekToByteOffset），用于 FLV 无关键帧索引时的近似 seek。
 + *
 + * 背景：上游录播 FLV（录制端直接 dump）的 onMetaData 不含 keyframes 索引，
 + * 导致 MediaInfo.isSeekable() === false；而 TransmuxingController.seek() 首行即
@@ -23,15 +23,19 @@ index 0000000000000000000000000000000000000000..d92174f0115c137796cb9ca92dae8f7d
 + *
 + * 方案：在 createPlayer 返回的播放器实例上暴露
 + *   player.seekToByteOffset(fileposition, milliseconds)
-+ * 它绕过 isSeekable() 门，直接复用 TransmuxingController 既有的「跨段加载」机制
-+ * （_loadSegment(0, fileposition)）从指定字节偏移继续加载；remuxer 以期望的
-+ * milliseconds 作为时间基准并经 RECOMMEND_SEEKPOINT 回写 currentTime。
++ * 它绕过 isSeekable() 门，先 flush MSE（与 PlayerEngineMainThread 正常未缓冲 seek
++ * 路径一致，清除旧缓冲避免与 discontinuity 后的新数据叠加），再复用
++ * TransmuxingController 既有的「跨段加载」机制（_loadSegment(0, fileposition)）从
++ * 指定字节偏移继续加载；remuxer 以期望的 milliseconds 作为时间基准并经
++ * RECOMMEND_SEEKPOINT 回写 currentTime。
 + *
 + * 调用方约束：fileposition 必须对齐到 FLV tag 边界（demuxer 无 mid-stream resync），
 + * 由应用层扫描保证（apps/bookstore/features/recordings/seek.ts）。
++ * 主线程引擎缺失（如开启 enableWorkerForMSE）时抛错，由应用层捕获后显性提示，
++ * 不得静默冻结。
 + *
-+ * 本补丁仅覆盖主线程引擎（PlayerEngineMainThread，即未开启 enableWorkerForMSE 的
-+ * 默认形态）；开启 worker 时该能力不可用（调用会抛错，由应用层捕获降级）。
++ * 2) 暴露「运行时调整缓冲上限」能力（setBufferLimits），供应用层按
++ *    size/duration 估算码率后把前瞻/回退缓冲折算到字节预算（≤50MB）。
 + * ============================================================================
 + */
 +'use strict';
@@ -42,8 +46,12 @@ index 0000000000000000000000000000000000000000..d92174f0115c137796cb9ca92dae8f7d
 +  const engine = player && player._player_engine;
 +  const transmuxer = engine && engine._transmuxer;
 +  const controller = transmuxer && transmuxer._controller;
-+  if (!controller || typeof controller._loadSegment !== 'function') {
-+    throw new Error('mpegts.js byte-offset seek is unavailable: unexpected internal structure');
++  if (!engine || !controller || typeof controller._loadSegment !== 'function') {
++    throw new Error('mpegts.js byte-offset seek is unavailable: unexpected internal structure (worker mode or unpatched build)');
++  }
++  // 与 PlayerEngineMainThread._onRequiredUnbufferedSeek 一致：先 flush MSE 旧缓冲
++  if (engine._mse_controller && typeof engine._mse_controller.flush === 'function') {
++    engine._mse_controller.flush();
 +  }
 +  controller._internalAbort();
 +  if (controller._remuxer) {
@@ -58,11 +66,23 @@ index 0000000000000000000000000000000000000000..d92174f0115c137796cb9ca92dae8f7d
 +
 +mpegts.createPlayer = function createPlayer(mediaDataSource, config) {
 +  const player = originalCreatePlayer.call(this, mediaDataSource, config);
-+  if (player && typeof player.seekToByteOffset !== 'function') {
++  if (!player) return player;
++
++  if (typeof player.seekToByteOffset !== 'function') {
 +    player.seekToByteOffset = function seekToByteOffset(fileposition, milliseconds) {
 +      applyByteOffsetSeek(this, fileposition, milliseconds);
 +    };
 +  }
++
++  if (typeof player.setBufferLimits !== 'function') {
++    player.setBufferLimits = function setBufferLimits(limits) {
++      const engine = this._player_engine;
++      if (engine && engine._config && limits) {
++        Object.assign(engine._config, limits);
++      }
++    };
++  }
++
 +  return player;
 +};
 +

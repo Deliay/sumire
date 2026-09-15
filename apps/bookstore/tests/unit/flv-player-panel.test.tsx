@@ -32,6 +32,7 @@ interface MockPlayer {
   on: ReturnType<typeof vi.fn>;
   off: ReturnType<typeof vi.fn>;
   seekToByteOffset: ReturnType<typeof vi.fn>;
+  setBufferLimits: ReturnType<typeof vi.fn>;
 }
 
 const mp = vi.hoisted(() => {
@@ -46,6 +47,7 @@ const mp = vi.hoisted(() => {
       on: vi.fn(),
       off: vi.fn(),
       seekToByteOffset: vi.fn(),
+      setBufferLimits: vi.fn(),
     };
     players.push(player);
     return player;
@@ -292,6 +294,44 @@ describe("FLV 在线预览", () => {
       fireEvent.change(progress, { target: { value: "60" } });
     });
     expect(await screen.findByText(/播放失败/)).toBeTruthy();
+  });
+
+  it("seek 成功发起后长时间无续播则触发看门狗显性提示（禁止静默冻结）", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ status: 206, headers: { get: () => null }, body: { cancel: async () => {} } }),
+    );
+    sk.seekUnbuffered.mockResolvedValue(true);
+    await renderAndExpand();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "回放 一.flv" }));
+    });
+    await screen.findByRole("button", { name: "暂停" });
+
+    const video = screen.getByLabelText("录播视频") as HTMLVideoElement;
+    Object.defineProperty(video, "duration", { configurable: true, value: 120 });
+    Object.defineProperty(video, "currentTime", { configurable: true, writable: true, value: 0 });
+    Object.defineProperty(video, "buffered", { configurable: true, value: { length: 0, start: () => 0, end: () => 0 } });
+    await act(async () => {
+      fireEvent.loadedMetadata(video);
+    });
+    const progress = screen.getByRole("slider", { name: "播放进度" }) as HTMLInputElement;
+    await vi.waitFor(() => expect(progress.disabled).toBe(false));
+
+    const timeoutSpy = vi.spyOn(window, "setTimeout");
+    await act(async () => {
+      fireEvent.change(progress, { target: { value: "60" } });
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const watchdog = timeoutSpy.mock.calls.find(([, delay]) => delay === 15000);
+    expect(watchdog).toBeTruthy();
+    // 无 timeupdate/seeked：手动触发看门狗回调
+    await act(async () => {
+      (watchdog![0] as () => void)();
+    });
+    expect(screen.getByText(/播放失败/)).toBeTruthy();
   });
 
   it("再次点击播放中的文件项折叠并销毁 player；同一时间仅一个播放区", async () => {

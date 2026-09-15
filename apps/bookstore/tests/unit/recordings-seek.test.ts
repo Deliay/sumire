@@ -4,6 +4,7 @@ import {
   findNextTagBoundary,
   seekUnbuffered,
   SEEK_WINDOW_BYTES,
+  MAX_WINDOW_READ_BYTES,
 } from "@/features/recordings/seek";
 
 /** 构造一个合法 FLV tag：header(11) + data(dataSize) + PrevTagSize(4)。 */
@@ -39,11 +40,14 @@ function concat(...parts: Uint8Array[]): Uint8Array {
   return out;
 }
 
-function windowResponse(bytes: Uint8Array, status = 206, contentRange?: string) {
+function windowResponse(bytes: Uint8Array, status = 206, contentRange?: string, contentLength?: string) {
+  const headers: Record<string, string> = {};
+  if (contentRange) headers["content-range"] = contentRange;
+  if (contentLength) headers["content-length"] = contentLength;
   return {
     ok: status >= 200 && status < 300,
     status,
-    headers: { get: (name: string) => (name.toLowerCase() === "content-range" ? (contentRange ?? null) : null) },
+    headers: { get: (name: string) => headers[name.toLowerCase()] ?? null },
     arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
   };
 }
@@ -135,6 +139,96 @@ describe("seekUnbuffered", () => {
     });
     expect(ok).toBe(false);
     expect(seek).not.toHaveBeenCalled();
+  });
+
+  it("非 206 响应（上游忽略 Range）取消响应体、绝不整文件 buffer 且不触达播放器", async () => {
+    const cancel = vi.fn(async () => {});
+    const arrayBuffer = vi.fn(async () => new ArrayBuffer(0));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 200, headers: { get: () => null }, body: { cancel }, arrayBuffer }),
+    );
+    const seek = vi.fn();
+    const ok = await seekUnbuffered({
+      url: "https://rec.example.com/a.flv",
+      targetSeconds: 10,
+      durationSeconds: 120,
+      fileSize: 1_000_000,
+      seekToByteOffset: seek,
+    });
+    expect(ok).toBe(false);
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(arrayBuffer).not.toHaveBeenCalled();
+    expect(seek).not.toHaveBeenCalled();
+  });
+
+  it("Content-Length 超出窗口读取上限时取消并降级", async () => {
+    const window = concat(buildTag(9, 16, 10), buildTag(9, 16, 20));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        windowResponse(window, 206, undefined, String(SEEK_WINDOW_BYTES * 10)),
+      ),
+    );
+    const seek = vi.fn();
+    const ok = await seekUnbuffered({
+      url: "https://rec.example.com/a.flv",
+      targetSeconds: 10,
+      durationSeconds: 120,
+      fileSize: 1_000_000,
+      seekToByteOffset: seek,
+    });
+    expect(ok).toBe(false);
+    expect(seek).not.toHaveBeenCalled();
+  });
+
+  it("流式读取超出上限时取消读取器并降级", async () => {
+    const cancel = vi.fn(async () => {});
+    const hugeChunk = new Uint8Array(MAX_WINDOW_READ_BYTES + 1);
+    let step = 0;
+    const reader = {
+      read: vi.fn(async () => {
+        step += 1;
+        if (step === 1) return { done: false, value: hugeChunk };
+        return { done: true, value: undefined };
+      }),
+      cancel,
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 206,
+        headers: { get: () => null },
+        body: { getReader: () => reader },
+      }),
+    );
+    const seek = vi.fn();
+    const ok = await seekUnbuffered({
+      url: "https://rec.example.com/a.flv",
+      targetSeconds: 10,
+      durationSeconds: 120,
+      fileSize: 1_000_000,
+      seekToByteOffset: seek,
+    });
+    expect(ok).toBe(false);
+    expect(cancel).toHaveBeenCalled();
+    expect(seek).not.toHaveBeenCalled();
+  });
+
+  it("patched 回调返回 false（补丁未生效）时显性失败", async () => {
+    const window = concat(new Uint8Array([0, 0, 0]), buildTag(9, 16, 60_000));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(windowResponse(window)));
+    const seek = vi.fn(() => false);
+    const ok = await seekUnbuffered({
+      url: "https://rec.example.com/a.flv",
+      targetSeconds: 60,
+      durationSeconds: 120,
+      fileSize: 1_000_000,
+      seekToByteOffset: seek,
+    });
+    expect(ok).toBe(false);
+    expect(seek).toHaveBeenCalledTimes(1);
   });
 
   it("窗口内扫描失败降级为「从估算偏移直接尝试」并返回 false", async () => {

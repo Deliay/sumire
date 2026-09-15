@@ -5,6 +5,7 @@ import { Download, Expand, Loader2, Maximize, Minimize, Pause, Play, Shrink, Vol
 import { recordingFileUrl, type RecordingFile } from "@/features/recordings/api";
 import { seekUnbuffered } from "@/features/recordings/seek";
 import {
+  configureBufferForBitrate,
   destroyPlayer,
   getPlayingUrl,
   isPlaybackSupported,
@@ -22,6 +23,9 @@ interface FlvPlayerPanelProps {
 }
 
 type FullscreenMode = "none" | "native" | "web";
+
+/** seek 成功发起后等待真实续播的看门狗超时：超时未恢复播放则显性提示失败（禁止静默冻结）。 */
+const SEEK_WATCHDOG_MS = 15000;
 
 function formatClock(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "00:00";
@@ -50,6 +54,9 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const seekTokenRef = useRef(0);
+  const seekWatchdogRef = useRef<number | null>(null);
+  const seekBeforeRef = useRef(0);
+  const bufferDurationRef = useRef(0);
   const [supported, setSupported] = useState<boolean | null>(null);
   const [paused, setPaused] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -73,21 +80,34 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
   const playing = owns && !paused;
   const canSeek = rangeSupported === true && Number.isFinite(duration) && duration > 0;
 
+  const clearSeekWatchdog = useCallback(() => {
+    if (seekWatchdogRef.current !== null) {
+      window.clearTimeout(seekWatchdogRef.current);
+      seekWatchdogRef.current = null;
+    }
+  }, []);
+
   const start = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
+    clearSeekWatchdog();
     setFailed(false);
     setPaused(false);
+    setSeeking(false);
     setCurrentTime(0);
     setDuration(0);
     void play(url, video, {
       isLive: false,
+      fileSize: file.size,
       onError: () => {
         setFailed(true);
         destroyPlayer(url);
       },
     });
-  }, [url]);
+  }, [url, file.size, clearSeekWatchdog]);
+
+  // 卸载清理 seek 看门狗
+  useEffect(() => clearSeekWatchdog, [clearSeekWatchdog]);
 
   useEffect(() => {
     let active = true;
@@ -157,7 +177,17 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
 
   const syncMediaState = (video: HTMLVideoElement) => {
     setCurrentTime(video.currentTime);
-    setDuration(Number.isFinite(video.duration) ? video.duration : 0);
+    const nextDuration = Number.isFinite(video.duration) ? video.duration : 0;
+    setDuration(nextDuration);
+    // 时长到手后按真实码率重算缓冲上限（一次）
+    if (nextDuration > 0 && bufferDurationRef.current !== nextDuration) {
+      bufferDurationRef.current = nextDuration;
+      configureBufferForBitrate(file.size, nextDuration);
+    }
+    // 续播已实际发生（currentTime 变化）：解除 seek 看门狗
+    if (seekWatchdogRef.current !== null && video.currentTime !== seekBeforeRef.current) {
+      clearSeekWatchdog();
+    }
   };
 
   const handleSeek = (value: number) => {
@@ -180,7 +210,18 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
     }).then((ok) => {
       if (token !== seekTokenRef.current) return;
       setSeeking(false);
-      if (!ok) setFailed(true);
+      if (!ok) {
+        setFailed(true);
+        return;
+      }
+      // 已成功发起 patched 续播：看门狗确保「无续播」时显性提示而非静默冻结
+      seekBeforeRef.current = video.currentTime;
+      clearSeekWatchdog();
+      seekWatchdogRef.current = window.setTimeout(() => {
+        seekWatchdogRef.current = null;
+        if (token !== seekTokenRef.current) return;
+        setFailed(true);
+      }, SEEK_WATCHDOG_MS);
     });
   };
 
@@ -282,6 +323,7 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
               onLoadedMetadata={(e) => syncMediaState(e.currentTarget)}
               onDurationChange={(e) => syncMediaState(e.currentTarget)}
               onProgress={(e) => syncMediaState(e.currentTarget)}
+              onSeeked={clearSeekWatchdog}
             />
           </div>
 

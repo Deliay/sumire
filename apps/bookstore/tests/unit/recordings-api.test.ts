@@ -111,6 +111,47 @@ describe("recordings api 归一化", () => {
     ]);
     expect(spy.mock.calls[0][0]).toBe("https://rec.example.com/api/b/live/42/recordings");
   });
+
+  it("recordings：解析文件 info（场次起止/recordingId），缺失字段容忍，无 info 时不携带", async () => {
+    const api = await loadApi("https://rec.example.com");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        status: 200,
+        json: async () => ({
+          files: [
+            {
+              name: "a.flv",
+              size: 1,
+              createdAt: "2026-09-16T06:13:41.707Z",
+              info: {
+                recordingId: "rec-1",
+                title: "【歌杂】中午困困",
+                mid: 42,
+                startedAt: "2026-09-16T03:57:56.277Z",
+                endedAt: "2026-09-16T06:13:41.707Z",
+              },
+            },
+            { name: "b.flv", size: 2, createdAt: "2026-09-16T07:00:00.000Z", info: { recordingId: "rec-2" } },
+            { name: "c.flv", size: 3, createdAt: "2026-09-16T08:00:00.000Z" },
+          ],
+        }),
+      }),
+    );
+
+    const res = await api.getRoomRecordings(42);
+    expect(res.files[0].info).toEqual({
+      recordingId: "rec-1",
+      title: "【歌杂】中午困困",
+      mid: 42,
+      startedAt: "2026-09-16T03:57:56.277Z",
+      endedAt: "2026-09-16T06:13:41.707Z",
+    });
+    // 缺字段容忍为占位值
+    expect(res.files[1].info).toEqual({ recordingId: "rec-2", title: "", mid: 0, startedAt: "", endedAt: "" });
+    // 无 info 时不携带该字段（保持降级语义）
+    expect(res.files[2]).not.toHaveProperty("info");
+  });
 });
 
 describe("recordings api 降级", () => {

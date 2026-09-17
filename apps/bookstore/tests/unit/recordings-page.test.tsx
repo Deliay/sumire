@@ -11,6 +11,9 @@ const h = vi.hoisted(() => ({
   recordingFileUrl: vi.fn(
     (roomId: number, name: string) => `https://rec.example.com/api/b/live/${roomId}/recordings/${encodeURIComponent(name)}`,
   ),
+  recordingReplayHref: vi.fn(
+    (roomId: number, name: string) => `/recordings/replay?roomId=${roomId}&file=${encodeURIComponent(name)}`,
+  ),
 }));
 
 vi.mock("@/features/recordings/api", () => ({
@@ -21,6 +24,7 @@ vi.mock("@/features/recordings/api", () => ({
   getRoomRecordings: h.getRoomRecordings,
   liveAudioUrl: h.liveAudioUrl,
   recordingFileUrl: h.recordingFileUrl,
+  recordingReplayHref: h.recordingReplayHref,
 }));
 
 interface MockPlayer {

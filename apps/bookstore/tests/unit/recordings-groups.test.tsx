@@ -11,6 +11,9 @@ const h = vi.hoisted(() => ({
   recordingFileUrl: vi.fn(
     (roomId: number, name: string) => `https://rec.example.com/api/b/live/${roomId}/recordings/${encodeURIComponent(name)}`,
   ),
+  recordingReplayHref: vi.fn(
+    (roomId: number, name: string) => `/recordings/replay?roomId=${roomId}&file=${encodeURIComponent(name)}`,
+  ),
 }));
 
 vi.mock("@/features/recordings/api", () => ({
@@ -21,6 +24,7 @@ vi.mock("@/features/recordings/api", () => ({
   getRoomRecordings: h.getRoomRecordings,
   liveAudioUrl: h.liveAudioUrl,
   recordingFileUrl: h.recordingFileUrl,
+  recordingReplayHref: h.recordingReplayHref,
 }));
 
 vi.mock("mpegts.js", () => ({
@@ -186,13 +190,9 @@ describe("录播列表分组", () => {
     expect(screen.getByText("暂无录播")).toBeTruthy();
   });
 
-  it("文件项按钮组接线单例播放：点「播放」展开播放器并变「收起」，点「收起」复位", async () => {
+  it("文件名与「播放」均为回放页新标签页链接，列表内无内联播放器", async () => {
     h.getRecordingStatus.mockResolvedValue({ ok: true, items: [room(1, "枝堇")] });
     h.getRoomRecordings.mockResolvedValue({ ok: true, files: [file("回放.flv", 100, "2026-09-01T00:00:00.000Z")] });
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({ status: 200, headers: { get: () => null }, body: { cancel: async () => {} } }),
-    );
     render(<RecordingsApp />);
 
     const header = await screen.findByRole("button", { name: /枝堇/ });
@@ -200,16 +200,18 @@ describe("录播列表分组", () => {
       fireEvent.click(header);
     });
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "播放" }));
-    });
-    expect(screen.getByLabelText("录播播放区")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "收起" })).toBeTruthy();
+    const expectedHref = `/recordings/replay?roomId=1&file=${encodeURIComponent("回放.flv")}`;
+    const play = screen.getByRole("link", { name: /播放/ });
+    expect(play.getAttribute("href")).toBe(expectedHref);
+    expect(play.getAttribute("target")).toBe("_blank");
+    expect(play.getAttribute("rel")).toBe("noopener noreferrer");
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "收起" }));
-    });
+    const nameLink = screen.getByRole("link", { name: "回放.flv" });
+    expect(nameLink.getAttribute("href")).toBe(expectedHref);
+    expect(nameLink.getAttribute("target")).toBe("_blank");
+
+    // 内联手风琴播放器退场
     expect(screen.queryByLabelText("录播播放区")).toBeNull();
-    expect(screen.getByRole("button", { name: "播放" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "收起" })).toBeNull();
   });
 });

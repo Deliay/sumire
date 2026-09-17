@@ -1,0 +1,155 @@
+// @vitest-environment jsdom
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
+import { cleanup, render, screen, act, fireEvent } from "@testing-library/react";
+import ReplayStage from "@/features/recordings/replay/ReplayStage";
+
+const h = vi.hoisted(() => ({
+  isSupported: vi.fn(() => Promise.resolve(true)),
+  fetchReplayEvents: vi.fn(async () => ({ ok: true, total: 0, items: [] })),
+}));
+
+vi.mock("@/features/recordings/api", () => ({
+  recordingFileUrl: (roomId: number, name: string) =>
+    `https://rec.example.com/api/b/live/${roomId}/recordings/${encodeURIComponent(name)}`,
+}));
+
+vi.mock("@/features/recordings/player", () => ({
+  isPlaybackSupported: h.isSupported,
+  probeSeekable: vi.fn(async () => false),
+  play: vi.fn(async () => {}),
+  destroyPlayer: vi.fn(),
+  pausePlayer: vi.fn(),
+  resumePlayer: vi.fn(),
+  configureBufferForBitrate: vi.fn(),
+  subscribePlayer: vi.fn(() => () => {}),
+  getPlayingUrl: vi.fn(() => null),
+}));
+
+vi.mock("@/features/recordings/seek", () => ({ seekUnbuffered: vi.fn(async () => true) }));
+
+vi.mock("@/features/recordings/replay/replayEvents", () => ({ fetchReplayEvents: h.fetchReplayEvents }));
+
+const file = { name: "回放.flv", size: 1024, createdAt: "2026-09-17T10:00:00.000Z" };
+
+const requestFullscreen = vi.fn(() => Promise.resolve());
+const exitFullscreen = vi.fn(() => Promise.resolve());
+
+beforeEach(() => {
+  h.isSupported.mockReturnValue(Promise.resolve(true));
+  h.fetchReplayEvents.mockResolvedValue({ ok: true, total: 0, items: [] });
+  requestFullscreen.mockClear();
+  exitFullscreen.mockClear();
+  Object.defineProperty(document, "fullscreenEnabled", { configurable: true, value: true });
+  Object.defineProperty(document, "fullscreenElement", { configurable: true, writable: true, value: null });
+  (Element.prototype as unknown as { requestFullscreen?: unknown }).requestFullscreen = requestFullscreen;
+  (document as unknown as { exitFullscreen?: unknown }).exitFullscreen = exitFullscreen;
+  (HTMLCanvasElement.prototype as unknown as { getContext?: unknown }).getContext = () => null;
+});
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  delete (Element.prototype as unknown as { requestFullscreen?: unknown }).requestFullscreen;
+  delete (document as unknown as { exitFullscreen?: unknown }).exitFullscreen;
+  document.body.style.overflow = "";
+});
+
+async function renderStage() {
+  render(<ReplayStage roomId={1} file={file} />);
+  await screen.findByLabelText("录播视频");
+}
+
+describe("ReplayStage 视频能力零回归", () => {
+  it("渲染视频画面、进度条、音量与播放控制，事件列表与浮层同屏", async () => {
+    await renderStage();
+    expect(screen.getByLabelText("录播视频")).toBeTruthy();
+    expect(screen.getByRole("slider", { name: "播放进度" })).toBeTruthy();
+    expect(screen.getByRole("slider", { name: "音量" })).toBeTruthy();
+    expect(screen.getByLabelText("事件列表")).toBeTruthy();
+    expect(screen.getByTestId("danmaku-overlay")).toBeTruthy();
+  });
+});
+
+describe("ReplayStage 双全屏", () => {
+  it("网页全屏作用于舞台容器（含事件列表）并锁定滚动", async () => {
+    await renderStage();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "网页全屏" }));
+    });
+
+    const stage = screen.getByTestId("replay-stage");
+    expect(stage.className).toContain("fixed");
+    expect(stage.className).toContain("inset-0");
+    expect(stage.className).toContain("z-50");
+    expect(stage.contains(screen.getByLabelText("事件列表"))).toBe(true);
+    expect(document.body.style.overflow).toBe("hidden");
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "退出网页全屏" }));
+    });
+    expect(screen.getByTestId("replay-stage").className).not.toContain("z-50");
+    expect(document.body.style.overflow).toBe("");
+  });
+
+  it("native 全屏目标仅视频+浮层容器，事件列表不进入", async () => {
+    await renderStage();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "全屏" }));
+    });
+    expect(requestFullscreen).toHaveBeenCalledTimes(1);
+
+    const panel = screen.getByLabelText("录播播放区");
+    const nativeContainer = panel.querySelector("[data-fullscreen-container]") as HTMLElement;
+    expect(nativeContainer).toBeTruthy();
+    expect(nativeContainer.contains(screen.getByLabelText("事件列表"))).toBe(false);
+    expect(nativeContainer.contains(screen.getByTestId("danmaku-overlay"))).toBe(true);
+    // native 模式不影响舞台容器布局
+    expect(screen.getByTestId("replay-stage").className).not.toContain("z-50");
+    expect(document.body.style.overflow).toBe("");
+  });
+
+  it("两种模式互斥：native → web 先退出 native", async () => {
+    await renderStage();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "全屏" }));
+    });
+    expect(await screen.findByRole("button", { name: "退出全屏" })).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "网页全屏" }));
+    });
+    expect(exitFullscreen).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "退出网页全屏" })).toBeTruthy();
+    expect(document.body.style.overflow).toBe("hidden");
+  });
+
+  it("ESC 退出网页全屏", async () => {
+    await renderStage();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "网页全屏" }));
+    });
+    await screen.findByRole("button", { name: "退出网页全屏" });
+    await act(async () => {
+      fireEvent.keyDown(window, { key: "Escape" });
+    });
+    expect(screen.getByRole("button", { name: "网页全屏" })).toBeTruthy();
+    expect(document.body.style.overflow).toBe("");
+  });
+
+  it("fullscreenEnabled=false：隐藏「全屏」，保留「网页全屏」", async () => {
+    Object.defineProperty(document, "fullscreenEnabled", { configurable: true, value: false });
+    await renderStage();
+    expect(screen.queryByRole("button", { name: "全屏" })).toBeNull();
+    expect(screen.getByRole("button", { name: "网页全屏" })).toBeTruthy();
+  });
+});
+
+describe("ReplayStage MSE 降级", () => {
+  it("不支持在线播放：展示降级提示，事件列表仍正常展示", async () => {
+    h.isSupported.mockReturnValue(Promise.resolve(false));
+    render(<ReplayStage roomId={1} file={file} />);
+    expect(await screen.findByText(/当前浏览器不支持在线播放/)).toBeTruthy();
+    expect(screen.getByLabelText("事件列表")).toBeTruthy();
+    expect(screen.queryByTestId("danmaku-overlay")).toBeNull();
+  });
+});

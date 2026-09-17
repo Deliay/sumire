@@ -83,6 +83,9 @@ describe("ReplayStage 视频能力零回归", () => {
     expect(screen.getByRole("slider", { name: "音量" })).toBeTruthy();
     expect(screen.getByLabelText("事件列表")).toBeTruthy();
     expect(screen.getByTestId("danmaku-overlay")).toBeTruthy();
+    // 下载入口在播放控制栏，事件列表不再渲染「弹幕事件」标题
+    expect(screen.getByRole("link", { name: "下载该场录播" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "弹幕事件" })).toBeNull();
   });
 });
 

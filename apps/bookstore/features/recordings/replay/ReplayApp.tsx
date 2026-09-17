@@ -3,12 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import {
-  RECORDINGS_CONFIGURED,
-  getRoomRecordings,
-  recordingFileUrl,
-  type RecordingFile,
-} from "@/features/recordings/api";
+import { RECORDINGS_CONFIGURED, getRoomRecordings, type RecordingFile } from "@/features/recordings/api";
 import { formatCreatedAt } from "@/features/recordings/format";
 import ReplayStage from "./ReplayStage";
 import { segmentBoundsForFile, type SegmentBounds } from "./replayWindows";
@@ -20,7 +15,7 @@ type ResolvedState =
 
 function ReplayEmpty({ message }: { message: string }) {
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col items-start gap-4 px-5 py-24 lg:px-10">
+    <div className="mx-auto flex w-full max-w-7xl flex-col items-start gap-4 px-2.5 py-24 lg:px-5">
       <p className="text-ink-dim">{message}</p>
       <Link
         href="/recordings"
@@ -76,7 +71,7 @@ export default function ReplayApp() {
 
   if (state === null) {
     return (
-      <div className="mx-auto w-full max-w-6xl px-5 py-24 lg:px-10">
+      <div className="mx-auto w-full max-w-7xl px-2.5 py-24 lg:px-5">
         <p className="text-ink-dim">正在加载录播…</p>
       </div>
     );
@@ -94,7 +89,7 @@ export default function ReplayApp() {
   const sessionTitle = state.file.info?.title?.trim();
   const sessionStart = state.file.info?.startedAt || state.file.createdAt;
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-5 py-24 lg:px-10">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-2.5 py-24 lg:px-5">
       <header className="flex flex-col gap-2">
         <h1 className="font-serif text-h1 text-ink">录播回放</h1>
         <p className="text-small text-ink-dim">
@@ -104,22 +99,6 @@ export default function ReplayApp() {
       </header>
 
       <ReplayStage roomId={activeRoomId} file={state.file} bounds={state.bounds} />
-
-      <div className="flex items-center gap-3">
-        <a
-          href={recordingFileUrl(activeRoomId, state.file.name)}
-          download
-          className="inline-flex items-center gap-1.5 rounded-full border border-vine px-4 py-1.5 text-small text-ink-dim transition-colors hover:border-flower hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-flower"
-        >
-          下载该场录播
-        </a>
-        <Link
-          href="/recordings"
-          className="inline-flex items-center gap-1.5 rounded-full border border-vine px-4 py-1.5 text-small text-ink-dim transition-colors hover:border-flower hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-flower"
-        >
-          返回录播列表
-        </Link>
-      </div>
     </div>
   );
 }

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function RecordingsReplayPage() {
   if (!RECORDINGS_CONFIGURED) {
     return (
-      <div className="mx-auto w-full max-w-6xl px-5 py-24 lg:px-10">
+      <div className="mx-auto w-full max-w-7xl px-2.5 py-24 lg:px-5">
         <p className="text-ink-dim">录播服务未配置，暂时无法回放。</p>
       </div>
     );

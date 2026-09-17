@@ -132,12 +132,12 @@ export default function ReplayStage({ roomId, file, bounds }: ReplayStageProps) 
       : "flex flex-col gap-4";
 
   const timelineWrapperClass =
-    mode === "web" ? "flex min-h-0 flex-col lg:w-1/3" : "flex min-h-0 flex-col lg:h-[70vh] lg:w-1/3";
+    mode === "web" ? "flex min-h-0 flex-col lg:w-1/4" : "flex min-h-0 flex-col lg:h-[70vh] lg:w-1/4";
 
   return (
     <div ref={stageRef} data-testid="replay-stage" data-fullscreen-mode={mode} className={stageClass}>
       <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
-        <div className="lg:w-2/3">
+        <div className="lg:w-3/4">
           <FlvPlayerPanel
             roomId={roomId}
             file={file}

@@ -156,6 +156,10 @@ test.describe("bookstore 回放页", () => {
     await expect(page.getByRole("slider", { name: "播放进度" })).toBeVisible();
     await expect(page.getByRole("region", { name: "事件列表" })).toBeVisible();
     await expect(page.getByTestId("danmaku-overlay")).toBeVisible();
+    // 下载入口在播放控制栏；舞台下方操作区与「弹幕事件」标题已移除
+    await expect(page.getByRole("link", { name: "下载该场录播" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "返回录播列表" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "弹幕事件" })).toHaveCount(0);
   });
 
   test("recordings-replay-room: 事件请求携带本页 roomId（不串到其它直播间）", async ({ page }) => {
@@ -212,6 +216,8 @@ test.describe("bookstore 回放页", () => {
     await expect(stage).toHaveClass(/z-50/);
     await expect(page.getByRole("region", { name: "事件列表" })).toBeVisible();
     expect(await page.evaluate(() => document.body.style.overflow)).toBe("hidden");
+    // 全屏控制栏悬浮于视频容器内
+    await expect(page.getByTestId("fullscreen-controls")).toBeVisible();
 
     // 播放区容器在受控 web 模式下不得再 fixed 铺满视口（否则会遮挡事件列表）
     const panelContainerClass = await page
@@ -229,6 +235,8 @@ test.describe("bookstore 回放页", () => {
     });
     expect(hitInsideTimeline).toBe(true);
 
+    // 控制栏静止会自动隐藏；移动鼠标到视频上重新显现后再退出
+    await page.locator("video").hover();
     await page.getByRole("button", { name: "退出网页全屏" }).click();
     await expect(stage).toHaveAttribute("data-fullscreen-mode", "none");
     await expect(stage).not.toHaveClass(/z-50/);

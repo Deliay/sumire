@@ -108,9 +108,8 @@ export default function EventTimeline({
 
   return (
     <section aria-label="事件列表" className="flex min-h-0 flex-col gap-2">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="font-serif text-h2 text-ink">弹幕事件</h2>
-        {!following && (
+      {!following && (
+        <div className="flex justify-end">
           <button
             type="button"
             onClick={resumeFollowing}
@@ -118,8 +117,8 @@ export default function EventTimeline({
           >
             回到当前进度
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       <div
         ref={scrollRef}

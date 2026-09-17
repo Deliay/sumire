@@ -11,6 +11,7 @@ import {
   isSeekJump,
   laneCountForWidth,
   laneHeightForWidth,
+  overlayTopPadding,
   selectDanmakusToEmit,
   type ActiveDanmaku,
 } from "@/features/recordings/replay/danmakuOverlay";
@@ -86,6 +87,19 @@ describe("字号与速度", () => {
     expect(laneHeightForWidth(1920)).toBeGreaterThan(laneHeightForWidth(900));
     expect(laneCountForWidth(1920)).toBeGreaterThan(0);
     expect(laneCountForWidth(0)).toBe(1);
+  });
+
+  it("浮层顶部留白：保证第一行 emote（最高 2×字号）完整显示", () => {
+    // 留白 ≥ 0，且足够容纳首行 emote 的顶边
+    for (const width of [900, 1200, 1920, 3840]) {
+      const fontSize = fontSizeForWidth(width);
+      const laneHeight = laneHeightForWidth(width);
+      const padding = overlayTopPadding(width);
+      expect(padding).toBeGreaterThanOrEqual(0);
+      // emote 顶边 = padding + laneHeight/2 + fontSize - maxEmoteHeight ≥ 0
+      const top = padding + laneHeight / 2 + fontSize - fontSize * 2;
+      expect(top).toBeGreaterThanOrEqual(0);
+    }
   });
 
   it("速度恒定（像素/秒），与弹幕文本长度无关", () => {

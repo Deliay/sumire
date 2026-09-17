@@ -11,7 +11,7 @@ import {
   type Ref,
   type RefObject,
 } from "react";
-import { Download, Expand, Loader2, Maximize, Minimize, Pause, Play, Shrink, Volume2, X } from "lucide-react";
+import { Download, Expand, Loader2, Maximize, Minimize, Pause, Play, Shrink, Volume2 } from "lucide-react";
 import { recordingFileUrl, type RecordingFile } from "@/features/recordings/api";
 import { seekUnbuffered } from "@/features/recordings/seek";
 import {
@@ -46,8 +46,6 @@ export interface FlvPlayerFullscreen {
 interface FlvPlayerPanelProps {
   roomId: number;
   file: RecordingFile;
-  /** 关闭播放区；回放页不传时不渲染关闭按钮。 */
-  onClose?: () => void;
   /** 绝对定位铺满视频画面容器的浮层（弹幕 canvas）。 */
   overlay?: ReactNode;
   /** 播放进度同步回调（timeupdate/loadedmetadata/durationchange/progress 均触发）。 */
@@ -62,6 +60,8 @@ interface FlvPlayerPanelProps {
 
 /** seek 成功发起后等待真实续播的看门狗超时：超时未恢复播放则显性提示失败（禁止静默冻结）。 */
 const SEEK_WATCHDOG_MS = 15000;
+/** 全屏控制栏静止自动隐藏延时（ms）。 */
+const CONTROLS_HIDE_MS = 3000;
 
 function formatClock(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "00:00";
@@ -89,7 +89,6 @@ function isTimeBuffered(video: HTMLVideoElement, time: number): boolean {
 export default function FlvPlayerPanel({
   roomId,
   file,
-  onClose,
   overlay,
   onTimeUpdate,
   onPlayStateChange,
@@ -117,6 +116,10 @@ export default function FlvPlayerPanel({
   );
   // 上游 Range 支持（null=检测中）：决定进度条能否拖动 seek
   const [rangeSupported, setRangeSupported] = useState<boolean | null>(null);
+  // 全屏控制栏悬浮显隐：鼠标移动显现，静止数秒后自动隐藏（悬停控制栏时不隐藏）
+  const [controlsVisible, setControlsVisible] = useState(false);
+  const controlsHideTimerRef = useRef<number | null>(null);
+  const hoveringControlsRef = useRef(false);
 
   const url = recordingFileUrl(roomId, file.name);
 
@@ -135,6 +138,28 @@ export default function FlvPlayerPanel({
       seekWatchdogRef.current = null;
     }
   }, []);
+
+  const clearControlsHideTimer = useCallback(() => {
+    if (controlsHideTimerRef.current !== null) {
+      window.clearTimeout(controlsHideTimerRef.current);
+      controlsHideTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleControlsHide = useCallback(() => {
+    clearControlsHideTimer();
+    controlsHideTimerRef.current = window.setTimeout(() => {
+      controlsHideTimerRef.current = null;
+      if (!hoveringControlsRef.current) setControlsVisible(false);
+    }, CONTROLS_HIDE_MS);
+  }, [clearControlsHideTimer]);
+
+  const showControls = useCallback(() => {
+    setControlsVisible(true);
+    scheduleControlsHide();
+  }, [scheduleControlsHide]);
+
+  useEffect(() => clearControlsHideTimer, [clearControlsHideTimer]);
 
   const start = useCallback(() => {
     const video = videoRef.current;
@@ -313,6 +338,7 @@ export default function FlvPlayerPanel({
 
   const handleNativeToggle = () => {
     if (controlled) {
+      if (fullscreen.mode !== "native") showControls();
       fullscreen.onNativeToggle();
       return;
     }
@@ -323,11 +349,18 @@ export default function FlvPlayerPanel({
     if (fullscreenMode === "web") setFullscreenMode("none");
     const container = containerRef.current;
     if (!container || typeof container.requestFullscreen !== "function") return;
-    void container.requestFullscreen().then(() => setFullscreenMode("native")).catch(() => {});
+    void container
+      .requestFullscreen()
+      .then(() => {
+        setFullscreenMode("native");
+        showControls();
+      })
+      .catch(() => {});
   };
 
   const handleWebToggle = () => {
     if (controlled) {
+      if (fullscreen.mode !== "web") showControls();
       fullscreen.onWebToggle();
       return;
     }
@@ -339,15 +372,7 @@ export default function FlvPlayerPanel({
       void document.exitFullscreen?.();
     }
     setFullscreenMode("web");
-  };
-
-  const handleClose = () => {
-    if (!controlled) {
-      if (fullscreenMode === "native") void document.exitFullscreen?.();
-      setFullscreenMode("none");
-    }
-    destroyPlayer(url);
-    onClose?.();
+    showControls();
   };
 
   // 受控模式（回放页）下 web 全屏由舞台容器负责铺满视口，播放区容器必须保持普通流内布局，
@@ -362,25 +387,87 @@ export default function FlvPlayerPanel({
   const iconButtonClass =
     "inline-flex size-9 items-center justify-center rounded-full border border-vine text-ink-dim transition-colors hover:border-flower hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-flower";
 
-  return (
-    <section
-      aria-label="录播播放区"
-      className="flex flex-col gap-3 rounded-xl border border-vine/50 bg-night/40 px-4 py-3"
-    >
-      <div className="flex items-center justify-between gap-3">
-        <span className="truncate text-tiny text-ink-dim">{file.name}</span>
-        {onClose && (
+  const controls = (
+    <>
+      <input
+        type="range"
+        aria-label="播放进度"
+        aria-busy={seeking}
+        min={0}
+        max={duration || 0}
+        step={0.1}
+        value={currentTime}
+        disabled={!canSeek}
+        onChange={(e) => handleSeek(Number(e.target.value))}
+        className="w-full accent-flower disabled:opacity-40"
+      />
+
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={togglePlay}
+          aria-label={playing ? "暂停" : "播放"}
+          aria-busy={seeking}
+          className={iconButtonClass}
+        >
+          {playing ? <Pause size={15} aria-hidden /> : <Play size={15} aria-hidden />}
+        </button>
+
+        <span className="text-tiny text-ink-dim" aria-label="播放时间">
+          {formatClock(currentTime)} / {formatClock(duration)}
+        </span>
+
+        {seeking && (
+          <span role="status" aria-label="缓冲中" className="inline-flex items-center gap-1 text-tiny text-ink-dim">
+            <Loader2 size={12} className="animate-spin" aria-hidden /> 缓冲中…
+          </span>
+        )}
+
+        <span className="ml-auto flex items-center gap-1.5 text-tiny text-ink-dim">
+          <Volume2 size={14} aria-hidden />
+          <input
+            type="range"
+            aria-label="音量"
+            min={0}
+            max={1}
+            step={0.1}
+            value={volume}
+            onChange={(e) => setVolume(Number(e.target.value))}
+            className="w-24 accent-flower"
+          />
+        </span>
+
+        {nativeAvailable && (
           <button
             type="button"
-            onClick={handleClose}
-            aria-label="关闭播放区"
-            className="shrink-0 text-ink-dim transition-colors hover:text-flower focus-visible:outline focus-visible:outline-2 focus-visible:outline-flower"
+            onClick={handleNativeToggle}
+            aria-label={mode === "native" ? "退出全屏" : "全屏"}
+            className={iconButtonClass}
           >
-            <X size={16} aria-hidden />
+            {mode === "native" ? <Minimize size={15} aria-hidden /> : <Maximize size={15} aria-hidden />}
           </button>
         )}
+
+        <button
+          type="button"
+          onClick={handleWebToggle}
+          aria-label={mode === "web" ? "退出网页全屏" : "网页全屏"}
+          className={iconButtonClass}
+        >
+          {mode === "web" ? <Shrink size={15} aria-hidden /> : <Expand size={15} aria-hidden />}
+        </button>
+
+        <a href={url} download aria-label="下载该场录播" className={iconButtonClass}>
+          <Download size={15} aria-hidden />
+        </a>
       </div>
 
+      {rangeSupported === false && <p className="text-tiny text-ink-dim">当前上游不支持拖动进度</p>}
+    </>
+  );
+
+  return (
+    <section aria-label="录播播放区" className="flex flex-col gap-3">
       {supported === null && <p className="text-small text-ink-dim">正在准备播放器…</p>}
 
       {supported === false && (
@@ -402,7 +489,11 @@ export default function FlvPlayerPanel({
           data-fullscreen-container
           className={containerClass}
         >
-          <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
+          <div
+            className="relative aspect-video w-full overflow-hidden rounded-lg bg-black"
+            onMouseMove={mode === "none" ? undefined : showControls}
+            onMouseLeave={mode === "none" ? undefined : scheduleControlsHide}
+          >
             <video
               ref={videoRef}
               aria-label="录播视频"
@@ -415,80 +506,28 @@ export default function FlvPlayerPanel({
               onSeeked={clearSeekWatchdog}
             />
             {overlay}
+
+            {mode !== "none" && (
+              <div
+                data-testid="fullscreen-controls"
+                onMouseEnter={() => {
+                  hoveringControlsRef.current = true;
+                  showControls();
+                }}
+                onMouseLeave={() => {
+                  hoveringControlsRef.current = false;
+                  scheduleControlsHide();
+                }}
+                className={`absolute inset-x-0 bottom-0 z-10 flex flex-col gap-2 bg-gradient-to-t from-black/85 via-black/60 to-transparent px-3 pt-8 pb-2 transition-opacity duration-200 ${
+                  controlsVisible ? "opacity-100" : "pointer-events-none opacity-0"
+                }`}
+              >
+                {controls}
+              </div>
+            )}
           </div>
 
-          <div className="flex flex-col gap-2">
-            <input
-              type="range"
-              aria-label="播放进度"
-              aria-busy={seeking}
-              min={0}
-              max={duration || 0}
-              step={0.1}
-              value={currentTime}
-              disabled={!canSeek}
-              onChange={(e) => handleSeek(Number(e.target.value))}
-              className="w-full accent-flower disabled:opacity-40"
-            />
-
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={togglePlay}
-                aria-label={playing ? "暂停" : "播放"}
-                aria-busy={seeking}
-                className={iconButtonClass}
-              >
-                {playing ? <Pause size={15} aria-hidden /> : <Play size={15} aria-hidden />}
-              </button>
-
-              <span className="text-tiny text-ink-dim" aria-label="播放时间">
-                {formatClock(currentTime)} / {formatClock(duration)}
-              </span>
-
-              {seeking && (
-                <span role="status" aria-label="缓冲中" className="inline-flex items-center gap-1 text-tiny text-ink-dim">
-                  <Loader2 size={12} className="animate-spin" aria-hidden /> 缓冲中…
-                </span>
-              )}
-
-              <span className="ml-auto flex items-center gap-1.5 text-tiny text-ink-dim">
-                <Volume2 size={14} aria-hidden />
-                <input
-                  type="range"
-                  aria-label="音量"
-                  min={0}
-                  max={1}
-                  step={0.1}
-                  value={volume}
-                  onChange={(e) => setVolume(Number(e.target.value))}
-                  className="w-24 accent-flower"
-                />
-              </span>
-
-              {nativeAvailable && (
-                <button
-                  type="button"
-                  onClick={handleNativeToggle}
-                  aria-label={mode === "native" ? "退出全屏" : "全屏"}
-                  className={iconButtonClass}
-                >
-                  {mode === "native" ? <Minimize size={15} aria-hidden /> : <Maximize size={15} aria-hidden />}
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={handleWebToggle}
-                aria-label={mode === "web" ? "退出网页全屏" : "网页全屏"}
-                className={iconButtonClass}
-              >
-                {mode === "web" ? <Shrink size={15} aria-hidden /> : <Expand size={15} aria-hidden />}
-              </button>
-            </div>
-
-            {rangeSupported === false && <p className="text-tiny text-ink-dim">当前上游不支持拖动进度</p>}
-          </div>
+          {mode === "none" && <div className="flex flex-col gap-2">{controls}</div>}
 
           {failed && (
             <p role="alert" className="text-small text-crimson">

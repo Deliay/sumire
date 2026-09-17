@@ -91,6 +91,12 @@ describe("EventTimeline 事件列表", () => {
     expect(screen.queryByRole("button", { name: "回到当前进度" })).toBeNull();
   });
 
+  it("不渲染「弹幕事件」标题（仅保留回到当前进度按钮）", () => {
+    renderTimeline();
+    expect(screen.queryByRole("heading", { name: "弹幕事件" })).toBeNull();
+    expect(screen.getByLabelText("事件列表")).toBeTruthy();
+  });
+
   it("点击条目以相对偏移秒调用 onSeek", () => {
     const onSeek = vi.fn();
     const { container } = renderTimeline({ onSeek });

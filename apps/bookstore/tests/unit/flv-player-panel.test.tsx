@@ -150,17 +150,16 @@ describe("FlvPlayerPanel 播放能力", () => {
     );
   });
 
-  it("不传 onClose 时不渲染关闭按钮；传 onClose 时点击调用", async () => {
-    const { unmount } = await renderPanel();
+  it("控制栏含下载入口（href 指向录播文件、download 属性），不渲染播放区标题行", async () => {
+    await renderPanel();
+    const download = screen.getByRole("link", { name: "下载该场录播" });
+    expect(download.getAttribute("href")).toBe(
+      `https://rec.example.com/api/b/live/1/recordings/${encodeURIComponent("回放 一.flv")}`,
+    );
+    expect(download.hasAttribute("download")).toBe(true);
+    // 标题行（文件名）随边框/背景包裹一并移除
+    expect(screen.queryByText("回放 一.flv")).toBeNull();
     expect(screen.queryByRole("button", { name: "关闭播放区" })).toBeNull();
-    unmount();
-
-    const onClose = vi.fn();
-    await renderPanel({ onClose });
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "关闭播放区" }));
-    });
-    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -265,6 +264,33 @@ describe("FlvPlayerPanel 全屏", () => {
       document.dispatchEvent(new Event("fullscreenchange"));
     });
     expect(screen.getByRole("button", { name: "全屏" })).toBeTruthy();
+  });
+
+  it("全屏时控制栏悬浮于视频容器内，静止数秒后自动隐藏、鼠标移动再显现", async () => {
+    await renderPanel();
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "网页全屏" }));
+      });
+      const controls = screen.getByTestId("fullscreen-controls");
+      // 进入全屏先显示
+      expect(controls.className).toContain("opacity-100");
+      // 悬浮于视频容器内（视频 wrapper 的绝对定位子节点）
+      expect(controls.parentElement?.querySelector("video")).toBeTruthy();
+
+      // 静止 3s 后自动隐藏
+      await act(async () => {
+        vi.advanceTimersByTime(3000);
+      });
+      expect(controls.className).toContain("opacity-0");
+
+      // 鼠标在视频上移动 → 重新显现
+      fireEvent.mouseMove(controls.parentElement as HTMLElement);
+      expect(controls.className).toContain("opacity-100");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("受控模式：按外部 mode 渲染按钮并回调 onNativeToggle/onWebToggle，不自持 body 锁", async () => {

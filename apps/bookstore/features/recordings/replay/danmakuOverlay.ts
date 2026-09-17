@@ -20,6 +20,8 @@ export const BASE_FONT_SIZE = 32;
 /** 弹幕字号下限（px）：窄舞台/小视频下仍清晰可读。 */
 export const MIN_FONT_SIZE = 20;
 export const BASE_VIDEO_WIDTH = 1920;
+/** 表情弹幕最大高度相对字号的倍数（超过则等比缩小，避免溢出轨道/画面）。 */
+export const EMOTE_MAX_SCALE = 2;
 /** 弹幕横穿画面所需秒数（决定恒定速度）。 */
 export const TRAVEL_SECONDS = 8;
 /** 播放头回退或前跳超过该阈值（秒）判为 seek，清空浮层重建。 */
@@ -62,6 +64,18 @@ export function laneHeightForWidth(videoWidth: number): number {
 export function laneCountForWidth(videoWidth: number): number {
   if (!Number.isFinite(videoWidth) || videoWidth <= 0) return 1;
   return Math.max(1, Math.floor((videoWidth * 9) / 16 / laneHeightForWidth(videoWidth)));
+}
+
+/**
+ * 浮层顶部留白（px）：为第一行表情弹幕预留空间，保证其完整显示、不被 canvas 上缘裁切。
+ *
+ * emote 绘制顶边 = padding + laneHeight/2 + fontSize - h（h ≤ fontSize·EMOTE_MAX_SCALE），
+ * 取最大高度令顶边 ≥ 0 即得所需留白；纯文本基线整体下移同一偏移，不破坏可读性。
+ */
+export function overlayTopPadding(videoWidth: number): number {
+  const fontSize = fontSizeForWidth(videoWidth);
+  const laneHeight = laneHeightForWidth(videoWidth);
+  return Math.max(0, Math.ceil(fontSize * EMOTE_MAX_SCALE - laneHeight / 2 - fontSize));
 }
 
 /**
@@ -182,12 +196,15 @@ export function createDanmakuRenderer(
     if (!ctx) return;
     const fontSize = fontSizeForWidth(width);
     const laneHeight = laneHeightForWidth(width);
-    const y = item.lane * laneHeight + laneHeight / 2 + fontSize / 2;
+    // 顶部留白保证第一行 emote（最高 fontSize·EMOTE_MAX_SCALE）完整显示；文本基线同步下移
+    const y = overlayTopPadding(width) + item.lane * laneHeight + laneHeight / 2 + fontSize / 2;
     if (item.emoteUrl) {
       const image = loadImage(item.emoteUrl);
       if (image.complete && image.naturalWidth > 0) {
         const ratio = image.naturalHeight > 0 ? image.naturalHeight / image.naturalWidth : 1;
-        const w = Math.min(item.width, fontSize * 4);
+        // 高度上限 EMOTE_MAX_SCALE×字号，等比缩小宽度，避免首行 emote 溢出 canvas 上缘
+        const maxEmoteHeight = fontSize * EMOTE_MAX_SCALE;
+        const w = Math.min(item.width, fontSize * 4, maxEmoteHeight / ratio);
         const h = w * ratio;
         ctx.drawImage(image, item.x, y - h + fontSize / 2, w, h);
       } else {

@@ -83,7 +83,7 @@ describe("ReplayApp 参数校验与空态", () => {
     expect(await screen.findByText(/录播不存在或已删除/)).toBeTruthy();
   });
 
-  it("正常参数：回源匹配文件并渲染舞台与操作区", async () => {
+  it("正常参数：回源匹配文件并渲染舞台，操作区已移除（下载迁入播放控制栏）", async () => {
     h.searchParams = new URLSearchParams({ roomId: "1", file: FILE.name });
     render(<ReplayApp />);
 
@@ -92,10 +92,8 @@ describe("ReplayApp 参数校验与空态", () => {
     expect(screen.getByTestId("stage").textContent).toContain(FILE.name);
     // 时间锚点取自 info.startedAt（而非 createdAt）
     expect(screen.getByTestId("stage").textContent).toContain(String(Date.parse(FILE.info.startedAt)));
-    const download = screen.getByRole("link", { name: /下载该场录播/ });
-    expect(download.getAttribute("href")).toBe(
-      `https://rec.example.com/api/b/live/1/recordings/${encodeURIComponent(FILE.name)}`,
-    );
-    expect(screen.getByRole("link", { name: /返回录播列表/ }).getAttribute("href")).toBe("/recordings");
+    // 舞台下方操作区整体移除：不再有下载/返回链接（下载改由 FlvPlayerPanel 控制栏承载）
+    expect(screen.queryByRole("link", { name: /下载该场录播/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: /返回录播列表/ })).toBeNull();
   });
 });

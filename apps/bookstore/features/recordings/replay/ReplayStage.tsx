@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RecordingFile } from "@/features/recordings/api";
-import { windowIndexForOffset } from "./replayWindows";
+import { toIso, windowIndexForOffset, type SegmentBounds } from "./replayWindows";
 import { useReplayEvents } from "./useReplayEvents";
 import EventTimeline from "./EventTimeline";
 import DanmakuOverlay from "./DanmakuOverlay";
@@ -11,10 +11,12 @@ import FlvPlayerPanel, { type FlvPlayerPanelController, type FullscreenMode } fr
 interface ReplayStageProps {
   roomId: number;
   file: RecordingFile;
+  /** 本分段实际覆盖区间（由文件 info 推导）；startMs 为 null 时禁用事件取数。 */
+  bounds: SegmentBounds;
 }
 
 /** 回放舞台：视频 + canvas 浮层弹幕 + 事件列表，双全屏状态机（web 含列表 / native 仅视频+浮层）。 */
-export default function ReplayStage({ roomId, file }: ReplayStageProps) {
+export default function ReplayStage({ roomId, file, bounds }: ReplayStageProps) {
   const stageRef = useRef<HTMLDivElement>(null);
   const nativeRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<FlvPlayerPanelController | null>(null);
@@ -28,9 +30,10 @@ export default function ReplayStage({ roomId, file }: ReplayStageProps) {
     () => typeof document !== "undefined" && Boolean(document.fullscreenEnabled && Element.prototype.requestFullscreen),
   );
 
-  const parsedStart = Date.parse(file.createdAt);
-  const recordStartMs = Number.isFinite(parsedStart) ? parsedStart : null;
-  const recordEndMs = recordStartMs !== null && duration > 0 ? recordStartMs + duration * 1000 : null;
+  // 时间锚点取分段实际起点（info.startedAt 推导），非 createdAt；终点优先分段 info 终点，duration 兜底
+  const recordStartMs = bounds.startMs;
+  const recordEndMs =
+    bounds.endMs ?? (recordStartMs !== null && duration > 0 ? recordStartMs + duration * 1000 : null);
 
   const { events, loading, error, focusWindow, prefetchNext, retry } = useReplayEvents({
     startMs: recordStartMs,
@@ -142,7 +145,7 @@ export default function ReplayStage({ roomId, file }: ReplayStageProps) {
             controllerRef={controllerRef}
             overlay={
               recordStartMs !== null ? (
-                <DanmakuOverlay events={events} recordStart={file.createdAt} currentTime={currentTime} playing={playing} />
+                <DanmakuOverlay events={events} recordStart={toIso(recordStartMs)} currentTime={currentTime} playing={playing} />
               ) : null
             }
             fullscreen={{

@@ -13,7 +13,7 @@ import {
 
 interface DanmakuOverlayProps {
   events: LiveEvent[];
-  /** 录播起点（ISO 字符串），用于把事件墙上时钟映射到播放时间轴。 */
+  /** 本分段实际起点（ISO 字符串，由 info.startedAt 推导），用于把事件墙上时钟映射到播放时间轴。 */
   recordStart: string;
   currentTime: number;
   playing: boolean;

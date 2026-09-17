@@ -4,7 +4,10 @@ const BASE = process.env.BOOKSTORE_BASE_URL ?? "http://localhost:3000";
 
 const ROOM_ID = 1;
 const FILE_NAME = "回放-01 中文.flv";
-const RECORD_START = "2026-09-28T10:00:00.000Z";
+// 场次实际起止（info），createdAt 为分段结束时刻（刻意晚于 startedAt，用于验证锚点取 info 而非 createdAt）
+const SESSION_START = "2026-09-28T10:00:00.000Z";
+const SESSION_END = "2026-09-28T11:00:00.000Z";
+const FILE_CREATED_AT = "2026-09-28T11:00:00.000Z";
 
 const RECORDING_STATUS = {
   items: [
@@ -20,7 +23,22 @@ const RECORDING_STATUS = {
 };
 
 function filesFixture() {
-  return { files: [{ name: FILE_NAME, size: 2048, createdAt: RECORD_START }] };
+  return {
+    files: [
+      {
+        name: FILE_NAME,
+        size: 2048,
+        createdAt: FILE_CREATED_AT,
+        info: {
+          recordingId: "rec-e2e",
+          title: "夜读会",
+          mid: 100,
+          startedAt: SESSION_START,
+          endedAt: SESSION_END,
+        },
+      },
+    ],
+  };
 }
 
 const SENDER = { uid: 1001, name: "观众", face: null, medal: null };
@@ -128,6 +146,8 @@ test.describe("bookstore 回放页", () => {
     await page.goto(replayUrl());
 
     await expect(page.getByRole("heading", { name: "录播回放" })).toBeVisible();
+    // 场次标题来自文件 info
+    await expect(page.getByText("夜读会")).toBeVisible();
     await expect(page.getByLabel("录播视频")).toBeVisible();
     await expect(page.getByRole("slider", { name: "播放进度" })).toBeVisible();
     await expect(page.getByRole("region", { name: "事件列表" })).toBeVisible();

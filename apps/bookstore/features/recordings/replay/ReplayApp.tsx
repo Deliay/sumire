@@ -11,11 +11,12 @@ import {
 } from "@/features/recordings/api";
 import { formatCreatedAt } from "@/features/recordings/format";
 import ReplayStage from "./ReplayStage";
+import { segmentBoundsForFile, type SegmentBounds } from "./replayWindows";
 
 type ResolvedState =
   | { kind: "notfound" }
   | { kind: "error" }
-  | { kind: "ok"; file: RecordingFile };
+  | { kind: "ok"; file: RecordingFile; bounds: SegmentBounds };
 
 function ReplayEmpty({ message }: { message: string }) {
   return (
@@ -53,7 +54,10 @@ export default function ReplayApp() {
         return;
       }
       const match = res.files.find((file) => file.name === fileParam);
-      setResolved({ key: requestKey, state: match ? { kind: "ok", file: match } : { kind: "notfound" } });
+      setResolved({
+        key: requestKey,
+        state: match ? { kind: "ok", file: match, bounds: segmentBoundsForFile(res.files, match) } : { kind: "notfound" },
+      });
     });
     return () => {
       active = false;
@@ -87,16 +91,19 @@ export default function ReplayApp() {
   }
 
   const activeRoomId = roomId as number;
+  const sessionTitle = state.file.info?.title?.trim();
+  const sessionStart = state.file.info?.startedAt || state.file.createdAt;
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-5 py-24 lg:px-10">
       <header className="flex flex-col gap-2">
         <h1 className="font-serif text-h1 text-ink">录播回放</h1>
         <p className="text-small text-ink-dim">
-          {state.file.name} · 直播间 {activeRoomId} · {formatCreatedAt(state.file.createdAt)}
+          {sessionTitle ? `${sessionTitle} · ` : ""}
+          {state.file.name} · 直播间 {activeRoomId} · {formatCreatedAt(sessionStart)}
         </p>
       </header>
 
-      <ReplayStage roomId={activeRoomId} file={state.file} />
+      <ReplayStage roomId={activeRoomId} file={state.file} bounds={state.bounds} />
 
       <div className="flex items-center gap-3">
         <a

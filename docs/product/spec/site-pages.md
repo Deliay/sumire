@@ -64,13 +64,14 @@
 
 ## 回放页 `/recordings/replay`
 
-独立公开页（`(site)/(content)` 路由组，NavBar + Footer 外壳；`app/(site)/(content)/recordings/replay/page.tsx` 为服务端壳：`metadata`「录播回放」+ `RECORDINGS_CONFIGURED` 守卫 + `<Suspense>` 包 Client `ReplayApp`，查询参数由客户端 `useSearchParams` 解析，SSG 无动态段）。数据来源：录播文件元信息回源 `GET {BASE}/api/b/live/:roomId/recordings` 按 `file` 匹配取 `createdAt`/`size`（不信任 URL 透传元信息，防参数伪造）；事件数据经本站公开端点 `GET /api/live-events/replay`（见后端直播域 spec）按时间窗口增量加载。
+独立公开页（`(site)/(content)` 路由组，NavBar + Footer 外壳；`app/(site)/(content)/recordings/replay/page.tsx` 为服务端壳：`metadata`「录播回放」+ `RECORDINGS_CONFIGURED` 守卫 + `<Suspense>` 包 Client `ReplayApp`，查询参数由客户端 `useSearchParams` 解析，SSG 无动态段）。数据来源：录播文件元信息回源 `GET {BASE}/api/b/live/:roomId/recordings` 按 `file` 匹配取 `createdAt`/`size`/`info`（不信任 URL 透传元信息，防参数伪造）；事件数据经本站公开端点 `GET /api/live-events/replay`（见后端直播域 spec）按时间窗口增量加载。
 
 - **参数与空态**：`roomId`/`file` 缺失或非法 → 「参数无效」空态 + 返回录播页链接且不发请求；录播列表查不到该文件 → 「录播不存在或已删除」空态；`RECORDINGS_CONFIGURED` 为 false → 「服务未配置」空态（与录播页口径一致）。
+- **时间锚点（分段实际区间）**：录播文件 `createdAt` 是文件落盘（≈分段结束）时刻，**不是**录制开始；时间锚点取文件 `info.startedAt`。同场次多分段文件共享同一 `info.recordingId`/`startedAt`/`endedAt`，各分段覆盖区间按 `createdAt` 升序推导：首段起点 = `info.startedAt`，其后各段起点 = 前一段 `createdAt`；非末段终点 = 本段 `createdAt`（与下一段衔接），末段终点 = `info.endedAt`。`info` 缺失时回退 `createdAt` 为起点（近似，误差为整场时长），终点交由视频 duration 推算兜底。
 - **布局**：页面结构自上而下为标题「录播回放」+ 场次信息（文件名/直播间/创建时间）→ 回放舞台 → 操作区（下载该场录播、返回录播列表）。桌面端左视频（约 2/3 宽，16:9 黑底）右事件列表，移动端上下堆叠。
 - **视频区**：复用迁移后的 `FlvPlayerPanel`（mpegts.js 播放、进度条近似 seek、音量、播放/暂停、时间、MSE 不可用降级为「不支持在线播放，请下载后收听」+ 下载按钮），控制条含「网页全屏」「全屏」入口。
 - **漂浮弹幕**：`DanmakuOverlay` canvas 2D + rAF 浮层（`position:absolute inset-0`、`pointer-events:none`），仅 `danmaku` 类事件入浮层（SC/礼物/上船仅列表）；按事件 `occurredAt` 映射视频时间轴，播放前进时将 `offset ∈ (prevT, t]` 的弹幕入队发射，白色描边文字匀速右→左，多轨道避免重叠、同屏上限 50 条超出丢弃最早批次；暂停悬停、seek 清空并按新落点重建；emote 图片预载未完成以 alt 文本占位；`ResizeObserver` 同步 canvas 尺寸。
 - **事件列表**：`EventTimeline` 复用弹幕看板条目组件（不传已读交互、不置灰），按 `occurredAt` 升序展示该场次四类事件；播放中自动滚动跟随并高亮当前事件，用户手动滚动（wheel/touch）暂停跟随并浮出「回到当前进度」恢复；点击条目调用舞台 seek 到该事件时间点；加载失败仅事件区错误态 + 重试（视频不受影响）；无事件展示「本场直播暂无弹幕事件」空态。
-- **事件取数**：`useReplayEvents` 以 `recordStart = file.createdAt` 为原点按 10min 窗口对齐切分（`windowIndex = floor(offsetMs/600_000)`），逐窗调 `fetchReplayEvents` 并翻页取尽（页数上限 20），Map 缓存窗口结果（seek 往返不重复请求），代次 last-wins 治理快速连续 seek，卸载中止在途请求；duration 未知前仅加载首窗（上界取 `recordStart+12h` 截断到契约上限），就绪后按 `recordEnd` 精确化；播放进入窗口后半段预取下一窗。
+- **事件取数**：`useReplayEvents` 以分段实际起点（`info.startedAt` 推导）为原点按 10min 窗口对齐切分（`windowIndex = floor(offsetMs/600_000)`），逐窗调 `fetchReplayEvents` 并翻页取尽（页数上限 20），Map 缓存窗口结果（seek 往返不重复请求），代次 last-wins 治理快速连续 seek，卸载中止在途请求；分段终点未知前仅加载首窗（上界取 `recordStart+12h` 截断到契约上限），就绪后按 `recordEnd` 精确化；播放进入窗口后半段预取下一窗。
 - **双全屏（F4）**：「网页全屏」作用于**舞台容器**（视频 + 浮层 + 事件列表）`fixed inset-0 z-50` + `document.body` 滚动锁定 + ESC 退出，事件列表在网页全屏下可滚动、可点击跳转；「全屏」经 Fullscreen API 仅将**视频 + 浮层容器**进入系统全屏（事件列表不进入），控制条保持可用；两者互斥、`fullscreenchange` 同步按钮态、卸载退出 native 全屏；`document.fullscreenEnabled === false` 时隐藏「全屏」入口（网页全屏不受影响）；canvas 浮层随容器尺寸变化重建坐标系。
 - **降级**：iOS Safari 无 MSE 时视频区降级为下载提示，事件列表仍正常展示。

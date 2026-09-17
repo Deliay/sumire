@@ -29,7 +29,23 @@ vi.mock("@/features/recordings/seek", () => ({ seekUnbuffered: vi.fn(async () =>
 
 vi.mock("@/features/recordings/replay/replayEvents", () => ({ fetchReplayEvents: h.fetchReplayEvents }));
 
-const file = { name: "回放.flv", size: 1024, createdAt: "2026-09-17T10:00:00.000Z" };
+const file = {
+  name: "回放.flv",
+  size: 1024,
+  createdAt: "2026-09-17T11:00:00.000Z",
+  info: {
+    recordingId: "rec-1",
+    title: "夜读",
+    mid: 1,
+    startedAt: "2026-09-17T10:00:00.000Z",
+    endedAt: "2026-09-17T11:00:00.000Z",
+  },
+};
+const bounds = {
+  startMs: Date.parse(file.info.startedAt),
+  endMs: Date.parse(file.info.endedAt),
+  fallback: false,
+};
 
 const requestFullscreen = vi.fn(() => Promise.resolve());
 const exitFullscreen = vi.fn(() => Promise.resolve());
@@ -55,7 +71,7 @@ afterEach(() => {
 });
 
 async function renderStage() {
-  render(<ReplayStage roomId={1} file={file} />);
+  render(<ReplayStage roomId={1} file={file} bounds={bounds} />);
   await screen.findByLabelText("录播视频");
 }
 
@@ -153,7 +169,7 @@ describe("ReplayStage 双全屏", () => {
 describe("ReplayStage MSE 降级", () => {
   it("不支持在线播放：展示降级提示，事件列表仍正常展示", async () => {
     h.isSupported.mockReturnValue(Promise.resolve(false));
-    render(<ReplayStage roomId={1} file={file} />);
+    render(<ReplayStage roomId={1} file={file} bounds={bounds} />);
     expect(await screen.findByText(/当前浏览器不支持在线播放/)).toBeTruthy();
     expect(screen.getByLabelText("事件列表")).toBeTruthy();
     expect(screen.queryByTestId("danmaku-overlay")).toBeNull();

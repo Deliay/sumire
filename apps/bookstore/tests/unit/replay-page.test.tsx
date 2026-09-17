@@ -21,14 +21,25 @@ vi.mock("@/features/recordings/api", () => ({
 }));
 
 vi.mock("@/features/recordings/replay/ReplayStage", () => ({
-  default: ({ roomId, file }: { roomId: number; file: { name: string } }) => (
+  default: ({ roomId, file, bounds }: { roomId: number; file: { name: string }; bounds: { startMs: number | null } }) => (
     <div data-testid="stage">
-      stage:{roomId}:{file.name}
+      stage:{roomId}:{file.name}:{String(bounds.startMs)}
     </div>
   ),
 }));
 
-const FILE = { name: "中文 回放.flv", size: 2048, createdAt: "2026-09-17T10:00:00.000Z" };
+const FILE = {
+  name: "中文 回放.flv",
+  size: 2048,
+  createdAt: "2026-09-17T11:00:00.000Z",
+  info: {
+    recordingId: "rec-1",
+    title: "夜读",
+    mid: 1,
+    startedAt: "2026-09-17T10:00:00.000Z",
+    endedAt: "2026-09-17T11:00:00.000Z",
+  },
+};
 
 beforeEach(() => {
   h.recordingsConfigured = true;
@@ -79,6 +90,8 @@ describe("ReplayApp 参数校验与空态", () => {
     await waitFor(() => expect(screen.getByTestId("stage")).toBeTruthy());
     expect(h.getRoomRecordings).toHaveBeenCalledWith(1);
     expect(screen.getByTestId("stage").textContent).toContain(FILE.name);
+    // 时间锚点取自 info.startedAt（而非 createdAt）
+    expect(screen.getByTestId("stage").textContent).toContain(String(Date.parse(FILE.info.startedAt)));
     const download = screen.getByRole("link", { name: /下载该场录播/ });
     expect(download.getAttribute("href")).toBe(
       `https://rec.example.com/api/b/live/1/recordings/${encodeURIComponent(FILE.name)}`,

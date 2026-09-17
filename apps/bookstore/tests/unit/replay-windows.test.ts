@@ -3,9 +3,11 @@ import {
   MAX_RANGE_MS,
   WINDOW_MS,
   offsetMs,
+  segmentBoundsForFile,
   windowBounds,
   windowIndexForOffset,
 } from "@/features/recordings/replay/replayWindows";
+import type { RecordingFile } from "@/features/recordings/api";
 
 const START = "2026-09-17T10:00:00.000Z";
 const START_MS = Date.parse(START);
@@ -49,5 +51,69 @@ describe("replayWindows 窗口切分", () => {
     const recordEndMs = START_MS + 5_000;
     const { endMs } = windowBounds(1, START_MS, recordEndMs);
     expect(endMs).toBe(recordEndMs);
+  });
+});
+
+describe("replayWindows 分段锚点推导（info 优先，createdAt 为分段结束）", () => {
+  function file(name: string, createdAt: string, info?: RecordingFile["info"]): RecordingFile {
+    return { name, size: 1, createdAt, ...(info ? { info } : {}) };
+  }
+
+  it("单段：start=info.startedAt，end=info.endedAt（createdAt 不作为起点）", () => {
+    const info = {
+      recordingId: "rec-1",
+      title: "t",
+      mid: 1,
+      startedAt: "2026-09-16T03:57:56.277Z",
+      endedAt: "2026-09-16T06:13:41.707Z",
+    };
+    const target = file("a.flv", "2026-09-16T06:13:41.707Z", info);
+    const bounds = segmentBoundsForFile([target], target);
+    expect(bounds.startMs).toBe(Date.parse(info.startedAt));
+    expect(bounds.endMs).toBe(Date.parse(info.endedAt));
+    expect(bounds.fallback).toBe(false);
+  });
+
+  it("多段：首段起于 info.startedAt、止于本段 createdAt；末段止于 info.endedAt", () => {
+    const info = {
+      recordingId: "rec-2",
+      title: "t",
+      mid: 1,
+      startedAt: "2026-09-14T13:53:44.000Z",
+      endedAt: "2026-09-14T16:29:24.409Z",
+    };
+    const seg1 = file("seg1.flv", "2026-09-14T14:56:42.980Z", info);
+    const seg2 = file("seg2.flv", "2026-09-14T16:29:23.418Z", info);
+    const files = [seg2, seg1]; // 乱序输入
+
+    const b1 = segmentBoundsForFile(files, seg1);
+    expect(b1.startMs).toBe(Date.parse(info.startedAt));
+    expect(b1.endMs).toBe(Date.parse(seg1.createdAt));
+
+    const b2 = segmentBoundsForFile(files, seg2);
+    expect(b2.startMs).toBe(Date.parse(seg1.createdAt));
+    expect(b2.endMs).toBe(Date.parse(info.endedAt));
+  });
+
+  it("info 缺失：回退 createdAt（fallback=true），终点交由 duration 兜底", () => {
+    const target = file("a.flv", "2026-09-16T06:13:41.707Z");
+    const bounds = segmentBoundsForFile([target], target);
+    expect(bounds.startMs).toBe(Date.parse(target.createdAt));
+    expect(bounds.endMs).toBeNull();
+    expect(bounds.fallback).toBe(true);
+  });
+
+  it("recordingId 相同但无兄弟：按单段处理", () => {
+    const info = {
+      recordingId: "rec-3",
+      title: "t",
+      mid: 1,
+      startedAt: "2026-09-16T03:00:00.000Z",
+      endedAt: "2026-09-16T04:00:00.000Z",
+    };
+    const target = file("only.flv", "2026-09-16T04:00:00.000Z", info);
+    const bounds = segmentBoundsForFile([target], target);
+    expect(bounds.startMs).toBe(Date.parse(info.startedAt));
+    expect(bounds.endMs).toBe(Date.parse(info.endedAt));
   });
 });

@@ -3,6 +3,12 @@
  * - fetchRange：GET {base}/api/b/live/1727076670/event/range（多 type= 重复参数，5s 超时兜底）；
  * - subscribe：GET {base}/api/b/live/1727076670/event/subscribe（SSE 逐行解析，AbortController 中止）。
  * fetch 可注入便于单测（照 routes/liveHistory 的 fetchFn 范式）。
+ *
+ * **实测结论（2026-09-17）**：上游 `event/range` **不支持任何时间区间参数**——传
+ * ISO8601（`start`/`end`）或 epoch 秒均被忽略、原样返回最新一页；分页按 `occurredAt`
+ * **倒序**且 `total` 可靠（单类型 danmaku 可达 ~79 万）；`pageSize` 上限为 **100**
+ * （传 1000 被钳到 100）。故回放取数不走时间参数透传，改由路由层
+ * `scanReplayEvents` 二分定位 + 定向扫描兜底（见 `routes/liveEvents.ts`）。
  */
 
 const EVENT_API_PREFIX = "/api/b/live/1727076670";

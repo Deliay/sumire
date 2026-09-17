@@ -80,7 +80,8 @@ kuroshiro+kuromoji（懒加载字典）→ 失败则 OpenCC 简→日汉字重�
 
 - 公开端点（不挂 `requireRole`，与 member/admin 端点共存于同一 router，先例 `/api/topics/public`）；面向录播回放场景，供匿名访客按时间窗口取数。
 - 参数手写守卫：`start`/`end` 必填字符串且 `new Date(...)` 合法、`end > start`、区间 ≤ 12h（`REPLAY_MAX_RANGE_MS`）；`type` 复用 `parseTypesParam`（仅 danmaku/super_chat/gift/guard_buy，缺省四类，online_rank_count 非法）；`page` 默认 1、`pageSize` 默认/上限 100。任一非法 400 `{ error }` 中文。
-- 取数：**服务端分页扫描兜底**（上游 `event/range` 时间参数支持未实测，故不透传 start/end 以免上游报错）——自 page=1 起按 `pageSize=100` 翻页，逐条 `toLiveEvent` 归一化并收集 `occurredAt ∈ [start,end]`；上游按 `occurredAt` 倒序，遇 `occurredAt < start` 立即终止（倒序保证其后含后续页全部越界）；扫描页数上限 50（`REPLAY_SCAN_MAX_PAGES`）截断并如实反映已扫描 total。`type=gift` 经 `toUpstreamTypes` 展开为 `["gift","gift_v2"]`。
+- **上游实测结论（2026-09-17）**：`event/range` **不支持任何时间区间参数**——传 ISO8601（`start`/`end`）或 epoch 秒均被忽略、原样返回最新一页；分页按 `occurredAt` **倒序**且 `total` 可靠（单类型 danmaku 可达 ~79 万，历史场次深达数千页）；`pageSize` 上限 **100**（传 1000 被钳到 100）。故不透传时间参数。
+- 取数：**二分定位 + 定向扫描**兜底——先取 page=1 拿 `total` 推算总页数；二分查找「end 边界所在页」（最小页 p 使该页末条 `occurredAt <= end`，约 `log2(总页数)` 次请求收敛）；自该页起向更旧方向按 `pageSize=100` 翻页，逐条 `toLiveEvent` 归一化并收集 `occurredAt ∈ [start,end]`，遇 `occurredAt < start` 立即终止（倒序保证其后全部越界）；同一轮扫描按页缓存避免重复回源。收集阶段页数上限 50（`REPLAY_SCAN_MAX_PAGES`）截断并如实反映已收集 total。直播进行中 `total` 增长致页码漂移仅影响最新端，历史区间可忽略。`type=gift` 经 `toUpstreamTypes` 展开为 `["gift","gift_v2"]`。
 - 出口：区间内事件按 `occurredAt` 升序，按 page/pageSize 切片；**不调用** `resolveReadState`/`annotateRomaji`（零 Mongo/kuroshiro 开销），以显式投影构造 `ReplayEvent` 剔除 `read`/`sender.nameRomaji`/`contentRomaji`。上游抛错 → 502 `{ error: "上游事件服务不可用" }`。
 - 缓存抽象 `infra/liveEventsReplayCache.ts`（Redis 实现 + 内存实现），经 `AppDeps.liveEventsReplayCache` 注入；键 `live-events:replay:{startIso}:{endIso}:{types逗号连接}:{page}:{pageSize}`，TTL 300s；历史区间不可变，缓存安全。
 

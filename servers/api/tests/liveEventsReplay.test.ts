@@ -362,7 +362,7 @@ describe("GET /api/live-events/replay 分页扫描兜底", () => {
     expect(body.items.every((i) => new Date(i.occurredAt).getTime() >= new Date(START).getTime())).toBe(true);
   });
 
-  it("扫描页数上限 50：全区间命中时截断并如实返回 total", async () => {
+  it("收集阶段页数上限 50：全区间命中时截断并如实返回 total", async () => {
     const descending: UpstreamEnvelope[] = [];
     for (let i = 5000; i >= 0; i--) descending.push(danmakuAt(i, i));
     const upstream = stubUpstream(descending);
@@ -372,11 +372,52 @@ describe("GET /api/live-events/replay 分页扫描兜底", () => {
     );
     expect(r.status).toBe(200);
     const body = r.body as ReplayPage;
+    // end 等于最新事件 → 边界页=1，收集 page 1..50（含探测页复用）共 50 次回源
     expect(upstream.fetchRange).toHaveBeenCalledTimes(50);
     expect(upstream.fetchRange).toHaveBeenLastCalledWith(expect.any(Array), 50, 100);
     expect(body.total).toBe(5000);
     // 升序
     const times = body.items.map((i) => new Date(i.occurredAt).getTime());
     expect(times).toEqual([...times].sort((a, b) => a - b));
+  });
+
+  it("二分定位 + 定向扫描：深页历史区间可取到事件（不从 page=1 顺序扫）", async () => {
+    // 5001 条：offset 5000..0，倒序
+    const descending: UpstreamEnvelope[] = [];
+    for (let i = 5000; i >= 0; i--) descending.push(danmakuAt(i, i));
+    const upstream = stubUpstream(descending);
+    // 历史区间 offset [1000,1300]（约第 38 页），含两端共 301 条
+    const r = await call(
+      buildApp(upstream),
+      `/api/live-events/replay?start=${encodeURIComponent(iso(1000))}&end=${encodeURIComponent(iso(1300))}`,
+    );
+    expect(r.status).toBe(200);
+    const body = r.body as ReplayPage;
+    expect(body.total).toBe(301);
+    // 响应 items 按默认 pageSize=100 切片，仅含区间内升序前 100 条
+    expect(body.items).toHaveLength(100);
+    const times = body.items.map((i) => new Date(i.occurredAt).getTime());
+    expect(times[0]).toBe(new Date(iso(1000)).getTime());
+    expect(times[times.length - 1]).toBe(new Date(iso(1099)).getTime());
+    expect(times).toEqual([...times].sort((a, b) => a - b));
+
+    const pages = upstream.fetchRange.mock.calls.map((call) => call[1] as number);
+    expect(pages).toContain(1); // 仅用于探测 total
+    expect(Math.max(...pages)).toBeGreaterThanOrEqual(30); // 确实触达深页
+    expect(pages.length).toBeLessThanOrEqual(25); // 远小于从 page=1 顺序扫的 38+ 页
+  });
+
+  it("区间早于全部数据（end 早于最旧事件）→ 空结果", async () => {
+    const descending: UpstreamEnvelope[] = [
+      danmakuAt(500, 2),
+      danmakuAt(400, 1),
+    ];
+    const upstream = stubUpstream(descending);
+    const r = await call(
+      buildApp(upstream),
+      `/api/live-events/replay?start=${encodeURIComponent(iso(0))}&end=${encodeURIComponent(iso(100))}`,
+    );
+    expect(r.status).toBe(200);
+    expect((r.body as ReplayPage).total).toBe(0);
   });
 });

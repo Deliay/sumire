@@ -163,14 +163,25 @@ function dataset(): StubEnvelope[] {
 
 const ALL_EVENTS = dataset();
 
+/** 深页历史数据集：danmaku offset 0..5000 秒（倒序后最新在前），共 5001 条 ≈ 51 页。 */
+const DEEP_EVENTS: StubEnvelope[] = (() => {
+  const events: StubEnvelope[] = [];
+  for (let i = 0; i <= 5000; i++) {
+    events.push({ ...danmaku(i, 0), occurredAt: new Date(BASE_TS + i * 1000).toISOString() });
+  }
+  return events;
+})();
+
 /** 模拟上游：按 type 过滤（缺省全部），按 occurredAt 倒序分页；忽略未知参数（start/end 等）。 */
-function filterByTypes(types: string[]): StubEnvelope[] {
-  const filtered = types.length > 0 ? ALL_EVENTS.filter((e) => types.includes(e.type)) : [...ALL_EVENTS];
+function filterByTypes(types: string[], dataset: StubEnvelope[] = ALL_EVENTS): StubEnvelope[] {
+  const filtered = types.length > 0 ? dataset.filter((e) => types.includes(e.type)) : [...dataset];
   return filtered.sort((a, b) => (a.occurredAt < b.occurredAt ? 1 : -1));
 }
 
 let rangeMode: "ok" | "error" = "ok";
 let rangeRequests = 0;
+let deepMode = false;
+let rangePages: number[] = [];
 
 function startStub(): Server {
   return createServer((req, res) => {
@@ -185,7 +196,8 @@ function startStub(): Server {
       const types = url.searchParams.getAll("type");
       const page = Number(url.searchParams.get("page") ?? "1");
       const pageSize = Number(url.searchParams.get("pageSize") ?? "100");
-      const filtered = filterByTypes(types);
+      rangePages.push(page);
+      const filtered = filterByTypes(types, deepMode ? DEEP_EVENTS : ALL_EVENTS);
       const items = filtered.slice((page - 1) * pageSize, page * pageSize);
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ total: filtered.length, page, pageSize, items }));
@@ -307,6 +319,31 @@ describe("GET /api/live-events/replay（公开回放检索）", () => {
     expect(body.page).toBe(2);
     expect(body.pageSize).toBe(10);
     expect(body.items).toHaveLength(10);
+  });
+
+  it("live-events-replay-deep-page: 深页历史区间可取到事件（二分定位 + 定向扫描）", async () => {
+    deepMode = true;
+    rangePages = [];
+    try {
+      // 随机起点规避跨轮次 Redis 缓存；end 落在约第 31–38 页（深页）
+      const baseSec = 1000 + Math.floor(Math.random() * 700);
+      const start = new Date(BASE_TS + baseSec * 1000).toISOString();
+      const end = new Date(BASE_TS + (baseSec + 300) * 1000).toISOString();
+      const query = `start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+      const body = await fetchReplay(query);
+      expect(body.total).toBe(301);
+      // 响应 items 按默认 pageSize=100 切片，仅含区间内升序前 100 条
+      expect(body.items).toHaveLength(100);
+      const times = body.items.map((i) => new Date(i.occurredAt).getTime());
+      expect(times[0]).toBe(Date.parse(start));
+      expect(times[times.length - 1]).toBe(Date.parse(start) + 99_000);
+      // 仅探测 total 才取 page=1，实际收集触达深页，且请求数远小于顺序扫描
+      expect(rangePages).toContain(1);
+      expect(Math.max(...rangePages)).toBeGreaterThanOrEqual(30);
+      expect(rangePages.length).toBeLessThanOrEqual(25);
+    } finally {
+      deepMode = false;
+    }
   });
 
   it("live-events-replay-400: 各参数非法分支均 400 且返回 { error }", async () => {

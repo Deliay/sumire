@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { requireRole } from "../rbac/requireRole";
 import { toLiveEvent, type LiveEvent, type LiveEventSender, type LiveEventType } from "../liveEvents/normalize";
 import { toRomaji } from "../liveEvents/romaji";
-import type { LiveEventsUpstream, UpstreamEnvelope } from "../liveEvents/upstream";
+import type { LiveEventsUpstream, UpstreamEnvelope, UpstreamPage } from "../liveEvents/upstream";
 import { markRead, markUnread, markAllRead, resolveReadState, typeFromEventId } from "../db/liveEventReads";
 import { createMemoryLiveEventsReplayCache, type LiveEventsReplayCache } from "../infra/liveEventsReplayCache";
 
@@ -99,10 +99,27 @@ function parseTimeParam(value: unknown): number | null {
   return Number.isNaN(t) ? null : t;
 }
 
+/** 上游信封 occurredAt → 毫秒；缺失/非法返回 null。 */
+function occurredAtMs(item: UpstreamEnvelope): number | null {
+  if (typeof item.occurredAt !== "string") return null;
+  const t = new Date(item.occurredAt).getTime();
+  return Number.isNaN(t) ? null : t;
+}
+
 /**
- * 服务端分页扫描兜底：上游 event/range 按 occurredAt 倒序返回，
- * 自 page=1 起翻页收集 [start,end] 内事件，遇到 occurredAt < start 立即终止
- * （倒序保证其后含后续页全部越界），扫描页数上限 50 页。
+ * 服务端分页扫描兜底（实测上游 `event/range` **不支持时间参数**，传 start/end 被忽略）。
+ *
+ * 实测上游事实：按 `occurredAt` **倒序**分页、`total` 可靠、`pageSize` 上限 100。
+ * 历史场次可能深达数千页（单类型 total 可达 ~79 万），自 page=1 顺序扫不可达，
+ * 故采用「**二分定位 + 定向扫描**」：
+ * 1. 先取 page=1 拿到 `total` 推算总页数；
+ * 2. 二分查找「end 边界所在页」——最小页 p 使该页末条 `occurredAt <= end`
+ *    （倒序下末条为该页最旧；空页/无合法时间视为最旧），约 log2(总页数) 次请求收敛；
+ * 3. 自该页起向更旧方向翻页收集 `occurredAt ∈ [start,end]`，遇 `occurredAt < start` 终止；
+ * 4. 收集阶段页数上限 `REPLAY_SCAN_MAX_PAGES` 截断，`total` 如实反映已收集口径。
+ *
+ * 直播进行中 `total` 增长会导致页码漂移，二分以本次定位期的 `total` 为基准，
+ * 漂移只影响最新端，对历史区间可忽略。
  */
 async function scanReplayEvents(
   upstream: LiveEventsUpstream,
@@ -110,13 +127,53 @@ async function scanReplayEvents(
   startMs: number,
   endMs: number,
 ): Promise<LiveEvent[]> {
+  // 同一轮扫描内按页缓存，二分与收集复用已取页（避免重复回源）
+  const pageCache = new Map<number, UpstreamPage>();
+  const fetchPage = async (page: number): Promise<UpstreamPage> => {
+    const cached = pageCache.get(page);
+    if (cached) return cached;
+    const result = await upstream.fetchRange(upstreamTypes, page, REPLAY_SCAN_PAGE_SIZE);
+    pageCache.set(page, result);
+    return result;
+  };
+  const pageOldestMs = async (page: number): Promise<number | null> => {
+    const { items } = await fetchPage(page);
+    for (let i = items.length - 1; i >= 0; i--) {
+      const t = occurredAtMs(items[i]);
+      if (t !== null) return t;
+    }
+    return null; // 空页 / 无合法时间 → 视为最旧
+  };
+
+  const firstPage = await fetchPage(1);
+  if (firstPage.total <= 0) return [];
+  const pageSize = firstPage.pageSize > 0 ? firstPage.pageSize : REPLAY_SCAN_PAGE_SIZE;
+  const totalPages = Math.max(1, Math.ceil(firstPage.total / pageSize));
+
+  // 二分：最小页 p 使该页末条（最旧）occurredAt <= end（end 边界所在页）
+  const reachesEndOrOlder = async (page: number): Promise<boolean> => {
+    const oldest = await pageOldestMs(page);
+    return oldest === null || oldest <= endMs;
+  };
+  let lo = 1;
+  let hi = totalPages;
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (await reachesEndOrOlder(mid)) hi = mid;
+    else lo = mid + 1;
+  }
+  const boundaryPage = lo;
+
+  // 定向扫描：自 end 边界页起向更旧方向收集
   const collected: LiveEvent[] = [];
-  for (let page = 1; page <= REPLAY_SCAN_MAX_PAGES; page++) {
-    const upstreamPage = await upstream.fetchRange(upstreamTypes, page, REPLAY_SCAN_PAGE_SIZE);
+  for (let offset = 0; offset < REPLAY_SCAN_MAX_PAGES; offset++) {
+    const page = boundaryPage + offset;
+    if (page > totalPages) break;
+    const upstreamPage = await fetchPage(page);
     let reachedBeforeStart = false;
     for (const item of upstreamPage.items) {
-      const raw = typeof item.occurredAt === "string" ? new Date(item.occurredAt).getTime() : NaN;
-      if (!Number.isNaN(raw) && raw < startMs) {
+      const raw = occurredAtMs(item);
+      if (raw !== null && raw < startMs) {
         reachedBeforeStart = true;
         break;
       }
@@ -126,7 +183,7 @@ async function scanReplayEvents(
       if (t >= startMs && t <= endMs) collected.push(event);
     }
     if (reachedBeforeStart) break;
-    if (upstreamPage.items.length < REPLAY_SCAN_PAGE_SIZE) break;
+    if (upstreamPage.items.length < pageSize) break;
   }
   collected.sort((a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime());
   return collected;

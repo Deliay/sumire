@@ -176,6 +176,22 @@ test.describe("bookstore 回放页", () => {
     await expect(page.getByRole("region", { name: "事件列表" })).toBeVisible();
     expect(await page.evaluate(() => document.body.style.overflow)).toBe("hidden");
 
+    // 播放区容器在受控 web 模式下不得再 fixed 铺满视口（否则会遮挡事件列表）
+    const panelContainerClass = await page
+      .locator('[data-fullscreen-container]')
+      .first()
+      .getAttribute("class");
+    expect(panelContainerClass ?? "").not.toContain("fixed");
+    // 事件列表中心点可被命中（未被播放区遮挡）
+    const hitInsideTimeline = await page.evaluate(() => {
+      const region = document.querySelector('[aria-label="事件列表"]');
+      if (!region) return false;
+      const rect = region.getBoundingClientRect();
+      const el = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      return !!el && region.contains(el);
+    });
+    expect(hitInsideTimeline).toBe(true);
+
     await page.getByRole("button", { name: "退出网页全屏" }).click();
     await expect(stage).toHaveAttribute("data-fullscreen-mode", "none");
     await expect(stage).not.toHaveClass(/z-50/);

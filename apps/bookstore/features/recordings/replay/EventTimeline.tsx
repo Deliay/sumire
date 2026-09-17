@@ -140,8 +140,17 @@ export default function EventTimeline({
                   ref={isCurrent ? currentItemRef : undefined}
                   data-timeline-event={entry.event.eventId}
                   data-current={isCurrent ? "true" : undefined}
+                  role="button"
+                  tabIndex={0}
+                  aria-label="跳转到该事件时间点"
                   onClick={() => onSeek(entry.offsetSeconds)}
-                  className={`cursor-pointer transition-colors hover:bg-soft/40 ${
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onSeek(entry.offsetSeconds);
+                    }
+                  }}
+                  className={`cursor-pointer transition-colors hover:bg-soft/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-flower ${
                     isCurrent ? "bg-flower/10 ring-1 ring-flower" : ""
                   }`}
                 >

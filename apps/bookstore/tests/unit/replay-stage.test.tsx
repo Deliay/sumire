@@ -83,6 +83,12 @@ describe("ReplayStage 双全屏", () => {
     expect(stage.className).toContain("z-50");
     expect(stage.contains(screen.getByLabelText("事件列表"))).toBe(true);
     expect(document.body.style.overflow).toBe("hidden");
+    // 受控 web 模式下播放区容器不得再 fixed 铺满视口（否则脱离舞台布局并遮挡事件列表）
+    const panel = screen.getByLabelText("录播播放区");
+    const panelContainer = panel.querySelector("[data-fullscreen-container]") as HTMLElement;
+    expect(panelContainer).toBeTruthy();
+    expect(panelContainer.className).not.toContain("fixed");
+    expect(panelContainer.className).not.toContain("inset-0");
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "退出网页全屏" }));

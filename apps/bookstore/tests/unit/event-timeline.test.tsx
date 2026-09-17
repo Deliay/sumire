@@ -94,6 +94,17 @@ describe("EventTimeline 事件列表", () => {
     expect(onSeek).toHaveBeenCalledWith(30);
   });
 
+  it("条目键盘可达：Enter/Space 触发跳转", () => {
+    const onSeek = vi.fn();
+    const { container } = renderTimeline({ onSeek });
+    const gift = container.querySelector('[data-timeline-event="gift:1"]') as HTMLElement;
+    expect(gift.getAttribute("tabindex")).toBe("0");
+    fireEvent.keyDown(gift, { key: "Enter" });
+    expect(onSeek).toHaveBeenCalledWith(30);
+    fireEvent.keyDown(gift, { key: " " });
+    expect(onSeek).toHaveBeenCalledTimes(2);
+  });
+
   it("加载失败展示错误态，点击重试调用 onRetry", () => {
     const onRetry = vi.fn();
     renderTimeline({ error: true, events: [], onRetry });

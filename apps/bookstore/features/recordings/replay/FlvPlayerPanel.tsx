@@ -350,8 +350,10 @@ export default function FlvPlayerPanel({
     onClose?.();
   };
 
+  // 受控模式（回放页）下 web 全屏由舞台容器负责铺满视口，播放区容器必须保持普通流内布局，
+  // 否则会脱离舞台 flex 布局、fixed 铺满并遮挡事件列表；仅 native 模式需自身容器类。
   const containerClass =
-    mode === "web"
+    mode === "web" && !controlled
       ? "fixed inset-0 z-50 flex flex-col justify-center gap-3 bg-black p-4"
       : mode === "native"
         ? "flex h-full w-full flex-col justify-center gap-3 bg-black p-4"

@@ -56,6 +56,11 @@ export function recordingFileUrl(roomId: number, fileName: string): string {
   return joinUrl(RECORDINGS_BASE_URL, `/api/b/live/${roomId}/recordings/${encodeURIComponent(fileName)}`);
 }
 
+/** 回放页站内地址（查询串携带 roomId 与 file，file 经 encodeURIComponent 编码）。 */
+export function recordingReplayHref(roomId: number, fileName: string): string {
+  return `/recordings/replay?roomId=${encodeURIComponent(String(roomId))}&file=${encodeURIComponent(fileName)}`;
+}
+
 function normalizeState(value: unknown): RecordingState {
   return value === "recording" ? "recording" : "not_live";
 }

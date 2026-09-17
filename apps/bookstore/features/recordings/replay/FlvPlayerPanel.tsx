@@ -1,6 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+  type Ref,
+  type RefObject,
+} from "react";
 import { Download, Expand, Loader2, Maximize, Minimize, Pause, Play, Shrink, Volume2, X } from "lucide-react";
 import { recordingFileUrl, type RecordingFile } from "@/features/recordings/api";
 import { seekUnbuffered } from "@/features/recordings/seek";
@@ -16,13 +26,39 @@ import {
   subscribePlayer,
 } from "@/features/recordings/player";
 
+export type FullscreenMode = "none" | "native" | "web";
+
+/** 命令式控制接口：回放页经它把事件跳转接到既有 seek 路径。 */
+export interface FlvPlayerPanelController {
+  seekTo(seconds: number): void;
+}
+
+/** 受控双全屏配置：提供时由外部（ReplayStage）接管全屏状态机。 */
+export interface FlvPlayerFullscreen {
+  mode: FullscreenMode;
+  nativeAvailable: boolean;
+  onNativeToggle: () => void;
+  onWebToggle: () => void;
+  /** native 全屏目标（视频 + 浮层 + 控制条容器）。 */
+  containerRef?: Ref<HTMLDivElement>;
+}
+
 interface FlvPlayerPanelProps {
   roomId: number;
   file: RecordingFile;
-  onClose: () => void;
+  /** 关闭播放区；回放页不传时不渲染关闭按钮。 */
+  onClose?: () => void;
+  /** 绝对定位铺满视频画面容器的浮层（弹幕 canvas）。 */
+  overlay?: ReactNode;
+  /** 播放进度同步回调（timeupdate/loadedmetadata/durationchange/progress 均触发）。 */
+  onTimeUpdate?: (currentTime: number, duration: number) => void;
+  /** 播放态回调。 */
+  onPlayStateChange?: (playing: boolean) => void;
+  /** 暴露 `seekTo` 命令（内部走既有 seek 路径）。 */
+  controllerRef?: RefObject<FlvPlayerPanelController | null>;
+  /** 受控双全屏；缺省时由组件自持状态机（现行为）。 */
+  fullscreen?: FlvPlayerFullscreen;
 }
-
-type FullscreenMode = "none" | "native" | "web";
 
 /** seek 成功发起后等待真实续播的看门狗超时：超时未恢复播放则显性提示失败（禁止静默冻结）。 */
 const SEEK_WATCHDOG_MS = 15000;
@@ -50,7 +86,16 @@ function isTimeBuffered(video: HTMLVideoElement, time: number): boolean {
 }
 
 /** 录播在线预览区（F5）：mpegts.js 视频播放（可见画面 + 可拖动进度条）、全屏/网页全屏，MSE 不可用时降级为下载。 */
-export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanelProps) {
+export default function FlvPlayerPanel({
+  roomId,
+  file,
+  onClose,
+  overlay,
+  onTimeUpdate,
+  onPlayStateChange,
+  controllerRef,
+  fullscreen,
+}: FlvPlayerPanelProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const seekTokenRef = useRef(0);
@@ -65,8 +110,9 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
   const [duration, setDuration] = useState(0);
   const [seeking, setSeeking] = useState(false);
   const [fullscreenMode, setFullscreenMode] = useState<FullscreenMode>("none");
+  const controlled = fullscreen !== undefined;
   // 能力检测 Fullscreen API（不可用时隐藏「全屏」入口，网页全屏不受影响）；静态能力，惰性求值一次
-  const [nativeAvailable] = useState(
+  const [nativeAvailableState] = useState(
     () => typeof document !== "undefined" && Boolean(document.fullscreenEnabled && Element.prototype.requestFullscreen),
   );
   // 上游 Range 支持（null=检测中）：决定进度条能否拖动 seek
@@ -79,6 +125,9 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
   const owns = activeUrl === url;
   const playing = owns && !paused;
   const canSeek = rangeSupported === true && Number.isFinite(duration) && duration > 0;
+
+  const mode = controlled ? fullscreen.mode : fullscreenMode;
+  const nativeAvailable = controlled ? fullscreen.nativeAvailable : nativeAvailableState;
 
   const clearSeekWatchdog = useCallback(() => {
     if (seekWatchdogRef.current !== null) {
@@ -130,29 +179,31 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
     };
   }, [url]);
 
-  // ESC / 浏览器退出原生全屏时同步按钮态
+  // ESC / 浏览器退出原生全屏时同步按钮态（受控模式由外部接管）
   useEffect(() => {
+    if (controlled) return;
     const onChange = () => {
       const isNative = document.fullscreenElement != null && document.fullscreenElement === containerRef.current;
       setFullscreenMode((prev) => (isNative ? "native" : prev === "native" ? "none" : prev));
     };
     document.addEventListener("fullscreenchange", onChange);
     return () => document.removeEventListener("fullscreenchange", onChange);
-  }, []);
+  }, [controlled]);
 
-  // 组件卸载（切换文件/离开页面）时退出原生全屏
+  // 组件卸载（切换文件/离开页面）时退出原生全屏（受控模式由外部接管）
   useEffect(() => {
+    if (controlled) return;
     const container = containerRef.current;
     return () => {
       if (document.fullscreenElement != null && document.fullscreenElement === container) {
         void document.exitFullscreen?.();
       }
     };
-  }, []);
+  }, [controlled]);
 
-  // 网页全屏：ESC 退出 + body 滚动锁定
+  // 网页全屏：ESC 退出 + body 滚动锁定（受控模式由外部接管）
   useEffect(() => {
-    if (fullscreenMode !== "web") return;
+    if (controlled || fullscreenMode !== "web") return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") setFullscreenMode("none");
     };
@@ -163,7 +214,7 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = previousOverflow;
     };
-  }, [fullscreenMode]);
+  }, [controlled, fullscreenMode]);
 
   useEffect(() => {
     if (supported !== true) return;
@@ -175,10 +226,15 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
     if (videoRef.current) videoRef.current.volume = volume;
   }, [volume]);
 
+  useEffect(() => {
+    onPlayStateChange?.(playing);
+  }, [playing, onPlayStateChange]);
+
   const syncMediaState = (video: HTMLVideoElement) => {
     setCurrentTime(video.currentTime);
     const nextDuration = Number.isFinite(video.duration) ? video.duration : 0;
     setDuration(nextDuration);
+    onTimeUpdate?.(video.currentTime, nextDuration);
     // 时长到手后按真实码率重算缓冲上限（一次）
     if (nextDuration > 0 && bufferDurationRef.current !== nextDuration) {
       bufferDurationRef.current = nextDuration;
@@ -190,40 +246,55 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
     }
   };
 
-  const handleSeek = (value: number) => {
-    const video = videoRef.current;
-    if (!video || !canSeek) return;
-    // 已缓冲：原生 currentTime 即时定位（mpegts buffered 分支）
-    if (isTimeBuffered(video, value)) {
-      video.currentTime = value;
-      setCurrentTime(value);
-      return;
-    }
-    // 未缓冲：走近似 seek 编排，不再写 currentTime（避免触发 50ms 校正死循环）
-    const token = ++seekTokenRef.current;
-    setSeeking(true);
-    void seekUnbuffered({
-      url,
-      targetSeconds: value,
-      durationSeconds: duration,
-      fileSize: file.size,
-    }).then((ok) => {
-      if (token !== seekTokenRef.current) return;
-      setSeeking(false);
-      if (!ok) {
-        setFailed(true);
+  const handleSeek = useCallback(
+    (value: number) => {
+      const video = videoRef.current;
+      if (!video || !canSeek) return;
+      // 已缓冲：原生 currentTime 即时定位（mpegts buffered 分支）
+      if (isTimeBuffered(video, value)) {
+        video.currentTime = value;
+        setCurrentTime(value);
+        onTimeUpdate?.(value, duration);
         return;
       }
-      // 已成功发起 patched 续播：看门狗确保「无续播」时显性提示而非静默冻结
-      seekBeforeRef.current = video.currentTime;
-      clearSeekWatchdog();
-      seekWatchdogRef.current = window.setTimeout(() => {
-        seekWatchdogRef.current = null;
+      // 未缓冲：走近似 seek 编排，不再写 currentTime（避免触发 50ms 校正死循环）
+      const token = ++seekTokenRef.current;
+      setSeeking(true);
+      void seekUnbuffered({
+        url,
+        targetSeconds: value,
+        durationSeconds: duration,
+        fileSize: file.size,
+      }).then((ok) => {
         if (token !== seekTokenRef.current) return;
-        setFailed(true);
-      }, SEEK_WATCHDOG_MS);
-    });
-  };
+        setSeeking(false);
+        if (!ok) {
+          setFailed(true);
+          return;
+        }
+        // 已成功发起 patched 续播：看门狗确保「无续播」时显性提示而非静默冻结
+        seekBeforeRef.current = video.currentTime;
+        clearSeekWatchdog();
+        seekWatchdogRef.current = window.setTimeout(() => {
+          seekWatchdogRef.current = null;
+          if (token !== seekTokenRef.current) return;
+          setFailed(true);
+        }, SEEK_WATCHDOG_MS);
+      });
+    },
+    [canSeek, url, duration, file.size, clearSeekWatchdog, onTimeUpdate],
+  );
+
+  const controller = useMemo<FlvPlayerPanelController>(() => ({ seekTo: (seconds: number) => handleSeek(seconds) }), [handleSeek]);
+
+  useEffect(() => {
+    if (!controllerRef) return;
+    const ref = controllerRef as { current: FlvPlayerPanelController | null };
+    ref.current = controller;
+    return () => {
+      ref.current = null;
+    };
+  }, [controller, controllerRef]);
 
   const togglePlay = () => {
     if (!owns) {
@@ -241,6 +312,10 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
   };
 
   const handleNativeToggle = () => {
+    if (controlled) {
+      fullscreen.onNativeToggle();
+      return;
+    }
     if (fullscreenMode === "native") {
       void document.exitFullscreen?.();
       return;
@@ -252,6 +327,10 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
   };
 
   const handleWebToggle = () => {
+    if (controlled) {
+      fullscreen.onWebToggle();
+      return;
+    }
     if (fullscreenMode === "web") {
       setFullscreenMode("none");
       return;
@@ -263,16 +342,18 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
   };
 
   const handleClose = () => {
-    if (fullscreenMode === "native") void document.exitFullscreen?.();
-    setFullscreenMode("none");
+    if (!controlled) {
+      if (fullscreenMode === "native") void document.exitFullscreen?.();
+      setFullscreenMode("none");
+    }
     destroyPlayer(url);
-    onClose();
+    onClose?.();
   };
 
   const containerClass =
-    fullscreenMode === "web"
+    mode === "web"
       ? "fixed inset-0 z-50 flex flex-col justify-center gap-3 bg-black p-4"
-      : fullscreenMode === "native"
+      : mode === "native"
         ? "flex h-full w-full flex-col justify-center gap-3 bg-black p-4"
         : "flex flex-col gap-3";
 
@@ -286,14 +367,16 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
     >
       <div className="flex items-center justify-between gap-3">
         <span className="truncate text-tiny text-ink-dim">{file.name}</span>
-        <button
-          type="button"
-          onClick={handleClose}
-          aria-label="关闭播放区"
-          className="shrink-0 text-ink-dim transition-colors hover:text-flower focus-visible:outline focus-visible:outline-2 focus-visible:outline-flower"
-        >
-          <X size={16} aria-hidden />
-        </button>
+        {onClose && (
+          <button
+            type="button"
+            onClick={handleClose}
+            aria-label="关闭播放区"
+            className="shrink-0 text-ink-dim transition-colors hover:text-flower focus-visible:outline focus-visible:outline-2 focus-visible:outline-flower"
+          >
+            <X size={16} aria-hidden />
+          </button>
+        )}
       </div>
 
       {supported === null && <p className="text-small text-ink-dim">正在准备播放器…</p>}
@@ -312,8 +395,12 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
       )}
 
       {supported === true && (
-        <div ref={containerRef} data-fullscreen-container className={containerClass}>
-          <div className="aspect-video w-full overflow-hidden rounded-lg bg-black">
+        <div
+          ref={controlled ? fullscreen.containerRef : containerRef}
+          data-fullscreen-container
+          className={containerClass}
+        >
+          <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
             <video
               ref={videoRef}
               aria-label="录播视频"
@@ -325,6 +412,7 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
               onProgress={(e) => syncMediaState(e.currentTarget)}
               onSeeked={clearSeekWatchdog}
             />
+            {overlay}
           </div>
 
           <div className="flex flex-col gap-2">
@@ -380,20 +468,20 @@ export default function FlvPlayerPanel({ roomId, file, onClose }: FlvPlayerPanel
                 <button
                   type="button"
                   onClick={handleNativeToggle}
-                  aria-label={fullscreenMode === "native" ? "退出全屏" : "全屏"}
+                  aria-label={mode === "native" ? "退出全屏" : "全屏"}
                   className={iconButtonClass}
                 >
-                  {fullscreenMode === "native" ? <Minimize size={15} aria-hidden /> : <Maximize size={15} aria-hidden />}
+                  {mode === "native" ? <Minimize size={15} aria-hidden /> : <Maximize size={15} aria-hidden />}
                 </button>
               )}
 
               <button
                 type="button"
                 onClick={handleWebToggle}
-                aria-label={fullscreenMode === "web" ? "退出网页全屏" : "网页全屏"}
+                aria-label={mode === "web" ? "退出网页全屏" : "网页全屏"}
                 className={iconButtonClass}
               >
-                {fullscreenMode === "web" ? <Shrink size={15} aria-hidden /> : <Expand size={15} aria-hidden />}
+                {mode === "web" ? <Shrink size={15} aria-hidden /> : <Expand size={15} aria-hidden />}
               </button>
             </div>
 

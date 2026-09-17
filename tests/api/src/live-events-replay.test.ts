@@ -331,9 +331,15 @@ describe("GET /api/live-events/replay（公开回放检索）", () => {
   });
 
   it("live-events-replay-502: 上游 5xx → 502 中文错误", async () => {
+    // 用随机未来区间规避前序用例写入的 Redis 缓存命中（缓存命中会直接返回 200）
+    const randStart = Date.UTC(2036, 0, 1) + Math.floor(Math.random() * 300) * 86_400_000;
+    const randEnd = randStart + 3_600_000;
+    const query = `start=${encodeURIComponent(new Date(randStart).toISOString())}&end=${encodeURIComponent(
+      new Date(randEnd).toISOString(),
+    )}`;
     rangeMode = "error";
     try {
-      const res = await request(`/api/live-events/replay?${RANGE}`);
+      const res = await request(`/api/live-events/replay?${query}`);
       expect(res.status).toBe(502);
       expect(res.body).toEqual({ error: "上游事件服务不可用" });
     } finally {

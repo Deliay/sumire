@@ -25,10 +25,25 @@ export interface RecordingStatusItem {
   updatedAt: string;
 }
 
+/**
+ * 录播文件场次信息（录播服务每个文件携带）。
+ * 同一场次的多个分段文件共享同一 `recordingId` 与 `startedAt`/`endedAt`；
+ * `createdAt` 为文件落盘（≈分段结束）时刻，**不是**录制开始。
+ */
+export interface RecordingFileInfo {
+  recordingId: string;
+  title: string;
+  mid: number;
+  startedAt: string;
+  endedAt: string;
+}
+
 export interface RecordingFile {
   name: string;
   size: number;
   createdAt: string;
+  /** 场次信息；上游缺失时容忍为 undefined，回放时间锚点回退 `createdAt`。 */
+  info?: RecordingFileInfo;
 }
 
 export interface RecordingStatusResponse {
@@ -56,6 +71,11 @@ export function recordingFileUrl(roomId: number, fileName: string): string {
   return joinUrl(RECORDINGS_BASE_URL, `/api/b/live/${roomId}/recordings/${encodeURIComponent(fileName)}`);
 }
 
+/** 回放页站内地址（查询串携带 roomId 与 file，file 经 encodeURIComponent 编码）。 */
+export function recordingReplayHref(roomId: number, fileName: string): string {
+  return `/recordings/replay?roomId=${encodeURIComponent(String(roomId))}&file=${encodeURIComponent(fileName)}`;
+}
+
 function normalizeState(value: unknown): RecordingState {
   return value === "recording" ? "recording" : "not_live";
 }
@@ -74,14 +94,28 @@ function normalizeStatusItem(raw: unknown): RecordingStatusItem | null {
   };
 }
 
+function normalizeFileInfo(raw: unknown): RecordingFileInfo | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const info = raw as Record<string, unknown>;
+  return {
+    recordingId: typeof info.recordingId === "string" ? info.recordingId : "",
+    title: typeof info.title === "string" ? info.title : "",
+    mid: typeof info.mid === "number" ? info.mid : 0,
+    startedAt: typeof info.startedAt === "string" ? info.startedAt : "",
+    endedAt: typeof info.endedAt === "string" ? info.endedAt : "",
+  };
+}
+
 function normalizeFile(raw: unknown): RecordingFile | null {
   if (!raw || typeof raw !== "object") return null;
   const file = raw as Record<string, unknown>;
   if (typeof file.name !== "string") return null;
+  const info = normalizeFileInfo(file.info);
   return {
     name: file.name,
     size: typeof file.size === "number" ? file.size : 0,
     createdAt: typeof file.createdAt === "string" ? file.createdAt : "",
+    ...(info ? { info } : {}),
   };
 }
 

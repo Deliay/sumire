@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { getRoomRecordings, type RecordingFile } from "@/features/recordings/api";
+import { getRoomRecordings, recordingReplayHref, type RecordingFile } from "@/features/recordings/api";
 import { formatCreatedAt, formatFileSize } from "@/features/recordings/format";
-import FlvPlayerPanel from "@/features/recordings/FlvPlayerPanel";
 import RecordingFileActions from "@/features/recordings/RecordingFileActions";
 
 const PAGE_SIZE = 20;
@@ -18,22 +17,10 @@ type LoadState =
 interface RoomRecordingsGroupProps {
   roomId: number;
   streamerName: string;
-  /** 本分组当前展开的录制文件（无则 null）。 */
-  openFile: RecordingFile | null;
-  /** 点击文件项：展开 / 折叠该文件的播放器。 */
-  onToggleFile: (file: RecordingFile) => void;
-  /** 折叠当前播放器。 */
-  onClosePlayer: () => void;
 }
 
-/** 单直播间录播分组（F4）：折叠展开按需拉取一次、createdAt 倒序、前端分页；播放器内联展开于文件项下方（F5）。 */
-export default function RoomRecordingsGroup({
-  roomId,
-  streamerName,
-  openFile,
-  onToggleFile,
-  onClosePlayer,
-}: RoomRecordingsGroupProps) {
+/** 单直播间录播分组（F4）：折叠展开按需拉取一次、createdAt 倒序、前端分页；文件名/「播放」跳转回放页。 */
+export default function RoomRecordingsGroup({ roomId, streamerName }: RoomRecordingsGroupProps) {
   const [expanded, setExpanded] = useState(false);
   const [state, setState] = useState<LoadState>({ kind: "idle" });
   const [page, setPage] = useState(1);
@@ -97,36 +84,23 @@ export default function RoomRecordingsGroup({
           {state.kind === "ok" && sortedFiles.length > 0 && (
             <>
               <ul className="flex flex-col divide-y divide-vine/20">
-                {pageFiles.map((file) => {
-                  const open = openFile?.name === file.name;
-                  return (
-                    <li key={file.name} className="flex flex-col gap-3 py-2">
-                      <div className="flex items-center gap-3">
-                        <button
-                          type="button"
-                          onClick={() => onToggleFile(file)}
-                          aria-expanded={open}
-                          className={`flex-1 truncate text-left text-small transition-colors ${
-                            open ? "text-flower" : "text-ink hover:text-flower"
-                          }`}
-                        >
-                          {file.name}
-                        </button>
-                        <span className="shrink-0 text-tiny text-ink-dim">{formatFileSize(file.size)}</span>
-                        <time dateTime={file.createdAt} className="shrink-0 text-tiny text-ink-dim">
-                          {formatCreatedAt(file.createdAt)}
-                        </time>
-                        <RecordingFileActions
-                          roomId={roomId}
-                          file={file}
-                          open={open}
-                          onToggleFile={onToggleFile}
-                        />
-                      </div>
-                      {open && <FlvPlayerPanel roomId={roomId} file={file} onClose={onClosePlayer} />}
-                    </li>
-                  );
-                })}
+                {pageFiles.map((file) => (
+                  <li key={file.name} className="flex items-center gap-3 py-2">
+                    <a
+                      href={recordingReplayHref(roomId, file.name)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 truncate text-left text-small text-ink transition-colors hover:text-flower focus-visible:outline focus-visible:outline-2 focus-visible:outline-flower"
+                    >
+                      {file.name}
+                    </a>
+                    <span className="shrink-0 text-tiny text-ink-dim">{formatFileSize(file.size)}</span>
+                    <time dateTime={file.createdAt} className="shrink-0 text-tiny text-ink-dim">
+                      {formatCreatedAt(file.createdAt)}
+                    </time>
+                    <RecordingFileActions roomId={roomId} file={file} />
+                  </li>
+                ))}
               </ul>
 
               {pageCount > 1 && (

@@ -1,11 +1,11 @@
 # 后端直播域 Spec（servers/api — live-history / live-events / live-status）
 
-对内网直播数据服务（`http://vtuber.internal.fffdan.com`，B 站房间 1727076670，硬编码于 URL 前缀）的代理与归一化层。上游地址收敛在服务端经 env 注入（`LIVE_HISTORY_UPSTREAM_URL` / `LIVE_EVENTS_UPSTREAM_URL` / `LIVE_STATUS_UPSTREAM_URL`），不出现在客户端。
+对内网直播数据服务（`http://vtuber.internal.fffdan.com`，B 站房间 1727076670 为默认房间）的代理与归一化层。上游地址收敛在服务端经 env 注入（`LIVE_HISTORY_UPSTREAM_URL` / `LIVE_EVENTS_UPSTREAM_URL` / `LIVE_STATUS_UPSTREAM_URL`），不出现在客户端。除公开回放端点按录播所属房间传入 `roomId` 外，其余端点固定默认房间 1727076670。
 
 ## 上游客户端（liveEvents/upstream.ts）
 
 - 历史：`GET {base}/api/b/live/1727076670/history`。
-- 事件检索：`GET {base}/api/b/live/1727076670/event/range`（分页，5s 超时）。
+- 事件检索：`GET {base}/api/b/live/{roomId}/event/range`（分页，5s 超时；可选时间过滤参数 `startedAt`/`endedAt`（ISO8601，实测支持，过滤后分页、total 为区间计数）；`start`/`end` 参数名无效会被忽略）。`roomId` 缺省 `DEFAULT_ROOM_ID=1727076670`（后台看板），公开回放按录播所属房间显式传入；roomId 仅作路径段拼接（base 不变、无 SSRF 面），仅接受正整数。
 - 事件搜索：`GET {base}/api/b/live/1727076670/event/search`（分页，5s 超时）。
 - 事件订阅：`…/event/subscribe`（SSE 逐行解析，仅取 `data:` 行）。
 
@@ -68,12 +68,23 @@ kuroshiro+kuromoji（懒加载字典）→ 失败则 OpenCC 简→日汉字重�
 |---|---|---|
 | GET `/api/live/status` | 公开 | 无参数；防御式归一化；Redis `live-status:latest` TTL 30s；上游失败 stale-if-error + 200 降级 `{ok:false, status:null}`，永不 5xx |
 | GET `/api/live/:name/status` | 公开 | name 白名单（viridis/komichi/chu2u），未知 404；防御式归一化复用；Redis `live-peer-status:{name}` TTL 30s（按 name 隔离）；上游 base URL `LIVE_PEER_STATUS_UPSTREAM_URL`；上游失败 stale-if-error + 200 降级，永不 5xx |
+| GET `/api/live-events/replay` | 公开 | 录播回放事件检索：`roomId` 必填正整数（仅数字，缺/非法 400）、`start`/`end` 必填 ISO（`end > start`、区间 ≤12h，非法 400）、`type` 可重复且仅四类（online_rank_count 非法 400）、`page`≥1 默认 1、`pageSize` 1–100 默认 100；上游路径 `/api/b/live/{roomId}/event/range`；items 按 `occurredAt` 升序且全部落在区间内；出口剔除 `read`/`sender.nameRomaji`/`contentRomaji`；Redis 缓存键 `live-events:replay:{roomId}:{start}:{end}:{types}:{page}:{pageSize}` TTL 300s；上游失败 502 |
 | GET `/api/live-events` | member+ | `type` 可重复（五类枚举：danmaku/super_chat/gift/guard_buy/online_rank_count，非法 400）；`page`≥1 默认 1、`pageSize` 1–100 默认 50；`minPrice` 可选（number 0–100，0 或不传不筛选，非法 400）；上游失败 502；items 已归一化 + read 合并 + 罗马音；`type=gift` 向上游请求时展开为 `["gift", "gift_v2"]`；`type=online_rank_count` 透传上游原始信封（不归一化、无 read/罗马音），与其余归一化条目混存 |
 | GET `/api/live-events/search` | member+ | `stringCriteria` 必填（string 1–200，trim 后非空）；`page`≥1 默认 1、`pageSize` 1–100 默认 20；上游失败 502；items 已归一化 + read 合并 + 罗马音 |
 | GET `/api/live-events/stream` | member+ | SSE，见下；`type=gift` 同样展开为 `["gift", "gift_v2"]` |
 | POST `/api/live-events/read` | admin+ | body `{eventId}`；前缀须 dm/sc/gift/guard 否则 400（防摧毁水位线）；幂等 upsert |
 | POST `/api/live-events/unread` | admin+ | 同上，写显式 unread 覆盖水位线 |
 | POST `/api/live-events/read-all` | admin+ | type 支持 `super_chat`/`guard_buy`/`gift`；`gift` 走 `toUpstreamTypes` 展开为 `["gift", "gift_v2"]`；水位线语义 |
+
+## GET /api/live-events/replay（公开，录播回放）
+
+- 公开端点（不挂 `requireRole`，与 member/admin 端点共存于同一 router，先例 `/api/topics/public`）；面向录播回放场景，供匿名访客按时间窗口取数。
+- 参数手写守卫：`roomId` 必填、数值白名单（`^\d{1,20}$` 且为正安全整数，`parseRoomIdParam`），缺/非法 400 `{ error: "roomId 参数非法" }`；`start`/`end` 必填字符串且 `new Date(...)` 合法、`end > start`、区间 ≤ 12h（`REPLAY_MAX_RANGE_MS`）；`type` 复用 `parseTypesParam`（仅 danmaku/super_chat/gift/guard_buy，缺省四类，online_rank_count 非法）；`page` 默认 1、`pageSize` 默认/上限 100。任一非法 400 `{ error }` 中文。
+- 房间维度：`roomId` 透传上游路径段（`/api/b/live/{roomId}/event/range`），录播列表按直播间分组、回放页携带 `roomId`，故必须按房间取数，否则会串到默认房间的弹幕。**安全**：roomId 仅作路径段拼接（base 固定、无 SSRF 面），白名单式校验即可；**不**限制房间集合——录播房间来自 `recording-status` 动态列表，硬编码白名单会误伤新房间。
+- **上游实测结论（2026-09-17）**：`event/range` **原生支持时间区间查询**，参数名为 **`startedAt`/`endedAt`**（ISO8601）；过滤与分页正交（同区间 `page=1/page=2` 的 `total` 均为区间内计数且各自返回对应页），支持开放端（仅传 `startedAt` 按下界过滤）；分页按 `occurredAt` **倒序**，`pageSize` 上限 **100**（传 1000 被钳到 100）。⚠️ 传 `start`/`end`（ISO8601 或 epoch）会被上游**忽略**、原样返回最新一页——此前「上游不支持时间参数」的误判即源于参数名用错。
+- 取数：契约 `start`/`end`(ISO8601) 映射为上游 `startedAt`/`endedAt` 透传，**直接利用上游过滤后的 `total` 与分页**：以响应 `page/pageSize` 取上游第 1 页拿 `total`（区间内计数），按升序页 ↔ 倒序页映射（同 pageSize 对齐，至多跨 2 个上游页）取回、反转/排序为升序；请求量与页码无关，不扫描全区间。`type=gift` 经 `toUpstreamTypes` 展开为 `["gift","gift_v2"]`。
+- 出口：区间内事件按 `occurredAt` 升序，按 page/pageSize 切片；**不调用** `resolveReadState`/`annotateRomaji`（零 Mongo/kuroshiro 开销），以显式投影构造 `ReplayEvent` 剔除 `read`/`sender.nameRomaji`/`contentRomaji`。上游抛错 → 502 `{ error: "上游事件服务不可用" }`。
+- 缓存抽象 `infra/liveEventsReplayCache.ts`（Redis 实现 + 内存实现），经 `AppDeps.liveEventsReplayCache` 注入；键 `live-events:replay:{roomId}:{startIso}:{endIso}:{types逗号连接}:{page}:{pageSize}`（**含房间维度**，不同直播间同区间互不污染），TTL 300s；历史区间不可变，缓存安全。
 
 ## SSE（/api/live-events/stream）
 
@@ -86,5 +97,5 @@ kuroshiro+kuromoji（懒加载字典）→ 失败则 OpenCC 简→日汉字重�
 
 ## 存储汇总
 
-- Redis（ioredis 单实例五用）：会话 `session:*`、登录限流 `login:*`、历史直播缓存 `live-history:latest`、直播状态缓存 `live-status:latest`、同期直播状态缓存 `live-peer-status:{name}`（name 白名单枚举）。
+- Redis（ioredis 单实例六用）：会话 `session:*`、登录限流 `login:*`、历史直播缓存 `live-history:latest`、直播状态缓存 `live-status:latest`、同期直播状态缓存 `live-peer-status:{name}`（name 白名单枚举）、回放事件缓存 `live-events:replay:*`（TTL 300s）。
 - MongoDB：`users`、`streamplans`、`live_event_reads` 三集合。

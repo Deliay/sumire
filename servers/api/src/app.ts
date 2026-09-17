@@ -13,6 +13,7 @@ import { createLivePeerStatusRouter } from "./routes/livePeerStatus";
 import { createBiliCoverRouter } from "./routes/biliCover";
 import { createLiveEventsUpstream, type LiveEventsUpstream } from "./liveEvents/upstream";
 import { createMemoryLiveHistoryCache, type LiveHistoryCache } from "./infra/liveHistoryCache";
+import { createMemoryLiveEventsReplayCache, type LiveEventsReplayCache } from "./infra/liveEventsReplayCache";
 import { createMemoryLiveStatusCache, type LiveStatusCache } from "./infra/liveStatusCache";
 import { createTopicsRouter, createMarshmallowsRouter, type TopicsRouterDeps } from "./routes/topics";
 import { createMemoryMarshRateLimiter, type MarshRateLimiter } from "./topics/rateLimit";
@@ -28,6 +29,8 @@ export interface AppDeps {
   liveStatusCache?: LiveStatusCache;
   /** 直播事件上游客户端（可注入 stub 便于测试，缺省按 config.liveEventsUpstreamUrl 创建）。 */
   liveEventsUpstream?: LiveEventsUpstream;
+  /** 录播回放事件缓存（缺省内存实现，生产由 index.ts 注入 Redis 实现）。 */
+  liveEventsReplayCache?: LiveEventsReplayCache;
   /** 文本罗马音标注（缺省 kuroshiro 全文转换；单测可注入恒 null 避免加载字典）。 */
   toRomajiFn?: (text: string) => Promise<string | null>;
   /** 棉花糖投递限速器 */
@@ -95,6 +98,7 @@ export function createApp(deps: AppDeps): Application {
     createLiveEventsRouter({
       upstream: deps.liveEventsUpstream ?? createLiveEventsUpstream(config.liveEventsUpstreamUrl),
       toRomajiFn: deps.toRomajiFn,
+      replayCache: deps.liveEventsReplayCache ?? createMemoryLiveEventsReplayCache(),
     }),
   );
   api.use(

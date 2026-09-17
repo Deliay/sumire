@@ -141,61 +141,35 @@ test.describe("bookstore 录播页", () => {
     await expect(download).toHaveAttribute("download", "");
   });
 
-  test("recordings-play-actions: 主按钮展开/收起播放区，按钮文案随展开态变化", async ({ page }) => {
+  test("recordings-play-link: 「播放」主按钮为指向回放页的新标签页链接", async ({ page }) => {
     await mockRecordingsUpstream(page);
     await page.goto(`${BASE}/recordings`);
     await page.getByRole("button", { name: /枝堇/ }).click();
 
-    const playButton = page.getByRole("button", { name: "播放", exact: true }).first();
-    await playButton.click();
-
-    const panel = page.getByRole("region", { name: "录播播放区" });
-    await expect(panel).toBeVisible();
-    const collapseButton = page.getByRole("button", { name: "收起", exact: true }).first();
-    await expect(collapseButton).toBeVisible();
-
-    await collapseButton.click();
-    await expect(panel).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "播放", exact: true }).first()).toBeVisible();
-  });
-
-  test("recordings-preview: 点击文件项内联展开视频播放区与进度条", async ({ page }) => {
-    await mockRecordingsUpstream(page);
-    await page.goto(`${BASE}/recordings`);
-    await page.getByRole("button", { name: /枝堇/ }).click();
-    const fileRow = page.getByRole("button", { name: "回放-01 中文.flv" });
-    await fileRow.click();
-
-    await expect(fileRow).toHaveAttribute("aria-expanded", "true");
-    const panel = page.getByRole("region", { name: "录播播放区" });
-    await expect(panel).toContainText("回放-01 中文.flv");
-    // 视频画面可见（非 hidden）
-    await expect(panel.getByLabel("录播视频")).toBeVisible();
-    // 可拖动进度条与音量
-    await expect(panel.getByRole("slider", { name: "播放进度" })).toBeVisible();
-    await expect(panel.getByRole("slider", { name: "音量" })).toBeVisible();
-  });
-
-  test("recordings-preview-accordion: 同一时间仅一个播放区，点击另一文件项前一个自动折叠", async ({ page }) => {
-    await mockRecordingsUpstream(page);
-    await page.goto(`${BASE}/recordings`);
-    await page.getByRole("button", { name: /枝堇/ }).click();
-
-    const first = page.getByRole("button", { name: "回放-01 中文.flv" });
-    const second = page.getByRole("button", { name: "回放-02 中文.flv" });
-    await first.click();
-    await expect(page.getByRole("region", { name: "录播播放区" })).toHaveCount(1);
-
-    await second.click();
-    await expect(page.getByRole("region", { name: "录播播放区" })).toHaveCount(1);
-    await expect(first).toHaveAttribute("aria-expanded", "false");
-    await expect(second).toHaveAttribute("aria-expanded", "true");
-    await expect(page.getByRole("region", { name: "录播播放区" })).toContainText("回放-02 中文.flv");
-
-    // 再次点击当前文件项折叠
-    await second.click();
+    const play = page.getByRole("link", { name: "播放", exact: true }).first();
+    await expect(play).toHaveAttribute("target", "_blank");
+    await expect(play).toHaveAttribute("rel", "noopener noreferrer");
+    await expect(play).toHaveAttribute(
+      "href",
+      `/recordings/replay?roomId=1&file=${encodeURIComponent("回放-01 中文.flv")}`,
+    );
+    // 列表内不再内联挂载播放区
     await expect(page.getByRole("region", { name: "录播播放区" })).toHaveCount(0);
-    await expect(second).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("recordings-file-link: 文件名为指向回放页的新标签页链接（file 编码）", async ({ page }) => {
+    await mockRecordingsUpstream(page);
+    await page.goto(`${BASE}/recordings`);
+    await page.getByRole("button", { name: /枝堇/ }).click();
+
+    const fileLink = page.getByRole("link", { name: "回放-01 中文.flv" });
+    await expect(fileLink).toHaveAttribute("target", "_blank");
+    await expect(fileLink).toHaveAttribute("rel", "noopener noreferrer");
+    await expect(fileLink).toHaveAttribute(
+      "href",
+      `/recordings/replay?roomId=1&file=${encodeURIComponent("回放-01 中文.flv")}`,
+    );
+    await expect(page.getByRole("region", { name: "录播播放区" })).toHaveCount(0);
   });
 
   test("recordings-degrade: recording-status 5xx 时展示空态不白屏", async ({ page }) => {
@@ -203,37 +177,5 @@ test.describe("bookstore 录播页", () => {
     await page.goto(`${BASE}/recordings`);
     await expect(page.getByText(/录播服务暂时不可用/)).toBeVisible();
     await expect(page.getByRole("heading", { name: "录播", exact: true })).toBeVisible();
-  });
-
-  test("recordings-fullscreen: 支持 Range 时出现全屏/网页全屏，网页全屏铺满并锁定滚动", async ({ page }) => {
-    await mockRecordingsUpstream(page, { range: true });
-    await page.goto(`${BASE}/recordings`);
-    await page.getByRole("button", { name: /枝堇/ }).click();
-    await page.getByRole("button", { name: "回放-01 中文.flv" }).click();
-
-    const panel = page.getByRole("region", { name: "录播播放区" });
-    await expect(panel.getByRole("button", { name: "网页全屏" })).toBeVisible();
-    await expect(panel.getByRole("button", { name: "全屏", exact: true })).toBeVisible();
-
-    const container = panel.locator("[data-fullscreen-container]");
-    await panel.getByRole("button", { name: "网页全屏" }).click();
-    await expect(container).toHaveClass(/fixed/);
-    await expect(container).toHaveClass(/inset-0/);
-    expect(await page.evaluate(() => document.body.style.overflow)).toBe("hidden");
-
-    await panel.getByRole("button", { name: "退出网页全屏" }).click();
-    await expect(container).not.toHaveClass(/fixed/);
-    await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe("");
-  });
-
-  test("recordings-range-unsupported: Range 探测返回 200 时进度条禁用并明示", async ({ page }) => {
-    await mockRecordingsUpstream(page, { range: false });
-    await page.goto(`${BASE}/recordings`);
-    await page.getByRole("button", { name: /枝堇/ }).click();
-    await page.getByRole("button", { name: "回放-01 中文.flv" }).click();
-
-    const panel = page.getByRole("region", { name: "录播播放区" });
-    await expect(panel.getByText(/当前上游不支持拖动进度/)).toBeVisible();
-    await expect(panel.getByRole("slider", { name: "播放进度" })).toBeDisabled();
   });
 });

@@ -3,6 +3,7 @@ import { createApp } from "./app";
 import { RedisSessionStore } from "./session/store";
 import { RedisRateLimiter } from "./auth/rateLimit";
 import { RedisLiveHistoryCache } from "./infra/liveHistoryCache";
+import { RedisLiveEventsReplayCache } from "./infra/liveEventsReplayCache";
 import { RedisLiveStatusCache } from "./infra/liveStatusCache";
 import { RedisMarshRateLimiter } from "./topics/rateLimit";
 import { RedisReviewQueue } from "./topics/reviewQueue";
@@ -25,6 +26,7 @@ async function main(): Promise<void> {
   const rateLimiter = new RedisRateLimiter(redis);
   const liveHistoryCache = new RedisLiveHistoryCache(redis);
   const liveStatusCache = new RedisLiveStatusCache(redis);
+  const liveEventsReplayCache = new RedisLiveEventsReplayCache(redis);
   const marshRateLimiter = new RedisMarshRateLimiter(redis);
   const reviewQueue = new RedisReviewQueue(redis);
 
@@ -50,6 +52,7 @@ async function main(): Promise<void> {
     rateLimiter,
     liveHistoryCache,
     liveStatusCache,
+    liveEventsReplayCache,
     marshRateLimiter,
     reviewQueue,
     aiReviewEnabled: !!(config.reviewAiType && config.reviewAiEndpoint && config.reviewAiApiKey),

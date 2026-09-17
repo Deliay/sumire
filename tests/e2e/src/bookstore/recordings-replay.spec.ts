@@ -162,6 +162,38 @@ test.describe("bookstore 回放页", () => {
     await expect(page.getByRole("heading", { name: "弹幕事件" })).toHaveCount(0);
   });
 
+  test("recordings-replay-initial-paused: 打开回放页默认暂停并展示画面播放 overlay", async ({ page }) => {
+    await mockRecordingsUpstream(page);
+    await mockReplayEvents(page);
+    await page.goto(replayUrl());
+
+    await expect(page.getByLabel("录播视频")).toBeVisible();
+    // 控制条播放按钮初始为「播放」（默认暂停态）
+    await expect(page.getByRole("button", { name: "播放", exact: true })).toBeVisible();
+    // 画面中央播放 overlay 可见（纯视觉层）
+    await expect(page.getByTestId("play-overlay")).toBeVisible();
+  });
+
+  test("recordings-replay-layout: 桌面端事件列与视频列同屏且等高", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await mockRecordingsUpstream(page);
+    await mockReplayEvents(page);
+    await page.goto(replayUrl());
+
+    const videoCol = page.getByLabel("录播播放区").locator("..");
+    const timelineCol = page.getByRole("region", { name: "事件列表" }).locator("..");
+    await expect(videoCol).toBeVisible();
+    await expect(timelineCol).toBeVisible();
+
+    const videoBox = await videoCol.boundingBox();
+    const timelineBox = await timelineCol.boundingBox();
+    expect(videoBox).not.toBeNull();
+    expect(timelineBox).not.toBeNull();
+    // 视频列与事件列同处一行且由 flex stretch 等高（容差 4px 覆盖亚像素）
+    expect(Math.abs((videoBox?.y ?? 0) - (timelineBox?.y ?? 0))).toBeLessThanOrEqual(4);
+    expect(Math.abs((videoBox?.height ?? 0) - (timelineBox?.height ?? 0))).toBeLessThanOrEqual(4);
+  });
+
   test("recordings-replay-room: 事件请求携带本页 roomId（不串到其它直播间）", async ({ page }) => {
     replayRequests.length = 0;
     await mockRecordingsUpstream(page);

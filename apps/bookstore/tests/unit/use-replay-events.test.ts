@@ -11,6 +11,7 @@ vi.mock("@/features/recordings/replay/replayEvents", () => ({ fetchReplayEvents:
 import { useReplayEvents } from "@/features/recordings/replay/useReplayEvents";
 
 const START = Date.parse("2026-09-17T10:00:00.000Z");
+const ROOM_ID = 1727076670;
 const SENDER: LiveEvent["sender"] = {
   uid: 1,
   name: "观众",
@@ -43,7 +44,7 @@ afterEach(() => {
 describe("useReplayEvents 窗口加载调度", () => {
   it("首屏加载首窗；缓存命中时 ensureWindow 跳过请求", async () => {
     mockPages(1);
-    const { result } = renderHook(() => useReplayEvents({ startMs: START, endMs: null }));
+    const { result } = renderHook(() => useReplayEvents({ roomId: ROOM_ID, startMs: START, endMs: null }));
 
     await waitFor(() => expect(result.current.events).toHaveLength(1));
     const callsAfterInitial = h.fetchReplayEvents.mock.calls.length;
@@ -56,7 +57,7 @@ describe("useReplayEvents 窗口加载调度", () => {
 
   it("单窗 total 超过单页时翻页取尽（page 递增）", async () => {
     mockPages(250);
-    const { result } = renderHook(() => useReplayEvents({ startMs: START, endMs: null }));
+    const { result } = renderHook(() => useReplayEvents({ roomId: ROOM_ID, startMs: START, endMs: null }));
 
     await waitFor(() => expect(result.current.events).toHaveLength(250));
     expect(h.fetchReplayEvents).toHaveBeenCalledTimes(3);
@@ -66,7 +67,7 @@ describe("useReplayEvents 窗口加载调度", () => {
 
   it("播放进入窗口后半段：prefetchNext 预取下一窗；前半段不预取", async () => {
     mockPages(0);
-    const { result } = renderHook(() => useReplayEvents({ startMs: START, endMs: null }));
+    const { result } = renderHook(() => useReplayEvents({ roomId: ROOM_ID, startMs: START, endMs: null }));
     await waitFor(() => expect(result.current.loading).toBe(false));
     const before = h.fetchReplayEvents.mock.calls.length;
 
@@ -83,7 +84,7 @@ describe("useReplayEvents 窗口加载调度", () => {
 
   it("快速连续 focusWindow：代次 last-wins，仅最后落点窗生效", async () => {
     h.fetchReplayEvents.mockImplementation(() => new Promise(() => {}));
-    const { result } = renderHook(() => useReplayEvents({ startMs: START, endMs: null }));
+    const { result } = renderHook(() => useReplayEvents({ roomId: ROOM_ID, startMs: START, endMs: null }));
 
     act(() => {
       result.current.focusWindow(0);
@@ -98,7 +99,7 @@ describe("useReplayEvents 窗口加载调度", () => {
 
   it("卸载时中止在途请求", async () => {
     h.fetchReplayEvents.mockImplementation(() => new Promise(() => {}));
-    const { unmount } = renderHook(() => useReplayEvents({ startMs: START, endMs: null }));
+    const { unmount } = renderHook(() => useReplayEvents({ roomId: ROOM_ID, startMs: START, endMs: null }));
 
     await waitFor(() => expect(h.fetchReplayEvents).toHaveBeenCalled());
     const signal = (h.fetchReplayEvents.mock.calls[0][0] as { signal: AbortSignal }).signal;
@@ -108,10 +109,39 @@ describe("useReplayEvents 窗口加载调度", () => {
   });
 
   it("startMs 为 null 时不发请求", async () => {
-    renderHook(() => useReplayEvents({ startMs: null, endMs: null }));
+    renderHook(() => useReplayEvents({ roomId: ROOM_ID, startMs: null, endMs: null }));
     await act(async () => {
       await Promise.resolve();
     });
     expect(h.fetchReplayEvents).not.toHaveBeenCalled();
+  });
+
+  it("roomId 为 null 时不发请求", async () => {
+    renderHook(() => useReplayEvents({ roomId: null, startMs: START, endMs: null }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(h.fetchReplayEvents).not.toHaveBeenCalled();
+  });
+
+  it("请求携带 roomId", async () => {
+    mockPages(1);
+    const { result } = renderHook(() => useReplayEvents({ roomId: ROOM_ID, startMs: START, endMs: null }));
+    await waitFor(() => expect(result.current.events).toHaveLength(1));
+    expect((h.fetchReplayEvents.mock.calls[0][0] as { roomId: number }).roomId).toBe(ROOM_ID);
+  });
+
+  it("roomId 变化：清空缓存并按新房间重新取数（缓存键含房间维度）", async () => {
+    mockPages(1);
+    const { result, rerender } = renderHook(
+      ({ roomId }: { roomId: number }) => useReplayEvents({ roomId, startMs: START, endMs: null }),
+      { initialProps: { roomId: ROOM_ID } },
+    );
+    await waitFor(() => expect(result.current.events).toHaveLength(1));
+    expect(h.fetchReplayEvents).toHaveBeenCalledTimes(1);
+
+    rerender({ roomId: ROOM_ID + 1 });
+    await waitFor(() => expect(h.fetchReplayEvents).toHaveBeenCalledTimes(2));
+    expect((h.fetchReplayEvents.mock.calls[1][0] as { roomId: number }).roomId).toBe(ROOM_ID + 1);
   });
 });

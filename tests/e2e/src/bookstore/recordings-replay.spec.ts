@@ -124,9 +124,13 @@ async function mockRecordingsUpstream(page: Page, opts: { range?: boolean } = {}
  */
 const REPLAY_EVENTS_GLOB = "**/api/live-events/replay*";
 
+/** 记录回放事件请求 URL，供断言 roomId 透传。 */
+const replayRequests: string[] = [];
+
 async function mockReplayEvents(page: Page, opts: { status?: number } = {}) {
   const cors = { "Access-Control-Allow-Origin": "*" };
   await page.route(REPLAY_EVENTS_GLOB, async (route) => {
+    replayRequests.push(route.request().url());
     if (opts.status && opts.status !== 200) {
       await route.fulfill({ status: opts.status, contentType: "application/json", headers: cors, body: "{}" });
       return;
@@ -152,6 +156,19 @@ test.describe("bookstore 回放页", () => {
     await expect(page.getByRole("slider", { name: "播放进度" })).toBeVisible();
     await expect(page.getByRole("region", { name: "事件列表" })).toBeVisible();
     await expect(page.getByTestId("danmaku-overlay")).toBeVisible();
+  });
+
+  test("recordings-replay-room: 事件请求携带本页 roomId（不串到其它直播间）", async ({ page }) => {
+    replayRequests.length = 0;
+    await mockRecordingsUpstream(page);
+    await mockReplayEvents(page);
+    await page.goto(replayUrl());
+
+    await expect(page.locator("[data-timeline-event]").first()).toBeVisible();
+    expect(replayRequests.length).toBeGreaterThan(0);
+    for (const url of replayRequests) {
+      expect(new URL(url).searchParams.get("roomId")).toBe(String(ROOM_ID));
+    }
   });
 
   test("recordings-replay-order: 事件条目按 occurredAt 升序展示", async ({ page }) => {

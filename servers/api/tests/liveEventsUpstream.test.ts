@@ -80,6 +80,31 @@ describe("buildRangeUrl / buildSubscribeUrl", () => {
     expect(url).toContain(`startedAt=${encodeURIComponent(startedAt)}`);
     expect(url).not.toContain("endedAt=");
   });
+
+  it("roomId 拼入上游路径段（非 1727076670）", () => {
+    const url = buildRangeUrl(BASE, ["danmaku"], 1, 100, undefined, undefined, undefined, 12345);
+    expect(url).toBe(`${BASE}/api/b/live/12345/event/range?type=danmaku&page=1&pageSize=100`);
+  });
+
+  it("roomId 与时间参数可同时拼接", () => {
+    const startedAt = "2026-08-25T02:50:53.000Z";
+    const url = buildRangeUrl(BASE, [], 1, 100, undefined, startedAt, undefined, 999);
+    expect(url).toBe(
+      `${BASE}/api/b/live/999/event/range?page=1&pageSize=100&startedAt=${encodeURIComponent(startedAt)}`,
+    );
+  });
+
+  it("subscribe 支持 roomId 路径段", () => {
+    expect(buildSubscribeUrl(BASE, ["gift"], 42)).toBe(
+      `${BASE}/api/b/live/42/event/subscribe?type=gift`,
+    );
+  });
+
+  it("非法 roomId（0/负数/小数）→ 抛错（防非法路径段）", () => {
+    expect(() => buildRangeUrl(BASE, [], 1, 50, undefined, undefined, undefined, 0)).toThrow();
+    expect(() => buildRangeUrl(BASE, [], 1, 50, undefined, undefined, undefined, -1)).toThrow();
+    expect(() => buildRangeUrl(BASE, [], 1, 50, undefined, undefined, undefined, 1.5)).toThrow();
+  });
 });
 
 describe("upstream.fetchRange", () => {
@@ -112,6 +137,28 @@ describe("upstream.fetchRange", () => {
       )}&endedAt=${encodeURIComponent(endedAt)}`,
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
+  });
+
+  it("roomId 透传到上游路径段", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(
+      jsonResponse({ total: 3, page: 1, pageSize: 100, items: [] }),
+    );
+    const upstream = createLiveEventsUpstream(BASE, fetchFn as never);
+    const page = await upstream.fetchRange(["danmaku"], 1, 100, undefined, undefined, undefined, 12345);
+    expect(page.total).toBe(3);
+    expect(fetchFn).toHaveBeenCalledWith(
+      `${BASE}/api/b/live/12345/event/range?type=danmaku&page=1&pageSize=100`,
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it("不传 roomId 时回退默认枝堇房间", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(
+      jsonResponse({ total: 0, page: 1, pageSize: 50, items: [] }),
+    );
+    const upstream = createLiveEventsUpstream(BASE, fetchFn as never);
+    await upstream.fetchRange([], 1, 50);
+    expect((fetchFn.mock.calls[0][0] as string).startsWith(`${BASE}/api/b/live/1727076670/`)).toBe(true);
   });
 
   it("上游 5xx → 抛错", async () => {

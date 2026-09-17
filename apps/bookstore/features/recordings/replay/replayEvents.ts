@@ -19,6 +19,8 @@ export interface ReplayEventsResult {
 }
 
 export interface FetchReplayEventsParams {
+  /** 直播间 ID（正整数，必填）：回放事件按录播所属房间检索，避免串到其它直播间。 */
+  roomId: number;
   start: string;
   end: string;
   types?: LiveEventType[];
@@ -41,12 +43,13 @@ function parseReplayEvent(raw: unknown): LiveEvent | null {
 }
 
 /**
- * 按时间区间检索回放事件（公开）。窗口化由调用方负责切分 start/end。
- * 未配置基址/非 200/异常均返回 `{ ok: false, total: 0, items: [] }`。
+ * 按直播间与时间区间检索回放事件（公开）。窗口化由调用方负责切分 start/end。
+ * `roomId` 必填，透传查询串；未配置基址/非 200/异常均返回 `{ ok: false, total: 0, items: [] }`。
  */
 export async function fetchReplayEvents(params: FetchReplayEventsParams): Promise<ReplayEventsResult> {
   if (!API_CONFIGURED) return { ok: false, total: 0, items: [] };
   const search = new URLSearchParams();
+  search.set("roomId", String(params.roomId));
   search.set("start", params.start);
   search.set("end", params.end);
   for (const type of params.types ?? []) search.append("type", type);

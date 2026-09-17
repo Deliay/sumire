@@ -64,7 +64,7 @@
 
 ## 回放页 `/recordings/replay`
 
-独立公开页（`(site)/(content)` 路由组，NavBar + Footer 外壳；`app/(site)/(content)/recordings/replay/page.tsx` 为服务端壳：`metadata`「录播回放」+ `RECORDINGS_CONFIGURED` 守卫 + `<Suspense>` 包 Client `ReplayApp`，查询参数由客户端 `useSearchParams` 解析，SSG 无动态段）。数据来源：录播文件元信息回源 `GET {BASE}/api/b/live/:roomId/recordings` 按 `file` 匹配取 `createdAt`/`size`/`info`（不信任 URL 透传元信息，防参数伪造）；事件数据经本站公开端点 `GET /api/live-events/replay`（见后端直播域 spec）按时间窗口增量加载。
+独立公开页（`(site)/(content)` 路由组，NavBar + Footer 外壳；`app/(site)/(content)/recordings/replay/page.tsx` 为服务端壳：`metadata`「录播回放」+ `RECORDINGS_CONFIGURED` 守卫 + `<Suspense>` 包 Client `ReplayApp`，查询参数由客户端 `useSearchParams` 解析，SSG 无动态段）。数据来源：录播文件元信息回源 `GET {BASE}/api/b/live/:roomId/recordings` 按 `file` 匹配取 `createdAt`/`size`/`info`（不信任 URL 透传元信息，防参数伪造）；事件数据经本站公开端点 `GET /api/live-events/replay`（见后端直播域 spec）按时间窗口增量加载，并**携带本页 `roomId`**（端点必填参数），确保取到该直播间而非其它房间的弹幕事件。
 
 - **参数与空态**：`roomId`/`file` 缺失或非法 → 「参数无效」空态 + 返回录播页链接且不发请求；录播列表查不到该文件 → 「录播不存在或已删除」空态；`RECORDINGS_CONFIGURED` 为 false → 「服务未配置」空态（与录播页口径一致）。
 - **时间锚点（分段实际区间）**：录播文件 `createdAt` 是文件落盘（≈分段结束）时刻，**不是**录制开始；时间锚点取文件 `info.startedAt`。同场次多分段文件共享同一 `info.recordingId`/`startedAt`/`endedAt`，各分段覆盖区间按 `createdAt` 升序推导：首段起点 = `info.startedAt`，其后各段起点 = 前一段 `createdAt`；非末段终点 = 本段 `createdAt`（与下一段衔接），末段终点 = `info.endedAt`。`info` 缺失时回退 `createdAt` 为起点（近似，误差为整场时长），终点交由视频 duration 推算兜底。

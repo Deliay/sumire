@@ -36,6 +36,7 @@ export default function ReplayStage({ roomId, file, bounds }: ReplayStageProps) 
     bounds.endMs ?? (recordStartMs !== null && duration > 0 ? recordStartMs + duration * 1000 : null);
 
   const { events, loading, error, focusWindow, prefetchNext, retry } = useReplayEvents({
+    roomId,
     startMs: recordStartMs,
     endMs: recordEndMs,
   });

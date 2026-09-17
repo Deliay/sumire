@@ -10,7 +10,11 @@ if (!API_BASE_URL) {
 // 复用 live-events 的 stub 端口（与 live-history 9876 隔离）；
 // 须与 Aspire 启动时注入的 LIVE_EVENTS_UPSTREAM_URL 端口一致
 const STUB_PORT = Number(process.env.LIVE_EVENTS_STUB_PORT ?? "9877");
-const EVENT_PREFIX = "/api/b/live/1727076670";
+/** 枝堇房间（默认数据集）。 */
+const ROOM_ID = 1727076670;
+/** 另一同期房间（用于验证 roomId 按路径隔离数据）。 */
+const PEER_ROOM_ID = 1727071052;
+const RANGE_RE = /^\/api\/b\/live\/(\d+)\/event\/range$/;
 
 interface StubEnvelope {
   roomId: number;
@@ -172,6 +176,12 @@ const DEEP_EVENTS: StubEnvelope[] = (() => {
   return events;
 })();
 
+/** 另一房间数据集：danmaku×2，offset 1/2（roomId 不同、eventId 前缀可区分）。 */
+const PEER_EVENTS: StubEnvelope[] = [
+  { ...danmaku(900, 1), roomId: PEER_ROOM_ID },
+  { ...danmaku(901, 2), roomId: PEER_ROOM_ID },
+];
+
 /** 模拟上游：按 type 过滤（缺省全部），按 occurredAt 倒序分页；忽略未知参数（start/end 等）。 */
 function filterByTypes(types: string[], dataset: StubEnvelope[] = ALL_EVENTS): StubEnvelope[] {
   const filtered = types.length > 0 ? dataset.filter((e) => types.includes(e.type)) : [...dataset];
@@ -184,11 +194,15 @@ let deepMode = false;
 let rangePages: number[] = [];
 let lastStartedAt: string | null = null;
 let lastEndedAt: string | null = null;
+let lastRoomId: number | null = null;
 
 function startStub(): Server {
   return createServer((req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
-    if (url.pathname === `${EVENT_PREFIX}/event/range`) {
+    const rangeMatch = RANGE_RE.exec(url.pathname);
+    if (rangeMatch) {
+      const roomId = Number(rangeMatch[1]);
+      lastRoomId = roomId;
       rangeRequests += 1;
       if (rangeMode === "error") {
         res.writeHead(500, { "Content-Type": "application/json" });
@@ -204,7 +218,9 @@ function startStub(): Server {
       const endedAt = url.searchParams.get("endedAt");
       lastStartedAt = startedAt;
       lastEndedAt = endedAt;
-      let filtered = filterByTypes(types, deepMode ? DEEP_EVENTS : ALL_EVENTS);
+      // 按路径 roomId 区分数据集（不同直播间数据隔离）
+      const baseDataset = roomId === PEER_ROOM_ID ? PEER_EVENTS : deepMode ? DEEP_EVENTS : ALL_EVENTS;
+      let filtered = filterByTypes(types, baseDataset);
       if (startedAt || endedAt) {
         const lo = startedAt ? Date.parse(startedAt) : Number.NEGATIVE_INFINITY;
         const hi = endedAt ? Date.parse(endedAt) : Number.POSITIVE_INFINITY;
@@ -256,7 +272,7 @@ interface ReplayPage {
 
 const START = at(-1);
 const END = at(60);
-const RANGE = `start=${encodeURIComponent(START)}&end=${encodeURIComponent(END)}`;
+const RANGE = `roomId=${ROOM_ID}&start=${encodeURIComponent(START)}&end=${encodeURIComponent(END)}`;
 
 async function fetchReplay(query: string): Promise<ReplayPage> {
   const res = await request(`/api/live-events/replay?${query}`);
@@ -336,6 +352,18 @@ describe("GET /api/live-events/replay（公开回放检索）", () => {
     expect(body.items).toHaveLength(10);
   });
 
+  it("live-events-replay-room: roomId 按上游路径隔离数据（不同直播间不串扰）", async () => {
+    const peerQuery = `roomId=${PEER_ROOM_ID}&start=${encodeURIComponent(START)}&end=${encodeURIComponent(END)}`;
+    const peer = await fetchReplay(peerQuery);
+    expect(peer.total).toBe(2);
+    expect(peer.items.map((i) => i.eventId).sort()).toEqual(["dm:dm-stub-900", "dm:dm-stub-901"]);
+    expect(lastRoomId).toBe(PEER_ROOM_ID);
+
+    // 同区间二次请求命中缓存（roomId 维度缓存键隔离，不串到默认房间）
+    await fetchReplay(peerQuery);
+    expect(peer.total).toBe(2);
+  });
+
   it("live-events-replay-deep-page: 深页历史区间经上游时间过滤直接分页（不依赖距今天数）", async () => {
     deepMode = true;
     rangePages = [];
@@ -344,7 +372,7 @@ describe("GET /api/live-events/replay（公开回放检索）", () => {
       const baseSec = 1000 + Math.floor(Math.random() * 700);
       const start = new Date(BASE_TS + baseSec * 1000).toISOString();
       const end = new Date(BASE_TS + (baseSec + 300) * 1000).toISOString();
-      const query = `start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+      const query = `roomId=${ROOM_ID}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
       const body = await fetchReplay(query);
       expect(body.total).toBe(301);
       // 响应 items 按默认 pageSize=100 切片，仅含区间内升序前 100 条
@@ -364,10 +392,15 @@ describe("GET /api/live-events/replay（公开回放检索）", () => {
   it("live-events-replay-400: 各参数非法分支均 400 且返回 { error }", async () => {
     const paths = [
       "/api/live-events/replay",
-      `/api/live-events/replay?start=${encodeURIComponent(START)}`,
-      `/api/live-events/replay?start=abc&end=${encodeURIComponent(END)}`,
-      `/api/live-events/replay?start=${encodeURIComponent(END)}&end=${encodeURIComponent(START)}`,
-      `/api/live-events/replay?start=${encodeURIComponent(START)}&end=${encodeURIComponent(at(13 * 60))}`,
+      `/api/live-events/replay?start=${encodeURIComponent(START)}&end=${encodeURIComponent(END)}`,
+      `/api/live-events/replay?roomId=abc&start=${encodeURIComponent(START)}&end=${encodeURIComponent(END)}`,
+      `/api/live-events/replay?roomId=0&start=${encodeURIComponent(START)}&end=${encodeURIComponent(END)}`,
+      `/api/live-events/replay?roomId=-1&start=${encodeURIComponent(START)}&end=${encodeURIComponent(END)}`,
+      `/api/live-events/replay?roomId=1.5&start=${encodeURIComponent(START)}&end=${encodeURIComponent(END)}`,
+      `/api/live-events/replay?roomId=${ROOM_ID}&start=${encodeURIComponent(START)}`,
+      `/api/live-events/replay?roomId=${ROOM_ID}&start=abc&end=${encodeURIComponent(END)}`,
+      `/api/live-events/replay?roomId=${ROOM_ID}&start=${encodeURIComponent(END)}&end=${encodeURIComponent(START)}`,
+      `/api/live-events/replay?roomId=${ROOM_ID}&start=${encodeURIComponent(START)}&end=${encodeURIComponent(at(13 * 60))}`,
       `/api/live-events/replay?${RANGE}&type=online_rank_count`,
       `/api/live-events/replay?${RANGE}&type=entry_effect`,
       `/api/live-events/replay?${RANGE}&page=0`,
@@ -386,7 +419,7 @@ describe("GET /api/live-events/replay（公开回放检索）", () => {
     // 用随机未来区间规避前序用例写入的 Redis 缓存命中（缓存命中会直接返回 200）
     const randStart = Date.UTC(2036, 0, 1) + Math.floor(Math.random() * 300) * 86_400_000;
     const randEnd = randStart + 3_600_000;
-    const query = `start=${encodeURIComponent(new Date(randStart).toISOString())}&end=${encodeURIComponent(
+    const query = `roomId=${ROOM_ID}&start=${encodeURIComponent(new Date(randStart).toISOString())}&end=${encodeURIComponent(
       new Date(randEnd).toISOString(),
     )}`;
     rangeMode = "error";
@@ -403,7 +436,7 @@ describe("GET /api/live-events/replay（公开回放检索）", () => {
     // 随机未来区间避免跨轮次 Redis 缓存残留干扰计数
     const randStart = Date.UTC(2035, 0, 1) + Math.floor(Math.random() * 300) * 86_400_000;
     const randEnd = randStart + 3_600_000;
-    const query = `start=${encodeURIComponent(new Date(randStart).toISOString())}&end=${encodeURIComponent(
+    const query = `roomId=${ROOM_ID}&start=${encodeURIComponent(new Date(randStart).toISOString())}&end=${encodeURIComponent(
       new Date(randEnd).toISOString(),
     )}`;
     const before = rangeRequests;

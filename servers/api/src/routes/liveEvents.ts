@@ -96,6 +96,18 @@ function parseTimeParam(value: unknown): number | null {
 }
 
 /**
+ * roomId 参数：数值白名单（仅 `^\d+$`，长度 ≤20 防溢出）且为正安全整数 → number；否则 null（由调用方 400）。
+ *
+ * 安全：roomId 仅作上游**路径段**拼接（base 不变、无 SSRF 面），故白名单式校验即可；
+ * **不**限制房间集合——录播列表来自 `recording-status` 的任意直播间，硬编码白名单会误伤新房间。
+ */
+function parseRoomIdParam(value: unknown): number | null {
+  if (typeof value !== "string" || !/^\d{1,20}$/.test(value)) return null;
+  const n = Number(value);
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
+}
+
+/**
  * 回放区间取数：直接利用上游时间过滤与分页（实测 `startedAt`/`endedAt` 支持）。
  *
  * 上游按 `occurredAt` **倒序**返回且 `total` 为区间内计数、过滤后分页正交；契约出口需
@@ -104,13 +116,14 @@ function parseTimeParam(value: unknown): number | null {
  */
 async function fetchReplayEventsPage(
   upstream: LiveEventsUpstream,
+  roomId: number,
   upstreamTypes: string[],
   startIso: string,
   endIso: string,
   page: number,
   pageSize: number,
 ): Promise<{ total: number; items: LiveEvent[] }> {
-  const first = await upstream.fetchRange(upstreamTypes, 1, pageSize, undefined, startIso, endIso);
+  const first = await upstream.fetchRange(upstreamTypes, 1, pageSize, undefined, startIso, endIso, roomId);
   const total = first.total;
   if (total <= 0) return { total: 0, items: [] };
 
@@ -128,7 +141,7 @@ async function fetchReplayEventsPage(
   pages.set(1, first.items);
   for (let p = firstPageNo; p <= lastPageNo; p++) {
     if (pages.has(p)) continue;
-    const res = await upstream.fetchRange(upstreamTypes, p, pageSize, undefined, startIso, endIso);
+    const res = await upstream.fetchRange(upstreamTypes, p, pageSize, undefined, startIso, endIso, roomId);
     pages.set(p, res.items);
   }
 
@@ -221,6 +234,11 @@ export function createLiveEventsRouter(deps: LiveEventsRouterDeps): Router {
 
   // GET /api/live-events/replay —— 录播回放事件检索（公开，无需登录）
   router.get("/replay", async (req: Request, res: Response) => {
+    const roomId = parseRoomIdParam(req.query.roomId);
+    if (roomId === null) {
+      res.status(400).json({ error: "roomId 参数非法" });
+      return;
+    }
     const startMs = parseTimeParam(req.query.start);
     const endMs = parseTimeParam(req.query.end);
     if (startMs === null || endMs === null) {
@@ -249,7 +267,8 @@ export function createLiveEventsRouter(deps: LiveEventsRouterDeps): Router {
 
     const startIso = new Date(startMs).toISOString();
     const endIso = new Date(endMs).toISOString();
-    const cacheKey = `live-events:replay:${startIso}:${endIso}:${types.types.join(",")}:${page}:${pageSize}`;
+    // 缓存键含 roomId：不同直播间同区间必须隔离，否则互相污染
+    const cacheKey = `live-events:replay:${roomId}:${startIso}:${endIso}:${types.types.join(",")}:${page}:${pageSize}`;
     try {
       const cached = await replayCache.get(cacheKey);
       if (cached !== null) {
@@ -264,6 +283,7 @@ export function createLiveEventsRouter(deps: LiveEventsRouterDeps): Router {
     try {
       pageResult = await fetchReplayEventsPage(
         deps.upstream,
+        roomId,
         toUpstreamTypes(types.types),
         startIso,
         endIso,

@@ -63,8 +63,14 @@ paths:
   /api/live-events/replay:
     get:
       summary: 检索录播回放事件（公开）
-      description: 公开端点，无需登录；面向录播回放场景，按时间区间检索历史归一化事件。items 按 occurredAt 升序且全部落在 [start, end] 内；条目不含 read（无已读语义）与罗马音字段（nameRomaji/contentRomaji），避免后台语义与标注开销。上游不可达/超时/返回非法时返回 502。特别地，online_rank_count 不属于本端点（type 传入即 400）。
+      description: 公开端点，无需登录；面向录播回放场景，按直播间与时间区间检索历史归一化事件。roomId 为必填正整数，服务端据此拼接上游事件路径（`/api/b/live/{roomId}/event/range`），不同直播间数据互不串扰（其余后台端点仍固定枝堇直播间 1727076670）。items 按 occurredAt 升序且全部落在 [start, end] 内；条目不含 read（无已读语义）与罗马音字段（nameRomaji/contentRomaji），避免后台语义与标注开销。上游不可达/超时/返回非法时返回 502。特别地，online_rank_count 不属于本端点（type 传入即 400）。
       parameters:
+        - name: roomId
+          in: query
+          required: true
+          description: 直播间 ID（正整数，仅数字）；回放事件按该房间上游路径检索，不传或非数字一律 400
+          schema: { type: integer, minimum: 1 }
+          example: 1727076670
         - name: start
           in: query
           required: true
@@ -107,11 +113,11 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/ReplayEvent" }
         "400":
-          description: 参数非法（缺 start/end、格式错误、end ≤ start、区间超过 12 小时、type 非法（含 online_rank_count）、分页非法）
+          description: 参数非法（缺/非法 roomId、缺 start/end、格式错误、end ≤ start、区间超过 12 小时、type 非法（含 online_rank_count）、分页非法）
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
-              example: { error: "时间区间非法" }
+              example: { error: "roomId 参数非法" }
         "502":
           description: 上游事件服务不可用（不可达 / 超时 / 返回非法）
           content:

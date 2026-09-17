@@ -31,10 +31,15 @@ describe("fetchReplayEvents 基址与 URL 拼装", () => {
     const spy = vi.fn().mockResolvedValue(okResponse({ total: 0, page: 1, pageSize: 100, items: [] }));
     vi.stubGlobal("fetch", spy);
 
-    await mod.fetchReplayEvents({ start: "2026-09-17T10:00:00.000Z", end: "2026-09-17T10:10:00.000Z" });
+    await mod.fetchReplayEvents({
+      roomId: 1727076670,
+      start: "2026-09-17T10:00:00.000Z",
+      end: "2026-09-17T10:10:00.000Z",
+    });
 
     const url = new URL(spy.mock.calls[0][0] as string);
     expect(url.origin + url.pathname).toBe("https://api.example.com/api/live-events/replay");
+    expect(url.searchParams.get("roomId")).toBe("1727076670");
     expect(url.searchParams.get("start")).toBe("2026-09-17T10:00:00.000Z");
     expect(url.searchParams.get("end")).toBe("2026-09-17T10:10:00.000Z");
   });
@@ -45,6 +50,7 @@ describe("fetchReplayEvents 基址与 URL 拼装", () => {
     vi.stubGlobal("fetch", spy);
 
     await mod.fetchReplayEvents({
+      roomId: 1727076670,
       start: "a",
       end: "b",
       types: ["danmaku", "gift"],
@@ -63,7 +69,7 @@ describe("fetchReplayEvents 基址与 URL 拼装", () => {
     const spy = vi.fn().mockResolvedValue(okResponse({ total: 0, page: 1, pageSize: 100, items: [] }));
     vi.stubGlobal("fetch", spy);
 
-    await mod.fetchReplayEvents({ start: "a", end: "b" });
+    await mod.fetchReplayEvents({ roomId: 1727076670, start: "a", end: "b" });
 
     const options = spy.mock.calls[0][1] as RequestInit | undefined;
     expect(options?.credentials).toBeUndefined();
@@ -74,7 +80,7 @@ describe("fetchReplayEvents 基址与 URL 拼装", () => {
     const spy = vi.fn();
     vi.stubGlobal("fetch", spy);
 
-    const res = await mod.fetchReplayEvents({ start: "a", end: "b" });
+    const res = await mod.fetchReplayEvents({ roomId: 1727076670, start: "a", end: "b" });
     expect(res).toEqual({ ok: false, total: 0, items: [] });
     expect(spy).not.toHaveBeenCalled();
   });
@@ -85,7 +91,7 @@ describe("fetchReplayEvents 解析与降级", () => {
     const mod = await loadModule("https://api.example.com");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(okResponse({ total: 1, page: 1, pageSize: 100, items: [rawItem] })));
 
-    const res = await mod.fetchReplayEvents({ start: "a", end: "b" });
+    const res = await mod.fetchReplayEvents({ roomId: 1727076670, start: "a", end: "b" });
     expect(res.ok).toBe(true);
     expect(res.total).toBe(1);
     expect(res.items).toHaveLength(1);
@@ -98,13 +104,13 @@ describe("fetchReplayEvents 解析与降级", () => {
   it("非 200 静默降级", async () => {
     const mod = await loadModule("https://api.example.com");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ status: 502, json: async () => ({}) } as unknown as Response));
-    expect(await mod.fetchReplayEvents({ start: "a", end: "b" })).toEqual({ ok: false, total: 0, items: [] });
+    expect(await mod.fetchReplayEvents({ roomId: 1727076670, start: "a", end: "b" })).toEqual({ ok: false, total: 0, items: [] });
   });
 
   it("fetch reject 静默降级", async () => {
     const mod = await loadModule("https://api.example.com");
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network")));
-    expect(await mod.fetchReplayEvents({ start: "a", end: "b" })).toEqual({ ok: false, total: 0, items: [] });
+    expect(await mod.fetchReplayEvents({ roomId: 1727076670, start: "a", end: "b" })).toEqual({ ok: false, total: 0, items: [] });
   });
 
   it("非法 JSON 静默降级", async () => {
@@ -118,7 +124,7 @@ describe("fetchReplayEvents 解析与降级", () => {
         },
       } as unknown as Response),
     );
-    expect(await mod.fetchReplayEvents({ start: "a", end: "b" })).toEqual({ ok: false, total: 0, items: [] });
+    expect(await mod.fetchReplayEvents({ roomId: 1727076670, start: "a", end: "b" })).toEqual({ ok: false, total: 0, items: [] });
   });
 
   it("无法通过 schema 的条目被丢弃，其余保留", async () => {
@@ -127,7 +133,7 @@ describe("fetchReplayEvents 解析与降级", () => {
       "fetch",
       vi.fn().mockResolvedValue(okResponse({ total: 2, page: 1, pageSize: 100, items: [rawItem, { bad: true }] })),
     );
-    const res = await mod.fetchReplayEvents({ start: "a", end: "b" });
+    const res = await mod.fetchReplayEvents({ roomId: 1727076670, start: "a", end: "b" });
     expect(res.ok).toBe(true);
     expect(res.total).toBe(2);
     expect(res.items).toHaveLength(1);

@@ -1,8 +1,12 @@
 /**
  * 内网直播事件服务客户端（base URL 经 config.liveEventsUpstreamUrl 注入）。
- * - fetchRange：GET {base}/api/b/live/1727076670/event/range（多 type= 重复参数，5s 超时兜底）；
- * - subscribe：GET {base}/api/b/live/1727076670/event/subscribe（SSE 逐行解析，AbortController 中止）。
+ * - fetchRange：GET {base}/api/b/live/{roomId}/event/range（多 type= 重复参数，5s 超时兜底）；
+ * - subscribe：GET {base}/api/b/live/{roomId}/event/subscribe（SSE 逐行解析，AbortController 中止）。
  * fetch 可注入便于单测（照 routes/liveHistory 的 fetchFn 范式）。
+ *
+ * roomId 作为**路径段**拼接（`/api/b/live/{roomId}/...`），base 不变、无 SSRF 面；仅接受
+ * 正整数。后台看板端点（range/search/subscribe）不传 roomId，缺省固定枝堇直播间
+ * `DEFAULT_ROOM_ID`；公开回放端点按录播所属直播间显式传入。
  *
  * **实测结论（2026-09-17）**：上游 `event/range` **原生支持时间区间查询**，参数名为
  * `startedAt`/`endedAt`（ISO8601）；过滤与分页正交——同区间 `page=1/page=2` 的 `total`
@@ -14,8 +18,18 @@
  * 使用 `startedAt`/`endedAt`。
  */
 
-const EVENT_API_PREFIX = "/api/b/live/1727076670";
+/** 后台看板默认直播间（枝堇）；公开回放按录播所属房间显式传入。 */
+export const DEFAULT_ROOM_ID = 1727076670;
+const EVENT_API_BASE = "/api/b/live";
 const UPSTREAM_TIMEOUT_MS = 5000;
+
+/** roomId → 上游事件路径前缀；仅接受正整数（路径段拼接，防非法注入）。 */
+function eventApiPrefix(roomId: number): string {
+  if (!Number.isInteger(roomId) || roomId <= 0) {
+    throw new Error("roomId 必须为正整数");
+  }
+  return `${EVENT_API_BASE}/${roomId}`;
+}
 
 /** 上游统一信封：payload 为 B 站原始 cmd 对象，结构由 normalize 层负责。 */
 export interface UpstreamEnvelope {
@@ -36,7 +50,10 @@ export interface UpstreamPage {
 export type LiveEventHandler = (envelope: UpstreamEnvelope) => void | Promise<void>;
 
 export interface LiveEventsUpstream {
-  /** 分页检索；`startedAt`/`endedAt`（ISO8601）为上游时间区间参数（实测支持，过滤后分页、total 为区间计数）。 */
+  /**
+   * 分页检索；`startedAt`/`endedAt`（ISO8601）为上游时间区间参数（实测支持，过滤后分页、total 为区间计数）。
+   * `roomId` 为上游路径段，缺省 `DEFAULT_ROOM_ID`（后台看板）；公开回放显式传入录播所属房间。
+   */
   fetchRange(
     types: string[],
     page: number,
@@ -44,6 +61,7 @@ export interface LiveEventsUpstream {
     minPrice?: number,
     startedAt?: string,
     endedAt?: string,
+    roomId?: number,
   ): Promise<UpstreamPage>;
   /** 按关键词检索事件：代理上游 event/search。 */
   search(params: { stringCriteria: string; page: number; pageSize: number }): Promise<UpstreamPage>;
@@ -51,8 +69,8 @@ export interface LiveEventsUpstream {
   subscribe(types: string[], onEvent: LiveEventHandler, signal: AbortSignal): Promise<void>;
 }
 
-function buildUrl(base: string, path: string, types: string[]): URL {
-  const url = new URL(`${base.replace(/\/+$/, "")}${EVENT_API_PREFIX}${path}`);
+function buildUrl(base: string, path: string, types: string[], roomId: number = DEFAULT_ROOM_ID): URL {
+  const url = new URL(`${base.replace(/\/+$/, "")}${eventApiPrefix(roomId)}${path}`);
   for (const t of types) url.searchParams.append("type", t);
   return url;
 }
@@ -65,8 +83,9 @@ export function buildRangeUrl(
   minPrice?: number,
   startedAt?: string,
   endedAt?: string,
+  roomId?: number,
 ): string {
-  const url = buildUrl(base, "/event/range", types);
+  const url = buildUrl(base, "/event/range", types, roomId);
   url.searchParams.set("page", String(page));
   url.searchParams.set("pageSize", String(pageSize));
   if (minPrice !== undefined && minPrice > 0) url.searchParams.set("minPrice", String(minPrice));
@@ -76,12 +95,16 @@ export function buildRangeUrl(
   return url.toString();
 }
 
-export function buildSubscribeUrl(base: string, types: string[]): string {
-  return buildUrl(base, "/event/subscribe", types).toString();
+export function buildSubscribeUrl(base: string, types: string[], roomId?: number): string {
+  return buildUrl(base, "/event/subscribe", types, roomId).toString();
 }
 
-export function buildSearchUrl(base: string, params: { stringCriteria: string; page: number; pageSize: number }): string {
-  const url = new URL(`${base.replace(/\/+$/, "")}${EVENT_API_PREFIX}/event/search`);
+export function buildSearchUrl(
+  base: string,
+  params: { stringCriteria: string; page: number; pageSize: number },
+  roomId?: number,
+): string {
+  const url = new URL(`${base.replace(/\/+$/, "")}${eventApiPrefix(roomId ?? DEFAULT_ROOM_ID)}/event/search`);
   url.searchParams.set("stringCriteria", params.stringCriteria);
   url.searchParams.set("page", String(params.page));
   url.searchParams.set("pageSize", String(params.pageSize));
@@ -106,8 +129,8 @@ export function createLiveEventsUpstream(baseUrl: string, fetchFn?: typeof fetch
   const fetchImpl = fetchFn ?? fetch;
 
   return {
-    async fetchRange(types, page, pageSize, minPrice?, startedAt?, endedAt?) {
-      const res = await fetchImpl(buildRangeUrl(baseUrl, types, page, pageSize, minPrice, startedAt, endedAt), {
+    async fetchRange(types, page, pageSize, minPrice?, startedAt?, endedAt?, roomId?) {
+      const res = await fetchImpl(buildRangeUrl(baseUrl, types, page, pageSize, minPrice, startedAt, endedAt, roomId), {
         signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       });
       if (!res.ok) throw new Error(`upstream status ${res.status}`);

@@ -86,6 +86,7 @@ function stubUpstream(descending: UpstreamEnvelope[]) {
         _minPrice?: number,
         startedAt?: string,
         endedAt?: string,
+        _roomId?: number,
       ): Promise<UpstreamPage> => {
         const startMs = startedAt ? Date.parse(startedAt) : Number.NEGATIVE_INFINITY;
         const endMs = endedAt ? Date.parse(endedAt) : Number.POSITIVE_INFINITY;
@@ -158,7 +159,8 @@ interface ReplayPage {
 
 const START = iso(0);
 const END = iso(300);
-const RANGE = `start=${encodeURIComponent(START)}&end=${encodeURIComponent(END)}`;
+const ROOM_ID = 1727076670;
+const RANGE = `roomId=${ROOM_ID}&start=${encodeURIComponent(START)}&end=${encodeURIComponent(END)}`;
 
 // ---------- 200：升序 / 区间 / 字段裁剪 / 匿名 ----------
 
@@ -237,6 +239,7 @@ describe("GET /api/live-events/replay type 参数", () => {
       undefined,
       START,
       END,
+      ROOM_ID,
     );
   });
 
@@ -244,7 +247,7 @@ describe("GET /api/live-events/replay type 参数", () => {
     const upstream = stubUpstream([withOccurredAt(giftFixture, 180)]);
     const r = await call(buildApp(upstream), `/api/live-events/replay?${RANGE}&type=gift`);
     expect(r.status).toBe(200);
-    expect(upstream.fetchRange).toHaveBeenCalledWith(["gift", "gift_v2"], 1, 100, undefined, START, END);
+    expect(upstream.fetchRange).toHaveBeenCalledWith(["gift", "gift_v2"], 1, 100, undefined, START, END, ROOM_ID);
     const body = r.body as ReplayPage;
     expect(body.items).toHaveLength(1);
     expect(body.items[0].type).toBe("gift");
@@ -258,7 +261,7 @@ describe("GET /api/live-events/replay type 参数", () => {
       `/api/live-events/replay?${RANGE}&type=danmaku&type=super_chat`,
     );
     expect(r.status).toBe(200);
-    expect(upstream.fetchRange).toHaveBeenCalledWith(["danmaku", "super_chat"], 1, 100, undefined, START, END);
+    expect(upstream.fetchRange).toHaveBeenCalledWith(["danmaku", "super_chat"], 1, 100, undefined, START, END, ROOM_ID);
   });
 });
 
@@ -283,7 +286,7 @@ describe("GET /api/live-events/replay 分页", () => {
     expect(body.items).toHaveLength(1);
     expect(body.items[0].type).toBe("super_chat");
     // 首次以响应 pageSize 取第 1 页拿 total
-    expect(upstream.fetchRange).toHaveBeenCalledWith(expect.any(Array), 1, 1, undefined, START, END);
+    expect(upstream.fetchRange).toHaveBeenCalledWith(expect.any(Array), 1, 1, undefined, START, END, ROOM_ID);
   });
 });
 
@@ -291,15 +294,20 @@ describe("GET /api/live-events/replay 分页", () => {
 
 describe("GET /api/live-events/replay 参数校验 400", () => {
   it.each([
-    ["缺 start/end", `/api/live-events/replay`],
-    ["缺 end", `/api/live-events/replay?start=${encodeURIComponent(START)}`],
-    ["start 格式错误", `/api/live-events/replay?start=abc&end=${encodeURIComponent(END)}`],
-    ["end 格式错误", `/api/live-events/replay?start=${encodeURIComponent(START)}&end=nope`],
-    ["end 等于 start", `/api/live-events/replay?start=${encodeURIComponent(START)}&end=${encodeURIComponent(START)}`],
-    ["end 早于 start", `/api/live-events/replay?start=${encodeURIComponent(END)}&end=${encodeURIComponent(START)}`],
+    ["缺 roomId", `/api/live-events/replay?start=${encodeURIComponent(START)}&end=${encodeURIComponent(END)}`],
+    ["roomId 非数字", `/api/live-events/replay?roomId=abc&${RANGE}`],
+    ["roomId=0", `/api/live-events/replay?roomId=0&start=${encodeURIComponent(START)}&end=${encodeURIComponent(END)}`],
+    ["roomId 负数", `/api/live-events/replay?roomId=-1&start=${encodeURIComponent(START)}&end=${encodeURIComponent(END)}`],
+    ["roomId 小数", `/api/live-events/replay?roomId=1.5&start=${encodeURIComponent(START)}&end=${encodeURIComponent(END)}`],
+    ["缺 start/end", `/api/live-events/replay?roomId=${ROOM_ID}`],
+    ["缺 end", `/api/live-events/replay?roomId=${ROOM_ID}&start=${encodeURIComponent(START)}`],
+    ["start 格式错误", `/api/live-events/replay?roomId=${ROOM_ID}&start=abc&end=${encodeURIComponent(END)}`],
+    ["end 格式错误", `/api/live-events/replay?roomId=${ROOM_ID}&start=${encodeURIComponent(START)}&end=nope`],
+    ["end 等于 start", `/api/live-events/replay?roomId=${ROOM_ID}&start=${encodeURIComponent(START)}&end=${encodeURIComponent(START)}`],
+    ["end 早于 start", `/api/live-events/replay?roomId=${ROOM_ID}&start=${encodeURIComponent(END)}&end=${encodeURIComponent(START)}`],
     [
       "区间超过 12h",
-      `/api/live-events/replay?start=${encodeURIComponent(START)}&end=${encodeURIComponent(iso(12 * 3600 + 1))}`,
+      `/api/live-events/replay?roomId=${ROOM_ID}&start=${encodeURIComponent(START)}&end=${encodeURIComponent(iso(12 * 3600 + 1))}`,
     ],
     ["type 含 online_rank_count", `/api/live-events/replay?${RANGE}&type=online_rank_count`],
     ["type 非法值", `/api/live-events/replay?${RANGE}&type=entry_effect`],
@@ -321,7 +329,7 @@ describe("GET /api/live-events/replay 参数校验 400", () => {
     const upstream = stubUpstream([]);
     const r = await call(
       buildApp(upstream),
-      `/api/live-events/replay?start=${encodeURIComponent(START)}&end=${encodeURIComponent(iso(12 * 3600))}`,
+      `/api/live-events/replay?roomId=${ROOM_ID}&start=${encodeURIComponent(START)}&end=${encodeURIComponent(iso(12 * 3600))}`,
     );
     expect(r.status).toBe(200);
   });
@@ -367,6 +375,31 @@ describe("GET /api/live-events/replay 缓存", () => {
   });
 });
 
+// ---------- roomId ----------
+
+describe("GET /api/live-events/replay roomId", () => {
+  it("roomId 透传给上游 fetchRange（第 7 参数，路径段）", async () => {
+    const upstream = stubUpstream([withOccurredAt(superChatFixture, 120)]);
+    const r = await call(
+      buildApp(upstream),
+      `/api/live-events/replay?roomId=98765&start=${encodeURIComponent(START)}&end=${encodeURIComponent(END)}`,
+    );
+    expect(r.status).toBe(200);
+    expect(upstream.fetchRange.mock.calls[0][6]).toBe(98765);
+  });
+
+  it("缓存键含 roomId：不同房间同区间各自回源，同房间命中缓存", async () => {
+    const upstream = stubUpstream([withOccurredAt(superChatFixture, 120)]);
+    const app = buildApp(upstream);
+    const q = `start=${encodeURIComponent(START)}&end=${encodeURIComponent(END)}`;
+    await call(app, `/api/live-events/replay?roomId=111&${q}`);
+    await call(app, `/api/live-events/replay?roomId=222&${q}`);
+    await call(app, `/api/live-events/replay?roomId=111&${q}`);
+    expect(upstream.fetchRange).toHaveBeenCalledTimes(2);
+    expect(upstream.fetchRange.mock.calls.map((c) => c[6])).toEqual([111, 222]);
+  });
+});
+
 // ---------- 扫描终止 / 页数上限 ----------
 
 describe("GET /api/live-events/replay 上游时间过滤与分页", () => {
@@ -381,7 +414,7 @@ describe("GET /api/live-events/replay 上游时间过滤与分页", () => {
     expect(body.total).toBe(99);
     expect(body.items).toHaveLength(99);
     // 时间参数以上游参数名透传
-    expect(upstream.fetchRange).toHaveBeenCalledWith(expect.any(Array), 1, 100, undefined, START, END);
+    expect(upstream.fetchRange).toHaveBeenCalledWith(expect.any(Array), 1, 100, undefined, START, END, ROOM_ID);
     expect(upstream.fetchRange).toHaveBeenCalledTimes(1);
     const times = body.items.map((i) => new Date(i.occurredAt).getTime());
     expect(times).toEqual([...times].sort((a, b) => a - b));
@@ -395,7 +428,7 @@ describe("GET /api/live-events/replay 上游时间过滤与分页", () => {
     const upstream = stubUpstream(descending);
     const r = await call(
       buildApp(upstream),
-      `/api/live-events/replay?start=${encodeURIComponent(iso(0))}&end=${encodeURIComponent(iso(5000))}`,
+      `/api/live-events/replay?roomId=${ROOM_ID}&start=${encodeURIComponent(iso(0))}&end=${encodeURIComponent(iso(5000))}`,
     );
     expect(r.status).toBe(200);
     const body = r.body as ReplayPage;
@@ -416,7 +449,7 @@ describe("GET /api/live-events/replay 上游时间过滤与分页", () => {
     const descending: UpstreamEnvelope[] = [];
     for (let i = 5000; i >= 0; i--) descending.push(danmakuAt(i, i));
     const upstream = stubUpstream(descending);
-    const query = `start=${encodeURIComponent(iso(1000))}&end=${encodeURIComponent(iso(1300))}`;
+    const query = `roomId=${ROOM_ID}&start=${encodeURIComponent(iso(1000))}&end=${encodeURIComponent(iso(1300))}`;
     const r = await call(buildApp(upstream), `/api/live-events/replay?${query}`);
     expect(r.status).toBe(200);
     const body = r.body as ReplayPage;
@@ -438,7 +471,7 @@ describe("GET /api/live-events/replay 上游时间过滤与分页", () => {
     const upstream = stubUpstream(descending);
     const r = await call(
       buildApp(upstream),
-      `/api/live-events/replay?start=${encodeURIComponent(iso(0))}&end=${encodeURIComponent(iso(100))}`,
+      `/api/live-events/replay?roomId=${ROOM_ID}&start=${encodeURIComponent(iso(0))}&end=${encodeURIComponent(iso(100))}`,
     );
     expect(r.status).toBe(200);
     expect((r.body as ReplayPage).total).toBe(0);

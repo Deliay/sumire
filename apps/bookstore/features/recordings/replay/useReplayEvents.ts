@@ -11,6 +11,8 @@ export const MAX_WINDOW_PAGES = 20;
 export const WINDOW_PAGE_SIZE = 100;
 
 export interface UseReplayEventsOptions {
+  /** 直播间 ID（正整数）；null 时禁用取数。事件按该房间检索，切换房间须清空缓存。 */
+  roomId: number | null;
   /** 分段实际起点毫秒（info.startedAt 推导，info 缺失回退 createdAt）；null 时禁用取数。 */
   startMs: number | null;
   /** 分段实际终点毫秒（info.endedAt 推导 / duration 兜底）；null 时以 start + 12h 为上界。 */
@@ -34,7 +36,7 @@ export interface ReplayEventsController {
 }
 
 /** 时间窗口增量加载调度：Map 缓存 + 代次 last-wins + 卸载中止。 */
-export function useReplayEvents({ startMs, endMs = null }: UseReplayEventsOptions): ReplayEventsController {
+export function useReplayEvents({ roomId, startMs, endMs = null }: UseReplayEventsOptions): ReplayEventsController {
   const cacheRef = useRef<Map<number, LiveEvent[]>>(new Map());
   const inflightRef = useRef<Map<number, Promise<boolean>>>(new Map());
   const abortRef = useRef<Set<AbortController>>(new Set());
@@ -49,11 +51,11 @@ export function useReplayEvents({ startMs, endMs = null }: UseReplayEventsOption
 
   const loadWindow = useCallback(
     (index: number): Promise<boolean> => {
-      if (startMs === null) return Promise.resolve(false);
+      if (startMs === null || roomId === null) return Promise.resolve(false);
 
       const { startMs: windowStart, endMs: windowEnd } = windowBounds(index, startMs, endMs);
-      // 缓存以窗口起点为 key（同一 index 在 duration 精确化后起点不变）
-      const key = windowStart;
+      // 缓存键含 roomId + 窗口起点（同一 index 在 duration 精确化后起点不变；房间维度防串扰）
+      const key = `${roomId}:${windowStart}`;
       if (cacheRef.current.has(key)) return Promise.resolve(true);
       const existing = inflightRef.current.get(key);
       if (existing) return existing;
@@ -71,6 +73,7 @@ export function useReplayEvents({ startMs, endMs = null }: UseReplayEventsOption
           let page = 1;
           for (;;) {
             const res = await fetchReplayEvents({
+              roomId,
               start: toIso(windowStart),
               end: toIso(windowEnd),
               page,
@@ -96,12 +99,12 @@ export function useReplayEvents({ startMs, endMs = null }: UseReplayEventsOption
       inflightRef.current.set(key, promise);
       return promise;
     },
-    [startMs, endMs],
+    [roomId, startMs, endMs],
   );
 
   const focusWindow = useCallback(
     (index: number) => {
-      if (startMs === null) return;
+      if (startMs === null || roomId === null) return;
       genRef.current += 1;
       const generation = genRef.current;
       setFocusedWindow(index);
@@ -113,7 +116,7 @@ export function useReplayEvents({ startMs, endMs = null }: UseReplayEventsOption
         if (!ok) setError(true);
       });
     },
-    [startMs, loadWindow],
+    [roomId, startMs, loadWindow],
   );
 
   // focusRef 在 effect 中同步，供 effect 内间接调用（避免 render 期写 ref）
@@ -130,26 +133,26 @@ export function useReplayEvents({ startMs, endMs = null }: UseReplayEventsOption
 
   const prefetchNext = useCallback(
     (offsetMs: number) => {
-      if (startMs === null || !Number.isFinite(offsetMs) || offsetMs < 0) return;
+      if (startMs === null || roomId === null || !Number.isFinite(offsetMs) || offsetMs < 0) return;
       const index = windowIndexForOffset(offsetMs);
       if (offsetMs - index * WINDOW_MS >= WINDOW_MS / 2) void loadWindow(index + 1);
     },
-    [startMs, loadWindow],
+    [roomId, startMs, loadWindow],
   );
 
   const retry = useCallback(() => {
-    if (startMs === null) return;
-    cacheRef.current.delete(windowBounds(focusedWindow, startMs, endMs).startMs);
+    if (startMs === null || roomId === null) return;
+    cacheRef.current.delete(`${roomId}:${windowBounds(focusedWindow, startMs, endMs).startMs}`);
     focusRef.current(focusedWindow);
-  }, [startMs, endMs, focusedWindow]);
+  }, [roomId, startMs, endMs, focusedWindow]);
 
-  // 起点变化（切换文件）：清空缓存并从首窗加载
+  // 房间或起点变化（切换文件/直播间）：清空缓存并从首窗加载
   useEffect(() => {
     cacheRef.current.clear();
     inflightRef.current.clear();
     genRef.current += 1;
-    if (startMs !== null) focusRef.current(0);
-  }, [startMs]);
+    if (startMs !== null && roomId !== null) focusRef.current(0);
+  }, [roomId, startMs]);
 
   // 卸载：中止在途请求
   useEffect(() => {

@@ -99,8 +99,9 @@ export default function ReplayStage({ roomId, file }: ReplayStageProps) {
 
   // 卸载退出 native 全屏
   useEffect(() => {
+    const container = nativeRef.current;
     return () => {
-      if (document.fullscreenElement != null && document.fullscreenElement === nativeRef.current) {
+      if (document.fullscreenElement != null && document.fullscreenElement === container) {
         void document.exitFullscreen?.();
       }
     };

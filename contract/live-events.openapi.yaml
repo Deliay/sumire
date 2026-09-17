@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: sumire live events
-  description: 枝堇Sumire 后台弹幕信息流 API 契约（/api/live-events 域）。单一事实源，实现与 tests/api 集成测试均以本文档为准。服务端代理内网直播事件上游（仅服务端可达，地址不出现在客户端可见位置），将上游原始 payload 归一化为稳定 LiveEvent 模型并合并已读状态；全部端点需登录。
+  description: 枝堇Sumire 后台弹幕信息流 API 契约（/api/live-events 域）。单一事实源，实现与 tests/api 集成测试均以本文档为准。服务端代理内网直播事件上游（仅服务端可达，地址不出现在客户端可见位置），将上游原始 payload 归一化为稳定 LiveEvent 模型并合并已读状态；除 GET /api/live-events/replay 为公开端点（无需登录，面向录播回放）外，其余端点需登录（member/admin 见各端点描述）。
   version: 1.0.0
 servers:
   - url: https://api.sumire.live

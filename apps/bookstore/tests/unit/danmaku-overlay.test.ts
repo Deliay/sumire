@@ -28,12 +28,12 @@ function event(eventId: string, occurredAt: string, content = "hi"): LiveEvent {
 describe("assignLane 轨道分配", () => {
   it("轨道尾部弹幕右缘已完全进入并留出间距：复用该轨道", () => {
     const active: ActiveDanmaku[] = [{ lane: 0, x: 800, width: 100, speed: 240 }];
-    expect(assignLane(active, 120, 1920, 240, 4)).toBe(0);
+    expect(assignLane(active, 1920, 4)).toBe(0);
   });
 
   it("轨道尾部弹幕尚未走完：跳到下一轨道", () => {
     const active: ActiveDanmaku[] = [{ lane: 0, x: 1850, width: 100, speed: 240 }];
-    expect(assignLane(active, 120, 1920, 240, 4)).toBe(1);
+    expect(assignLane(active, 1920, 4)).toBe(1);
   });
 
   it("全部轨道被占用：返回 null（丢弃）", () => {
@@ -43,7 +43,7 @@ describe("assignLane 轨道分配", () => {
       { lane: 2, x: 1900, width: 100, speed: 240 },
       { lane: 3, x: 1900, width: 100, speed: 240 },
     ];
-    expect(assignLane(active, 120, 1920, 240, 4)).toBeNull();
+    expect(assignLane(active, 1920, 4)).toBeNull();
   });
 
   it("同屏在飞数量达上限：直接返回 null 丢弃", () => {
@@ -53,7 +53,7 @@ describe("assignLane 轨道分配", () => {
       width: 100,
       speed: 240,
     }));
-    expect(assignLane(active, 120, 1920, 240, 4)).toBeNull();
+    expect(assignLane(active, 1920, 4)).toBeNull();
   });
 });
 

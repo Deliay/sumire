@@ -59,13 +59,10 @@ export function laneCountForWidth(videoWidth: number): number {
  */
 export function assignLane(
   active: ActiveDanmaku[],
-  textWidth: number,
   videoWidth: number,
-  speed: number,
   laneCount = laneCountForWidth(videoWidth),
 ): number | null {
   if (active.length >= MAX_ACTIVE_DANMAKU) return null;
-  const width = Number.isFinite(textWidth) && textWidth > 0 ? textWidth : 0;
   for (let lane = 0; lane < laneCount; lane++) {
     let free = true;
     for (const item of active) {
@@ -226,7 +223,7 @@ export function createDanmakuRenderer(
   return {
     enqueue(input) {
       const textWidth = measure(input);
-      const lane = assignLane(items, textWidth, width, danmakuSpeed(width), laneCountForWidth(width));
+      const lane = assignLane(items, width, laneCountForWidth(width));
       if (lane === null) return;
       items.push({ lane, x: width, width: textWidth, speed: danmakuSpeed(width), ...input });
       ensureLoop();

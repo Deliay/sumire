@@ -183,6 +183,18 @@ describe("ReplayStage 桌面布局", () => {
     expect(videoCol.parentElement?.className).toContain("lg:flex-row");
   });
 
+  it("长事件列表不撑开事件列：包裹层 lg:relative、内层 lg:absolute lg:inset-0 脱离文档流", async () => {
+    await renderStage();
+    const timeline = screen.getByLabelText("事件列表");
+    const timelineCol = timeline.parentElement as HTMLElement;
+    // 内层绝对定位于相对定位包裹层：内容固有高度不参与行高计算
+    expect(timeline.className).toContain("lg:absolute");
+    expect(timeline.className).toContain("lg:inset-0");
+    expect(timelineCol.className).toContain("lg:relative");
+    // 滚动容器仍在，负责列内滚动
+    expect(screen.getByTestId("event-timeline-scroll")).toBeTruthy();
+  });
+
   it("网页全屏下事件列保持 1/5 列宽且不加固定高度", async () => {
     await renderStage();
     await act(async () => {

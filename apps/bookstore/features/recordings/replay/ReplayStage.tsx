@@ -131,7 +131,9 @@ export default function ReplayStage({ roomId, file, bounds }: ReplayStageProps) 
       ? "fixed inset-0 z-50 flex flex-col gap-4 overflow-hidden bg-night p-4"
       : "flex flex-col gap-4";
 
-  const timelineWrapperClass = "flex min-h-0 flex-col lg:w-1/5";
+  // 事件列在 lg 断点用「相对定位包裹 + 绝对定位内层」脱离文档流：桌面行高不再被
+  // 虚拟化列表的内容固有高度（数千 px 占位）撑开，由视频列决定行高，事件列 stretch 至行高。
+  const timelineWrapperClass = "flex min-h-0 flex-col lg:relative lg:w-1/5";
 
   return (
     <div ref={stageRef} data-testid="replay-stage" data-fullscreen-mode={mode} className={stageClass}>

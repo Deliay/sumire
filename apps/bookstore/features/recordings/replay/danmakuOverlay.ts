@@ -15,8 +15,10 @@ export const MAX_ACTIVE_DANMAKU = 50;
 export const LANE_HEIGHT = 28;
 /** 同轨道两条弹幕之间的最小安全间距（px）。 */
 export const MIN_LANE_GAP = 24;
-/** 弹幕字号基准（px @1920 宽）。 */
-export const BASE_FONT_SIZE = 25;
+/** 弹幕字号基准（px @1920 宽）。回放舞台常规宽度远小于 1920，故基准调大保证可读性。 */
+export const BASE_FONT_SIZE = 32;
+/** 弹幕字号下限（px）：窄舞台/小视频下仍清晰可读。 */
+export const MIN_FONT_SIZE = 20;
 export const BASE_VIDEO_WIDTH = 1920;
 /** 弹幕横穿画面所需秒数（决定恒定速度）。 */
 export const TRAVEL_SECONDS = 8;
@@ -35,10 +37,14 @@ export interface ActiveDanmaku {
   speed: number;
 }
 
-/** 字号随视频宽度线性缩放（基准 25px @1920）；非法输入回退基准。 */
+/**
+ * 字号随视频宽度线性缩放（基准 32px @1920），并钳到下限 `MIN_FONT_SIZE`；
+ * 回放舞台常规宽度（约 900~1200px）下不低于 20px，双全屏 1920px 下达 32px，保证可读。
+ * 非法输入回退基准。
+ */
 export function fontSizeForWidth(videoWidth: number): number {
   if (!Number.isFinite(videoWidth) || videoWidth <= 0) return BASE_FONT_SIZE;
-  return Math.max(1, Math.round((BASE_FONT_SIZE * videoWidth) / BASE_VIDEO_WIDTH));
+  return Math.max(MIN_FONT_SIZE, Math.round((BASE_FONT_SIZE * videoWidth) / BASE_VIDEO_WIDTH));
 }
 
 /** 恒定左移速度（px/s）：与文本长度无关，保证可读。 */
@@ -47,10 +53,15 @@ export function danmakuSpeed(videoWidth: number): number {
   return videoWidth / TRAVEL_SECONDS;
 }
 
-/** 按 16:9 视频高度推算轨道数。 */
+/** 单轨道高度（px）：随字号放大（1.3 倍），至少 `LANE_HEIGHT`，保证相邻轨道不重叠。 */
+export function laneHeightForWidth(videoWidth: number): number {
+  return Math.max(LANE_HEIGHT, Math.round(fontSizeForWidth(videoWidth) * 1.3));
+}
+
+/** 按 16:9 视频高度与轨道高度推算轨道数。 */
 export function laneCountForWidth(videoWidth: number): number {
   if (!Number.isFinite(videoWidth) || videoWidth <= 0) return 1;
-  return Math.max(1, Math.floor((videoWidth * 9) / 16 / LANE_HEIGHT));
+  return Math.max(1, Math.floor((videoWidth * 9) / 16 / laneHeightForWidth(videoWidth)));
 }
 
 /**
@@ -170,7 +181,8 @@ export function createDanmakuRenderer(
   function draw(item: FlyingDanmaku) {
     if (!ctx) return;
     const fontSize = fontSizeForWidth(width);
-    const y = item.lane * LANE_HEIGHT + LANE_HEIGHT / 2 + fontSize / 2;
+    const laneHeight = laneHeightForWidth(width);
+    const y = item.lane * laneHeight + laneHeight / 2 + fontSize / 2;
     if (item.emoteUrl) {
       const image = loadImage(item.emoteUrl);
       if (image.complete && image.naturalWidth > 0) {

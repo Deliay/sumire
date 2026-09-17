@@ -1,12 +1,16 @@
 import { describe, it, expect } from "vitest";
 import {
   BASE_FONT_SIZE,
+  LANE_HEIGHT,
   MAX_ACTIVE_DANMAKU,
+  MIN_FONT_SIZE,
   assignLane,
   danmakuOffsets,
   danmakuSpeed,
   fontSizeForWidth,
   isSeekJump,
+  laneCountForWidth,
+  laneHeightForWidth,
   selectDanmakusToEmit,
   type ActiveDanmaku,
 } from "@/features/recordings/replay/danmakuOverlay";
@@ -58,12 +62,30 @@ describe("assignLane 轨道分配", () => {
 });
 
 describe("字号与速度", () => {
-  it("字号随宽度缩放，基准 25px @1920", () => {
+  it("字号随宽度缩放，基准 32px @1920", () => {
     expect(fontSizeForWidth(1920)).toBe(BASE_FONT_SIZE);
     expect(fontSizeForWidth(3840)).toBe(BASE_FONT_SIZE * 2);
+    expect(fontSizeForWidth(2400)).toBe(40);
     // 非法输入回退基准
     expect(fontSizeForWidth(0)).toBe(BASE_FONT_SIZE);
     expect(fontSizeForWidth(Number.NaN)).toBe(BASE_FONT_SIZE);
+  });
+
+  it("窄舞台字号钳到下限 MIN_FONT_SIZE（20px），不再缩到十几像素", () => {
+    expect(fontSizeForWidth(900)).toBe(MIN_FONT_SIZE);
+    expect(fontSizeForWidth(1200)).toBe(MIN_FONT_SIZE);
+    expect(fontSizeForWidth(960)).toBe(MIN_FONT_SIZE);
+    // 恰好线性缩放值低于下限时取下限
+    expect(fontSizeForWidth(600)).toBe(MIN_FONT_SIZE);
+    expect(fontSizeForWidth(900)).toBeGreaterThanOrEqual(20);
+  });
+
+  it("轨道高度随字号放大且不低于 LANE_HEIGHT，轨道数随之收敛", () => {
+    expect(laneHeightForWidth(900)).toBeGreaterThanOrEqual(LANE_HEIGHT);
+    expect(laneHeightForWidth(1920)).toBeGreaterThanOrEqual(LANE_HEIGHT);
+    expect(laneHeightForWidth(1920)).toBeGreaterThan(laneHeightForWidth(900));
+    expect(laneCountForWidth(1920)).toBeGreaterThan(0);
+    expect(laneCountForWidth(0)).toBe(1);
   });
 
   it("速度恒定（像素/秒），与弹幕文本长度无关", () => {

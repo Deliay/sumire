@@ -49,12 +49,17 @@ function renderTimeline(overrides: Partial<Parameters<typeof EventTimeline>[0]> 
 }
 
 beforeEach(() => {
-  (Element.prototype as unknown as { scrollIntoView?: unknown }).scrollIntoView = vi.fn();
+  // 虚拟化需要可测量的行高与滚动容器尺寸（jsdom 默认 0）
+  vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(72);
+  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(600);
+  vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(360);
+  vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(1000);
+  (Element.prototype as unknown as { scrollTo?: unknown }).scrollTo = vi.fn();
 });
 
 afterEach(() => {
   cleanup();
-  delete (Element.prototype as unknown as { scrollIntoView?: unknown }).scrollIntoView;
+  delete (Element.prototype as unknown as { scrollTo?: unknown }).scrollTo;
   vi.restoreAllMocks();
 });
 
@@ -69,12 +74,12 @@ describe("EventTimeline 事件列表", () => {
     expect(screen.queryAllByTitle("单击切换已读")).toHaveLength(0);
   });
 
-  it("currentTime 驱动自动滚动跟随与当前事件高亮", () => {
+  it("currentTime 驱动自动滚动跟随（scrollToIndex）与当前事件高亮", () => {
     const { container } = renderTimeline({ currentTime: 15 });
     const current = container.querySelector('[data-current="true"]');
     expect(current?.getAttribute("data-timeline-event")).toBe("sc:1");
     expect((current as HTMLElement).className).toContain("ring-flower");
-    expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
+    expect(Element.prototype.scrollTo).toHaveBeenCalled();
   });
 
   it("手动滚动暂停跟随并显示「回到当前进度」，点击后恢复", () => {
@@ -116,5 +121,27 @@ describe("EventTimeline 事件列表", () => {
   it("无事件时展示空态文案", () => {
     renderTimeline({ events: [] });
     expect(screen.getByText("本场直播暂无弹幕事件")).toBeTruthy();
+  });
+});
+
+describe("EventTimeline 虚拟化", () => {
+  function manyEvents(count: number): LiveEvent[] {
+    return Array.from({ length: count }, (_, i) =>
+      makeEvent(`dm:${i}`, "danmaku", i, { content: `弹幕${i}` }),
+    );
+  }
+
+  it("大数据量仅渲染可视区条目，不渲染全部 DOM", () => {
+    const { container } = renderTimeline({ events: manyEvents(500) });
+    const rendered = container.querySelectorAll("[data-timeline-event]");
+    expect(rendered.length).toBeGreaterThan(0);
+    expect(rendered.length).toBeLessThan(100);
+    // 首条在可视区
+    expect(container.querySelector('[data-timeline-event="dm:0"]')).not.toBeNull();
+  });
+
+  it("跟随深处当前事件经 scrollToIndex 触发滚动（scrollIntoView 对未挂载条目无效）", () => {
+    renderTimeline({ events: manyEvents(500), currentTime: 450 });
+    expect(Element.prototype.scrollTo).toHaveBeenCalled();
   });
 });

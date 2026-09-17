@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import type { LiveEvent } from "@/features/danmaku/types";
 import DanmakuItem from "@/features/danmaku/components/DanmakuItem";
 import SuperChatItem from "@/features/danmaku/components/SuperChatItem";
@@ -25,6 +26,9 @@ interface TimelineEntry {
   offsetSeconds: number;
 }
 
+/** 单行估算高度（px）；实际高度经 virtualizer.measureElement 动态测量修正。 */
+const ESTIMATED_ROW_HEIGHT = 72;
+
 function renderItem(event: LiveEvent) {
   switch (event.type) {
     case "super_chat":
@@ -39,7 +43,11 @@ function renderItem(event: LiveEvent) {
   }
 }
 
-/** 回放事件列表：升序渲染四类事件、随播放进度自动跟随/高亮、点击跳转；无已读语义。 */
+/**
+ * 回放事件列表：升序渲染四类事件、随播放进度自动跟随/高亮、点击跳转；无已读语义。
+ * 采用 `@tanstack/react-virtual` 虚拟化（仅渲染可视区条目，长录播累积数千条仍流畅），
+ * 跟随定位走 `scrollToIndex`（`scrollIntoView` 对未挂载条目无效），行高经 `measureElement` 动态测量。
+ */
 export default function EventTimeline({
   events,
   loading,
@@ -50,7 +58,6 @@ export default function EventTimeline({
   onSeek,
 }: EventTimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const currentItemRef = useRef<HTMLLIElement | null>(null);
   const [following, setFollowing] = useState(true);
 
   const entries = useMemo<TimelineEntry[]>(() => {
@@ -66,26 +73,38 @@ export default function EventTimeline({
   }, [events, recordStartMs]);
 
   // 当前事件 = 首个 offset ≥ currentTime（列表已升序）
-  const currentEventId = useMemo(() => {
-    if (recordStartMs === null) return null;
-    const found = entries.find((entry) => entry.offsetSeconds >= currentTime);
-    return found?.event.eventId ?? null;
+  const currentIndex = useMemo(() => {
+    if (recordStartMs === null) return -1;
+    return entries.findIndex((entry) => entry.offsetSeconds >= currentTime);
   }, [entries, currentTime, recordStartMs]);
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- @tanstack/react-virtual 返回的函数不可被 React Compiler 安全记忆化
+  const virtualizer = useVirtualizer({
+    count: entries.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ESTIMATED_ROW_HEIGHT,
+    overscan: 8,
+    getItemKey: (index) => entries[index]?.event.eventId ?? index,
+    initialRect: { width: 360, height: 600 },
+  });
+
   const scrollToCurrent = useCallback(() => {
-    currentItemRef.current?.scrollIntoView?.({ block: "nearest" });
-  }, []);
+    if (currentIndex < 0) return;
+    virtualizer.scrollToIndex(currentIndex, { align: "auto" });
+  }, [currentIndex, virtualizer]);
 
   useEffect(() => {
-    if (!following || !currentEventId) return;
+    if (!following || currentIndex < 0) return;
     scrollToCurrent();
-  }, [following, currentEventId, scrollToCurrent]);
+  }, [following, currentIndex, scrollToCurrent]);
 
   const pauseFollowing = () => setFollowing(false);
   const resumeFollowing = () => {
     setFollowing(true);
     scrollToCurrent();
   };
+
+  const virtualItems = virtualizer.getVirtualItems();
 
   return (
     <section aria-label="事件列表" className="flex min-h-0 flex-col gap-2">
@@ -131,13 +150,16 @@ export default function EventTimeline({
         )}
 
         {!error && entries.length > 0 && (
-          <ul className="flex flex-col divide-y divide-vine/20">
-            {entries.map((entry) => {
-              const isCurrent = entry.event.eventId === currentEventId;
+          <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
+            {virtualItems.map((virtualItem) => {
+              const entry = entries[virtualItem.index];
+              if (!entry) return null;
+              const isCurrent = virtualItem.index === currentIndex;
               return (
-                <li
-                  key={entry.event.eventId}
-                  ref={isCurrent ? currentItemRef : undefined}
+                <div
+                  key={virtualItem.key}
+                  data-index={virtualItem.index}
+                  ref={virtualizer.measureElement}
                   data-timeline-event={entry.event.eventId}
                   data-current={isCurrent ? "true" : undefined}
                   role="button"
@@ -150,15 +172,16 @@ export default function EventTimeline({
                       onSeek(entry.offsetSeconds);
                     }
                   }}
-                  className={`cursor-pointer transition-colors hover:bg-soft/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-flower ${
+                  className={`absolute top-0 left-0 w-full cursor-pointer border-b border-vine/20 transition-colors hover:bg-soft/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-flower ${
                     isCurrent ? "bg-flower/10 ring-1 ring-flower" : ""
                   }`}
+                  style={{ transform: `translateY(${virtualItem.start}px)` }}
                 >
                   {renderItem(entry.event)}
-                </li>
+                </div>
               );
             })}
-          </ul>
+          </div>
         )}
       </div>
     </section>

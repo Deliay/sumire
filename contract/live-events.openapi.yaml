@@ -60,6 +60,64 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
               example: { error: "上游事件服务不可用" }
+  /api/live-events/replay:
+    get:
+      summary: 检索录播回放事件（公开）
+      description: 公开端点，无需登录；面向录播回放场景，按时间区间检索历史归一化事件。items 按 occurredAt 升序且全部落在 [start, end] 内；条目不含 read（无已读语义）与罗马音字段（nameRomaji/contentRomaji），避免后台语义与标注开销。上游不可达/超时/返回非法时返回 502。特别地，online_rank_count 不属于本端点（type 传入即 400）。
+      parameters:
+        - name: start
+          in: query
+          required: true
+          description: 区间起点（ISO 时间戳）
+          schema: { type: string, format: date-time }
+        - name: end
+          in: query
+          required: true
+          description: 区间终点（ISO 时间戳），须晚于 start，且与 start 的间隔不超过 12 小时
+          schema: { type: string, format: date-time }
+        - name: type
+          in: query
+          description: 事件类型过滤，可重复（重复参数形式 type=danmaku&type=super_chat）；缺省为全部四类；online_rank_count 不属于本端点
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { $ref: "#/components/schemas/ReplayEventType" }
+        - name: page
+          in: query
+          description: 页码，从 1 开始
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          description: 每页条数，上限 100
+          schema: { type: integer, minimum: 1, maximum: 100, default: 100 }
+      responses:
+        "200":
+          description: 分页信封，items 已归一化、按 occurredAt 升序且全部落在 [start, end] 内
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [total, page, pageSize, items]
+                properties:
+                  total: { type: integer, description: 区间内符合过滤条件的事件总数 }
+                  page: { type: integer }
+                  pageSize: { type: integer }
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/ReplayEvent" }
+        "400":
+          description: 参数非法（缺 start/end、格式错误、end ≤ start、区间超过 12 小时、type 非法（含 online_rank_count）、分页非法）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: "时间区间非法" }
+        "502":
+          description: 上游事件服务不可用（不可达 / 超时 / 返回非法）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: "上游事件服务不可用" }
   /api/live-events/search:
     get:
       summary: 按关键词检索直播事件（member 及以上）
@@ -230,6 +288,85 @@ components:
     LiveEventType:
       type: string
       enum: [danmaku, super_chat, gift, guard_buy, online_rank_count]
+    ReplayEventType:
+      type: string
+      description: 回放事件类型（不含 online_rank_count）
+      enum: [danmaku, super_chat, gift, guard_buy]
+    ReplayEvent:
+      type: object
+      required: [eventId, type, occurredAt, sender]
+      description: 公开回放归一化事件。字段与 LiveEvent 一致，但显式剔除 read（无已读语义）与 sender.nameRomaji / contentRomaji（公开页无需罗马音标注），不复用 LiveEvent 以避免误带后台字段。
+      properties:
+        eventId:
+          type: string
+          description: 事件唯一 ID，服务端派生保证幂等去重（danmaku → dm:{id_str}；super_chat → sc:{id}；gift → gift:{batch_combo_id ?? combo_id}；guard_buy → guard:{uid}:{start_time}）
+        type: { $ref: "#/components/schemas/ReplayEventType" }
+        occurredAt:
+          type: string
+          format: date-time
+          description: 事件发生时间（ISO 时间戳，沿用上游信封 occurredAt）
+        sender:
+          type: object
+          required: [uid, name, face, medal]
+          properties:
+            uid: { type: integer, description: 发送者 B 站 uid }
+            name: { type: string, description: 发送者昵称 }
+            face:
+              type: [string, "null"]
+              description: 头像 URL；guard_buy 上游无头像，为 null，前端兜底渲染
+            medal:
+              type: [object, "null"]
+              required: [name, level, color]
+              description: 粉丝团牌子；无牌子为 null
+              properties:
+                name: { type: string, description: 牌子名 }
+                level: { type: integer, description: 牌子等级 }
+                color: { type: string, description: 牌子颜色（CSS 颜色值） }
+            guardLevel:
+              type: [integer, "null"]
+              description: 发送者的上船等级（3=舰长，2=提督，1=总督）；无上船为 null
+        content:
+          type: string
+          description: 弹幕文本 / SC 留言（仅 danmaku、super_chat）
+        emote:
+          type: object
+          required: [url]
+          description: 弹幕表情图片（仅 danmaku）
+          properties:
+            url: { type: string, description: 表情图片 URL }
+            name: { type: string, description: 表情名（可作 alt/兜底文案） }
+            width: { type: integer, description: 原图宽（px） }
+            height: { type: integer, description: 原图高（px） }
+        price:
+          type: number
+          description: 金额（元）：SC 为 data.price；礼物=金瓜子 combo_total_coin/1000（银瓜子=0）；上船=price/1000
+        scColors:
+          type: object
+          required: [backgroundStart, backgroundEnd, fontColor]
+          description: SC 配色（仅 super_chat）
+          properties:
+            backgroundStart: { type: string }
+            backgroundEnd: { type: string }
+            fontColor: { type: string }
+        time:
+          type: integer
+          description: SC 悬停时长（秒，仅 super_chat）；缺失时不携带
+        gift:
+          type: object
+          required: [name, count]
+          description: 礼物信息（仅 gift）
+          properties:
+            name: { type: string, description: 礼物名 }
+            count: { type: integer, description: 数量 }
+            iconUrl: { type: string, description: 礼物图标 URL；缺失时不下发该字段 }
+        guard:
+          type: object
+          required: [level, name, count]
+          description: 上船信息（仅 guard_buy；level 3/2/1 → 舰长/提督/总督）
+          properties:
+            level: { type: integer, enum: [1, 2, 3], description: 3=舰长，2=提督，1=总督 }
+            name: { type: string, description: 船型名称（上游 gift_name） }
+            count: { type: integer, description: 数量（月数） }
     LiveEventOrEnvelope:
       description: 归一化 LiveEvent 或 online_rank_count 原始信封（透传上游信封，不归一化）
       oneOf:

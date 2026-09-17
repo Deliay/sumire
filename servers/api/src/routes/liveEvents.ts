@@ -1,9 +1,10 @@
 import { Router, type Request, type Response } from "express";
 import { requireRole } from "../rbac/requireRole";
-import { toLiveEvent, type LiveEvent, type LiveEventType } from "../liveEvents/normalize";
+import { toLiveEvent, type LiveEvent, type LiveEventSender, type LiveEventType } from "../liveEvents/normalize";
 import { toRomaji } from "../liveEvents/romaji";
 import type { LiveEventsUpstream, UpstreamEnvelope } from "../liveEvents/upstream";
 import { markRead, markUnread, markAllRead, resolveReadState, typeFromEventId } from "../db/liveEventReads";
+import { createMemoryLiveEventsReplayCache, type LiveEventsReplayCache } from "../infra/liveEventsReplayCache";
 
 export const LIVE_EVENT_TYPES: readonly LiveEventType[] = ["danmaku", "super_chat", "gift", "guard_buy"];
 /** 直接透传、不做 toLiveEvent 归一化的类型。 */
@@ -16,6 +17,15 @@ const BACKOFF_INITIAL_MS = 1_000;
 const BACKOFF_MAX_MS = 30_000;
 const READ_ALL_PAGE_SIZE = 100;
 
+/** 回放区间上限（契约：end - start ≤ 12h）。 */
+const REPLAY_MAX_RANGE_MS = 12 * 60 * 60 * 1000;
+/** 回放缓存 TTL（历史区间不可变，缓存安全）。 */
+const REPLAY_CACHE_TTL_SECONDS = 300;
+/** 回放扫描每次请求上游的页大小。 */
+const REPLAY_SCAN_PAGE_SIZE = 100;
+/** 回放扫描页数上限（≈5000 条），超出截断并如实返回已扫描口径 total。 */
+const REPLAY_SCAN_MAX_PAGES = 50;
+
 export interface LiveEventsRouterDeps {
   upstream: LiveEventsUpstream;
   /** 文本 → 罗马音标注（缺省用 kuroshiro 全文转换；单测可注入恒 null 或以 text 取巧）。 */
@@ -25,6 +35,101 @@ export interface LiveEventsRouterDeps {
   /** 上游断流重连退避：起步 1s，倍增至 30s 上限（单测可调小）。 */
   backoffInitialMs?: number;
   backoffMaxMs?: number;
+  /** 回放事件缓存（缺省内存实现，生产由 index.ts 注入 Redis 实现）。 */
+  replayCache?: LiveEventsReplayCache;
+}
+
+/** 回放事件投影：剔除 read 与罗马音字段（不直接透传内部 LiveEvent，避免误带后台语义）。 */
+export interface ReplayEventSender {
+  uid: number;
+  name: string;
+  face: string | null;
+  medal: LiveEventSender["medal"];
+  guardLevel: number | null;
+}
+
+export interface ReplayEvent {
+  eventId: string;
+  type: LiveEventType;
+  occurredAt: string;
+  sender: ReplayEventSender;
+  content?: string;
+  emote?: LiveEvent["emote"];
+  price?: number;
+  scColors?: LiveEvent["scColors"];
+  time?: number;
+  gift?: LiveEvent["gift"];
+  guard?: LiveEvent["guard"];
+}
+
+export interface ReplayPage {
+  total: number;
+  page: number;
+  pageSize: number;
+  items: ReplayEvent[];
+}
+
+/** LiveEvent → ReplayEvent：显式构造投影，绝不透传 read/nameRomaji/contentRomaji。 */
+function toReplayEvent(e: LiveEvent): ReplayEvent {
+  return {
+    eventId: e.eventId,
+    type: e.type,
+    occurredAt: e.occurredAt,
+    sender: {
+      uid: e.sender.uid,
+      name: e.sender.name,
+      face: e.sender.face,
+      medal: e.sender.medal,
+      guardLevel: e.sender.guardLevel,
+    },
+    ...(e.content !== undefined ? { content: e.content } : {}),
+    ...(e.emote !== undefined ? { emote: e.emote } : {}),
+    ...(e.price !== undefined ? { price: e.price } : {}),
+    ...(e.scColors !== undefined ? { scColors: e.scColors } : {}),
+    ...(e.time !== undefined ? { time: e.time } : {}),
+    ...(e.gift !== undefined ? { gift: e.gift } : {}),
+    ...(e.guard !== undefined ? { guard: e.guard } : {}),
+  };
+}
+
+/** ISO 时间参数：非字符串或无法解析 → null（由调用方 400）。 */
+function parseTimeParam(value: unknown): number | null {
+  if (typeof value !== "string") return null;
+  const t = new Date(value).getTime();
+  return Number.isNaN(t) ? null : t;
+}
+
+/**
+ * 服务端分页扫描兜底：上游 event/range 按 occurredAt 倒序返回，
+ * 自 page=1 起翻页收集 [start,end] 内事件，遇到 occurredAt < start 立即终止
+ * （倒序保证其后含后续页全部越界），扫描页数上限 50 页。
+ */
+async function scanReplayEvents(
+  upstream: LiveEventsUpstream,
+  upstreamTypes: string[],
+  startMs: number,
+  endMs: number,
+): Promise<LiveEvent[]> {
+  const collected: LiveEvent[] = [];
+  for (let page = 1; page <= REPLAY_SCAN_MAX_PAGES; page++) {
+    const upstreamPage = await upstream.fetchRange(upstreamTypes, page, REPLAY_SCAN_PAGE_SIZE);
+    let reachedBeforeStart = false;
+    for (const item of upstreamPage.items) {
+      const raw = typeof item.occurredAt === "string" ? new Date(item.occurredAt).getTime() : NaN;
+      if (!Number.isNaN(raw) && raw < startMs) {
+        reachedBeforeStart = true;
+        break;
+      }
+      const event = toLiveEvent(item);
+      if (!event) continue;
+      const t = new Date(event.occurredAt).getTime();
+      if (t >= startMs && t <= endMs) collected.push(event);
+    }
+    if (reachedBeforeStart) break;
+    if (upstreamPage.items.length < REPLAY_SCAN_PAGE_SIZE) break;
+  }
+  collected.sort((a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime());
+  return collected;
 }
 
 /** type 查询参数：可重复，缺省为全部四类；含非法值则整体 400。 */
@@ -98,6 +203,70 @@ export function createLiveEventsRouter(deps: LiveEventsRouterDeps): Router {
   const heartbeatMs = deps.heartbeatMs ?? HEARTBEAT_MS;
   const backoffInitialMs = deps.backoffInitialMs ?? BACKOFF_INITIAL_MS;
   const backoffMaxMs = deps.backoffMaxMs ?? BACKOFF_MAX_MS;
+  const replayCache = deps.replayCache ?? createMemoryLiveEventsReplayCache();
+
+  // GET /api/live-events/replay —— 录播回放事件检索（公开，无需登录）
+  router.get("/replay", async (req: Request, res: Response) => {
+    const startMs = parseTimeParam(req.query.start);
+    const endMs = parseTimeParam(req.query.end);
+    if (startMs === null || endMs === null) {
+      res.status(400).json({ error: "start/end 时间参数非法" });
+      return;
+    }
+    if (endMs <= startMs) {
+      res.status(400).json({ error: "end 必须晚于 start" });
+      return;
+    }
+    if (endMs - startMs > REPLAY_MAX_RANGE_MS) {
+      res.status(400).json({ error: "时间区间不能超过 12 小时" });
+      return;
+    }
+    const types = parseTypesParam(req.query.type);
+    if (!types.ok) {
+      res.status(400).json({ error: "type 参数非法" });
+      return;
+    }
+    const page = parsePageParam(req.query.page, 1);
+    const pageSize = parsePageParam(req.query.pageSize, 100, 100);
+    if (page === null || pageSize === null) {
+      res.status(400).json({ error: "分页参数非法" });
+      return;
+    }
+
+    const startIso = new Date(startMs).toISOString();
+    const endIso = new Date(endMs).toISOString();
+    const cacheKey = `live-events:replay:${startIso}:${endIso}:${types.types.join(",")}:${page}:${pageSize}`;
+    try {
+      const cached = await replayCache.get(cacheKey);
+      if (cached !== null) {
+        res.status(200).json(JSON.parse(cached) as ReplayPage);
+        return;
+      }
+    } catch (err) {
+      console.warn("[liveEvents] 回放缓存读取失败:", err instanceof Error ? err.message : err);
+    }
+
+    let collected: LiveEvent[];
+    try {
+      collected = await scanReplayEvents(deps.upstream, toUpstreamTypes(types.types), startMs, endMs);
+    } catch (err) {
+      upstreamUnavailable(res, err);
+      return;
+    }
+
+    const result: ReplayPage = {
+      total: collected.length,
+      page,
+      pageSize,
+      items: collected.slice((page - 1) * pageSize, page * pageSize).map(toReplayEvent),
+    };
+    try {
+      await replayCache.set(cacheKey, JSON.stringify(result), REPLAY_CACHE_TTL_SECONDS);
+    } catch (err) {
+      console.warn("[liveEvents] 回放缓存写入失败:", err instanceof Error ? err.message : err);
+    }
+    res.status(200).json(result);
+  });
 
   // GET /api/live-events —— 历史事件检索（member 及以上）
   router.get("/", requireRole("member"), async (req: Request, res: Response) => {

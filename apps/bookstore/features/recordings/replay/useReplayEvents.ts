@@ -37,8 +37,8 @@ export interface ReplayEventsController {
 
 /** 时间窗口增量加载调度：Map 缓存 + 代次 last-wins + 卸载中止。 */
 export function useReplayEvents({ roomId, startMs, endMs = null }: UseReplayEventsOptions): ReplayEventsController {
-  const cacheRef = useRef<Map<number, LiveEvent[]>>(new Map());
-  const inflightRef = useRef<Map<number, Promise<boolean>>>(new Map());
+  const cacheRef = useRef<Map<string, LiveEvent[]>>(new Map());
+  const inflightRef = useRef<Map<string, Promise<boolean>>>(new Map());
   const abortRef = useRef<Set<AbortController>>(new Set());
   const genRef = useRef(0);
   const mountedRef = useRef(true);

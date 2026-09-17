@@ -60,6 +60,26 @@ describe("buildRangeUrl / buildSubscribeUrl", () => {
       `${BASE}/api/b/live/1727076670/event/range?type=gift&page=1&pageSize=50`,
     );
   });
+
+  it("startedAt/endedAt 追加为上游时间过滤参数（非 start/end）", () => {
+    const startedAt = "2026-08-25T02:50:53.000Z";
+    const endedAt = "2026-08-25T02:54:53.000Z";
+    const url = buildRangeUrl(BASE, ["danmaku"], 1, 100, undefined, startedAt, endedAt);
+    expect(url).toBe(
+      `${BASE}/api/b/live/1727076670/event/range?type=danmaku&page=1&pageSize=100&startedAt=${encodeURIComponent(
+        startedAt,
+      )}&endedAt=${encodeURIComponent(endedAt)}`,
+    );
+    expect(url).not.toContain("start=");
+    expect(url).not.toContain("end=");
+  });
+
+  it("仅传 startedAt 支持开放端（不追加 endedAt）", () => {
+    const startedAt = "2026-08-25T02:50:53.000Z";
+    const url = buildRangeUrl(BASE, [], 1, 100, undefined, startedAt);
+    expect(url).toContain(`startedAt=${encodeURIComponent(startedAt)}`);
+    expect(url).not.toContain("endedAt=");
+  });
 });
 
 describe("upstream.fetchRange", () => {
@@ -73,6 +93,23 @@ describe("upstream.fetchRange", () => {
     expect(page.items).toHaveLength(1);
     expect(fetchFn).toHaveBeenCalledWith(
       `${BASE}/api/b/live/1727076670/event/range?type=super_chat&page=1&pageSize=50`,
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it("startedAt/endedAt 透传到上游 URL", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(
+      jsonResponse({ total: 745, page: 1, pageSize: 100, items: [] }),
+    );
+    const upstream = createLiveEventsUpstream(BASE, fetchFn as never);
+    const startedAt = "2026-08-25T02:50:53.000Z";
+    const endedAt = "2026-08-25T02:54:53.000Z";
+    const page = await upstream.fetchRange(["danmaku"], 1, 100, undefined, startedAt, endedAt);
+    expect(page.total).toBe(745);
+    expect(fetchFn).toHaveBeenCalledWith(
+      `${BASE}/api/b/live/1727076670/event/range?type=danmaku&page=1&pageSize=100&startedAt=${encodeURIComponent(
+        startedAt,
+      )}&endedAt=${encodeURIComponent(endedAt)}`,
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });

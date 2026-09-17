@@ -72,17 +72,36 @@ function danmakuAt(offsetSec: number, seq: number): UpstreamEnvelope {
 
 // ---------- 上游 stub（按 page/pageSize 切分倒序列表，模拟 event/range） ----------
 
+/**
+ * 上游 stub：识别 `startedAt`/`endedAt` 时间过滤（实测上游支持），过滤后按 occurredAt
+ * 倒序分页、`total` 为区间内计数——与真实上游行为一致。传入的 `descending` 为全量倒序数据。
+ */
 function stubUpstream(descending: UpstreamEnvelope[]) {
   return {
-    fetchRange: vi.fn(async (_types: string[], page: number, pageSize: number): Promise<UpstreamPage> => {
-      const from = (page - 1) * pageSize;
-      return {
-        total: descending.length,
-        page,
-        pageSize,
-        items: descending.slice(from, from + pageSize),
-      };
-    }),
+    fetchRange: vi.fn(
+      async (
+        _types: string[],
+        page: number,
+        pageSize: number,
+        _minPrice?: number,
+        startedAt?: string,
+        endedAt?: string,
+      ): Promise<UpstreamPage> => {
+        const startMs = startedAt ? Date.parse(startedAt) : Number.NEGATIVE_INFINITY;
+        const endMs = endedAt ? Date.parse(endedAt) : Number.POSITIVE_INFINITY;
+        const filtered = descending.filter((item) => {
+          const t = Date.parse(item.occurredAt ?? "");
+          return Number.isFinite(t) && t >= startMs && t <= endMs;
+        });
+        const from = (page - 1) * pageSize;
+        return {
+          total: filtered.length,
+          page,
+          pageSize,
+          items: filtered.slice(from, from + pageSize),
+        };
+      },
+    ),
     subscribe: vi.fn(),
   };
 }
@@ -215,6 +234,9 @@ describe("GET /api/live-events/replay type 参数", () => {
       ["danmaku", "super_chat", "gift", "gift_v2", "guard_buy"],
       1,
       100,
+      undefined,
+      START,
+      END,
     );
   });
 
@@ -222,7 +244,7 @@ describe("GET /api/live-events/replay type 参数", () => {
     const upstream = stubUpstream([withOccurredAt(giftFixture, 180)]);
     const r = await call(buildApp(upstream), `/api/live-events/replay?${RANGE}&type=gift`);
     expect(r.status).toBe(200);
-    expect(upstream.fetchRange).toHaveBeenCalledWith(["gift", "gift_v2"], 1, 100);
+    expect(upstream.fetchRange).toHaveBeenCalledWith(["gift", "gift_v2"], 1, 100, undefined, START, END);
     const body = r.body as ReplayPage;
     expect(body.items).toHaveLength(1);
     expect(body.items[0].type).toBe("gift");
@@ -236,14 +258,14 @@ describe("GET /api/live-events/replay type 参数", () => {
       `/api/live-events/replay?${RANGE}&type=danmaku&type=super_chat`,
     );
     expect(r.status).toBe(200);
-    expect(upstream.fetchRange).toHaveBeenCalledWith(["danmaku", "super_chat"], 1, 100);
+    expect(upstream.fetchRange).toHaveBeenCalledWith(["danmaku", "super_chat"], 1, 100, undefined, START, END);
   });
 });
 
 // ---------- 分页 ----------
 
 describe("GET /api/live-events/replay 分页", () => {
-  it("page/pageSize 对区间内升序结果切片，不改变上游扫描页大小", async () => {
+  it("page/pageSize 对区间内升序结果切片，上游按同 pageSize 分页", async () => {
     const upstream = stubUpstream([
       withOccurredAt(guardBuyFixture, 240),
       withOccurredAt(giftFixture, 180),
@@ -260,8 +282,8 @@ describe("GET /api/live-events/replay 分页", () => {
     // 升序 [dm, sc, gift, guard] 的第二页第 1 条 = sc
     expect(body.items).toHaveLength(1);
     expect(body.items[0].type).toBe("super_chat");
-    // 扫描始终以 pageSize=100 从第 1 页起
-    expect(upstream.fetchRange).toHaveBeenCalledWith(expect.any(Array), 1, 100);
+    // 首次以响应 pageSize 取第 1 页拿 total
+    expect(upstream.fetchRange).toHaveBeenCalledWith(expect.any(Array), 1, 1, undefined, START, END);
   });
 });
 
@@ -347,22 +369,27 @@ describe("GET /api/live-events/replay 缓存", () => {
 
 // ---------- 扫描终止 / 页数上限 ----------
 
-describe("GET /api/live-events/replay 分页扫描兜底", () => {
-  it("倒序遇到 occurredAt < start 立即终止，不再拉取后续页", async () => {
+describe("GET /api/live-events/replay 上游时间过滤与分页", () => {
+  it("透传 startedAt/endedAt：上游过滤后 total 为区间计数，出口升序", async () => {
     const descending: UpstreamEnvelope[] = [];
     for (let i = 99; i >= 1; i--) descending.push(danmakuAt(i, i));
-    descending.push(danmakuAt(-60, 0)); // 第 100 条越界，触发终止
+    descending.push(danmakuAt(-60, 0)); // 区间外（早于 start），上游过滤剔除
     const upstream = stubUpstream(descending);
     const r = await call(buildApp(upstream), `/api/live-events/replay?${RANGE}`);
     expect(r.status).toBe(200);
     const body = r.body as ReplayPage;
     expect(body.total).toBe(99);
-    // 首页已满 100 条，若无倒序终止会继续拉第 2 页
+    expect(body.items).toHaveLength(99);
+    // 时间参数以上游参数名透传
+    expect(upstream.fetchRange).toHaveBeenCalledWith(expect.any(Array), 1, 100, undefined, START, END);
     expect(upstream.fetchRange).toHaveBeenCalledTimes(1);
-    expect(body.items.every((i) => new Date(i.occurredAt).getTime() >= new Date(START).getTime())).toBe(true);
+    const times = body.items.map((i) => new Date(i.occurredAt).getTime());
+    expect(times).toEqual([...times].sort((a, b) => a - b));
+    expect(times[0]).toBe(new Date(iso(1)).getTime());
   });
 
-  it("收集阶段页数上限 50：全区间命中时截断并如实返回 total", async () => {
+  it("大区间分页：响应页映射到倒序上游页，不扫描全区间", async () => {
+    // 5001 条：offset 5000..0，倒序
     const descending: UpstreamEnvelope[] = [];
     for (let i = 5000; i >= 0; i--) descending.push(danmakuAt(i, i));
     const upstream = stubUpstream(descending);
@@ -372,42 +399,38 @@ describe("GET /api/live-events/replay 分页扫描兜底", () => {
     );
     expect(r.status).toBe(200);
     const body = r.body as ReplayPage;
-    // end 等于最新事件 → 边界页=1，收集 page 1..50（含探测页复用）共 50 次回源
-    expect(upstream.fetchRange).toHaveBeenCalledTimes(50);
-    expect(upstream.fetchRange).toHaveBeenLastCalledWith(expect.any(Array), 50, 100);
-    expect(body.total).toBe(5000);
-    // 升序
+    expect(body.total).toBe(5001);
+    // 升序前 100 条 = offset 0..99
+    expect(body.items).toHaveLength(100);
     const times = body.items.map((i) => new Date(i.occurredAt).getTime());
+    expect(times[0]).toBe(new Date(iso(0)).getTime());
+    expect(times[times.length - 1]).toBe(new Date(iso(99)).getTime());
     expect(times).toEqual([...times].sort((a, b) => a - b));
+    // 升序首页映射到倒序上游 page 50/51（含首请求 page1 共 3 次），非顺序扫描
+    const pages = upstream.fetchRange.mock.calls.map((call) => call[1] as number);
+    expect(pages.sort((a, b) => a - b)).toEqual([1, 50, 51]);
   });
 
-  it("二分定位 + 定向扫描：深页历史区间可取到事件（不从 page=1 顺序扫）", async () => {
+  it("深页历史区间：过滤后直接取对应倒序页（不依赖距今天数）", async () => {
     // 5001 条：offset 5000..0，倒序
     const descending: UpstreamEnvelope[] = [];
     for (let i = 5000; i >= 0; i--) descending.push(danmakuAt(i, i));
     const upstream = stubUpstream(descending);
-    // 历史区间 offset [1000,1300]（约第 38 页），含两端共 301 条
-    const r = await call(
-      buildApp(upstream),
-      `/api/live-events/replay?start=${encodeURIComponent(iso(1000))}&end=${encodeURIComponent(iso(1300))}`,
-    );
+    const query = `start=${encodeURIComponent(iso(1000))}&end=${encodeURIComponent(iso(1300))}`;
+    const r = await call(buildApp(upstream), `/api/live-events/replay?${query}`);
     expect(r.status).toBe(200);
     const body = r.body as ReplayPage;
     expect(body.total).toBe(301);
-    // 响应 items 按默认 pageSize=100 切片，仅含区间内升序前 100 条
     expect(body.items).toHaveLength(100);
     const times = body.items.map((i) => new Date(i.occurredAt).getTime());
     expect(times[0]).toBe(new Date(iso(1000)).getTime());
     expect(times[times.length - 1]).toBe(new Date(iso(1099)).getTime());
-    expect(times).toEqual([...times].sort((a, b) => a - b));
-
+    // 升序首页映射到倒序上游 page 3/4
     const pages = upstream.fetchRange.mock.calls.map((call) => call[1] as number);
-    expect(pages).toContain(1); // 仅用于探测 total
-    expect(Math.max(...pages)).toBeGreaterThanOrEqual(30); // 确实触达深页
-    expect(pages.length).toBeLessThanOrEqual(25); // 远小于从 page=1 顺序扫的 38+ 页
+    expect(pages.sort((a, b) => a - b)).toEqual([1, 3, 4]);
   });
 
-  it("区间早于全部数据（end 早于最旧事件）→ 空结果", async () => {
+  it("区间早于全部数据（end 早于最旧事件）→ 上游过滤后 total=0，空结果", async () => {
     const descending: UpstreamEnvelope[] = [
       danmakuAt(500, 2),
       danmakuAt(400, 1),
@@ -419,5 +442,6 @@ describe("GET /api/live-events/replay 分页扫描兜底", () => {
     );
     expect(r.status).toBe(200);
     expect((r.body as ReplayPage).total).toBe(0);
+    expect((r.body as ReplayPage).items).toHaveLength(0);
   });
 });

@@ -182,6 +182,8 @@ let rangeMode: "ok" | "error" = "ok";
 let rangeRequests = 0;
 let deepMode = false;
 let rangePages: number[] = [];
+let lastStartedAt: string | null = null;
+let lastEndedAt: string | null = null;
 
 function startStub(): Server {
   return createServer((req, res) => {
@@ -197,7 +199,20 @@ function startStub(): Server {
       const page = Number(url.searchParams.get("page") ?? "1");
       const pageSize = Number(url.searchParams.get("pageSize") ?? "100");
       rangePages.push(page);
-      const filtered = filterByTypes(types, deepMode ? DEEP_EVENTS : ALL_EVENTS);
+      // 实测上游时间过滤参数名为 startedAt/endedAt；识别并过滤（start/end 会被忽略）
+      const startedAt = url.searchParams.get("startedAt");
+      const endedAt = url.searchParams.get("endedAt");
+      lastStartedAt = startedAt;
+      lastEndedAt = endedAt;
+      let filtered = filterByTypes(types, deepMode ? DEEP_EVENTS : ALL_EVENTS);
+      if (startedAt || endedAt) {
+        const lo = startedAt ? Date.parse(startedAt) : Number.NEGATIVE_INFINITY;
+        const hi = endedAt ? Date.parse(endedAt) : Number.POSITIVE_INFINITY;
+        filtered = filtered.filter((e) => {
+          const t = Date.parse(e.occurredAt);
+          return Number.isFinite(t) && t >= lo && t <= hi;
+        });
+      }
       const items = filtered.slice((page - 1) * pageSize, page * pageSize);
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ total: filtered.length, page, pageSize, items }));
@@ -321,11 +336,11 @@ describe("GET /api/live-events/replay（公开回放检索）", () => {
     expect(body.items).toHaveLength(10);
   });
 
-  it("live-events-replay-deep-page: 深页历史区间可取到事件（二分定位 + 定向扫描）", async () => {
+  it("live-events-replay-deep-page: 深页历史区间经上游时间过滤直接分页（不依赖距今天数）", async () => {
     deepMode = true;
     rangePages = [];
     try {
-      // 随机起点规避跨轮次 Redis 缓存；end 落在约第 31–38 页（深页）
+      // 随机起点规避跨轮次 Redis 缓存；区间落在深页历史数据中
       const baseSec = 1000 + Math.floor(Math.random() * 700);
       const start = new Date(BASE_TS + baseSec * 1000).toISOString();
       const end = new Date(BASE_TS + (baseSec + 300) * 1000).toISOString();
@@ -337,10 +352,10 @@ describe("GET /api/live-events/replay（公开回放检索）", () => {
       const times = body.items.map((i) => new Date(i.occurredAt).getTime());
       expect(times[0]).toBe(Date.parse(start));
       expect(times[times.length - 1]).toBe(Date.parse(start) + 99_000);
-      // 仅探测 total 才取 page=1，实际收集触达深页，且请求数远小于顺序扫描
-      expect(rangePages).toContain(1);
-      expect(Math.max(...rangePages)).toBeGreaterThanOrEqual(30);
-      expect(rangePages.length).toBeLessThanOrEqual(25);
+      // 上游时间参数以上游名透传；升序首页映射到倒序上游 page 3/4（共 3 次请求，非顺序扫描）
+      expect(lastStartedAt).toBe(start);
+      expect(lastEndedAt).toBe(end);
+      expect(rangePages.slice().sort((a, b) => a - b)).toEqual([1, 3, 4]);
     } finally {
       deepMode = false;
     }

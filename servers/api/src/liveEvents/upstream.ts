@@ -4,11 +4,14 @@
  * - subscribe：GET {base}/api/b/live/1727076670/event/subscribe（SSE 逐行解析，AbortController 中止）。
  * fetch 可注入便于单测（照 routes/liveHistory 的 fetchFn 范式）。
  *
- * **实测结论（2026-09-17）**：上游 `event/range` **不支持任何时间区间参数**——传
- * ISO8601（`start`/`end`）或 epoch 秒均被忽略、原样返回最新一页；分页按 `occurredAt`
- * **倒序**且 `total` 可靠（单类型 danmaku 可达 ~79 万）；`pageSize` 上限为 **100**
- * （传 1000 被钳到 100）。故回放取数不走时间参数透传，改由路由层
- * `scanReplayEvents` 二分定位 + 定向扫描兜底（见 `routes/liveEvents.ts`）。
+ * **实测结论（2026-09-17）**：上游 `event/range` **原生支持时间区间查询**，参数名为
+ * `startedAt`/`endedAt`（ISO8601）；过滤与分页正交——同区间 `page=1/page=2` 的 `total`
+ * 均为区间内计数且各自返回对应页；支持开放端（仅传 `startedAt` 按下界过滤）。分页按
+ * `occurredAt` **倒序**，`pageSize` 上限为 **100**（传 1000 被钳到 100）。
+ *
+ * ⚠️ 易错点：传 `start`/`end`（ISO8601 或 epoch）会被上游**忽略**、原样返回最新一页
+ * （`total` 为全量），此前「上游不支持时间参数」的误判即源于参数名用错。回放取数必须
+ * 使用 `startedAt`/`endedAt`。
  */
 
 const EVENT_API_PREFIX = "/api/b/live/1727076670";
@@ -33,7 +36,15 @@ export interface UpstreamPage {
 export type LiveEventHandler = (envelope: UpstreamEnvelope) => void | Promise<void>;
 
 export interface LiveEventsUpstream {
-  fetchRange(types: string[], page: number, pageSize: number, minPrice?: number): Promise<UpstreamPage>;
+  /** 分页检索；`startedAt`/`endedAt`（ISO8601）为上游时间区间参数（实测支持，过滤后分页、total 为区间计数）。 */
+  fetchRange(
+    types: string[],
+    page: number,
+    pageSize: number,
+    minPrice?: number,
+    startedAt?: string,
+    endedAt?: string,
+  ): Promise<UpstreamPage>;
   /** 按关键词检索事件：代理上游 event/search。 */
   search(params: { stringCriteria: string; page: number; pageSize: number }): Promise<UpstreamPage>;
   /** SSE 订阅：逐事件回调；流正常结束或出错时返回/抛出（由调用方决定是否重连）。 */
@@ -46,11 +57,22 @@ function buildUrl(base: string, path: string, types: string[]): URL {
   return url;
 }
 
-export function buildRangeUrl(base: string, types: string[], page: number, pageSize: number, minPrice?: number): string {
+export function buildRangeUrl(
+  base: string,
+  types: string[],
+  page: number,
+  pageSize: number,
+  minPrice?: number,
+  startedAt?: string,
+  endedAt?: string,
+): string {
   const url = buildUrl(base, "/event/range", types);
   url.searchParams.set("page", String(page));
   url.searchParams.set("pageSize", String(pageSize));
   if (minPrice !== undefined && minPrice > 0) url.searchParams.set("minPrice", String(minPrice));
+  // 上游时间过滤参数名为 startedAt/endedAt（传 start/end 会被忽略）
+  if (startedAt) url.searchParams.set("startedAt", startedAt);
+  if (endedAt) url.searchParams.set("endedAt", endedAt);
   return url.toString();
 }
 
@@ -84,8 +106,8 @@ export function createLiveEventsUpstream(baseUrl: string, fetchFn?: typeof fetch
   const fetchImpl = fetchFn ?? fetch;
 
   return {
-    async fetchRange(types, page, pageSize, minPrice?) {
-      const res = await fetchImpl(buildRangeUrl(baseUrl, types, page, pageSize, minPrice), {
+    async fetchRange(types, page, pageSize, minPrice?, startedAt?, endedAt?) {
+      const res = await fetchImpl(buildRangeUrl(baseUrl, types, page, pageSize, minPrice, startedAt, endedAt), {
         signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       });
       if (!res.ok) throw new Error(`upstream status ${res.status}`);

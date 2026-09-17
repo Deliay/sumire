@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { requireRole } from "../rbac/requireRole";
 import { toLiveEvent, type LiveEvent, type LiveEventSender, type LiveEventType } from "../liveEvents/normalize";
 import { toRomaji } from "../liveEvents/romaji";
-import type { LiveEventsUpstream, UpstreamEnvelope, UpstreamPage } from "../liveEvents/upstream";
+import type { LiveEventsUpstream, UpstreamEnvelope } from "../liveEvents/upstream";
 import { markRead, markUnread, markAllRead, resolveReadState, typeFromEventId } from "../db/liveEventReads";
 import { createMemoryLiveEventsReplayCache, type LiveEventsReplayCache } from "../infra/liveEventsReplayCache";
 
@@ -21,10 +21,6 @@ const READ_ALL_PAGE_SIZE = 100;
 const REPLAY_MAX_RANGE_MS = 12 * 60 * 60 * 1000;
 /** 回放缓存 TTL（历史区间不可变，缓存安全）。 */
 const REPLAY_CACHE_TTL_SECONDS = 300;
-/** 回放扫描每次请求上游的页大小。 */
-const REPLAY_SCAN_PAGE_SIZE = 100;
-/** 回放扫描页数上限（≈5000 条），超出截断并如实返回已扫描口径 total。 */
-const REPLAY_SCAN_MAX_PAGES = 50;
 
 export interface LiveEventsRouterDeps {
   upstream: LiveEventsUpstream;
@@ -99,94 +95,55 @@ function parseTimeParam(value: unknown): number | null {
   return Number.isNaN(t) ? null : t;
 }
 
-/** 上游信封 occurredAt → 毫秒；缺失/非法返回 null。 */
-function occurredAtMs(item: UpstreamEnvelope): number | null {
-  if (typeof item.occurredAt !== "string") return null;
-  const t = new Date(item.occurredAt).getTime();
-  return Number.isNaN(t) ? null : t;
-}
-
 /**
- * 服务端分页扫描兜底（实测上游 `event/range` **不支持时间参数**，传 start/end 被忽略）。
+ * 回放区间取数：直接利用上游时间过滤与分页（实测 `startedAt`/`endedAt` 支持）。
  *
- * 实测上游事实：按 `occurredAt` **倒序**分页、`total` 可靠、`pageSize` 上限 100。
- * 历史场次可能深达数千页（单类型 total 可达 ~79 万），自 page=1 顺序扫不可达，
- * 故采用「**二分定位 + 定向扫描**」：
- * 1. 先取 page=1 拿到 `total` 推算总页数；
- * 2. 二分查找「end 边界所在页」——最小页 p 使该页末条 `occurredAt <= end`
- *    （倒序下末条为该页最旧；空页/无合法时间视为最旧），约 log2(总页数) 次请求收敛；
- * 3. 自该页起向更旧方向翻页收集 `occurredAt ∈ [start,end]`，遇 `occurredAt < start` 终止；
- * 4. 收集阶段页数上限 `REPLAY_SCAN_MAX_PAGES` 截断，`total` 如实反映已收集口径。
- *
- * 直播进行中 `total` 增长会导致页码漂移，二分以本次定位期的 `total` 为基准，
- * 漂移只影响最新端，对历史区间可忽略。
+ * 上游按 `occurredAt` **倒序**返回且 `total` 为区间内计数、过滤后分页正交；契约出口需
+ * **升序**，故按响应 `page/pageSize` 映射到倒序上游页（升序页与倒序页以同一 pageSize
+ * 对齐，至多跨 2 个上游页），取回后反转/排序为升序。不扫描全区间，请求量与页码无关。
  */
-async function scanReplayEvents(
+async function fetchReplayEventsPage(
   upstream: LiveEventsUpstream,
   upstreamTypes: string[],
-  startMs: number,
-  endMs: number,
-): Promise<LiveEvent[]> {
-  // 同一轮扫描内按页缓存，二分与收集复用已取页（避免重复回源）
-  const pageCache = new Map<number, UpstreamPage>();
-  const fetchPage = async (page: number): Promise<UpstreamPage> => {
-    const cached = pageCache.get(page);
-    if (cached) return cached;
-    const result = await upstream.fetchRange(upstreamTypes, page, REPLAY_SCAN_PAGE_SIZE);
-    pageCache.set(page, result);
-    return result;
-  };
-  const pageOldestMs = async (page: number): Promise<number | null> => {
-    const { items } = await fetchPage(page);
-    for (let i = items.length - 1; i >= 0; i--) {
-      const t = occurredAtMs(items[i]);
-      if (t !== null) return t;
-    }
-    return null; // 空页 / 无合法时间 → 视为最旧
-  };
+  startIso: string,
+  endIso: string,
+  page: number,
+  pageSize: number,
+): Promise<{ total: number; items: LiveEvent[] }> {
+  const first = await upstream.fetchRange(upstreamTypes, 1, pageSize, undefined, startIso, endIso);
+  const total = first.total;
+  if (total <= 0) return { total: 0, items: [] };
 
-  const firstPage = await fetchPage(1);
-  if (firstPage.total <= 0) return [];
-  const pageSize = firstPage.pageSize > 0 ? firstPage.pageSize : REPLAY_SCAN_PAGE_SIZE;
-  const totalPages = Math.max(1, Math.ceil(firstPage.total / pageSize));
+  const from = (page - 1) * pageSize;
+  if (from >= total) return { total, items: [] };
+  const to = Math.min(page * pageSize, total) - 1;
 
-  // 二分：最小页 p 使该页末条（最旧）occurredAt <= end（end 边界所在页）
-  const reachesEndOrOlder = async (page: number): Promise<boolean> => {
-    const oldest = await pageOldestMs(page);
-    return oldest === null || oldest <= endMs;
-  };
-  let lo = 1;
-  let hi = totalPages;
-  while (lo < hi) {
-    const mid = Math.floor((lo + hi) / 2);
-    if (await reachesEndOrOlder(mid)) hi = mid;
-    else lo = mid + 1;
+  // 升序 [from,to] ↔ 倒序索引 [dLo,dHi]
+  const dLo = total - 1 - to;
+  const dHi = total - 1 - from;
+  const firstPageNo = Math.floor(dLo / pageSize) + 1;
+  const lastPageNo = Math.floor(dHi / pageSize) + 1;
+
+  const pages = new Map<number, UpstreamEnvelope[]>();
+  pages.set(1, first.items);
+  for (let p = firstPageNo; p <= lastPageNo; p++) {
+    if (pages.has(p)) continue;
+    const res = await upstream.fetchRange(upstreamTypes, p, pageSize, undefined, startIso, endIso);
+    pages.set(p, res.items);
   }
-  const boundaryPage = lo;
 
-  // 定向扫描：自 end 边界页起向更旧方向收集
-  const collected: LiveEvent[] = [];
-  for (let offset = 0; offset < REPLAY_SCAN_MAX_PAGES; offset++) {
-    const page = boundaryPage + offset;
-    if (page > totalPages) break;
-    const upstreamPage = await fetchPage(page);
-    let reachedBeforeStart = false;
-    for (const item of upstreamPage.items) {
-      const raw = occurredAtMs(item);
-      if (raw !== null && raw < startMs) {
-        reachedBeforeStart = true;
-        break;
-      }
-      const event = toLiveEvent(item);
-      if (!event) continue;
-      const t = new Date(event.occurredAt).getTime();
-      if (t >= startMs && t <= endMs) collected.push(event);
-    }
-    if (reachedBeforeStart) break;
-    if (upstreamPage.items.length < pageSize) break;
+  const base = (firstPageNo - 1) * pageSize;
+  const descending: UpstreamEnvelope[] = [];
+  for (let p = firstPageNo; p <= lastPageNo; p++) descending.push(...(pages.get(p) ?? []));
+  const slice = descending.slice(dLo - base, dHi - base + 1);
+
+  const events: LiveEvent[] = [];
+  for (const envelope of slice) {
+    const event = toLiveEvent(envelope);
+    if (event) events.push(event);
   }
-  collected.sort((a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime());
-  return collected;
+  events.sort((a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime());
+  return { total, items: events };
 }
 
 /** type 查询参数：可重复，缺省为全部四类；含非法值则整体 400。 */
@@ -303,19 +260,26 @@ export function createLiveEventsRouter(deps: LiveEventsRouterDeps): Router {
       console.warn("[liveEvents] 回放缓存读取失败:", err instanceof Error ? err.message : err);
     }
 
-    let collected: LiveEvent[];
+    let pageResult: { total: number; items: LiveEvent[] };
     try {
-      collected = await scanReplayEvents(deps.upstream, toUpstreamTypes(types.types), startMs, endMs);
+      pageResult = await fetchReplayEventsPage(
+        deps.upstream,
+        toUpstreamTypes(types.types),
+        startIso,
+        endIso,
+        page,
+        pageSize,
+      );
     } catch (err) {
       upstreamUnavailable(res, err);
       return;
     }
 
     const result: ReplayPage = {
-      total: collected.length,
+      total: pageResult.total,
       page,
       pageSize,
-      items: collected.slice((page - 1) * pageSize, page * pageSize).map(toReplayEvent),
+      items: pageResult.items.map(toReplayEvent),
     };
     try {
       await replayCache.set(cacheKey, JSON.stringify(result), REPLAY_CACHE_TTL_SECONDS);

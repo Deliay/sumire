@@ -5,7 +5,7 @@
 ## 上游客户端（liveEvents/upstream.ts）
 
 - 历史：`GET {base}/api/b/live/1727076670/history`。
-- 事件检索：`GET {base}/api/b/live/1727076670/event/range`（分页，5s 超时）。
+- 事件检索：`GET {base}/api/b/live/1727076670/event/range`（分页，5s 超时；可选时间过滤参数 `startedAt`/`endedAt`（ISO8601，实测支持，过滤后分页、total 为区间计数）；`start`/`end` 参数名无效会被忽略）。
 - 事件搜索：`GET {base}/api/b/live/1727076670/event/search`（分页，5s 超时）。
 - 事件订阅：`…/event/subscribe`（SSE 逐行解析，仅取 `data:` 行）。
 
@@ -80,8 +80,8 @@ kuroshiro+kuromoji（懒加载字典）→ 失败则 OpenCC 简→日汉字重�
 
 - 公开端点（不挂 `requireRole`，与 member/admin 端点共存于同一 router，先例 `/api/topics/public`）；面向录播回放场景，供匿名访客按时间窗口取数。
 - 参数手写守卫：`start`/`end` 必填字符串且 `new Date(...)` 合法、`end > start`、区间 ≤ 12h（`REPLAY_MAX_RANGE_MS`）；`type` 复用 `parseTypesParam`（仅 danmaku/super_chat/gift/guard_buy，缺省四类，online_rank_count 非法）；`page` 默认 1、`pageSize` 默认/上限 100。任一非法 400 `{ error }` 中文。
-- **上游实测结论（2026-09-17）**：`event/range` **不支持任何时间区间参数**——传 ISO8601（`start`/`end`）或 epoch 秒均被忽略、原样返回最新一页；分页按 `occurredAt` **倒序**且 `total` 可靠（单类型 danmaku 可达 ~79 万，历史场次深达数千页）；`pageSize` 上限 **100**（传 1000 被钳到 100）。故不透传时间参数。
-- 取数：**二分定位 + 定向扫描**兜底——先取 page=1 拿 `total` 推算总页数；二分查找「end 边界所在页」（最小页 p 使该页末条 `occurredAt <= end`，约 `log2(总页数)` 次请求收敛）；自该页起向更旧方向按 `pageSize=100` 翻页，逐条 `toLiveEvent` 归一化并收集 `occurredAt ∈ [start,end]`，遇 `occurredAt < start` 立即终止（倒序保证其后全部越界）；同一轮扫描按页缓存避免重复回源。收集阶段页数上限 50（`REPLAY_SCAN_MAX_PAGES`）截断并如实反映已收集 total。直播进行中 `total` 增长致页码漂移仅影响最新端，历史区间可忽略。`type=gift` 经 `toUpstreamTypes` 展开为 `["gift","gift_v2"]`。
+- **上游实测结论（2026-09-17）**：`event/range` **原生支持时间区间查询**，参数名为 **`startedAt`/`endedAt`**（ISO8601）；过滤与分页正交（同区间 `page=1/page=2` 的 `total` 均为区间内计数且各自返回对应页），支持开放端（仅传 `startedAt` 按下界过滤）；分页按 `occurredAt` **倒序**，`pageSize` 上限 **100**（传 1000 被钳到 100）。⚠️ 传 `start`/`end`（ISO8601 或 epoch）会被上游**忽略**、原样返回最新一页——此前「上游不支持时间参数」的误判即源于参数名用错。
+- 取数：契约 `start`/`end`(ISO8601) 映射为上游 `startedAt`/`endedAt` 透传，**直接利用上游过滤后的 `total` 与分页**：以响应 `page/pageSize` 取上游第 1 页拿 `total`（区间内计数），按升序页 ↔ 倒序页映射（同 pageSize 对齐，至多跨 2 个上游页）取回、反转/排序为升序；请求量与页码无关，不扫描全区间。`type=gift` 经 `toUpstreamTypes` 展开为 `["gift","gift_v2"]`。
 - 出口：区间内事件按 `occurredAt` 升序，按 page/pageSize 切片；**不调用** `resolveReadState`/`annotateRomaji`（零 Mongo/kuroshiro 开销），以显式投影构造 `ReplayEvent` 剔除 `read`/`sender.nameRomaji`/`contentRomaji`。上游抛错 → 502 `{ error: "上游事件服务不可用" }`。
 - 缓存抽象 `infra/liveEventsReplayCache.ts`（Redis 实现 + 内存实现），经 `AppDeps.liveEventsReplayCache` 注入；键 `live-events:replay:{startIso}:{endIso}:{types逗号连接}:{page}:{pageSize}`，TTL 300s；历史区间不可变，缓存安全。
 

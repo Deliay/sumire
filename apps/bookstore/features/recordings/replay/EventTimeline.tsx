@@ -14,7 +14,7 @@ interface EventTimelineProps {
   onRetry: () => void;
   /** 当前播放时间（秒），驱动自动跟随与高亮。 */
   currentTime: number;
-  /** 录播起点毫秒（createdAt）；null 时禁用偏移映射与跟随。 */
+  /** 分段实际起点毫秒（info.startedAt 推导，info 缺失回退 createdAt）；null 时禁用偏移映射与跟随。 */
   recordStartMs: number | null;
   /** 点击条目：跳转到相对录播的偏移秒（走既有 seek 路径）。 */
   onSeek: (offsetSeconds: number) => void;

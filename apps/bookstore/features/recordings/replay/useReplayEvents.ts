@@ -11,9 +11,9 @@ export const MAX_WINDOW_PAGES = 20;
 export const WINDOW_PAGE_SIZE = 100;
 
 export interface UseReplayEventsOptions {
-  /** 录播起点毫秒（createdAt）；null 时禁用取数。 */
+  /** 分段实际起点毫秒（info.startedAt 推导，info 缺失回退 createdAt）；null 时禁用取数。 */
   startMs: number | null;
-  /** 录播终点毫秒（duration 就绪后）；null 时以 start + 12h 为上界。 */
+  /** 分段实际终点毫秒（info.endedAt 推导 / duration 兜底）；null 时以 start + 12h 为上界。 */
   endMs?: number | null;
 }
 

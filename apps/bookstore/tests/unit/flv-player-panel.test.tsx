@@ -119,19 +119,71 @@ describe("FlvPlayerPanel 播放能力", () => {
     expect(onTimeUpdate).toHaveBeenCalledWith(30, 120);
   });
 
-  it("暂停按钮切换播放/暂停", async () => {
+  it("控制条播放/暂停按钮切换播放态（初始暂停）", async () => {
     await renderPanel();
     await vi.waitFor(() => expect(mp.players).toHaveLength(1));
-    const pause = await screen.findByRole("button", { name: "暂停" });
-    await act(async () => {
-      fireEvent.click(pause);
-    });
-    expect(mp.players[0].pause).toHaveBeenCalledTimes(1);
-    const play = screen.getByRole("button", { name: "播放" });
+    const play = await screen.findByRole("button", { name: "播放" });
+    expect(mp.players[0].play).not.toHaveBeenCalled();
     await act(async () => {
       fireEvent.click(play);
     });
-    expect(mp.players[0].play.mock.calls.length).toBeGreaterThan(1);
+    expect(mp.players[0].play).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "暂停" }));
+    });
+    expect(mp.players[0].pause).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "播放" })).toBeTruthy();
+  });
+
+  it("初始为暂停态：控制条为「播放」按钮、画面叠加纯视觉播放 overlay、未自动播放", async () => {
+    await renderPanel();
+    await vi.waitFor(() => expect(mp.players).toHaveLength(1));
+    expect(screen.getByRole("button", { name: "播放" })).toBeTruthy();
+    const overlay = screen.getByTestId("play-overlay");
+    expect(overlay.getAttribute("aria-hidden")).toBe("true");
+    expect(overlay.className).toContain("pointer-events-none");
+    expect(mp.players[0].play).not.toHaveBeenCalled();
+  });
+
+  it("点击视频画面切换播放/暂停且 overlay 随态显隐", async () => {
+    await renderPanel();
+    await vi.waitFor(() => expect(mp.players).toHaveLength(1));
+    const surface = screen.getByLabelText("录播视频").parentElement as HTMLElement;
+    expect(screen.getByTestId("play-overlay")).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(surface);
+    });
+    expect(mp.players[0].play).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "暂停" })).toBeTruthy();
+    expect(screen.queryByTestId("play-overlay")).toBeNull();
+    await act(async () => {
+      fireEvent.click(surface);
+    });
+    expect(mp.players[0].pause).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("play-overlay")).toBeTruthy();
+  });
+
+  it("全屏控制条点击不冒泡至画面（避免双切换）", async () => {
+    await renderPanel();
+    await vi.waitFor(() => expect(mp.players).toHaveLength(1));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "网页全屏" }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "播放" }));
+    });
+    expect(mp.players[0].play).toHaveBeenCalledTimes(1);
+    expect(mp.players[0].pause).not.toHaveBeenCalled();
+  });
+
+  it("失败态不渲染播放 overlay", async () => {
+    await renderPanel();
+    await vi.waitFor(() => expect(mp.players).toHaveLength(1));
+    const onError = mp.players[0].on.mock.calls.find(([evt]) => evt === "error")?.[1] as () => void;
+    await act(async () => {
+      onError();
+    });
+    expect(screen.queryByTestId("play-overlay")).toBeNull();
   });
 
   it("overlay 渲染在视频画面容器内", async () => {
@@ -143,6 +195,7 @@ describe("FlvPlayerPanel 播放能力", () => {
     mp.isSupported.mockReturnValue(false);
     render(<FlvPlayerPanel roomId={1} file={file("回放 一.flv")} />);
     expect(await screen.findByText(/当前浏览器不支持在线播放/)).toBeTruthy();
+    expect(screen.queryByTestId("play-overlay")).toBeNull();
     expect(mp.createPlayer).not.toHaveBeenCalled();
     const download = screen.getByRole("link", { name: /下载/ });
     expect(download.getAttribute("href")).toBe(

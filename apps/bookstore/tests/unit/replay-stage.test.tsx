@@ -169,6 +169,43 @@ describe("ReplayStage 双全屏", () => {
   });
 });
 
+describe("ReplayStage 桌面布局", () => {
+  it("视频列 lg:w-4/5、事件列 lg:w-1/5 且无固定高度，二者同处 lg:flex-row 弹性行", async () => {
+    await renderStage();
+    const videoCol = screen.getByLabelText("录播播放区").parentElement as HTMLElement;
+    expect(videoCol.className).toContain("lg:w-4/5");
+    expect(videoCol.className).not.toContain("lg:w-3/4");
+
+    const timelineCol = screen.getByLabelText("事件列表").parentElement as HTMLElement;
+    expect(timelineCol.className).toContain("lg:w-1/5");
+    expect(timelineCol.className).not.toContain("lg:h-[70vh]");
+    expect(timelineCol.parentElement).toBe(videoCol.parentElement);
+    expect(videoCol.parentElement?.className).toContain("lg:flex-row");
+  });
+
+  it("长事件列表不撑开事件列：包裹层 lg:relative、内层 lg:absolute lg:inset-0 脱离文档流", async () => {
+    await renderStage();
+    const timeline = screen.getByLabelText("事件列表");
+    const timelineCol = timeline.parentElement as HTMLElement;
+    // 内层绝对定位于相对定位包裹层：内容固有高度不参与行高计算
+    expect(timeline.className).toContain("lg:absolute");
+    expect(timeline.className).toContain("lg:inset-0");
+    expect(timelineCol.className).toContain("lg:relative");
+    // 滚动容器仍在，负责列内滚动
+    expect(screen.getByTestId("event-timeline-scroll")).toBeTruthy();
+  });
+
+  it("网页全屏下事件列保持 1/5 列宽且不加固定高度", async () => {
+    await renderStage();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "网页全屏" }));
+    });
+    const timelineCol = screen.getByLabelText("事件列表").parentElement as HTMLElement;
+    expect(timelineCol.className).toContain("lg:w-1/5");
+    expect(timelineCol.className).not.toContain("lg:h-[70vh]");
+  });
+});
+
 describe("ReplayStage MSE 降级", () => {
   it("不支持在线播放：展示降级提示，事件列表仍正常展示", async () => {
     h.isSupported.mockReturnValue(Promise.resolve(false));

@@ -107,7 +107,7 @@ export default function EventTimeline({
   const virtualItems = virtualizer.getVirtualItems();
 
   return (
-    <section aria-label="事件列表" className="flex min-h-0 flex-col gap-2">
+    <section aria-label="事件列表" className="flex min-h-0 flex-col gap-2 lg:absolute lg:inset-0">
       {!following && (
         <div className="flex justify-end">
           <button

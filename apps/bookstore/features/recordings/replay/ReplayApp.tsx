@@ -15,7 +15,7 @@ type ResolvedState =
 
 function ReplayEmpty({ message }: { message: string }) {
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col items-start gap-4 px-2.5 py-24 lg:px-5">
+    <div className="mx-auto flex w-full max-w-7xl flex-col items-start gap-4 px-1 py-24 lg:px-2">
       <p className="text-ink-dim">{message}</p>
       <Link
         href="/recordings"
@@ -71,7 +71,7 @@ export default function ReplayApp() {
 
   if (state === null) {
     return (
-      <div className="mx-auto w-full max-w-7xl px-2.5 py-24 lg:px-5">
+      <div className="mx-auto w-full max-w-7xl px-1 py-24 lg:px-2">
         <p className="text-ink-dim">正在加载录播…</p>
       </div>
     );
@@ -89,7 +89,7 @@ export default function ReplayApp() {
   const sessionTitle = state.file.info?.title?.trim();
   const sessionStart = state.file.info?.startedAt || state.file.createdAt;
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-2.5 py-24 lg:px-5">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-1 py-24 lg:px-2">
       <header className="flex flex-col gap-2">
         <h1 className="font-serif text-h1 text-ink">录播回放</h1>
         <p className="text-small text-ink-dim">

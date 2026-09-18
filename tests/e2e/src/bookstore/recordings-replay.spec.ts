@@ -127,7 +127,7 @@ const REPLAY_EVENTS_GLOB = "**/api/live-events/replay*";
 /** 记录回放事件请求 URL，供断言 roomId 透传。 */
 const replayRequests: string[] = [];
 
-async function mockReplayEvents(page: Page, opts: { status?: number } = {}) {
+async function mockReplayEvents(page: Page, opts: { status?: number; events?: unknown } = {}) {
   const cors = { "Access-Control-Allow-Origin": "*" };
   await page.route(REPLAY_EVENTS_GLOB, async (route) => {
     replayRequests.push(route.request().url());
@@ -135,8 +135,26 @@ async function mockReplayEvents(page: Page, opts: { status?: number } = {}) {
       await route.fulfill({ status: opts.status, contentType: "application/json", headers: cors, body: "{}" });
       return;
     }
-    await route.fulfill({ status: 200, contentType: "application/json", headers: cors, body: JSON.stringify(REPLAY_EVENTS) });
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: cors,
+      body: JSON.stringify(opts.events ?? REPLAY_EVENTS),
+    });
   });
+}
+
+/** 生成数百条弹幕事件（虚拟化总高度远超视频列高，用于验证事件列不撑开页面）。 */
+function longEventsFixture(count: number) {
+  const base = Date.parse(SESSION_START);
+  const items = Array.from({ length: count }, (_, i) => ({
+    eventId: `long-${i}`,
+    type: "danmaku",
+    occurredAt: new Date(base + (i + 1) * 1000).toISOString(),
+    sender: SENDER,
+    content: `第 ${i + 1} 条弹幕`,
+  }));
+  return { total: count, page: 1, pageSize: 100, items };
 }
 
 function replayUrl(): string {
@@ -160,6 +178,63 @@ test.describe("bookstore 回放页", () => {
     await expect(page.getByRole("link", { name: "下载该场录播" })).toBeVisible();
     await expect(page.getByRole("link", { name: "返回录播列表" })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "弹幕事件" })).toHaveCount(0);
+  });
+
+  test("recordings-replay-initial-paused: 打开回放页默认暂停并展示画面播放 overlay", async ({ page }) => {
+    await mockRecordingsUpstream(page);
+    await mockReplayEvents(page);
+    await page.goto(replayUrl());
+
+    await expect(page.getByLabel("录播视频")).toBeVisible();
+    // 控制条播放按钮初始为「播放」（默认暂停态）
+    await expect(page.getByRole("button", { name: "播放", exact: true })).toBeVisible();
+    // 画面中央播放 overlay 可见（纯视觉层）
+    await expect(page.getByTestId("play-overlay")).toBeVisible();
+  });
+
+  test("recordings-replay-layout: 桌面端事件列与视频列同屏且等高", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await mockRecordingsUpstream(page);
+    await mockReplayEvents(page);
+    await page.goto(replayUrl());
+
+    const videoCol = page.getByLabel("录播播放区").locator("..");
+    const timelineCol = page.getByRole("region", { name: "事件列表" }).locator("..");
+    await expect(videoCol).toBeVisible();
+    await expect(timelineCol).toBeVisible();
+
+    const videoBox = await videoCol.boundingBox();
+    const timelineBox = await timelineCol.boundingBox();
+    expect(videoBox).not.toBeNull();
+    expect(timelineBox).not.toBeNull();
+    // 视频列与事件列同处一行且由 flex stretch 等高（容差 4px 覆盖亚像素）
+    expect(Math.abs((videoBox?.y ?? 0) - (timelineBox?.y ?? 0))).toBeLessThanOrEqual(4);
+    expect(Math.abs((videoBox?.height ?? 0) - (timelineBox?.height ?? 0))).toBeLessThanOrEqual(4);
+  });
+
+  test("recordings-replay-layout-long: 长事件列表不撑开页面，事件列与视频列等高", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await mockRecordingsUpstream(page);
+    await mockReplayEvents(page, { events: longEventsFixture(400) });
+    await page.goto(replayUrl());
+
+    const videoCol = page.getByLabel("录播播放区").locator("..");
+    const timelineCol = page.getByRole("region", { name: "事件列表" }).locator("..");
+    await expect(videoCol).toBeVisible();
+    await expect(timelineCol).toBeVisible();
+    await expect(page.locator("[data-timeline-event]").first()).toBeVisible();
+
+    const videoBox = await videoCol.boundingBox();
+    const timelineBox = await timelineCol.boundingBox();
+    expect(videoBox).not.toBeNull();
+    expect(timelineBox).not.toBeNull();
+    // 事件列高度 ≈ 视频列高度（绝对定位内层不参与行高计算）
+    expect(Math.abs((videoBox?.height ?? 0) - (timelineBox?.height ?? 0))).toBeLessThanOrEqual(4);
+    // 视频列受 aspect-video 约束，未被虚拟列表数千 px 占位撑开
+    expect(videoBox?.height ?? 0).toBeLessThan(900);
+    // 页面整体高度不被事件列表撑开
+    const scrollHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+    expect(scrollHeight).toBeLessThan(3000);
   });
 
   test("recordings-replay-room: 事件请求携带本页 roomId（不串到其它直播间）", async ({ page }) => {

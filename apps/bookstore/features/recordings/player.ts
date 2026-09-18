@@ -41,6 +41,11 @@ export interface PlayOptions {
   onError?: () => void;
   /** 文件字节大小（录播用），用于按码率折算缓冲上限。 */
   fileSize?: number;
+  /**
+   * 就绪后是否自动播放（缺省 `true`）。回放页传 `false`：仅 `load()` 不 `play()`，
+   * 规避浏览器对带声音自动播放的拦截（`LiveAudioButton` 为用户手势触发，不传）。
+   */
+  autoplay?: boolean;
 }
 
 /** 播放 buffer 字节预算上限（前瞻 + 回退合计）。 */
@@ -168,7 +173,7 @@ export async function play(url: string, videoEl: HTMLVideoElement, options: Play
     player.on(mpegts.Events.ERROR, options.onError);
   }
   player.load();
-  void player.play();
+  if (options.autoplay !== false) void player.play();
   currentPlayer = player;
   currentUrl = url;
   emit();

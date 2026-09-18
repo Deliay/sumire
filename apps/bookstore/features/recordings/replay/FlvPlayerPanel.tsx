@@ -102,7 +102,7 @@ export default function FlvPlayerPanel({
   const seekBeforeRef = useRef(0);
   const bufferDurationRef = useRef(0);
   const [supported, setSupported] = useState<boolean | null>(null);
-  const [paused, setPaused] = useState(false);
+  const [paused, setPaused] = useState(true);
   const [failed, setFailed] = useState(false);
   const [volume, setVolume] = useState(1);
   const [currentTime, setCurrentTime] = useState(0);
@@ -166,12 +166,13 @@ export default function FlvPlayerPanel({
     if (!video) return;
     clearSeekWatchdog();
     setFailed(false);
-    setPaused(false);
+    setPaused(true);
     setSeeking(false);
     setCurrentTime(0);
     setDuration(0);
     void play(url, video, {
       isLive: false,
+      autoplay: false,
       fileSize: file.size,
       onError: () => {
         setFailed(true);
@@ -491,6 +492,7 @@ export default function FlvPlayerPanel({
         >
           <div
             className="relative aspect-video w-full overflow-hidden rounded-lg bg-black"
+            onClick={togglePlay}
             onMouseMove={mode === "none" ? undefined : showControls}
             onMouseLeave={mode === "none" ? undefined : scheduleControlsHide}
           >
@@ -507,9 +509,22 @@ export default function FlvPlayerPanel({
             />
             {overlay}
 
+            {paused && !failed && (
+              <div
+                data-testid="play-overlay"
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 grid place-items-center"
+              >
+                <span className="grid size-16 place-items-center rounded-full bg-night/60 text-flower">
+                  <Play size={28} aria-hidden />
+                </span>
+              </div>
+            )}
+
             {mode !== "none" && (
               <div
                 data-testid="fullscreen-controls"
+                onClick={(e) => e.stopPropagation()}
                 onMouseEnter={() => {
                   hoveringControlsRef.current = true;
                   showControls();
@@ -527,7 +542,11 @@ export default function FlvPlayerPanel({
             )}
           </div>
 
-          {mode === "none" && <div className="flex flex-col gap-2">{controls}</div>}
+          {mode === "none" && (
+            <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+              {controls}
+            </div>
+          )}
 
           {failed && (
             <p role="alert" className="text-small text-crimson">

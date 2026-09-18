@@ -46,6 +46,7 @@ import {
   seekToByteOffset,
   configureBufferForBitrate,
   computeBufferConfig,
+  getPlayingUrl,
   BUFFER_BUDGET_BYTES,
 } from "@/features/recordings/player";
 
@@ -128,6 +129,27 @@ describe("play 缓冲封顶", () => {
     expect(mp.players[0].setBufferLimits).toHaveBeenCalledWith(
       expect.objectContaining({ lazyLoadMaxDuration: 300 }),
     );
+  });
+});
+
+describe("play autoplay 选项", () => {
+  it("autoplay: false 时 load 但不清空并调用 play", async () => {
+    await play("https://rec.example.com/a.flv", fakeVideo(), { isLive: false, autoplay: false });
+    expect(mp.players).toHaveLength(1);
+    expect(mp.players[0].load).toHaveBeenCalledTimes(1);
+    expect(mp.players[0].play).not.toHaveBeenCalled();
+  });
+
+  it("autoplay: false 时归属订阅照常生效", async () => {
+    const url = "https://rec.example.com/a.flv";
+    await play(url, fakeVideo(), { isLive: false, autoplay: false });
+    expect(getPlayingUrl()).toBe(url);
+  });
+
+  it("缺省不传 autoplay：load 与 play 均调用（现状等价回归）", async () => {
+    await play("https://rec.example.com/b.flv", fakeVideo(), { isLive: false });
+    expect(mp.players[0].load).toHaveBeenCalledTimes(1);
+    expect(mp.players[0].play).toHaveBeenCalledTimes(1);
   });
 });
 

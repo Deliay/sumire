@@ -172,7 +172,7 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 | `features/topics/api.ts` | 管理端点 + 公开端点封装 |
 | `features/topics/status.ts` | 状态文案/徽标色纯函数 |
 | `features/topics/clientKey.ts` | localStorage 客户端标识读写 |
-| `features/markdown/MarkdownEditor.tsx` | @uiw/react-md-editor 封装（`next/dynamic ssr:false`） |
+| `features/markdown/MarkdownEditor.tsx` | @uiw/react-md-editor 封装（`next/dynamic ssr:false`）；`commandsFilter` 按 `command.name` 精确剔除 `code`/`codeBlock`/`link`/`image`（按钮与快捷键同源失效）；非只读默认 `preview="live"`（Live code 分屏实时预览），只读 `preview="preview"` 且隐藏工具栏 |
 | `features/markdown/MarkdownView.tsx` | react-markdown + remark-gfm（禁原始 HTML） |
 
 ### 组件

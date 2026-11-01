@@ -72,13 +72,13 @@ export default function DayDetailDialog({
     onClose();
   }
 
-  // readOnly 模式用 paper 色系（浅底深字），管理模式用 raised 色系（深底浅字）
-  const textMain = readOnly ? "text-ink-on-paper" : "text-ink";
-  const textSub = readOnly ? "text-ink-on-paper/70" : "text-ink/70";
-  const textDim = readOnly ? "text-ink-on-paper/60" : "text-ink-dim";
-  const divider = readOnly ? "border-ink-on-paper/10" : "border-vine/30";
-  const emptyText = readOnly ? "text-ink-on-paper/50" : "text-ink-dim";
-  const tagCls = readOnly ? "border-ink-on-paper/30 text-ink-on-paper/60" : "border-vine/40 text-ink-dim";
+  // 只读与管理态统一使用 raised 深底浅字（反白面仅用于引用 / 海报式图版）
+  const textMain = "text-ink";
+  const textSub = "text-ink/70";
+  const textDim = "text-ink-dim";
+  const divider = "border-line";
+  const emptyText = "text-ink-dim";
+  const tagCls = "border-line text-ink-dim";
 
   const body = (
     <>
@@ -197,15 +197,15 @@ export default function DayDetailDialog({
         }}
       >
         {/* 公开站当日详情：悬浮面板形态，不整屏变灰/毛玻璃，保留可点击外部关闭 */}
-        <div className="w-full max-w-md rounded-xl border border-vine/50 bg-paper p-6 shadow-xl">
+        <div className="w-full max-w-md rounded-md border border-line bg-raised p-6 shadow-overlay">
           <div className="flex items-center justify-between">
-            <h2 id="day-detail-title" className="font-serif text-xl font-semibold text-ink-on-paper">
+            <h2 id="day-detail-title" className="font-serif text-xl font-semibold text-ink">
               {dayTitle(date)}
             </h2>
             <button
               type="button"
               onClick={handleClose}
-              className="text-ink-on-paper/60 transition-colors hover:text-ink-on-paper"
+              className="text-ink-dim transition-colors hover:text-ink"
               aria-label="关闭"
             >
               ✕
@@ -228,7 +228,7 @@ export default function DayDetailDialog({
         if (e.target === e.currentTarget) handleClose();
       }}
     >
-      <div className="w-full max-w-md rounded-xl border border-vine/50 bg-raised p-6 shadow-xl">
+      <div className="w-full max-w-md rounded-md border border-line bg-raised p-6 shadow-overlay">
         <div className="flex items-center justify-between">
           <h2 id="day-detail-title" className="font-serif text-xl font-semibold text-ink">
             {dayTitle(date)}

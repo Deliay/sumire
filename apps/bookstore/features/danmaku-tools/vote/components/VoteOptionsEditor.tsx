@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Button from "@/components/ui/Button";
+import Field from "@/components/ui/Field";
+import Surface from "@/components/ui/Surface";
 import type { VoteOption } from "../types";
 
 interface VoteOptionsEditorProps {
@@ -34,55 +37,49 @@ export default function VoteOptionsEditor({
       {options.length > 0 && (
         <div className="flex flex-col gap-2">
           {options.map((option) => (
-            <div
+            <Surface
               key={option.id}
-              className="flex items-center justify-between rounded-md border border-vine/50 bg-raised px-3 py-2"
+              padding="none"
+              className="flex items-center justify-between px-3 py-2"
             >
               <div className="flex flex-col">
                 <span className="text-sm font-medium text-ink">{option.name}</span>
                 <span className="text-xs text-ink-dim">关键字：{option.keyword}</span>
               </div>
               {!voting && (
-                <button
-                  type="button"
-                  onClick={() => onRemove(option.id)}
-                  className="text-sm text-ink-dim transition-colors hover:text-crimson"
-                >
+                <Button variant="danger" size="sm" onClick={() => onRemove(option.id)}>
                   删除
-                </button>
+                </Button>
               )}
-            </div>
+            </Surface>
           ))}
         </div>
       )}
 
       <div className="flex flex-col gap-2">
-        <div className="flex gap-2">
-          <input
+        <div className="flex items-end gap-2">
+          <Field
+            label="名称"
             type="text"
             placeholder="名称"
             value={name}
             onChange={(e) => setName(e.target.value)}
             disabled={voting}
-            className="flex-1 rounded-md border border-vine/50 bg-transparent px-3 py-2 text-sm text-ink outline-none transition-colors placeholder:text-ink-dim/50 focus:border-flower disabled:opacity-50"
+            className="flex-1"
           />
-          <input
+          <Field
+            label="匹配关键字"
             type="text"
             placeholder="匹配关键字"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             disabled={voting}
-            className="flex-1 rounded-md border border-vine/50 bg-transparent px-3 py-2 text-sm text-ink outline-none transition-colors placeholder:text-ink-dim/50 focus:border-flower disabled:opacity-50"
+            className="flex-1"
           />
+          <Button variant="primary" size="md" onClick={handleAdd} disabled={voting}>
+            添加选项
+          </Button>
         </div>
-        <button
-          type="button"
-          onClick={handleAdd}
-          disabled={voting}
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-ink-on-paper transition-colors hover:bg-primary/80 disabled:opacity-50"
-        >
-          添加选项
-        </button>
       </div>
 
       {hint && (

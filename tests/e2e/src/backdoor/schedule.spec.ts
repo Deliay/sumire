@@ -74,7 +74,7 @@ test.describe("backdoor 直播计划", () => {
     // 移出所选日：原日弹层移除该条、提示已移至、目标日弹层出现该条
     await expect(page.getByRole("dialog").getByText(title)).toHaveCount(0);
     await expect(page.getByText(/已移至 \d+ 月 \d+ 日/)).toBeVisible();
-    await page.getByRole("dialog").getByRole("button", { name: "关闭" }).click();
+    await page.getByRole("dialog", { name: /月 .*日/ }).getByRole("button", { name: "关闭" }).click();
 
     const targetCell = page.locator(`[data-testid="calendar-day"][data-date="${target}"]`);
     await targetCell.click();
@@ -217,15 +217,15 @@ test.describe("backdoor 直播计划 timeType（时间待定/全天）", () => {
 
     // 保存后当日弹层可见新计划，显示 TBD 标识
     await expect(page.getByRole("dialog").getByText(title)).toBeVisible();
-    await expect(page.getByRole("dialog").getByText("TBD")).toBeVisible();
+    await expect(page.getByRole("dialog").getByText("TBD", { exact: true }).first()).toBeVisible();
 
     // 关闭弹层，检查日历格子摘要
-    await page.getByRole("dialog").getByRole("button", { name: "关闭" }).click();
+    await page.getByRole("dialog", { name: /月 .*日/ }).getByRole("button", { name: "关闭" }).click();
     await expect(page.getByTestId("calendar-day").filter({ hasText: "TBD" })).toBeVisible();
 
     // 点击打开当日详情，确认 TBD 标识
     await todayCell.click();
-    await expect(page.getByRole("dialog").getByText("TBD")).toBeVisible();
+    await expect(page.getByRole("dialog").getByText("TBD", { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("dialog").getByText(title)).toBeVisible();
 
     // 清理：删除
@@ -265,7 +265,7 @@ test.describe("backdoor 直播计划 timeType（时间待定/全天）", () => {
     await expect(page.getByRole("dialog").getByText("全天")).toBeVisible();
 
     // 关闭弹层，检查日历格子摘要
-    await page.getByRole("dialog").getByRole("button", { name: "关闭" }).click();
+    await page.getByRole("dialog", { name: /月 .*日/ }).getByRole("button", { name: "关闭" }).click();
     await expect(page.getByTestId("calendar-day").filter({ hasText: "全天" })).toBeVisible();
 
     // 点击打开当日详情，确认全天标识
@@ -314,9 +314,9 @@ test.describe("backdoor 直播计划 timeType（时间待定/全天）", () => {
     await page.getByRole("button", { name: "确认" }).click();
 
     // 验证：当日详情显示 TBD
-    await page.getByRole("dialog").getByRole("button", { name: "关闭" }).click();
+    await page.getByRole("dialog", { name: /月 .*日/ }).getByRole("button", { name: "关闭" }).click();
     await todayCell.click();
-    await expect(page.getByRole("dialog").getByText("TBD")).toBeVisible();
+    await expect(page.getByRole("dialog").getByText("TBD", { exact: true }).first()).toBeVisible();
 
     // 清理
     await page.getByRole("button", { name: `删除 ${title}` }).click();

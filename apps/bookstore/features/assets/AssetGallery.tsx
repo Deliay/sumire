@@ -2,8 +2,14 @@
 
 import { Download, X } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import Button from "@/components/ui/Button";
+import EmptyState from "@/components/ui/EmptyState";
+import Plate from "@/components/ui/Plate";
+import Surface from "@/components/ui/Surface";
+import { useFocusTrap } from "@/lib/useFocusTrap";
+import { cn } from "@/lib/cn";
 import {
   ASSET_CATEGORY_LABELS,
   assetOriginalUrl,
@@ -20,39 +26,23 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: "promo", label: "宣传图" },
 ];
 
-function Lightbox({
-  asset,
-  onClose,
-}: {
-  asset: Asset;
-  onClose: () => void;
-}) {
-  const closeRef = useRef<HTMLButtonElement>(null);
+function Lightbox({ asset, onClose }: { asset: Asset; onClose: () => void }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, true, { lockScroll: true, onEscape: onClose });
 
-  useEffect(() => {
-    closeRef.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKeyDown);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = "";
-    };
-  }, [onClose]);
-
-  // 经 portal 挂到 body：脱离 transform/overflow 祖先（整页 deck 轨道 will-change:transform 会成为 fixed 包含块并裁剪），确保 fixed 覆盖层以视口为基准可见
+  // 经 portal 挂到 body：脱离 transform/overflow 祖先（整页 deck 轨道 will-change:transform 会成为 fixed 包含块并裁剪）
   return createPortal(
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-label={asset.title}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-night/90 p-4 backdrop-blur-sm"
+      tabIndex={-1}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-night/96 p-4"
       onClick={onClose}
     >
       <div
-        className="flex max-h-full flex-col items-center gap-4"
+        className="flex max-h-full w-full max-w-3xl flex-col items-center gap-4"
         onClick={(event) => event.stopPropagation()}
       >
         <Image
@@ -60,114 +50,98 @@ function Lightbox({
           alt={asset.title}
           width={asset.width}
           height={asset.height}
-          className="max-h-[70svh] w-auto max-w-full rounded-lg object-contain"
+          className="max-h-[70svh] w-auto max-w-full border border-line bg-soft object-contain"
         />
-        <div className="w-full max-w-xl rounded-lg border border-vine/50 bg-raised p-4">
+        <Surface padding="sm" className="w-full">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h3 className="font-serif font-semibold text-ink">{asset.title}</h3>
-            <span className="text-xs text-ink-dim">
-              {ASSET_CATEGORY_LABELS[asset.category]} · {asset.width} ×{" "}
-              {asset.height}
+            <h3 className="font-serif text-h3 font-semibold text-ink">{asset.title}</h3>
+            <span className="font-mono text-label text-ink-dim">
+              {ASSET_CATEGORY_LABELS[asset.category]} · {asset.width} × {asset.height}
             </span>
           </div>
-          {asset.note && (
-            <p className="mt-1 text-sm text-ink-dim">{asset.note}</p>
-          )}
-          <div className="mt-3 flex gap-3">
-            <a
+          {asset.note ? <p className="mt-1 text-small text-ink-dim">{asset.note}</p> : null}
+          <div className="mt-3 flex flex-wrap gap-3">
+            <Button
               href={assetOriginalUrl(asset)}
               download
-              className="inline-flex items-center gap-2 rounded-full border border-flower px-4 py-1.5 text-sm text-ink transition-shadow hover:shadow-[0_0_18px_-2px_var(--color-flower)]"
+              variant="primary"
+              size="sm"
+              icon={<Download size={14} />}
             >
-              <Download size={14} aria-hidden /> 下载原图
-            </a>
-            <button
-              ref={closeRef}
-              type="button"
-              onClick={onClose}
-              className="inline-flex items-center gap-2 rounded-full border border-vine px-4 py-1.5 text-sm text-ink-dim transition-colors hover:text-ink"
-            >
-              <X size={14} aria-hidden /> 关闭
-            </button>
+              下载原图
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onClose} icon={<X size={14} />}>
+              关闭
+            </Button>
           </div>
-        </div>
+        </Surface>
       </div>
     </div>,
     document.body,
   );
 }
 
-/**
- * 素材画廊：分类筛选 + 网格 + Lightbox。
- */
+/** 素材画廊：下划线分类 tab + 图版网格 + Lightbox（焦点陷阱）。 */
 export default function AssetGallery({ assets }: { assets: Asset[] }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [selected, setSelected] = useState<Asset | null>(null);
 
   const visible =
-    filter === "all"
-      ? assets
-      : assets.filter((asset) => asset.category === filter);
+    filter === "all" ? assets : assets.filter((asset) => asset.category === filter);
 
   return (
     <>
-      {/* 分类筛选 */}
-      <div className="flex flex-wrap gap-3" role="group" aria-label="素材分类">
-        {FILTERS.map((item) => (
-          <button
-            key={item.value}
-            type="button"
-            onClick={() => setFilter(item.value)}
-            aria-pressed={filter === item.value}
-            className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
-              filter === item.value
-                ? "bg-primary font-medium text-night"
-                : "border border-vine text-ink-dim hover:text-ink"
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
+      <div className="flex flex-wrap gap-6 border-b border-line" role="group" aria-label="素材分类">
+        {FILTERS.map((item) => {
+          const active = filter === item.value;
+          return (
+            <button
+              key={item.value}
+              type="button"
+              onClick={() => setFilter(item.value)}
+              aria-pressed={active}
+              className={cn(
+                "min-h-11 border-b-2 pb-2 text-small transition-colors duration-(--duration-fast)",
+                active
+                  ? "border-primary text-ink"
+                  : "border-transparent text-ink-dim hover:text-ink",
+              )}
+            >
+              {item.label}
+            </button>
+          );
+        })}
       </div>
 
-      {/* 素材网格 */}
-      <ul className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {visible.map((asset) => (
-          <li key={asset.id}>
-            <button
-              type="button"
-              onClick={() => setSelected(asset)}
-              className="group block w-full overflow-hidden rounded-lg border border-vine/50 bg-raised text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-flower/70"
-            >
-              <span className="relative block aspect-[4/5] w-full overflow-hidden bg-soft">
-                <Image
+      {visible.length === 0 ? (
+        <EmptyState className="mt-8" title="暂无素材" description="这个分类下还没有可展示的图版。" />
+      ) : (
+        <ul className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {visible.map((asset, index) => (
+            <li key={asset.id}>
+              <button
+                type="button"
+                onClick={() => setSelected(asset)}
+                className="group block w-full text-left transition-opacity duration-(--duration-fast) hover:opacity-90"
+              >
+                <Plate
+                  as="div"
                   src={assetThumbnailUrl(asset)}
                   alt={asset.title}
-                  fill
+                  width={asset.width}
+                  height={asset.height}
                   sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
-                  className={`transition-transform duration-500 group-hover:scale-[1.03] ${
-                    asset.category === "standing"
-                      ? "object-contain p-4"
-                      : "object-cover"
-                  }`}
+                  fit={asset.category === "standing" ? "contain" : "cover"}
+                  index={index + 1}
+                  caption={`${asset.title} · ${ASSET_CATEGORY_LABELS[asset.category]}`}
                 />
-              </span>
-              <span className="flex items-baseline justify-between gap-2 p-4">
-                <span className="font-serif text-sm font-semibold text-ink">
-                  {asset.title}
-                </span>
-                <span className="shrink-0 text-xs text-ink-dim">
-                  {ASSET_CATEGORY_LABELS[asset.category]}
-                </span>
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
-
-      {selected && (
-        <Lightbox asset={selected} onClose={() => setSelected(null)} />
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
+
+      {selected ? <Lightbox asset={selected} onClose={() => setSelected(null)} /> : null}
     </>
   );
 }

@@ -71,7 +71,7 @@ export default function TimePicker({ id, value, onChange, invalid }: TimePickerP
         }}
         onChange={(e) => setEditing(e.target.value)}
         className={`w-full rounded-md border bg-soft px-3 py-2 text-base tabular-nums text-ink outline-none transition-colors duration-150 focus:border-flower ${
-          invalid ? "border-flower" : "border-vine/50"
+          invalid ? "border-flower" : "border-line"
         }`}
         placeholder="20:00"
         aria-label="开始时间"
@@ -79,7 +79,7 @@ export default function TimePicker({ id, value, onChange, invalid }: TimePickerP
       />
       {hint && <p className="text-xs text-flower">{hint}</p>}
       {open && (
-        <div className="absolute left-0 top-full z-20 mt-2 w-64 rounded-lg border border-vine/50 bg-raised p-3 shadow-xl">
+        <div className="absolute left-0 top-full z-20 mt-2 w-64 rounded-lg border border-line bg-raised p-3 shadow-overlay">
           <div className="flex gap-2">
             <div className="max-h-48 flex-1 overflow-y-auto">
               {HOURS.map((hh) => (
@@ -110,13 +110,13 @@ export default function TimePicker({ id, value, onChange, invalid }: TimePickerP
               ))}
             </div>
           </div>
-          <div className="mt-3 flex flex-wrap gap-1.5 border-t border-vine/40 pt-2">
+          <div className="mt-3 flex flex-wrap gap-1.5 border-t border-line pt-2">
             {QUICK_TIMES.map((t) => (
               <button
                 key={t}
                 type="button"
                 onClick={() => commitTime(t)}
-                className="rounded border border-vine/50 px-2 py-0.5 text-xs tabular-nums text-ink-dim transition-colors hover:border-flower hover:text-ink"
+                className="rounded border border-line px-2 py-0.5 text-xs tabular-nums text-ink-dim transition-colors hover:border-flower hover:text-ink"
               >
                 {t}
               </button>

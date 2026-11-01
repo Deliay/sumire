@@ -7,6 +7,7 @@ import MarshmallowCard from "@/features/topics/components/MarshmallowCard";
 import TopicFormDialog from "@/features/topics/components/TopicFormDialog";
 import ShareTopicDialog from "@/features/topics/components/ShareTopicDialog";
 import { RequireRole } from "@/features/backdoor/RequireRole";
+import Button from "@/components/ui/Button";
 import {
   getTopic,
   listMarshmallows,
@@ -139,43 +140,27 @@ export default function TopicDetailView() {
         <div className="flex items-center justify-between mb-2">
           <h1 className="font-serif text-2xl font-semibold text-ink">{topic.title}</h1>
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setShowShare(true)}
-              className="text-xs text-ink-dim hover:text-ink border border-vine rounded px-2 py-1"
-            >
+            <Button variant="ghost" size="sm" onClick={() => setShowShare(true)}>
               分享
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => window.open(`/backdoor/topics/presentation?id=${id}`, "_blank")}
-              className="text-xs text-ink-dim hover:text-ink border border-vine rounded px-2 py-1"
             >
               幻灯片
-            </button>
+            </Button>
             {!isArchived && (
               <>
-                <button
-                  type="button"
-                  onClick={handleStartStop}
-                  className="text-xs text-ink-dim hover:text-ink border border-vine rounded px-2 py-1"
-                >
+                <Button variant="ghost" size="sm" onClick={handleStartStop}>
                   {topic.status === "collecting" ? "结束收集" : "开始收集"}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleArchive}
-                  className="text-xs text-ink-dim hover:text-ink border border-vine rounded px-2 py-1"
-                >
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleArchive}>
                   归档
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowEdit(true)}
-                  className="text-xs text-ink-dim hover:text-ink border border-vine rounded px-2 py-1"
-                >
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setShowEdit(true)}>
                   修改主题
-                </button>
+                </Button>
               </>
             )}
           </div>

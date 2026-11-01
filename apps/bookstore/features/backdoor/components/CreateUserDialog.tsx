@@ -67,7 +67,7 @@ export default function CreateUserDialog({ role, open, onClose, onCreated }: Cre
     >
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-md rounded-xl border border-vine/50 bg-raised p-7 shadow-xl"
+        className="w-full max-w-md rounded-md border border-line bg-raised p-7 shadow-overlay"
       >
         <div className="flex items-center justify-between">
           <h2 id="create-user-title" className="font-serif text-xl font-semibold text-ink">

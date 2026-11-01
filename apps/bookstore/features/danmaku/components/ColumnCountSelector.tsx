@@ -41,7 +41,7 @@ export default function ColumnCountSelector() {
         value={columns.length}
         onChange={(e) => saveColumns(COLUMN_PRESETS[Number(e.target.value) as 1 | 2 | 3])}
         aria-label="视图栏"
-        className="rounded-md border border-vine/50 bg-raised px-2 py-1 text-xs text-ink transition-colors duration-150 hover:border-flower"
+        className="rounded-md border border-line bg-raised px-2 py-1 text-xs text-ink transition-colors duration-150 hover:border-flower"
       >
         {columnCountOptions.map((n) => (
           <option key={n} value={n}>

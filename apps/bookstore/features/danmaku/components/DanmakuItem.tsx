@@ -21,7 +21,7 @@ function isSmallEmote(emote: NonNullable<LiveEvent["emote"]>): boolean {
   return max > 0 && max <= 32;
 }
 
-/** 弹幕条目：左侧 vine 竖条 + Sender；表情弹幕渲染表情图片；折叠弹幕最右侧展示计数；
+/** 弹幕条目：左侧结构线竖条 + Sender；表情弹幕渲染表情图片；折叠弹幕最右侧展示计数；
  * 按发送者船型等级渲染 10% 透明度淡色背景（舰长蓝/提督紫/总督红，其余无背景）。 */
 export default function DanmakuItem({ event, count }: DanmakuItemProps) {
   const tint = guardDanmakuTint(event.sender.guardLevel);
@@ -30,7 +30,7 @@ export default function DanmakuItem({ event, count }: DanmakuItemProps) {
       data-event-id={event.eventId}
       className={`flex gap-2.5 px-3 py-2${tint ? ` ${tint} rounded-md` : ""}`}
     >
-      <span aria-hidden className="w-1 shrink-0 self-stretch rounded-full bg-vine/70" />
+      <span aria-hidden className="w-1 shrink-0 self-stretch rounded-full bg-line-strong" />
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <Sender sender={event.sender} compact />
         {event.emote?.url ? (
@@ -60,7 +60,7 @@ export default function DanmakuItem({ event, count }: DanmakuItemProps) {
         )}
       </div>
       {count !== undefined && count > 1 && (
-        <span className="mt-4 shrink-0 self-start rounded-full bg-vine/20 px-1.5 py-px text-[10px] leading-4 font-medium text-ink-dim">
+        <span className="mt-4 shrink-0 self-start rounded-full bg-line px-1.5 py-px text-[10px] leading-4 font-medium text-ink-dim">
           ×{count}
         </span>
       )}

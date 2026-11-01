@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import GlowParticles from "@/features/home/GlowParticles";
-import SectionRail from "@/features/home/SectionRail";
+import PageIndex from "@/features/home/PageIndex";
 import { useFullpageScroll } from "@/features/home/useFullpageScroll";
 import { visibleSections } from "@/features/home/sections";
 import HeroSection from "@/features/home/sections/HeroSection";
@@ -20,7 +19,7 @@ interface FullpageDeckProps {
   assets: Asset[];
 }
 
-/** 整页滚动容器：SSG 首渲染即站 0、无 transform；含常驻粒子与位置指示器。 */
+/** 整页滚动容器：SSG 首渲染即站 0、无 transform；含右侧页码索引与移动端进度条。 */
 export default function FullpageDeck({
   profile,
   site,
@@ -70,11 +69,15 @@ export default function FullpageDeck({
 
   return (
     <>
-      {/* 常驻粒子层：fixed 视口，覆盖全部模块（步骤 12 已接线冲量） */}
-      <GlowParticles />
+      {/* 移动端滚动进度条（1px line-strong） */}
+      <div
+        aria-hidden
+        className="fixed inset-x-0 top-16 z-30 h-px bg-line-strong md:hidden"
+        style={{ width: `${sections.length > 1 ? (index / (sections.length - 1)) * 100 : 0}%` }}
+      />
 
-      {/* 位置指示器 */}
-      <SectionRail sections={sections} index={index} onNavigate={handleNavigate} />
+      {/* 位置指示器：右侧中文页码 */}
+      <PageIndex sections={sections} index={index} onNavigate={handleNavigate} />
 
       {/* 滚动容器（free 模式由 hook 切换 overflow） */}
       <div ref={containerRef} className="h-svh overflow-hidden">

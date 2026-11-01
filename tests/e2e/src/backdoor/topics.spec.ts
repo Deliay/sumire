@@ -114,7 +114,7 @@ test.describe("backdoor 棉花糖（主题管理）", () => {
       "font-family",
       /Noto Serif SC|serif/,
     );
-    await expect(page.locator("div.border-t.border-vine").first()).toBeVisible();
+    await expect(page.locator("div.border-t.border-line").first()).toBeVisible();
 
     // 8. 幻灯片页头单行布局：标题/描述/字号控件同一行，「字体」label 可见，长描述限宽省略
     await expect(page.getByText("字体")).toBeVisible();
@@ -158,7 +158,7 @@ test.describe("backdoor 棉花糖（主题管理）", () => {
     await expect(page.getByRole("heading", { name: "进行中的棉花糖" })).toBeVisible();
     await expect(page.getByText(title)).toBeVisible(); // 进行中主题出现在列表
     // NavBar 入口：独立路由 /topics，当前页高亮（exact 匹配，避免命中列表卡片标题）
-    const navTopics = page.getByRole("link", { name: "棉花糖", exact: true });
+    const navTopics = page.locator("header").getByRole("link", { name: "棉花糖", exact: true });
     await expect(navTopics).toHaveAttribute("href", "/topics");
     await expect(navTopics).toHaveAttribute("aria-current", "page");
     // 点击卡片回收集页
@@ -171,7 +171,7 @@ test.describe("backdoor 棉花糖（主题管理）", () => {
     await page.getByRole("button", { name: "归档" }).click();
     await page.goto(`${BASE}/backdoor/topics`);
     await page.getByRole("button", { name: "已归档主题", exact: true }).click();
-    const archCard = page.locator("div.rounded-lg", { has: page.getByText(title, { exact: true }) });
+    const archCard = page.locator("div.rounded-xs", { has: page.getByText(title, { exact: true }) });
     await expect(archCard).toBeVisible();
     // 已归档卡片仅「恢复」，无「归档」「修改」
     await expect(archCard.getByRole("button", { name: "恢复" })).toBeVisible();
@@ -199,7 +199,7 @@ test.describe("backdoor 棉花糖（主题管理）", () => {
     await page.goto(`${BASE}/backdoor/topics`);
     await page.getByRole("button", { name: "已归档主题", exact: true }).click();
     await page
-      .locator("div.rounded-lg", { has: page.getByText(title, { exact: true }) })
+      .locator("div.rounded-xs", { has: page.getByText(title, { exact: true }) })
       .getByRole("button", { name: "恢复" })
       .click();
     await page.getByRole("button", { name: "主题", exact: true }).click();

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import PageHeader from "@/components/layout/PageHeader";
+import PageShell from "@/components/layout/PageShell";
 import { listLiveHistory, listPlans, type LiveRecord, type StreamPlan } from "@/features/schedule/api";
 import CalendarView from "@/features/schedule/CalendarView";
 import DayDetailDialog from "@/features/schedule/DayDetailDialog";
@@ -55,27 +57,22 @@ export default function CalendarViewPage({ compact = false }: { compact?: boolea
     })();
   }
 
-  return (
-    <section className={`flex h-full w-full flex-col ${compact ? "" : "mx-auto w-full px-5 pb-14 pt-28 lg:px-10"}`}>
-      {!compact && (
-        <header className="mb-8 text-center">
-          <p className="font-display text-sm italic tracking-[0.4em] text-ink-dim">
-            Weekly Schedule
-          </p>
-          <h1 className="mt-2 font-serif text-4xl font-semibold text-ink sm:text-5xl">
-            直播日程
-          </h1>
-          <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-ink-dim">
-            这里记着老书屋里的一场场直播——过去的已落下帷幕，未来的还亮着灯。
-          </p>
-        </header>
-      )}
+  const body = (
+    <>
       {error ? (
-        <p className="text-center text-sm text-flower">日程暂时翻不开了</p>
+        <p className="text-center text-small text-crimson">日程暂时翻不开了</p>
       ) : loading ? (
-        <div className={`animate-pulse rounded-md border border-vine/50 bg-raised ${compact ? "h-full" : "min-h-80"}`} aria-busy="true" />
+        <div
+          className={`animate-pulse rounded-xs border border-line bg-raised ${compact ? "h-full" : "min-h-80"}`}
+          aria-busy="true"
+        />
       ) : (
-        <CalendarView entries={entries} onRangeChange={handleRangeChange} onSelectDay={setSelectedDay} variant="immersive" />
+        <CalendarView
+          entries={entries}
+          onRangeChange={handleRangeChange}
+          onSelectDay={setSelectedDay}
+          variant="immersive"
+        />
       )}
 
       <DayDetailDialog
@@ -85,6 +82,22 @@ export default function CalendarViewPage({ compact = false }: { compact?: boolea
         readOnly
         onClose={() => setSelectedDay(null)}
       />
-    </section>
+    </>
+  );
+
+  if (compact) {
+    return <section className="flex h-full w-full flex-col">{body}</section>;
+  }
+
+  return (
+    <PageShell width="wide">
+      <PageHeader
+        eyebrow="Weekly Schedule"
+        folio="柒"
+        title="直播日程"
+        lead="这里记着老书屋里的一场场直播——过去的已落下帷幕，未来的还亮着灯。"
+      />
+      <div className="mt-8 flex min-h-[65svh] flex-col">{body}</div>
+    </PageShell>
   );
 }

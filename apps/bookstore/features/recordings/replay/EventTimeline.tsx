@@ -125,7 +125,7 @@ export default function EventTimeline({
         data-testid="event-timeline-scroll"
         onWheel={pauseFollowing}
         onTouchMove={pauseFollowing}
-        className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-vine/50 bg-raised/60"
+        className="min-h-0 flex-1 overflow-y-auto rounded-md border border-line bg-raised/60"
       >
         {error && (
           <div className="flex flex-col items-center gap-3 px-4 py-10 text-small text-ink-dim">
@@ -133,7 +133,7 @@ export default function EventTimeline({
             <button
               type="button"
               onClick={onRetry}
-              className="rounded-full border border-vine px-3 py-1 text-tiny transition-colors hover:border-flower hover:text-ink"
+              className="rounded-full border border-line px-3 py-1 text-tiny transition-colors hover:border-flower hover:text-ink"
             >
               重试
             </button>
@@ -171,7 +171,7 @@ export default function EventTimeline({
                       onSeek(entry.offsetSeconds);
                     }
                   }}
-                  className={`absolute top-0 left-0 w-full cursor-pointer border-b border-vine/20 transition-colors hover:bg-soft/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-flower ${
+                  className={`absolute top-0 left-0 w-full cursor-pointer border-b border-line transition-colors hover:bg-soft/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-flower ${
                     isCurrent ? "bg-flower/10 ring-1 ring-flower" : ""
                   }`}
                   style={{ transform: `translateY(${virtualItem.start}px)` }}

@@ -10,6 +10,7 @@ import { getTopicPublic, submitMarshmallow } from "@/features/topics/api";
 import { getStatusText, getStatusBadgeClass } from "@/features/topics/status";
 import { getClientKey } from "@/features/topics/clientKey";
 import type { TopicPublicInfo } from "@/features/topics/types";
+import Button from "@/components/ui/Button";
 
 type ViewState = "form" | "submitting" | "done";
 
@@ -77,7 +78,7 @@ export default function TopicPublicPage() {
 
   if (notFound) {
     return (
-      <div className="max-w-[40rem] mx-auto px-5 py-8 text-center text-ink-dim">
+      <div className="mx-auto w-full max-w-[44rem] px-5 pb-24 pt-24 text-center text-ink-dim lg:border-l lg:border-line lg:px-16 lg:pb-32 lg:pt-32">
         <p className="text-lg mb-2">主题不存在</p>
         <p className="text-sm">请检查链接是否正确</p>
       </div>
@@ -86,7 +87,7 @@ export default function TopicPublicPage() {
 
   if (!topic) {
     return (
-      <div className="max-w-[40rem] mx-auto px-5 py-8 text-center text-ink-dim">
+      <div className="mx-auto w-full max-w-[44rem] px-5 pb-24 pt-24 text-center text-ink-dim lg:border-l lg:border-line lg:px-16 lg:pb-32 lg:pt-32">
         加载中…
       </div>
     );
@@ -96,9 +97,9 @@ export default function TopicPublicPage() {
   const isCollecting = status === "collecting";
 
   return (
-    <div className="max-w-[40rem] mx-auto px-5 py-8">
+    <div className="mx-auto w-full max-w-[44rem] px-5 pb-24 pt-24 lg:border-l lg:border-line lg:px-16 lg:pb-32 lg:pt-32">
       {/* 主题信息 */}
-      <h1 className="font-serif text-2xl font-semibold text-ink mb-2">{topic.title}</h1>
+      <h1 className="font-serif text-h1 font-semibold text-ink mb-2">{topic.title}</h1>
       <div className="flex items-center gap-2 mb-4 text-xs text-ink-dim">
         <span className={getStatusBadgeClass(status)}>{getStatusText(status)}</span>
         <span>
@@ -137,18 +138,19 @@ export default function TopicPublicPage() {
                 </span>
               </div>
               {error && (
-                <div role="alert" className="mb-3 text-sm text-red-400">
+                <div role="alert" className="mb-3 text-sm text-crimson">
                   {error}
                 </div>
               )}
-              <button
-                type="button"
+              <Button
+                variant="primary"
+                size="md"
                 onClick={() => setShowConfirm(true)}
                 disabled={viewState === "submitting" || !isCollecting}
-                className="w-full py-2.5 text-sm bg-primary text-night rounded hover:bg-primary/90 disabled:opacity-50"
+                className="w-full"
               >
                 {viewState === "submitting" ? "投递中…" : "投递棉花糖"}
-              </button>
+              </Button>
             </>
           )}
         </>

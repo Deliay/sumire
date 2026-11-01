@@ -85,7 +85,7 @@ export default function TopicsPage() {
         <div className="flex items-center gap-4">
           <h1 className="font-serif text-2xl font-semibold text-ink">棉花糖</h1>
           {/* round 9：主题 / 已归档主题 视图切换 */}
-          <div className="flex items-center gap-1 border border-vine rounded overflow-hidden">
+          <div className="flex items-center gap-1 border border-line rounded overflow-hidden">
             <button
               type="button"
               onClick={() => setView("active")}

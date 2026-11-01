@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import MarkdownView from "@/features/markdown/MarkdownView";
 import MarshmallowDetailDialog from "@/features/topics/components/MarshmallowDetailDialog";
 import type { Marshmallow } from "@/features/topics/types";
+import Button from "@/components/ui/Button";
+import Surface from "@/components/ui/Surface";
 
 interface MarshmallowCardProps {
   marshmallow: Marshmallow;
@@ -38,10 +40,9 @@ export default function MarshmallowCard({
   }, [content]);
 
   return (
-    <div
-      className={`relative w-full rounded-lg border border-vine bg-raised p-4 ${
-        adopted ? "opacity-60" : ""
-      }`}
+    <Surface
+      padding="sm"
+      className={`relative w-full ${adopted ? "opacity-60" : ""}`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0 relative">
@@ -66,48 +67,36 @@ export default function MarshmallowCard({
             </span>
           )}
           {onToggleAdopt && (
-            <button
-              type="button"
-              onClick={() => onToggleAdopt(id, !adopted)}
-              className="text-xs text-ink-dim hover:text-ink transition-colors duration-150"
-            >
+            <Button variant="ghost" size="sm" onClick={() => onToggleAdopt(id, !adopted)}>
               {adopted ? "取消采用" : "采用"}
-            </button>
+            </Button>
           )}
         </div>
       </div>
 
       {/* AI 审核覆盖层（不透明实色底，不透出底下内容） */}
       {isRejected && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-night rounded-lg p-4">
+        <div className="absolute inset-0 flex flex-col items-center justify-center rounded-xs bg-night p-4">
           <p className="text-sm text-ink text-center mb-3">
             这个棉花糖可能会有有害内容，AI拒绝原因：{aiReview?.filteredReason}
           </p>
           {onShowAnyway && (
-            <button
-              type="button"
-              onClick={() => onShowAnyway(id)}
-              className="text-sm bg-primary text-night px-3 py-1.5 rounded hover:bg-primary/90"
-            >
+            <Button variant="primary" size="sm" onClick={() => onShowAnyway(id)}>
               显示这条棉花糖
-            </button>
+            </Button>
           )}
         </div>
       )}
 
       {/* I14: pending 状态显示"提前查看"按钮（不透明实色底） */}
       {isPending && !showPendingContent && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-night rounded-lg p-4">
+        <div className="absolute inset-0 flex flex-col items-center justify-center rounded-xs bg-night p-4">
           <p className="text-sm text-ink text-center mb-2">
             这条内容AI正在审核中
           </p>
-          <button
-            type="button"
-            onClick={() => setShowPendingContent(true)}
-            className="text-sm text-ink-dim hover:text-ink"
-          >
+          <Button variant="ghost" size="sm" onClick={() => setShowPendingContent(true)}>
             提前查看
-          </button>
+          </Button>
         </div>
       )}
 
@@ -118,6 +107,6 @@ export default function MarshmallowCard({
           onClose={() => setShowDetail(false)}
         />
       )}
-    </div>
+    </Surface>
   );
 }

@@ -68,7 +68,7 @@ describe("VoteOptionsEditor", () => {
     );
     expect(screen.getByPlaceholderText("名称").getAttribute("disabled")).toBe("");
     expect(screen.getByPlaceholderText("匹配关键字").getAttribute("disabled")).toBe("");
-    expect(screen.getByText("添加选项").getAttribute("disabled")).toBe("");
+    expect(screen.getByRole("button", { name: "添加选项" })).toBeDisabled();
   });
 
   it("删除按钮触发回调", () => {
@@ -121,7 +121,7 @@ describe("VoteControlBar", () => {
         onClear={vi.fn()}
       />,
     );
-    const startButton = screen.getByText("开始投票");
+    const startButton = screen.getByRole("button", { name: "开始投票" });
     expect(startButton.className).not.toContain("bg-crimson");
 
     rerender(
@@ -132,8 +132,8 @@ describe("VoteControlBar", () => {
         onClear={vi.fn()}
       />,
     );
-    const stopButton = screen.getByText("停止投票");
-    expect(stopButton.className).toContain("bg-crimson");
+    const stopButton = screen.getByRole("button", { name: "停止投票" });
+    expect(stopButton.className).toContain("text-crimson");
   });
 
   it("清空按钮触发回调", () => {

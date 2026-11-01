@@ -53,7 +53,7 @@ export default function SearchResults({
           <button
             type="button"
             onClick={onRetry}
-            className="rounded-md border border-vine/50 px-3 py-1.5 text-sm text-ink-dim transition-colors hover:border-flower hover:text-ink"
+            className="rounded-md border border-line px-3 py-1.5 text-sm text-ink-dim transition-colors hover:border-flower hover:text-ink"
           >
             重试
           </button>
@@ -87,7 +87,7 @@ export default function SearchResults({
             <button
               type="button"
               onClick={onRetryFailedPage}
-              className="rounded-md border border-vine/50 px-3 py-1.5 text-sm text-ink-dim transition-colors hover:border-flower hover:text-ink"
+              className="rounded-md border border-line px-3 py-1.5 text-sm text-ink-dim transition-colors hover:border-flower hover:text-ink"
             >
               重试
             </button>
@@ -100,7 +100,7 @@ export default function SearchResults({
             type="button"
             onClick={onLoadMore}
             disabled={loadingMore}
-            className="rounded-md border border-vine/50 px-3 py-1.5 text-sm text-ink-dim transition-colors hover:border-flower hover:text-ink disabled:opacity-50"
+            className="rounded-md border border-line px-3 py-1.5 text-sm text-ink-dim transition-colors hover:border-flower hover:text-ink disabled:opacity-50"
           >
             {loadingMore ? "加载中…" : "加载更多"}
           </button>

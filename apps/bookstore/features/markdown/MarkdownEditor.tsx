@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 const MDEditor = dynamic(() => import("@uiw/react-md-editor"), {
   ssr: false,
   loading: () => (
-    <div className="min-h-[10rem] rounded-md border border-vine bg-soft animate-pulse" />
+    <div className="min-h-[10rem] rounded-md border border-line bg-soft animate-pulse" />
   ),
 });
 

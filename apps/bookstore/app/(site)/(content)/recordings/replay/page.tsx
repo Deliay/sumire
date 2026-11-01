@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import PageShell from "@/components/layout/PageShell";
+import EmptyState from "@/components/ui/EmptyState";
 import { RECORDINGS_CONFIGURED } from "@/features/recordings/api";
 import ReplayApp from "@/features/recordings/replay/ReplayApp";
 
@@ -12,9 +14,9 @@ export const metadata: Metadata = {
 export default function RecordingsReplayPage() {
   if (!RECORDINGS_CONFIGURED) {
     return (
-      <div className="mx-auto w-full max-w-7xl px-2.5 py-24 lg:px-5">
-        <p className="text-ink-dim">录播服务未配置，暂时无法回放。</p>
-      </div>
+      <PageShell width="wide">
+        <EmptyState title="录播服务未配置，暂时无法回放。" />
+      </PageShell>
     );
   }
   return (

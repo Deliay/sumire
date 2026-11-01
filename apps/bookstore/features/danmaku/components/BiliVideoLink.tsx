@@ -67,7 +67,7 @@ function VideoPreviewCard({ bvId }: VideoPreviewCardProps) {
       href={data.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="block overflow-hidden rounded-md border border-vine/50 bg-raised transition-colors duration-150 hover:border-flower"
+      className="block overflow-hidden rounded-md border border-line bg-raised transition-colors duration-150 hover:border-flower"
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img

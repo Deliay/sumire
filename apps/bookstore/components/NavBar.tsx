@@ -3,11 +3,19 @@
 import { Menu, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { API_CONFIGURED } from "@/features/backdoor/api";
 import { RECORDINGS_CONFIGURED } from "@/features/recordings/api";
-import { SECTIONS, SECTION_CHANGE_EVENT, NAVIGATE_EVENT, type SectionChangeDetail, type NavigateDetail } from "@/features/home/sections";
+import {
+  SECTIONS,
+  SECTION_CHANGE_EVENT,
+  NAVIGATE_EVENT,
+  type SectionChangeDetail,
+  type NavigateDetail,
+} from "@/features/home/sections";
 import type { NavKey } from "@/features/home/sections";
+import { useFocusTrap } from "@/lib/useFocusTrap";
+import { cn } from "@/lib/cn";
 import type { ToolModule } from "@/lib/tools/registry";
 
 interface NavBarProps {
@@ -41,15 +49,31 @@ function buildBaseLinks(): BaseLink[] {
     .filter((k) => k !== "calendar" || API_CONFIGURED)
     .map((navKey) => {
       const first = SECTIONS.find((s) => s.navKey === navKey);
-      return { navKey, label: map[navKey].label, anchor: `/#${first?.id ?? ""}`, route: map[navKey].route, sectionId: first?.id ?? "", kind: "internal" as const };
+      return {
+        navKey,
+        label: map[navKey].label,
+        anchor: `/#${first?.id ?? ""}`,
+        route: map[navKey].route,
+        sectionId: first?.id ?? "",
+        kind: "internal" as const,
+      };
     });
 }
+
+const linkClass = (active: boolean) =>
+  cn(
+    "relative inline-flex min-h-11 items-center text-small tracking-[0.04em] transition-colors duration-(--duration-fast)",
+    active
+      ? "text-ink after:absolute after:inset-x-0 after:-bottom-px after:h-px after:bg-primary"
+      : "text-ink-dim hover:text-ink",
+  );
 
 export default function NavBar({ siteName, tools }: NavBarProps) {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const [hash, setHash] = useState<string>("");
+  const drawerRef = useRef<HTMLDivElement>(null);
 
   const isHome = pathname === "/";
 
@@ -60,7 +84,6 @@ export default function NavBar({ siteName, tools }: NavBarProps) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // 首页路由下跟踪 hash 选中态：监听 hashchange（外部跳转）与 SECTION_CHANGE_EVENT（deck 翻页 replaceState）
   useEffect(() => {
     if (!isHome) return;
     const syncHash = () => setHash(window.location.hash);
@@ -79,13 +102,14 @@ export default function NavBar({ siteName, tools }: NavBarProps) {
     };
   }, [isHome]);
 
+  const close = useCallback(() => setOpen(false), []);
+  useFocusTrap(drawerRef, open, { lockScroll: true, onEscape: close });
+
   const baseLinks = buildBaseLinks();
-  // round 9：独立路由「棉花糖」入口（/topics 进行中列表页），不走首页 deck 锚点翻页；仅 API 已配置时显示
   const ongoingLinks: BaseLink[] = [
     ...(API_CONFIGURED
       ? [{ navKey: "topics", label: "棉花糖", anchor: "/topics", route: "/topics", sectionId: "", kind: "internal" as const }]
       : []),
-    // 录播页入口（/recordings），仅录播服务基址已配置时显示
     ...(RECORDINGS_CONFIGURED
       ? [{ navKey: "recordings", label: "录播", anchor: "/recordings", route: "/recordings", sectionId: "", kind: "internal" as const }]
       : []),
@@ -108,18 +132,15 @@ export default function NavBar({ siteName, tools }: NavBarProps) {
       const activeKey = SECTIONS.find((s) => `#${s.id}` === hash)?.navKey ?? (hash ? undefined : "home");
       return link.navKey === activeKey;
     }
-    // 非首页：按独立路由精确匹配（工具项前缀匹配）
     if (link.route === "/") return pathname === "/";
     if (link.route.startsWith("/tools/")) return pathname.startsWith(link.route);
     return pathname === link.route;
   };
 
-  // 基础导航恒为锚点 href（首页/非首页均指向首页对应锚点，deck 挂载时 hash 直落定位）；工具项为独立路由
   const hrefOf = (link: NavLink) => {
     return link.navKey.startsWith("tool-") ? link.route : link.anchor;
   };
 
-  // 首页内点击导航：Next Link 到 #hash 用 pushState 不触发 hashchange，改派发 NAVIGATE_EVENT 交由 deck 平滑翻页
   const handleNavClick = (e: React.MouseEvent, link: NavLink) => {
     if (isHome && link.sectionId) {
       e.preventDefault();
@@ -127,23 +148,20 @@ export default function NavBar({ siteName, tools }: NavBarProps) {
         new CustomEvent<NavigateDetail>(NAVIGATE_EVENT, { detail: { id: link.sectionId as NavigateDetail["id"] } }),
       );
       window.history.pushState(null, "", `#${link.sectionId}`);
-      setOpen(false);
     }
+    setOpen(false);
   };
 
   return (
     <header
-      className={`fixed inset-x-0 top-0 z-40 transition-colors duration-500 ${
-        scrolled || open
-          ? "bg-night/85 shadow-[0_1px_0_0_var(--color-vine)] backdrop-blur-md"
-          : "max-md:bg-night/85 max-md:shadow-[0_1px_0_0_var(--color-vine)] max-md:backdrop-blur-md"
-      }`}
+      className={cn(
+        "fixed inset-x-0 top-0 z-40 border-b transition-colors duration-(--duration-base)",
+        scrolled || open ? "border-line bg-night/90 backdrop-blur-md" : "border-transparent bg-transparent",
+      )}
     >
-      <nav className="mx-auto flex h-16 w-full items-center justify-between px-5 lg:px-10">
+      <nav className="mx-auto flex h-16 w-full items-center justify-between px-5 lg:px-16">
         <Link href="/" className="group flex items-baseline gap-2">
-          <span className="font-serif text-lg font-semibold tracking-wide text-ink">
-            {siteName}
-          </span>
+          <span className="font-serif text-base font-semibold tracking-wide text-ink">{siteName}</span>
           <span className="font-display text-sm italic text-primary transition-colors group-hover:text-flower">
             Sumire
           </span>
@@ -156,11 +174,7 @@ export default function NavBar({ siteName, tools }: NavBarProps) {
                 href={hrefOf(link)}
                 onClick={(e) => handleNavClick(e, link)}
                 aria-current={isActive(link) ? "page" : undefined}
-                className={`text-sm tracking-widest transition-colors ${
-                  isActive(link)
-                    ? "text-primary"
-                    : "text-ink-dim hover:text-ink"
-                }`}
+                className={linkClass(isActive(link))}
               >
                 {link.label}
               </Link>
@@ -170,32 +184,46 @@ export default function NavBar({ siteName, tools }: NavBarProps) {
 
         <button
           type="button"
-          className="text-ink md:hidden"
+          className="inline-flex size-11 items-center justify-center text-ink md:hidden"
           aria-label={open ? "关闭菜单" : "打开菜单"}
           aria-expanded={open}
+          aria-controls="mobile-menu"
           onClick={() => setOpen((value) => !value)}
         >
-          {open ? <X size={22} /> : <Menu size={22} />}
+          {open ? <X size={20} /> : <Menu size={20} />}
         </button>
       </nav>
 
       {open && (
-        <ul className="border-t border-vine/40 bg-night/95 px-5 py-4 backdrop-blur-md md:hidden">
-          {links.map((link) => (
-            <li key={link.route} className="py-2">
-              <Link
-                href={hrefOf(link)}
-                aria-current={isActive(link) ? "page" : undefined}
-                onClick={(e) => handleNavClick(e, link)}
-                className={`block text-base tracking-widest ${
-                  isActive(link) ? "text-primary" : "text-ink-dim"
-                }`}
-              >
-                {link.label}
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <div
+          id="mobile-menu"
+          ref={drawerRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="站点导航"
+          className="fixed inset-x-0 bottom-0 top-16 flex flex-col justify-between overflow-y-auto border-t border-line bg-night px-5 pb-8 pt-6 md:hidden"
+        >
+          <ul className="flex flex-col">
+            {links.map((link) => (
+              <li key={link.route} className="border-b border-line">
+                <Link
+                  href={hrefOf(link)}
+                  aria-current={isActive(link) ? "page" : undefined}
+                  onClick={(e) => handleNavClick(e, link)}
+                  className={cn(
+                    "flex min-h-14 items-center font-serif text-h2",
+                    isActive(link) ? "text-primary" : "text-ink-dim",
+                  )}
+                >
+                  {link.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <p className="pt-8 text-label text-ink-dim">
+            © 2026 堇色书屋 · 非官方粉丝站，素材版权归主播及所属社团所有
+          </p>
+        </div>
       )}
     </header>
   );

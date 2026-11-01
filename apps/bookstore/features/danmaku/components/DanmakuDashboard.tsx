@@ -774,7 +774,7 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
                       className={`rounded-md border px-2 py-1 text-xs transition-colors duration-150 ${
                         mergeEnabled
                           ? "border-flower text-ink"
-                          : "border-vine/50 text-ink-dim hover:border-flower hover:text-ink"
+                          : "border-line text-ink-dim hover:border-flower hover:text-ink"
                       }`}
                     >
                       弹幕合并
@@ -788,7 +788,7 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
                     onClick={() => setConfigOpenId((id) => (id === col.id ? null : col.id))}
                     aria-expanded={configOpenId === col.id}
                     aria-label={`配置「${title}」栏`}
-                    className="rounded-md border border-vine/50 px-2 py-1 text-xs text-ink-dim transition-colors duration-150 hover:border-flower hover:text-ink"
+                    className="rounded-md border border-line px-2 py-1 text-xs text-ink-dim transition-colors duration-150 hover:border-flower hover:text-ink"
                   >
                     配置栏位
                   </button>
@@ -796,7 +796,7 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
               }
               configPanel={
                 configOpenId === col.id ? (
-                  <div className="flex flex-col gap-2 border-b border-vine/50 px-3 py-2">
+                  <div className="flex flex-col gap-2 border-b border-line px-3 py-2">
                     <div className="flex flex-wrap items-center gap-3">
                       {LiveEventTypeSchema.options.map((type) => (
                         <label key={type} className="flex items-center gap-1.5 text-sm text-ink">
@@ -837,7 +837,7 @@ const DanmakuDashboard = forwardRef<DanmakuDashboardHandle, DanmakuDashboardProp
         })}
       </div>
       {toast && (
-        <div className="fixed right-6 bottom-6 z-[70] rounded-md border border-flower/60 bg-raised px-4 py-2 text-sm text-ink shadow-xl">
+        <div className="fixed right-6 bottom-6 z-[70] rounded-md border border-flower/60 bg-raised px-4 py-2 text-sm text-ink shadow-overlay">
           {toast}
           <button type="button" className="ml-2 text-ink-dim hover:text-ink" onClick={() => setToast("")}>
             ✕

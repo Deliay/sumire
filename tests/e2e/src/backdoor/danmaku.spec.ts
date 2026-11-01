@@ -136,12 +136,9 @@ async function stubLiveEvents(page: Page, events: MockLiveEvent[]): Promise<Live
         _opts?: unknown,
       ) {
         instances.add(this);
-        setTimeout(() => {
-          if (this.readyState === 0) {
-            this.readyState = 1;
-            this.onopen?.();
-          }
-        }, 0);
+        // 同步置为 OPEN：用例在进入看板后立即推送命名帧，避免等待 0ms 定时器的竞态
+        this.readyState = 1;
+        setTimeout(() => this.onopen?.(), 0);
       }
       addEventListener(type: string, listener: (event: { data: string }) => void) {
         if (!this.listeners.has(type)) {
@@ -264,7 +261,7 @@ async function stubLiveEvents(page: Page, events: MockLiveEvent[]): Promise<Live
               type: "online_rank_count",
               occurredAt: new Date().toISOString(),
               liveSessionId: "session-1",
-              payload: { online_count: c },
+              payload: { data: { online_count: c } },
             });
           },
           count,
@@ -800,9 +797,10 @@ test.describe("backdoor danmaku 弹幕看板", () => {
   test("online-count-show: 在线人数正常显示", async ({ page }) => {
     const stub = await stubLiveEvents(page, []);
     await gotoDanmaku(page, getAccounts().admin);
-    // 等待 EventSource 连接建立后推送命名帧
+    // 等待看板挂载并建立 EventSource 后推送命名帧
+    await page.waitForTimeout(300);
     await stub.setOnlineCount(1521);
-    await expect(page.getByText("当前直播间在线 1521 人")).toBeVisible();
+    await expect(page.getByText("当前有 1521 考子在线")).toBeVisible();
   });
 
   test("online-count-fail-hide: 在线人数获取失败时不显示", async ({ page }) => {

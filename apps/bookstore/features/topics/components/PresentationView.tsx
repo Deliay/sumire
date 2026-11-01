@@ -7,6 +7,8 @@ import { toSingleLinePlainText } from "@/features/markdown/toSingleLinePlainText
 import { RequireRole } from "@/features/backdoor/RequireRole";
 import { getTopic, listMarshmallows } from "@/features/topics/api";
 import type { Topic, Marshmallow } from "@/features/topics/types";
+import Button from "@/components/ui/Button";
+import Surface from "@/components/ui/Surface";
 
 const FONT_SIZE_KEY = "topics.presentation.fontSize";
 const GUIDE_KEY = "topics.presentation.guideSeen";
@@ -135,31 +137,28 @@ export default function PresentationView() {
             <div className="flex items-center gap-2 shrink-0">
               <span className="text-sm text-ink-dim">字体</span>
               <div
-                className="inline-flex items-center gap-1 border border-vine rounded overflow-hidden"
+                className="inline-flex items-center gap-1 border border-line rounded overflow-hidden"
                 role="group"
                 aria-label="字号"
               >
                 {FONT_PRESETS.map((preset) => (
-                  <button
+                  <Button
                     key={preset.size}
-                    type="button"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleFontSize(preset.size)}
                     aria-pressed={fontSize === preset.size}
-                    className={`px-3 py-1 text-sm ${
-                      fontSize === preset.size
-                        ? "bg-primary/20 text-ink"
-                        : "text-ink-dim hover:text-ink hover:bg-raised"
-                    }`}
+                    className={fontSize === preset.size ? "bg-primary/20 text-ink" : undefined}
                   >
                     {preset.label}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
           </div>
 
           {/* 页头与放映区的明线分割 */}
-          <div className="shrink-0 border-t border-vine" />
+          <div className="shrink-0 border-t border-line" />
 
           {/* 放映区 */}
           <div className="flex-1 min-h-0 flex items-stretch">
@@ -199,18 +198,14 @@ export default function PresentationView() {
           {/* 首次引导遮盖层 */}
           {showGuide && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-night/85">
-              <div className="bg-raised border border-vine rounded-lg p-6 max-w-sm text-center">
-                <p className="text-sm text-ink mb-2">左右翻页按钮切换条目</p>
-                <p className="text-sm text-ink mb-2">条目内容可在内部滚动</p>
-                <p className="text-sm text-ink mb-4">小/中/大 调节字号</p>
-                <button
-                  type="button"
-                  onClick={closeGuide}
-                  className="px-4 py-1.5 text-sm bg-primary text-night rounded hover:bg-primary/90"
-                >
+              <Surface padding="md" className="max-w-sm text-center">
+                <p className="mb-2 text-small text-ink">左右翻页按钮切换条目</p>
+                <p className="mb-2 text-small text-ink">条目内容可在内部滚动</p>
+                <p className="mb-4 text-small text-ink">小/中/大 调节字号</p>
+                <Button variant="primary" size="sm" onClick={closeGuide}>
                   知道了
-                </button>
-              </div>
+                </Button>
+              </Surface>
             </div>
           )}
         </div>

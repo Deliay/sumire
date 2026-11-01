@@ -49,7 +49,7 @@ export default function Sender({ sender, compact = false, variant = "full", guar
               src={sender.face}
               alt=""
               className={`shrink-0 rounded-full border object-cover ${
-                compact ? "size-5 border-vine/40 opacity-80" : "size-7 border-vine/50"
+                compact ? "size-5 border-line opacity-80" : "size-7 border-line"
               }`}
               loading="lazy"
               referrerPolicy="no-referrer"
@@ -58,7 +58,7 @@ export default function Sender({ sender, compact = false, variant = "full", guar
             <span
               aria-hidden
               className={`flex shrink-0 items-center justify-center rounded-full border bg-soft text-ink-dim ${
-                compact ? "size-5 border-vine/40 text-[10px]" : "size-7 border-vine/50 text-xs"
+                compact ? "size-5 border-line text-[10px]" : "size-7 border-line text-xs"
               }`}
             >
               {sender.name.slice(0, 1)}

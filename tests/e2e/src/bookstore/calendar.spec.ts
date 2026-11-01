@@ -119,11 +119,18 @@ test.describe("bookstore 日历页与主页入口", () => {
     await expect(page.getByText(/年 .*月/).first()).toBeVisible();
   });
 
-  test("calendar-immersive-bars: 全幅 immersive 月视图左右全高翻月竖条可翻月", async ({ page }) => {
+  test("calendar-immersive-bars: 44×44 翻月图标按钮可翻月且不产生横向滚动", async ({ page }) => {
     await page.goto(`${BASE}/calendar`);
     await expect(page.getByRole("heading", { name: "直播日程" })).toBeVisible();
     const before = await page.locator("h2").filter({ hasText: /年 .*月/ }).first().textContent();
-    await page.getByRole("button", { name: "下月" }).click();
+    const next = page.getByRole("button", { name: "下一月" });
+    const box = await next.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+    await next.click();
     await expect
       .poll(async () => page.locator("h2").filter({ hasText: /年 .*月/ }).first().textContent())
       .not.toBe(before);

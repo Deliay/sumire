@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import PageHeader from "@/components/layout/PageHeader";
+import PageShell from "@/components/layout/PageShell";
+import Button from "@/components/ui/Button";
 import { RECORDINGS_CONFIGURED, getRoomRecordings, type RecordingFile } from "@/features/recordings/api";
 import { formatCreatedAt } from "@/features/recordings/format";
 import ReplayStage from "./ReplayStage";
@@ -15,15 +17,14 @@ type ResolvedState =
 
 function ReplayEmpty({ message }: { message: string }) {
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col items-start gap-4 px-1 py-24 lg:px-2">
+    <PageShell width="wide">
       <p className="text-ink-dim">{message}</p>
-      <Link
-        href="/recordings"
-        className="rounded-full border border-vine px-4 py-1.5 text-small text-ink-dim transition-colors hover:border-flower hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-flower"
-      >
-        返回录播列表
-      </Link>
-    </div>
+      <div className="mt-4">
+        <Button href="/recordings" variant="secondary" size="sm">
+          返回录播列表
+        </Button>
+      </div>
+    </PageShell>
   );
 }
 
@@ -71,9 +72,9 @@ export default function ReplayApp() {
 
   if (state === null) {
     return (
-      <div className="mx-auto w-full max-w-7xl px-1 py-24 lg:px-2">
+      <PageShell width="wide">
         <p className="text-ink-dim">正在加载录播…</p>
-      </div>
+      </PageShell>
     );
   }
 
@@ -89,16 +90,16 @@ export default function ReplayApp() {
   const sessionTitle = state.file.info?.title?.trim();
   const sessionStart = state.file.info?.startedAt || state.file.createdAt;
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-1 py-24 lg:px-2">
-      <header className="flex flex-col gap-2">
-        <h1 className="font-serif text-h1 text-ink">录播回放</h1>
-        <p className="text-small text-ink-dim">
-          {sessionTitle ? `${sessionTitle} · ` : ""}
-          {state.file.name} · 直播间 {activeRoomId} · {formatCreatedAt(sessionStart)}
-        </p>
-      </header>
+    <PageShell width="wide">
+      <PageHeader
+        eyebrow="Replay"
+        title="录播回放"
+        lead={`${sessionTitle ? `${sessionTitle} · ` : ""}${state.file.name} · 直播间 ${activeRoomId} · ${formatCreatedAt(sessionStart)}`}
+      />
 
-      <ReplayStage roomId={activeRoomId} file={state.file} bounds={state.bounds} />
-    </div>
+      <div className="mt-6">
+        <ReplayStage roomId={activeRoomId} file={state.file} bounds={state.bounds} />
+      </div>
+    </PageShell>
   );
 }

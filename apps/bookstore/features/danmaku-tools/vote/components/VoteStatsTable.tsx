@@ -1,5 +1,6 @@
 "use client";
 
+import Surface from "@/components/ui/Surface";
 import type { VoteOption } from "../types";
 
 interface VoteStatsTableProps {
@@ -17,34 +18,39 @@ export default function VoteStatsTable({
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-ink-dim">
+      <p className="text-small text-ink-dim">
         已处理 {processed} 条弹幕，其中 {matched} 条匹配
       </p>
 
       {options.length > 0 && (
-        <table className="w-full text-sm">
-          <caption className="sr-only">投票统计</caption>
-          <thead>
-            <tr className="border-b border-vine/50">
-              <th className="px-3 py-2 text-left font-medium text-ink">名称</th>
-              <th className="px-3 py-2 text-right font-medium text-ink">票数</th>
-              <th className="px-3 py-2 text-right font-medium text-ink">占比</th>
-            </tr>
-          </thead>
-          <tbody>
-            {options.map((option) => (
-              <tr key={option.id} className="border-b border-vine/50">
-                <td className="px-3 py-2 text-ink">{option.name}</td>
-                <td className="px-3 py-2 text-right text-ink">{option.count}</td>
-                <td className="px-3 py-2 text-right text-ink-dim">
-                  {totalVotes > 0
-                    ? `${((option.count / totalVotes) * 100).toFixed(1)}%`
-                    : "0%"}
-                </td>
+        <Surface variant="outline" padding="none" className="overflow-hidden">
+          <table className="w-full text-small">
+            <caption className="sr-only">投票统计</caption>
+            <thead>
+              <tr className="border-b border-line">
+                <th className="px-3 py-2 text-left font-mono text-label font-medium tracking-label uppercase text-ink-dim">名称</th>
+                <th className="px-3 py-2 text-right font-mono text-label font-medium tracking-label uppercase text-ink-dim">票数</th>
+                <th className="px-3 py-2 text-right font-mono text-label font-medium tracking-label uppercase text-ink-dim">占比</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {options.map((option) => (
+                <tr
+                  key={option.id}
+                  className="border-b border-line transition-colors duration-(--duration-fast) last:border-0 hover:bg-soft/60"
+                >
+                  <td className="px-3 py-2 text-ink">{option.name}</td>
+                  <td className="px-3 py-2 text-right font-mono text-ink">{option.count}</td>
+                  <td className="px-3 py-2 text-right font-mono text-ink-dim">
+                    {totalVotes > 0
+                      ? `${((option.count / totalVotes) * 100).toFixed(1)}%`
+                      : "0%"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Surface>
       )}
     </div>
   );

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays } from "lucide-react";
 import { API_CONFIGURED } from "@/features/backdoor/api";
 import { listPlans, type StreamPlan } from "@/features/schedule/api";
 import { toDateStr } from "@/features/schedule/dateUtils";
@@ -18,7 +17,7 @@ type State =
   | { kind: "loaded"; plans: StreamPlan[] };
 
 /**
- * 今日日程组件：展示当天直播计划（时间 + 主题），无计划展示空态。
+ * 今日日程：行内元数据（时间 + 主题），无计划展示空态文案。
  * 仅在 API_CONFIGURED 时挂载；未配置返回 null 不留占位。
  */
 export default function TodaySchedule() {
@@ -46,33 +45,27 @@ export default function TodaySchedule() {
     };
   }, [today]);
 
-  if (!API_CONFIGURED) {
-    return null;
-  }
+  if (!API_CONFIGURED) return null;
 
   const plans = state.kind === "loaded" ? state.plans : [];
   const sorted = [...plans].sort(comparePlans);
 
+  if (state.kind === "loading") {
+    return <span className="inline-block h-5 w-40 animate-pulse rounded-xs bg-soft" aria-busy="true" />;
+  }
+
+  if (sorted.length === 0) {
+    return <span className="text-small text-ink-dim">今日暂无安排</span>;
+  }
+
   return (
-    <div className="w-fit rounded-lg border border-vine/40 bg-raised/60 p-4">
-      <div className="flex items-center gap-2">
-        <CalendarDays size={16} className="text-primary" aria-hidden />
-        <h2 className="font-serif text-base font-semibold text-ink">今日日程</h2>
-      </div>
-      {state.kind === "loading" ? (
-        <div className="mt-2 h-5 w-40 animate-pulse rounded bg-soft" aria-busy="true" />
-      ) : sorted.length > 0 ? (
-        <ul className="mt-2 flex flex-col gap-1.5">
-          {sorted.map((p) => (
-            <li key={p.id} className="flex items-center gap-2 text-sm">
-              <span className="tabular-nums text-ink-dim">{planTimeSlot(p)}</span>
-              <span className="text-ink">{p.title}</span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="mt-2 text-sm text-ink-dim">今日暂无安排</p>
-      )}
-    </div>
+    <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
+      {sorted.map((p) => (
+        <span key={p.id} className="inline-flex items-center gap-2 text-small">
+          <span className="font-mono tabular-nums text-ink-dim">{planTimeSlot(p)}</span>
+          <span className="text-ink">{p.title}</span>
+        </span>
+      ))}
+    </span>
   );
 }

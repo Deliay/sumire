@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Radio } from "lucide-react";
 import { API_CONFIGURED } from "@/features/backdoor/api";
 import { getLiveStatus, type LiveStatus } from "@/features/home/api";
+import { cn } from "@/lib/cn";
 
 type State =
   | { kind: "loading" }
@@ -12,7 +12,7 @@ type State =
   | { kind: "degraded" };
 
 /**
- * 直播状态组件：展示「直播中 / 未开播」状态，点击跳转直播间（新窗口）。
+ * 直播状态：行内紧凑元数据（状态点 + 文案），点击跳直播间。
  * 仅在 API_CONFIGURED 时挂载；未配置返回 null 不留占位。
  */
 export default function LiveStatus({ liveUrl }: { liveUrl: string }) {
@@ -39,9 +39,7 @@ export default function LiveStatus({ liveUrl }: { liveUrl: string }) {
     };
   }, []);
 
-  if (!API_CONFIGURED) {
-    return null;
-  }
+  if (!API_CONFIGURED) return null;
 
   const label =
     state.kind === "loading"
@@ -57,21 +55,21 @@ export default function LiveStatus({ liveUrl }: { liveUrl: string }) {
       href={liveUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex w-fit items-center gap-2.5 rounded-full border border-vine px-4 py-1.5 text-sm text-ink-dim transition-colors hover:border-flower hover:text-ink"
+      className="inline-flex min-h-11 items-center gap-2 text-small text-ink-dim transition-colors duration-(--duration-fast) hover:text-ink"
       aria-live="polite"
     >
       <span
-        className={`inline-block size-3 rounded-full ${
+        className={cn(
+          "inline-block size-2 rounded-full",
           state.kind === "live"
-            ? "bg-eye animate-pulse"
+            ? "animate-pulse bg-eye"
             : state.kind === "loading"
-              ? "bg-vine"
-              : "bg-ink-dim/40"
-        }`}
+              ? "bg-line-strong"
+              : "bg-ink-mute",
+        )}
         aria-hidden
       />
-      <span className="font-display tracking-widest">{label}</span>
-      <Radio size={14} aria-hidden />
+      <span>{label}</span>
     </a>
   );
 }

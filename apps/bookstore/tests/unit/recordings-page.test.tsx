@@ -98,7 +98,7 @@ describe("RecordingsApp 门控与状态列表", () => {
   it("未配置录播服务：渲染空态且不调用 api", async () => {
     h.recordingsConfigured = false;
     render(<RecordingsApp />);
-    expect(screen.getByText(/服务未配置/)).toBeTruthy();
+    expect(screen.getAllByText(/服务未配置/).length).toBeGreaterThan(0);
     expect(h.getRecordingStatus).not.toHaveBeenCalled();
   });
 

@@ -47,10 +47,10 @@ export default function LoginCard() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="w-full rounded-xl border border-vine/50 bg-raised shadow-lg"
+      className="w-full rounded-md border border-line bg-raised"
       style={{ maxWidth: "22rem" }}
     >
-      <div className="h-0.5 rounded-t-xl bg-primary" aria-hidden />
+      <div className="h-px rounded-t-md bg-primary" aria-hidden />
       <div className="flex flex-col gap-5 p-7">
         <div className="flex flex-col gap-1">
           <h1 className="font-serif text-3xl font-semibold text-ink">枝堇</h1>
@@ -79,7 +79,7 @@ export default function LoginCard() {
           登录
         </PrimaryButton>
         <div aria-live="polite">
-          <p className="min-h-5 text-sm text-flower" role="alert">
+          <p className="min-h-5 text-small text-crimson" role="alert">
             {error}
           </p>
         </div>

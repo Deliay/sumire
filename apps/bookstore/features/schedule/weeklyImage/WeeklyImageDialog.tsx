@@ -272,7 +272,7 @@ export default function WeeklyImageDialog({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl border border-vine/50 bg-raised p-6 shadow-xl">
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-md border border-line bg-raised p-6 shadow-overlay">
         <div className="flex items-center justify-between">
           <h2 id="weekly-image-title" className="font-serif text-xl font-semibold text-ink">
             生成周表图片
@@ -291,7 +291,7 @@ export default function WeeklyImageDialog({
           <button
             type="button"
             onClick={() => setWeek((w) => shiftWeek(w.year, w.week, -1))}
-            className="rounded-md border border-vine/50 px-3 py-1.5 text-sm text-ink-dim transition-colors hover:border-flower hover:text-ink"
+            className="rounded-md border border-line px-3 py-1.5 text-sm text-ink-dim transition-colors hover:border-flower hover:text-ink"
             aria-label="上一周"
           >
             ←
@@ -300,14 +300,14 @@ export default function WeeklyImageDialog({
           <button
             type="button"
             onClick={() => setWeek((w) => shiftWeek(w.year, w.week, 1))}
-            className="rounded-md border border-vine/50 px-3 py-1.5 text-sm text-ink-dim transition-colors hover:border-flower hover:text-ink"
+            className="rounded-md border border-line px-3 py-1.5 text-sm text-ink-dim transition-colors hover:border-flower hover:text-ink"
             aria-label="下一周"
           >
             →
           </button>
         </div>
 
-        <div className="mt-4 flex items-center justify-center rounded-md border border-vine/40 bg-night p-3">
+        <div className="mt-4 flex items-center justify-center rounded-md border border-line bg-night p-3">
           {loading ? (
             <div
               className="flex aspect-[1665/1080] w-full items-center justify-center text-ink-dim"
@@ -321,7 +321,7 @@ export default function WeeklyImageDialog({
               <button
                 type="button"
                 onClick={() => setRetryNonce((n) => n + 1)}
-                className="rounded-md border border-vine/50 px-3 py-1 text-sm text-ink-dim hover:text-ink"
+                className="rounded-md border border-line px-3 py-1 text-sm text-ink-dim hover:text-ink"
               >
                 重试
               </button>
@@ -335,7 +335,7 @@ export default function WeeklyImageDialog({
         <p className="mt-3 text-center text-xs text-ink-dim">长按保存图片，或右键另存为</p>
 
         {/* 设置面板 */}
-        <div className="mt-4 border-t border-vine/30 pt-4">
+        <div className="mt-4 border-t border-line pt-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-ink">
@@ -347,7 +347,7 @@ export default function WeeklyImageDialog({
                 className={`rounded-md px-3 py-1 text-xs transition-colors ${
                   editingDefault
                     ? "bg-flower text-white"
-                    : "border border-vine/50 text-ink-dim hover:text-ink"
+                    : "border border-line text-ink-dim hover:text-ink"
                 }`}
               >
                 编辑默认方案
@@ -356,7 +356,7 @@ export default function WeeklyImageDialog({
                 <button
                   type="button"
                   onClick={handleResetDefaultToPreset}
-                  className="rounded-md border border-vine/50 px-3 py-1 text-xs text-ink-dim hover:text-ink"
+                  className="rounded-md border border-line px-3 py-1 text-xs text-ink-dim hover:text-ink"
                 >
                   恢复预设方案
                 </button>
@@ -364,7 +364,7 @@ export default function WeeklyImageDialog({
                 <button
                   type="button"
                   onClick={handleResetToDefault}
-                  className="rounded-md border border-vine/50 px-3 py-1 text-xs text-ink-dim hover:text-ink"
+                  className="rounded-md border border-line px-3 py-1 text-xs text-ink-dim hover:text-ink"
                 >
                   恢复为默认方案
                 </button>
@@ -385,7 +385,7 @@ export default function WeeklyImageDialog({
                     className={`rounded px-2 py-1 text-xs transition-colors ${
                       scheme.global.align === align
                         ? "bg-flower text-white"
-                        : "border border-vine/50 text-ink-dim hover:text-ink"
+                        : "border border-line text-ink-dim hover:text-ink"
                     }`}
                   >
                     {align === "left" ? "左" : align === "center" ? "居中" : "右"}
@@ -409,7 +409,7 @@ export default function WeeklyImageDialog({
                     handleGlobalChange({ fontSize: num });
                   }
                 }}
-                className="w-16 rounded border border-vine/50 px-2 py-1 text-sm text-ink"
+                className="w-16 rounded border border-line px-2 py-1 text-sm text-ink"
               />
             </div>
 
@@ -419,13 +419,13 @@ export default function WeeklyImageDialog({
                 type="color"
                 value={scheme.global.color}
                 onChange={(e) => handleGlobalChange({ color: e.target.value })}
-                className="h-8 w-8 rounded border border-vine/50"
+                className="h-8 w-8 rounded border border-line"
               />
               <input
                 type="text"
                 value={scheme.global.color}
                 onChange={(e) => handleGlobalChange({ color: e.target.value })}
-                className="w-20 rounded border border-vine/50 px-2 py-1 text-sm text-ink"
+                className="w-20 rounded border border-line px-2 py-1 text-sm text-ink"
               />
             </div>
           </div>
@@ -441,7 +441,7 @@ export default function WeeklyImageDialog({
                   aria-label="启用日期范围"
                   checked={scheme.date?.enabled ?? createDefaultDateConfig().enabled}
                   onChange={(e) => handleDateChange({ enabled: e.target.checked })}
-                  className="h-4 w-4 rounded border-vine/50"
+                  className="h-4 w-4 rounded border-line"
                 />
                 <span className="text-sm text-ink-dim">启用日期范围</span>
               </label>
@@ -454,7 +454,7 @@ export default function WeeklyImageDialog({
                 aria-label="日期格式"
                 value={(scheme.date?.format ?? createDefaultDateConfig().format)}
                 onChange={(e) => handleDateChange({ format: e.target.value })}
-                className="flex-1 rounded border border-vine/50 px-2 py-1 text-sm text-ink"
+                className="flex-1 rounded border border-line px-2 py-1 text-sm text-ink"
                 placeholder="{yyyy}年{mm}月{dd}日"
               />
             </div>
@@ -466,7 +466,7 @@ export default function WeeklyImageDialog({
                 aria-label="日期内容"
                 value={(scheme.date?.content ?? createDefaultDateConfig().content)}
                 onChange={(e) => handleDateChange({ content: e.target.value })}
-                className="flex-1 rounded border border-vine/50 px-2 py-1 text-sm text-ink"
+                className="flex-1 rounded border border-line px-2 py-1 text-sm text-ink"
                 placeholder="{开始日期} ~ {结束日期}"
               />
             </div>
@@ -483,10 +483,10 @@ export default function WeeklyImageDialog({
                       align === undefined
                         ? scheme.date?.align === undefined
                           ? "bg-flower text-white"
-                          : "border border-vine/50 text-ink-dim hover:text-ink"
+                          : "border border-line text-ink-dim hover:text-ink"
                         : scheme.date?.align === align
                           ? "bg-flower text-white"
-                          : "border border-vine/50 text-ink-dim hover:text-ink"
+                          : "border border-line text-ink-dim hover:text-ink"
                     }`}
                   >
                     {align === undefined ? "沿用" : align === "left" ? "左" : align === "center" ? "居中" : "右"}
@@ -514,7 +514,7 @@ export default function WeeklyImageDialog({
                     handleDateChange({ fontSize: num });
                   }
                 }}
-                className="w-16 rounded border border-vine/50 px-2 py-1 text-sm text-ink"
+                className="w-16 rounded border border-line px-2 py-1 text-sm text-ink"
               />
             </div>
 
@@ -524,7 +524,7 @@ export default function WeeklyImageDialog({
                 type="color"
                 value={scheme.date?.color ?? scheme.global.color}
                 onChange={(e) => handleDateChange({ color: e.target.value })}
-                className="h-8 w-8 rounded border border-vine/50"
+                className="h-8 w-8 rounded border border-line"
               />
               <input
                 type="text"
@@ -538,7 +538,7 @@ export default function WeeklyImageDialog({
                     handleDateChange({ color: val });
                   }
                 }}
-                className="w-20 rounded border border-vine/50 px-2 py-1 text-sm text-ink"
+                className="w-20 rounded border border-line px-2 py-1 text-sm text-ink"
               />
             </div>
           </div>
@@ -552,7 +552,7 @@ export default function WeeklyImageDialog({
               const hasOverrides = day.align !== undefined || day.fontSize !== undefined || day.color !== undefined;
               
               return (
-                <div key={dayIndex} className="rounded-md border border-vine/30 bg-night/50">
+                <div key={dayIndex} className="rounded-md border border-line bg-night/50">
                   <button
                     type="button"
                     onClick={() => toggleDayExpanded(dayIndex)}
@@ -568,7 +568,7 @@ export default function WeeklyImageDialog({
                   </button>
                   
                   {isExpanded && (
-                    <div className="border-t border-vine/20 px-3 py-3 space-y-3">
+                    <div className="border-t border-line px-3 py-3 space-y-3">
                       {/* 内容编辑 */}
                       <div>
                         <label className="block text-xs text-ink-dim mb-1">内容模板</label>
@@ -576,14 +576,14 @@ export default function WeeklyImageDialog({
                           <textarea
                             value={day.content}
                             onChange={(e) => handleDayChange(dayIndex, { content: e.target.value })}
-                            className="flex-1 rounded border border-vine/50 bg-raised px-2 py-1 text-sm text-ink resize-none"
+                            className="flex-1 rounded border border-line bg-raised px-2 py-1 text-sm text-ink resize-none"
                             rows={2}
                             placeholder="输入内容模板，使用 {schedules} 插入计划"
                           />
                           <button
                             type="button"
                             onClick={() => insertScheduleVariable(dayIndex)}
-                            className="self-end rounded border border-vine/50 px-2 py-1 text-xs text-ink-dim hover:text-ink"
+                            className="self-end rounded border border-line px-2 py-1 text-xs text-ink-dim hover:text-ink"
                           >
                             插入 {"{schedules}"}
                           </button>
@@ -602,7 +602,7 @@ export default function WeeklyImageDialog({
                               className={`rounded px-2 py-1 text-xs transition-colors ${
                                 day.align === align
                                   ? "bg-flower text-white"
-                                  : "border border-vine/50 text-ink-dim hover:text-ink"
+                                  : "border border-line text-ink-dim hover:text-ink"
                               }`}
                             >
                               {align === undefined ? "沿用" : align === "left" ? "左" : align === "center" ? "居中" : "右"}
@@ -631,7 +631,7 @@ export default function WeeklyImageDialog({
                               handleDayChange(dayIndex, { fontSize: num });
                             }
                           }}
-                          className="w-16 rounded border border-vine/50 px-2 py-1 text-sm text-ink"
+                          className="w-16 rounded border border-line px-2 py-1 text-sm text-ink"
                         />
                       </div>
 
@@ -642,7 +642,7 @@ export default function WeeklyImageDialog({
                           type="color"
                           value={day.color ?? scheme.global.color}
                           onChange={(e) => handleDayChange(dayIndex, { color: e.target.value })}
-                          className="h-6 w-6 rounded border border-vine/50"
+                          className="h-6 w-6 rounded border border-line"
                         />
                         <input
                           type="text"
@@ -656,7 +656,7 @@ export default function WeeklyImageDialog({
                               handleDayChange(dayIndex, { color: val });
                             }
                           }}
-                          className="w-20 rounded border border-vine/50 px-2 py-1 text-sm text-ink"
+                          className="w-20 rounded border border-line px-2 py-1 text-sm text-ink"
                         />
                       </div>
                     </div>

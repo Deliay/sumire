@@ -17,7 +17,7 @@ const ROLE_OPTIONS: { value: Role; label: string }[] = [
 export default function RoleSelect({ value, onChange, options }: RoleSelectProps) {
   if (options.length === 1) {
     return (
-      <div className="rounded-md border border-vine/50 bg-soft px-3 py-2 text-sm text-ink-dim">
+      <div className="rounded-md border border-line-strong bg-soft px-3 py-2 text-small text-ink-dim">
         角色：{ROLE_OPTIONS.find((o) => o.value === options[0])?.label}
       </div>
     );
@@ -34,7 +34,7 @@ export default function RoleSelect({ value, onChange, options }: RoleSelectProps
             onChange={() => onChange(opt.value)}
             className="peer sr-only"
           />
-          <span className="inline-flex rounded-md border border-vine/50 px-3 py-1.5 text-sm text-ink-dim transition-colors peer-checked:border-primary peer-checked:text-ink">
+          <span className="inline-flex min-h-11 items-center rounded-md border border-line-strong px-3 text-small text-ink-dim transition-colors duration-(--duration-fast) peer-checked:border-primary peer-checked:text-ink peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-flower">
             {opt.label}
           </span>
         </label>

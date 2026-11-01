@@ -304,8 +304,7 @@ export default function CalendarView({ entries, onRangeChange, onSelectDay, vari
 
   return (
     <div className={`flex h-full w-full flex-col select-none ${immersive ? "relative" : ""}`}>
-      {!immersive && (
-        <div className="mb-4 flex items-center justify-between">
+      {!immersive && (        <div className="mb-4 flex items-center justify-between">
           <button
             type="button"
             onClick={() => goMonth(-1)}
@@ -338,7 +337,7 @@ export default function CalendarView({ entries, onRangeChange, onSelectDay, vari
           <button
             type="button"
             onClick={() => goMonth(-1)}
-            className="absolute left-0 top-0 inline-flex size-11 items-center justify-center rounded-md border border-line text-ink-dim transition-colors duration-(--duration-fast) hover:border-line-strong hover:text-ink"
+            className="absolute left-0 top-0 inline-flex size-11 items-center justify-center rounded-pill text-ink-dim transition-colors duration-(--duration-fast) hover:bg-soft hover:text-ink"
             aria-label="上一月"
           >
             ‹
@@ -346,7 +345,7 @@ export default function CalendarView({ entries, onRangeChange, onSelectDay, vari
           <button
             type="button"
             onClick={() => goMonth(1)}
-            className="absolute right-0 top-0 inline-flex size-11 items-center justify-center rounded-md border border-line text-ink-dim transition-colors duration-(--duration-fast) hover:border-line-strong hover:text-ink"
+            className="absolute right-0 top-0 inline-flex size-11 items-center justify-center rounded-pill text-ink-dim transition-colors duration-(--duration-fast) hover:bg-soft hover:text-ink"
             aria-label="下一月"
           >
             ›

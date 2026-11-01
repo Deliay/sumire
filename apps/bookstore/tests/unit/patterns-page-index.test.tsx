@@ -31,6 +31,14 @@ describe("PageIndex", () => {
     expect(screen.getByRole("link", { name: "档案 · 设定" }).getAttribute("aria-current")).toBe("true");
   });
 
+  it("当前项标签常显、非当前项 hover/focus 才显示", () => {
+    render(<PageIndex sections={visibleSections(true)} index={2} onNavigate={() => {}} />);
+    const current = screen.getByRole("link", { name: "档案 · 设定" });
+    const other = screen.getByRole("link", { name: "素材" });
+    expect(current.querySelector("span")?.className).toContain("opacity-100");
+    expect(other.querySelector("span")?.className).toContain("opacity-0");
+  });
+
   it("点击回调索引", () => {
     const onNavigate = vi.fn();
     render(<PageIndex sections={visibleSections(true)} index={0} onNavigate={onNavigate} />);

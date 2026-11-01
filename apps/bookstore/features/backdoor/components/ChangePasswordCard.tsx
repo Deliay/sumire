@@ -49,6 +49,7 @@ export default function ChangePasswordCard({ standalone = true }: ChangePassword
       className="w-full rounded-md border border-line bg-raised"
       style={{ maxWidth: "24rem" }}
     >
+      <div className="h-px rounded-t-md bg-primary" aria-hidden />
       {standalone && (
         <div className="rounded-t-md border-b border-line bg-soft px-6 py-3 text-small text-ink">
           首次进入里屋，请先换一把自己的钥匙

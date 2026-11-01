@@ -472,7 +472,7 @@ export default function FlvPlayerPanel({
       {supported === null && <p className="text-small text-ink-dim">正在准备播放器…</p>}
 
       {supported === false && (
-        <div className="flex flex-col gap-3 rounded-lg border border-line bg-night/40 px-4 py-5 text-small text-ink-dim">
+        <div className="flex flex-col gap-3 rounded-xs border border-line bg-night/40 px-4 py-5 text-small text-ink-dim">
           <p>当前浏览器不支持在线播放，请下载后收听。</p>
           <a
             href={url}
@@ -491,7 +491,7 @@ export default function FlvPlayerPanel({
           className={containerClass}
         >
           <div
-            className="relative aspect-video w-full overflow-hidden rounded-lg bg-black"
+            className="relative aspect-video w-full overflow-hidden rounded-xs bg-black"
             onClick={togglePlay}
             onMouseMove={mode === "none" ? undefined : showControls}
             onMouseLeave={mode === "none" ? undefined : scheduleControlsHide}

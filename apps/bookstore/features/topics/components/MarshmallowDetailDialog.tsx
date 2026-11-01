@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import MarkdownView from "@/features/markdown/MarkdownView";
 import type { Marshmallow } from "@/features/topics/types";
+import Button from "@/components/ui/Button";
+import Surface from "@/components/ui/Surface";
 
 interface MarshmallowDetailDialogProps {
   marshmallow: Marshmallow;
@@ -29,35 +31,32 @@ export default function MarshmallowDetailDialog({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       onClick={onClose}
     >
-      <div
-        className="w-[40rem] max-w-[calc(100vw-2.5rem)] rounded-lg border border-line bg-raised p-6 flex flex-col"
+      <Surface
+        padding="md"
+        className="flex w-[40rem] max-w-[calc(100vw-2.5rem)] flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3 shrink-0">
           <h2 className="text-lg font-medium text-ink">棉花糖全文</h2>
           {onToggleAdopt && (
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => onToggleAdopt(marshmallow.id, !marshmallow.adopted)}
-              className="text-xs text-ink-dim hover:text-ink border border-line rounded px-2 py-1"
             >
               {marshmallow.adopted ? "取消采用" : "采用"}
-            </button>
+            </Button>
           )}
         </div>
         <div className="max-h-[75vh] overflow-y-auto">
           <MarkdownView content={marshmallow.content} />
         </div>
-        <div className="mt-4 flex justify-end shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-1.5 text-sm text-ink-dim hover:text-ink"
-          >
+        <div className="mt-4 flex shrink-0 justify-end">
+          <Button variant="ghost" size="sm" onClick={onClose}>
             关闭
-          </button>
+          </Button>
         </div>
-      </div>
+      </Surface>
     </div>,
     document.body,
   );

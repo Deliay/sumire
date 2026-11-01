@@ -57,14 +57,10 @@ export default function TopicsOngoingPage() {
 
       <div className="mt-8">
         {loading ? (
-          <div className="flex flex-col gap-3" aria-busy="true">
-            <div className="h-32 animate-pulse rounded-xs bg-soft" />
-            <div className="h-32 animate-pulse rounded-xs bg-soft" />
-          </div>
+          <div className="py-8 text-center text-ink-dim">加载中…</div>
         ) : error ? (
           <EmptyState
-            title="加载失败"
-            description="请稍后重试"
+            title="加载失败，请稍后重试"
             action={
               <button
                 type="button"
@@ -76,7 +72,7 @@ export default function TopicsOngoingPage() {
             }
           />
         ) : topics.length === 0 ? (
-          <EmptyState title="暂无进行中的棉花糖" description="新的主题开始后，会出现在这里。" />
+          <EmptyState title="暂无进行中的棉花糖" />
         ) : (
           <div className="flex flex-col gap-3">
             {topics.map((t) => (

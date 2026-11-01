@@ -50,7 +50,7 @@ export default function LoginCard() {
       className="w-full rounded-md border border-line bg-raised"
       style={{ maxWidth: "22rem" }}
     >
-      <div className="h-0.5 rounded-t-md bg-primary" aria-hidden />
+      <div className="h-px rounded-t-md bg-primary" aria-hidden />
       <div className="flex flex-col gap-5 p-7">
         <div className="flex flex-col gap-1">
           <h1 className="font-serif text-3xl font-semibold text-ink">枝堇</h1>

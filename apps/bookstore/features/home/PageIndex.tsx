@@ -43,7 +43,14 @@ export default function PageIndex({ sections, index, onNavigate }: PageIndexProp
                   isCurrent ? "text-primary" : "text-ink-dim hover:text-ink",
                 )}
               >
-                <span className="opacity-0 transition-opacity duration-(--duration-fast) group-hover:opacity-100 group-focus-visible:opacity-100 sm:group-hover:opacity-100">
+                <span
+                  className={cn(
+                    "transition-opacity duration-(--duration-fast)",
+                    isCurrent
+                      ? "opacity-100"
+                      : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100",
+                  )}
+                >
                   {entry.label}
                 </span>
                 {isCurrent ? <span aria-hidden className="h-px w-4 bg-primary" /> : null}

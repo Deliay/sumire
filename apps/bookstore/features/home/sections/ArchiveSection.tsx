@@ -42,7 +42,7 @@ export default function ArchiveSection({
 
   return (
     <section className="relative flex h-svh flex-col overflow-hidden">
-      <div className="flex h-full min-h-0 flex-col px-5 pb-8 pt-24 lg:px-16 lg:py-12">
+      <div className="flex h-full min-h-0 flex-col px-5 pb-8 pt-24 lg:px-16 lg:pb-12 lg:pt-24">
         <SectionHeader
           folio={FOLIOS[part]}
           eyebrow={english}

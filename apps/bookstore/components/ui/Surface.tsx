@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
 type Variant = "raised" | "outline" | "paper";
@@ -17,7 +17,7 @@ const PADDINGS: Record<Padding, string> = {
   lg: "p-8",
 };
 
-export interface SurfaceProps {
+export interface SurfaceProps extends HTMLAttributes<HTMLDivElement> {
   variant?: Variant;
   padding?: Padding;
   className?: string;
@@ -30,9 +30,10 @@ export default function Surface({
   padding = "md",
   className,
   children,
+  ...rest
 }: SurfaceProps) {
   return (
-    <div className={cn("rounded-xs", VARIANTS[variant], PADDINGS[padding], className)}>
+    <div {...rest} className={cn("rounded-xs", VARIANTS[variant], PADDINGS[padding], className)}>
       {children}
     </div>
   );

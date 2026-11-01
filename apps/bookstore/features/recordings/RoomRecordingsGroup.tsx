@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { getRoomRecordings, recordingReplayHref, type RecordingFile } from "@/features/recordings/api";
 import { formatCreatedAt, formatFileSize } from "@/features/recordings/format";
 import RecordingFileActions from "@/features/recordings/RecordingFileActions";
+import Button from "@/components/ui/Button";
 
 const PAGE_SIZE = 20;
 
@@ -69,13 +70,13 @@ export default function RoomRecordingsGroup({ roomId, streamerName }: RoomRecord
           {state.kind === "error" && (
             <div className="flex items-center gap-3 text-small text-ink-dim">
               <span>录播列表加载失败。</span>
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => void load()}
-                className="rounded-md border border-line-strong px-3 py-1.5 text-tiny transition-colors hover:border-primary hover:text-ink"
               >
                 重试
-              </button>
+              </Button>
             </div>
           )}
 
@@ -105,25 +106,25 @@ export default function RoomRecordingsGroup({ roomId, streamerName }: RoomRecord
 
               {pageCount > 1 && (
                 <div className="flex items-center justify-center gap-3 font-mono text-tiny text-ink-dim">
-                  <button
-                    type="button"
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     disabled={page <= 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    className="rounded-md border border-line-strong px-3 py-1 disabled:opacity-40"
                   >
                     上一页
-                  </button>
+                  </Button>
                   <span>
                     第 {page} / {pageCount} 页
                   </span>
-                  <button
-                    type="button"
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     disabled={page >= pageCount}
                     onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-                    className="rounded-md border border-line-strong px-3 py-1 disabled:opacity-40"
                   >
                     下一页
-                  </button>
+                  </Button>
                 </div>
               )}
             </>

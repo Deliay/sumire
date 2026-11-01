@@ -11,6 +11,7 @@ import { cn } from "@/lib/cn";
 
 export interface FieldShellProps {
   label: string;
+  id?: string;
   hint?: string;
   error?: string;
   disabled?: boolean;
@@ -21,13 +22,15 @@ export interface FieldShellProps {
 /** 表单壳层：标签、错误、提示与可访问性关联。 */
 export function FieldShell({
   label,
+  id: idProp,
   hint,
   error,
   disabled,
   className,
   children,
 }: FieldShellProps) {
-  const id = useId();
+  const generatedId = useId();
+  const id = idProp ?? generatedId;
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
   const describedBy = error ? errorId : hint ? hintId : undefined;
@@ -67,9 +70,9 @@ export interface FieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 
   className?: string;
 }
 
-export default function Field({ label, hint, error, className, disabled, ...rest }: FieldProps) {
+export default function Field({ label, hint, error, className, disabled, id, ...rest }: FieldProps) {
   return (
-    <FieldShell label={label} hint={hint} error={error} disabled={disabled} className={className}>
+    <FieldShell label={label} id={id} hint={hint} error={error} disabled={disabled} className={className}>
       {({ id, describedBy, invalid }) => (
         <input
           {...rest}
@@ -91,9 +94,9 @@ export interface TextareaFieldProps extends Omit<TextareaHTMLAttributes<HTMLText
   className?: string;
 }
 
-export function TextareaField({ label, hint, error, className, disabled, ...rest }: TextareaFieldProps) {
+export function TextareaField({ label, hint, error, className, disabled, id, ...rest }: TextareaFieldProps) {
   return (
-    <FieldShell label={label} hint={hint} error={error} disabled={disabled} className={className}>
+    <FieldShell label={label} id={id} hint={hint} error={error} disabled={disabled} className={className}>
       {({ id, describedBy, invalid }) => (
         <textarea
           {...rest}
@@ -115,9 +118,9 @@ export interface SelectFieldProps extends Omit<SelectHTMLAttributes<HTMLSelectEl
   className?: string;
 }
 
-export function SelectField({ label, hint, error, className, disabled, children, ...rest }: SelectFieldProps) {
+export function SelectField({ label, hint, error, className, disabled, id, children, ...rest }: SelectFieldProps) {
   return (
-    <FieldShell label={label} hint={hint} error={error} disabled={disabled} className={className}>
+    <FieldShell label={label} id={id} hint={hint} error={error} disabled={disabled} className={className}>
       {({ id, describedBy, invalid }) => (
         <select
           {...rest}

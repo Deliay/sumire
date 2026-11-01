@@ -5,6 +5,7 @@ import { createPlan, updatePlan, type StreamPlan } from "@/features/schedule/api
 import DatePicker from "@/features/schedule/DatePicker";
 import TimePicker from "@/features/schedule/TimePicker";
 import TextField from "@/features/backdoor/components/TextField";
+import Button from "@/components/ui/Button";
 import PrimaryButton from "@/features/backdoor/components/PrimaryButton";
 import { parseDateStr, parseTimeStr } from "@/features/schedule/dateUtils";
 import type { TimeType } from "@/features/schedule/timeType";
@@ -196,15 +197,11 @@ export default function PlanFormDialog({
           <PrimaryButton type="submit" loading={loading} disabled={!canSubmit}>
             确认
           </PrimaryButton>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-center text-sm text-ink-dim transition-colors hover:text-ink"
-          >
+          <Button variant="ghost" size="sm" onClick={onClose} className="w-full">
             取消
-          </button>
+          </Button>
           {(error || (touched && emptyField)) && (
-            <p className="text-sm text-flower" role="alert">
+            <p className="text-small text-crimson" role="alert">
               {error || "请填写日期与直播主题"}
             </p>
           )}

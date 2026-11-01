@@ -113,7 +113,7 @@ export default function GiftCardDialog({ event, onClose }: GiftCardDialogProps) 
 
         {/* SC 留言内容 */}
         {isSc && event.content !== undefined && (
-          <div className="mb-4 rounded-lg bg-black/10 p-3">
+          <div className="mb-4 rounded-xs bg-black/10 p-3">
             <p className="text-sm break-words select-text">{event.content}</p>
           </div>
         )}

@@ -15,7 +15,7 @@ export default function AssetsSection({
 }) {
   return (
     <section className="flex min-h-svh flex-col px-5 pb-6 pt-24 lg:px-16 lg:pt-28">
-      <SectionHeader eyebrow="Assets" folio="捌" title="素材架" lead="官方立绘、插画与宣传图。图版版权归主播及所属社团所有。" />
+      <SectionHeader eyebrow="Assets" folio="捌" title="素材架" />
       <div className="mt-8">
         <AssetGallery assets={assets} />
       </div>

@@ -111,7 +111,7 @@ export function useFullpageScroll({
 
   /**
    * 翻页转场：rAF 驱动 px 插值（方向感知缓入缓出），
-   * 每帧派发「流场速度」事件使粒子层随页面平移耦合（动画结束即停，冲量滞留衰减作余韵）。
+   * 按 rAF 逐帧插值到目标偏移（480ms；reduced-motion 直接落位）。
    */
   const applyTransform = useCallback(
     (i: number, animated: boolean) => {

@@ -18,7 +18,7 @@ export default function HeroSection({
   heroAsset: Asset;
 }) {
   return (
-    <section className="relative flex h-svh flex-col overflow-hidden">
+    <section className="relative flex h-svh flex-col overflow-hidden max-lg:overflow-y-auto">
       {/* 一处静态径向微光（primary/6%，无动画） */}
       <div
         aria-hidden
@@ -29,9 +29,9 @@ export default function HeroSection({
         }}
       />
 
-      <div className="relative flex h-full min-h-0 flex-col gap-6 px-5 pb-8 pt-24 lg:grid lg:grid-cols-12 lg:items-end lg:gap-8 lg:px-16 lg:pb-16 lg:pt-28">
+      <div className="relative flex h-full min-h-0 flex-col gap-6 px-5 pb-8 pt-24 max-lg:h-auto lg:grid lg:grid-cols-12 lg:items-end lg:gap-8 lg:px-16 lg:pb-16 lg:pt-28">
         {/* 图版：移动端在上（55svh），桌面右 6 列 */}
-        <div className="order-first min-h-0 lg:order-none lg:col-span-6 lg:col-start-7 lg:row-start-1">
+        <div className="order-first min-h-0 shrink-0 lg:order-none lg:col-span-6 lg:col-start-7 lg:row-start-1">
           <Plate
             src={assetOriginalWebpUrl(heroAsset)}
             alt={heroAsset.title}
@@ -47,7 +47,7 @@ export default function HeroSection({
         </div>
 
         {/* 文字列：桌面左 5 列 */}
-        <div className="flex min-h-0 flex-col justify-end gap-5 lg:col-span-5 lg:col-start-1 lg:row-start-1">
+        <div className="flex min-h-0 flex-col justify-end gap-5 max-lg:shrink-0 lg:col-span-5 lg:col-start-1 lg:row-start-1">
           <p className="font-mono text-label tracking-label uppercase text-ink-dim">
             VirtuaReal · 二十八期
           </p>

@@ -49,8 +49,7 @@ describe("TopicsOngoingPage（进行中的棉花糖列表）", () => {
   it("加载失败展示重试入口", async () => {
     mockList.mockResolvedValue({ status: 500, data: null });
     render(<TopicsOngoingPage />);
-    await waitFor(() => expect(screen.getByText("加载失败")).toBeInTheDocument());
-    expect(screen.getByText("请稍后重试")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("加载失败，请稍后重试")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
   });
 });

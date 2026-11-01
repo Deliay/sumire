@@ -13,16 +13,9 @@ export default function AssetsPage() {
 
   return (
     <PageShell width="wide">
-      <PageHeader
-        eyebrow="Assets"
-        folio="捌"
-        title="素材架"
-        lead="官方立绘、插画与宣传图。图版版权归主播及所属社团所有。"
-      />
+      <PageHeader eyebrow="Assets" folio="捌" title="素材架" />
 
-      <Notice title="版权说明" className="mt-8">
-        {site.disclaimer}
-      </Notice>
+      <Notice className="mt-8">{site.disclaimer}</Notice>
 
       <div className="mt-10">
         <AssetGallery assets={assets} />

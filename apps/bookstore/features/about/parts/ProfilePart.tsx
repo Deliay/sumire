@@ -24,7 +24,11 @@ export default function ProfilePart({
     ["Live2D", profile.modelArtist],
   ];
   const grid = (
-    <dl className="grid max-w-[36rem] grid-cols-1 gap-x-8 gap-y-3 text-small sm:grid-cols-2">
+    <dl
+      className={`grid grid-cols-1 gap-x-8 gap-y-3 text-small ${
+        variant === "bare" ? "sm:grid-cols-2" : ""
+      }`}
+    >
       {facts.map(([label, value]) => (
         <div key={label} className="flex gap-3">
           <dt className="w-20 shrink-0 text-ink-dim">{label}</dt>
@@ -49,13 +53,13 @@ export default function ProfilePart({
   }
   return (
     <section>
-      <div className="grid items-center gap-8 sm:grid-cols-[220px_1fr]">
+      <div className="grid items-center gap-8 sm:grid-cols-[160px_1fr]">
         <Plate
           src={assetThumbnailUrl(portrait)}
           alt={portrait.title}
           width={500}
           height={1000}
-          className="mx-auto w-full max-w-44 sm:max-w-none"
+          className="mx-auto w-full max-w-40 sm:max-w-none"
           frameClassName="aspect-[1/2]"
         />
         {grid}

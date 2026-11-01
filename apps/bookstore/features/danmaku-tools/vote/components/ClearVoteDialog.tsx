@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useCallback } from "react";
+import Button from "@/components/ui/Button";
+import Surface from "@/components/ui/Surface";
 
 interface ClearVoteDialogProps {
   open: boolean;
@@ -13,8 +15,6 @@ export default function ClearVoteDialog({
   onConfirm,
   onCancel,
 }: ClearVoteDialogProps) {
-  const cancelButtonRef = useRef<HTMLButtonElement>(null);
-
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === "Escape") onCancel();
@@ -26,8 +26,6 @@ export default function ClearVoteDialog({
     if (!open) return;
     document.body.style.overflow = "hidden";
     document.addEventListener("keydown", handleKeyDown);
-    // 打开后焦点落于取消按钮
-    cancelButtonRef.current?.focus();
     return () => {
       document.body.style.overflow = "";
       document.removeEventListener("keydown", handleKeyDown);
@@ -48,34 +46,25 @@ export default function ClearVoteDialog({
       aria-modal="true"
       aria-labelledby="clear-vote-dialog-title"
     >
-      <div className="relative w-full max-w-md rounded-md border border-line bg-raised p-6 shadow-overlay">
+      <Surface padding="md" className="relative w-full max-w-md">
         <h2
           id="clear-vote-dialog-title"
-          className="font-serif text-lg font-semibold text-ink"
+          className="font-serif text-h3 font-semibold text-ink"
         >
           确认清空
         </h2>
-        <p className="mt-2 text-sm text-ink-dim">
+        <p className="mt-2 text-small text-ink-dim">
           将清空当前所有投票数据（选项、统计与已投票记录），是否确认？
         </p>
         <div className="mt-6 flex justify-end gap-2">
-          <button
-            ref={cancelButtonRef}
-            type="button"
-            onClick={onCancel}
-            className="rounded-md border border-line px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-raised"
-          >
+          <Button variant="secondary" size="sm" onClick={onCancel} autoFocus>
             取消
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="rounded-md bg-crimson px-4 py-2 text-sm font-medium text-ink-on-paper transition-colors hover:bg-crimson/80"
-          >
+          </Button>
+          <Button variant="danger" size="sm" onClick={onConfirm}>
             确认清空
-          </button>
+          </Button>
         </div>
-      </div>
+      </Surface>
     </div>
   );
 }

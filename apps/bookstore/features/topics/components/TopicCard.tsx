@@ -1,5 +1,7 @@
 "use client";
 
+import Button from "@/components/ui/Button";
+import Surface from "@/components/ui/Surface";
 import { getStatusText, getStatusBadgeClass } from "@/features/topics/status";
 import type { TopicStatus } from "@/features/topics/types";
 
@@ -26,50 +28,35 @@ export default function TopicCard({
   onClick,
 }: TopicCardProps) {
   return (
-    <div
-      className="rounded-lg border border-line bg-raised p-4 cursor-pointer transition-colors duration-150 hover:border-primary"
+    <Surface
+      padding="sm"
+      className="cursor-pointer transition-colors duration-(--duration-fast) hover:border-line-strong"
       onClick={onClick}
     >
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-medium text-ink truncate">{title}</h3>
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="truncate font-serif text-h3 font-semibold text-ink">{title}</h3>
         <span className={getStatusBadgeClass(status)}>{getStatusText(status)}</span>
       </div>
       {/* round 9：已归档卡片操作行仅「恢复」 */}
       {archived ? (
-        <div className="flex gap-2 text-xs" onClick={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            onClick={onRestore}
-            className="text-ink-dim hover:text-ink border border-line rounded px-2 py-1 transition-colors duration-150"
-          >
+        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+          <Button variant="ghost" size="sm" onClick={onRestore}>
             恢复
-          </button>
+          </Button>
         </div>
       ) : (
-        <div className="flex gap-2 text-xs" onClick={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            onClick={onStartStop}
-            className="text-ink-dim hover:text-ink border border-line rounded px-2 py-1 transition-colors duration-150"
-          >
+        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+          <Button variant="ghost" size="sm" onClick={onStartStop}>
             {status === "collecting" ? "停止收集" : "继续收集"}
-          </button>
-          <button
-            type="button"
-            onClick={onArchive}
-            className="text-ink-dim hover:text-ink border border-line rounded px-2 py-1 transition-colors duration-150"
-          >
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onArchive}>
             归档
-          </button>
-          <button
-            type="button"
-            onClick={onEdit}
-            className="text-ink-dim hover:text-ink border border-line rounded px-2 py-1 transition-colors duration-150"
-          >
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onEdit}>
             修改
-          </button>
+          </Button>
         </div>
       )}
-    </div>
+    </Surface>
   );
 }

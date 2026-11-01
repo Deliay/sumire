@@ -7,7 +7,8 @@ test.describe("bookstore 主页（整页滚动叙事容器）", () => {
     await page.goto(BASE);
     await expect(page.getByText(/VirtuaReal · 二十八期/).first()).toBeVisible();
     await page.mouse.wheel(0, 500);
-    await expect(page.getByText(/信息 · Profile|设定 · Story|喜好 · Taste/).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "信息" })).toBeVisible();
+    await expect(page.getByText("Profile").first()).toBeVisible();
   });
 
   test("site-home-scroll-slow-notch: 慢速单格滚轮（间隔>150ms、<100px）一次翻一屏", async ({ page }) => {
@@ -64,7 +65,8 @@ test.describe("bookstore 主页（整页滚动叙事容器）", () => {
   test("site-home-nav-click: 首页内点击导航「档案」锚点平滑翻页至档案站", async ({ page }) => {
     await page.goto(BASE);
     await page.getByRole("link", { name: "档案" }).first().click();
-    await expect(page.getByText(/信息 · Profile|设定 · Story|喜好 · Taste/).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "信息" })).toBeVisible();
+    await expect(page.getByText("Profile").first()).toBeVisible();
   });
 
   test("site-home-nav-active: 翻页后导航选中态同步（点击导航到素材站 → 素材高亮）", async ({ page }) => {

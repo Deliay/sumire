@@ -35,12 +35,9 @@ async function stubSSE(page: Page): Promise<void> {
         _opts?: unknown,
       ) {
         instances.add(this);
-        setTimeout(() => {
-          if (this.readyState === 0) {
-            this.readyState = 1;
-            this.onopen?.();
-          }
-        }, 0);
+        // 同步置为 OPEN：用例在点击开始投票后立即 push 事件，避免等待 0ms 定时器的竞态
+        this.readyState = 1;
+        setTimeout(() => this.onopen?.(), 0);
       }
       addEventListener(type: string, listener: (event: { data: string }) => void) {
         if (!this.listeners.has(type)) {
@@ -107,7 +104,7 @@ test.describe("弹幕投票", () => {
     await page.getByPlaceholder("名称").fill("唱歌跳舞");
     await page.getByPlaceholder("匹配关键字").fill("唱歌");
     await page.getByRole("button", { name: "添加选项" }).click();
-    await expect(page.getByRole("alert")).toContainText("关键字与已有选项冲突");
+    await expect(page.getByRole("alert").filter({ hasText: "关键字与已有选项冲突" })).toBeVisible();
 
     // 6. 开始投票
     await page.getByRole("button", { name: "开始投票" }).click();

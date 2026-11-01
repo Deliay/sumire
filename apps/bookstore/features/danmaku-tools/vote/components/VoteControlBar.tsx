@@ -1,5 +1,7 @@
 "use client";
 
+import Button from "@/components/ui/Button";
+
 interface VoteControlBarProps {
   voting: boolean;
   onStart: () => void;
@@ -17,29 +19,17 @@ export default function VoteControlBar({
     <div className="flex flex-col gap-4">
       <div className="flex gap-2">
         {voting ? (
-          <button
-            type="button"
-            onClick={onStop}
-            className="rounded-md bg-crimson px-4 py-2 text-sm font-medium text-ink-on-paper transition-colors hover:bg-crimson/80"
-          >
+          <Button variant="danger" size="sm" onClick={onStop}>
             停止投票
-          </button>
+          </Button>
         ) : (
-          <button
-            type="button"
-            onClick={onStart}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-ink-on-paper transition-colors hover:bg-primary/80"
-          >
+          <Button variant="primary" size="sm" onClick={onStart}>
             开始投票
-          </button>
+          </Button>
         )}
-        <button
-          type="button"
-          onClick={onClear}
-          className="rounded-md border border-line px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-raised"
-        >
+        <Button variant="secondary" size="sm" onClick={onClear}>
           清空投票
-        </button>
+        </Button>
       </div>
     </div>
   );

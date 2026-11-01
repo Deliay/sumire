@@ -9,19 +9,7 @@ const TEXT: Record<RecordingsEmptyReason, string> = {
   "no-recordings": "暂无录播。",
 };
 
-const TITLE: Record<RecordingsEmptyReason, string> = {
-  unconfigured: "服务未配置",
-  unavailable: "服务不可用",
-  "no-recordings": "暂无录播",
-};
-
-/** 录播页通用空态：服务未配置 / 上游不可用 / 无数据。 */
+/** 录播页通用空态：服务未配置 / 上游不可用 / 无数据（文案沿用原文案）。 */
 export default function RecordingsEmpty({ reason }: { reason: RecordingsEmptyReason }) {
-  return (
-    <EmptyState
-      title={TITLE[reason]}
-      description={TEXT[reason]}
-      action={<AudioLines size={20} aria-hidden className="text-line-strong" />}
-    />
-  );
+  return <EmptyState title={TEXT[reason]} action={<AudioLines size={20} aria-hidden className="text-line-strong" />} />;
 }

@@ -10,6 +10,7 @@ import { getTopicPublic, submitMarshmallow } from "@/features/topics/api";
 import { getStatusText, getStatusBadgeClass } from "@/features/topics/status";
 import { getClientKey } from "@/features/topics/clientKey";
 import type { TopicPublicInfo } from "@/features/topics/types";
+import Button from "@/components/ui/Button";
 
 type ViewState = "form" | "submitting" | "done";
 
@@ -141,14 +142,15 @@ export default function TopicPublicPage() {
                   {error}
                 </div>
               )}
-              <button
-                type="button"
+              <Button
+                variant="primary"
+                size="md"
                 onClick={() => setShowConfirm(true)}
                 disabled={viewState === "submitting" || !isCollecting}
-                className="min-h-11 w-full rounded-md bg-primary px-5 text-small font-medium text-night hover:bg-primary-deep disabled:opacity-50"
+                className="w-full"
               >
                 {viewState === "submitting" ? "投递中…" : "投递棉花糖"}
-              </button>
+              </Button>
             </>
           )}
         </>

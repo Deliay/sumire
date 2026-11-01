@@ -15,7 +15,7 @@ export default function RecordingsReplayPage() {
   if (!RECORDINGS_CONFIGURED) {
     return (
       <PageShell width="wide">
-        <EmptyState title="服务未配置" description="录播服务未配置，暂时无法回放。" />
+        <EmptyState title="录播服务未配置，暂时无法回放。" />
       </PageShell>
     );
   }

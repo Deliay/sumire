@@ -25,7 +25,7 @@ test.describe("backdoor dashboard", () => {
     const accounts = getAccounts();
     await loginViaUi(page, accounts.member, BASE);
     const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-    // 深色底 rgba(22,18,28,1) ≈ rgb(22,18,28)
-    expect(bg).toContain("rgb(22, 18, 28)");
+    // 深色底 rgba(20,16,23,1) ≈ rgb(20,16,23)
+    expect(bg).toContain("rgb(20, 16, 23)");
   });
 });

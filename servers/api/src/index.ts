@@ -5,7 +5,6 @@ import { RedisRateLimiter } from "./auth/rateLimit";
 import { RedisLiveHistoryCache } from "./infra/liveHistoryCache";
 import { RedisLiveEventsReplayCache } from "./infra/liveEventsReplayCache";
 import { RedisLiveStatusCache } from "./infra/liveStatusCache";
-import { RedisMarshRateLimiter } from "./topics/rateLimit";
 import { RedisReviewQueue } from "./topics/reviewQueue";
 import { startReviewWorker } from "./topics/reviewWorker";
 import { connectMongo, seedSuperadmin } from "./db/users";
@@ -27,7 +26,6 @@ async function main(): Promise<void> {
   const liveHistoryCache = new RedisLiveHistoryCache(redis);
   const liveStatusCache = new RedisLiveStatusCache(redis);
   const liveEventsReplayCache = new RedisLiveEventsReplayCache(redis);
-  const marshRateLimiter = new RedisMarshRateLimiter(redis);
   const reviewQueue = new RedisReviewQueue(redis);
 
   // fail-fast 校验 AI 审核配置：任一缺失则启动失败
@@ -53,7 +51,6 @@ async function main(): Promise<void> {
     liveHistoryCache,
     liveStatusCache,
     liveEventsReplayCache,
-    marshRateLimiter,
     reviewQueue,
     aiReviewEnabled: !!(config.reviewAiType && config.reviewAiEndpoint && config.reviewAiApiKey),
   });

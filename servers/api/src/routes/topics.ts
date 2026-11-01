@@ -21,11 +21,9 @@ import {
 } from "../db/marshmallows";
 import { requireRole } from "../rbac/requireRole";
 import { visitorCookieMiddleware } from "../topics/visitorCookie";
-import type { MarshRateLimiter } from "../topics/rateLimit";
 import type { ReviewQueue } from "../topics/reviewQueue";
 
 export interface TopicsRouterDeps {
-  marshRateLimiter: MarshRateLimiter;
   reviewQueue?: ReviewQueue;
   /** #4: AI 审核功能是否已配置并可用 */
   aiReviewEnabled?: boolean;
@@ -303,7 +301,7 @@ export function createTopicsRouter(deps: TopicsRouterDeps): Router {
     });
   });
 
-  // 投递端点：先校验状态与内容，再限速（I11: 限速移到校验之后）
+  // 投递端点：先校验状态与内容，再落库
   router.post(
     "/:id/marshmallows",
     visitorCookieMiddleware,
@@ -346,27 +344,7 @@ export function createTopicsRouter(deps: TopicsRouterDeps): Router {
         return;
       }
 
-      // I11: 限速在状态与内容校验通过后执行
       const ip = req.ip ?? req.socket?.remoteAddress ?? "unknown";
-      const keys: string[] = [];
-      if (clientKey.trim()) {
-        keys.push(`ck:${sha256(clientKey.trim())}`);
-      }
-      if (req.visitorId) {
-        keys.push(`vid:${sha256(req.visitorId)}`);
-      }
-      keys.push(`ip:${ip}`);
-
-      for (const k of keys) {
-        const ok = await deps.marshRateLimiter.check(k);
-        if (!ok) {
-          res.status(429).json({ error: "操作频率过快" });
-          return;
-        }
-      }
-      for (const k of keys) {
-        await deps.marshRateLimiter.record(k);
-      }
 
       // B5: 存储 sha256 哈希而非原文
       // #2: 仅在主题和服务端都启用 AI 审核时才设置 pending 状态

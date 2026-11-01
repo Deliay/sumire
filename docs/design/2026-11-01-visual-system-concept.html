@@ -1,0 +1,1462 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>装订 · The Binding — 视觉系统概念页（评审样品）</title>
+<meta name="description" content="堇色书屋全站视觉系统重设计概念页：装订（The Binding）。陈列版式、组件、配色、页面骨架与待确认决策，供评审。" />
+<style>
+  /* ============================================================
+     本页自身即样品：色板 / 字阶 / 版心 / 组件 / 版式全部按
+     docs/product/requirements/draft/2026-11-01-visual-system-redesign-prd.md 实现。
+     唯一目的：让评审在同一块屏幕上同时看到「规则」与「结果」。
+     ============================================================ */
+
+  :root {
+    /* 墨 */
+    --night: #141017;
+    --raised: #1b1620;
+    --soft: #262029;
+    /* 线 */
+    --line: #3a323d;
+    --line-strong: #75687e;
+    /* 字 */
+    --ink: #e9e2dc;
+    --ink-dim: #a298a2;
+    --ink-mute: #776d78;
+    --paper: #efe9e4;
+    --paper-dim: #d7cfc9;
+    --ink-on-paper: #2a232b;
+    /* 点睛 */
+    --primary: #b4a6bf;
+    --primary-deep: #8f7d9e;
+    --flower: #a184c9;
+    --eye: #7fb0e6;
+    --crimson: #e06a7a;
+    --gold: #d8b25c;
+
+    /* 字族 */
+    --serif: "Noto Serif SC", "Songti SC", "Source Han Serif SC", "SimSun", serif;
+    --sans: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+    /* 字阶 */
+    --text-display: clamp(3.5rem, 7vw, 6.5rem);
+    --text-h1: clamp(2.25rem, 4vw, 3.25rem);
+    --text-h2: 1.75rem;
+    --text-h3: 1.25rem;
+    --text-body: 1.0625rem;
+    --text-small: 0.9375rem;
+    --text-label: 0.75rem;
+    --text-tiny: 0.8125rem;
+
+    /* 形状 / 动效 */
+    --radius-xs: 2px;
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-pill: 999px;
+    --shadow-overlay: 0 24px 64px rgb(0 0 0 / 0.55);
+    --fast: 140ms;
+    --base: 220ms;
+    --slow: 480ms;
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+    /* 版心 */
+    --gutter: 1.25rem;
+    --wide: 88rem;
+    --prose: 44rem;
+
+    color-scheme: dark;
+  }
+
+  @media (min-width: 640px) { :root { --gutter: 2rem; } }
+  @media (min-width: 1024px) { :root { --gutter: 4rem; } }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+  body {
+    margin: 0;
+    background: var(--night);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: var(--text-body);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection { background: color-mix(in oklab, var(--flower) 45%, transparent); }
+
+  :focus-visible {
+    outline: 2px solid var(--flower);
+    outline-offset: 2px;
+  }
+
+  a { color: inherit; text-decoration: none; }
+  p { margin: 0; }
+  h1, h2, h3, h4 { margin: 0; font-family: var(--serif); font-weight: 600; line-height: 1.35; }
+  ul, ol { margin: 0; padding: 0; list-style: none; }
+
+  .skip {
+    position: fixed; left: 1rem; top: 1rem; z-index: 100;
+    padding: 0.5rem 1rem;
+    background: var(--primary); color: var(--night);
+    border-radius: var(--radius-md);
+    font-size: var(--text-small);
+    transform: translateY(-200%);
+  }
+  .skip:focus { transform: none; }
+
+  /* ---------- 导航：即是 NavBar 样品 ---------- */
+  .nav {
+    position: sticky; top: 0; z-index: 40;
+    height: 64px;
+    display: flex; align-items: center;
+    background: color-mix(in oklab, var(--night) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav__inner {
+    width: 100%; max-width: var(--wide);
+    margin: 0 auto; padding: 0 var(--gutter);
+    display: flex; align-items: center; justify-content: space-between; gap: 2rem;
+  }
+  .brand { display: flex; align-items: baseline; gap: 0.5rem; }
+  .brand__zh { font-family: var(--serif); font-size: 1rem; font-weight: 600; letter-spacing: 0.04em; }
+  .brand__en { font-family: var(--serif); font-style: italic; font-size: 0.95rem; color: var(--primary); }
+  .nav__list { display: none; align-items: center; gap: 1.75rem; }
+  .nav__link {
+    position: relative;
+    font-size: var(--text-small); letter-spacing: 0.04em;
+    color: var(--ink-dim);
+    transition: color var(--fast) ease;
+    padding: 0.25rem 0;
+  }
+  .nav__link:hover { color: var(--ink); }
+  .nav__link[aria-current="page"] { color: var(--ink); }
+  .nav__link[aria-current="page"]::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -6px;
+    height: 1px; background: var(--primary);
+  }
+  .nav__note {
+    font-family: var(--mono); font-size: var(--text-label);
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-mute);
+  }
+  @media (min-width: 900px) { .nav__list { display: flex; } .nav__note { display: none; } }
+
+  /* ---------- 页面骨架：装订线随版心，不浮动 ---------- */
+  .shell {
+    width: 100%; max-width: var(--wide);
+    margin: 0 auto; padding: 0 var(--gutter);
+  }
+  .binding { border-left: 1px solid var(--line); padding-left: 1.5rem; }
+  @media (min-width: 1024px) { .binding { padding-left: 2rem; } }
+
+  section { padding-block: 6rem; }
+  section, #cover { scroll-margin-top: 80px; }
+  @media (min-width: 1024px) { section { padding-block: 8rem; } }
+  section + section { border-top: 1px solid var(--line); }
+
+  .folio-row {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.75rem 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .folio {
+    font-family: var(--serif); font-size: 2.25rem; line-height: 1;
+    color: var(--primary); font-weight: 400;
+    min-width: 2.5rem;
+  }
+  .eyebrow {
+    font-family: var(--mono); font-size: var(--text-label);
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim);
+  }
+  .lead {
+    max-width: 38rem; color: var(--ink-dim);
+    line-height: 1.9;
+  }
+  .h2 { font-size: var(--text-h2); }
+  .h3 { font-size: var(--text-h3); }
+  .rule { height: 1px; background: var(--line); border: 0; margin: 2.5rem 0; }
+
+  /* ---------- 封面 ---------- */
+  .cover { padding-block: 5rem 6rem; }
+  .cover__grid {
+    display: grid; gap: 2.5rem;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  @media (min-width: 1024px) {
+    .cover__grid { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 4rem; align-items: start; }
+  }
+  .cover__meta {
+    display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem;
+    font-family: var(--mono); font-size: var(--text-label);
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim);
+    margin-bottom: 2.5rem;
+  }
+  .cover__title-row { display: flex; align-items: flex-start; gap: 1.25rem; }
+  .vertical-title {
+    writing-mode: vertical-rl;
+    font-family: var(--serif); font-weight: 600;
+    font-size: var(--text-display);
+    letter-spacing: 0.08em;
+    line-height: 1;
+    margin: 0;
+    color: var(--ink);
+  }
+  @supports not (writing-mode: vertical-rl) {
+    .vertical-title { writing-mode: horizontal-tb; }
+  }
+  .cover__title-side {
+    display: flex; flex-direction: column; gap: 0.75rem;
+    padding-top: 0.25rem;
+  }
+  .cover__latin {
+    font-family: var(--serif); font-style: italic;
+    font-size: clamp(1.5rem, 2.4vw, 2rem);
+    color: var(--primary);
+  }
+  .cover__bio { max-width: 26rem; color: var(--ink-dim); line-height: 1.9; }
+  .meta-line {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem;
+    padding: 0.9rem 0;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    font-size: var(--text-small); color: var(--ink-dim);
+  }
+  .live-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--eye);
+    animation: pulse 3.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+  /* 图版 */
+  .plate { border: 1px solid var(--line-strong); background: var(--raised); }
+  .plate__frame {
+    position: relative; aspect-ratio: 4 / 5;
+    background:
+      repeating-linear-gradient(135deg, rgb(233 226 220 / 0.035) 0 1px, transparent 1px 9px),
+      radial-gradient(ellipse 70% 55% at 55% 35%, rgb(180 166 191 / 0.12), transparent 70%),
+      var(--raised);
+    display: grid; place-items: center;
+    overflow: hidden;
+  }
+  .plate__ph {
+    font-family: var(--mono); font-size: var(--text-label);
+    letter-spacing: 0.12em; color: var(--ink-mute);
+    text-align: center; padding: 1rem;
+  }
+  .plate__cap {
+    display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem;
+    padding: 0.65rem 0.85rem;
+    border-top: 1px solid var(--line);
+    font-family: var(--mono); font-size: var(--text-label);
+    letter-spacing: 0.04em; color: var(--ink-dim);
+  }
+  .cover__plate .plate__frame { aspect-ratio: 4 / 5; }
+
+  /* ---------- 通用排布 ---------- */
+  .cols-2 { display: grid; gap: 2rem; grid-template-columns: minmax(0, 1fr); }
+  .cols-3 { display: grid; gap: 1.5rem; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 760px) { .cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (min-width: 1024px) { .cols-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4rem; } }
+
+  .kv { display: grid; grid-template-columns: 7rem minmax(0, 1fr); gap: 0.35rem 1rem; }
+  .kv dt { color: var(--ink-dim); font-size: var(--text-small); }
+  .kv dd { margin: 0; }
+  .kv dt, .kv dd { padding-block: 0.45rem; border-bottom: 1px solid var(--line); }
+
+  .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .label {
+    font-family: var(--mono); font-size: var(--text-label);
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim);
+  }
+  .aside { color: var(--ink-dim); font-size: var(--text-small); line-height: 1.8; }
+  .stack-sm > * + * { margin-top: 0.75rem; }
+  .stack-md > * + * { margin-top: 1.25rem; }
+  .stack-lg > * + * { margin-top: 2rem; }
+
+  /* ---------- 色板 ---------- */
+  .swatches { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); }
+  @media (min-width: 620px) { .swatches { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 1024px) { .swatches { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .swatch { background: var(--night); padding: 0; display: flex; flex-direction: column; }
+  .swatch__chip { height: 84px; border-bottom: 1px solid var(--line); }
+  .swatch__body { padding: 0.85rem 1rem 1rem; display: flex; flex-direction: column; gap: 0.35rem; }
+  .swatch__name { font-family: var(--mono); font-size: var(--text-tiny); letter-spacing: 0.02em; }
+  .swatch__hex { font-family: var(--mono); font-size: var(--text-label); color: var(--ink-dim); }
+  .swatch__use { font-size: var(--text-small); color: var(--ink-dim); }
+  .swatch__ratio { font-family: var(--mono); font-size: var(--text-label); color: var(--ink-mute); }
+  .swatch__ratio b { color: var(--ink-dim); font-weight: 500; }
+
+  /* ---------- 字阶 ---------- */
+  .type-row {
+    display: grid; gap: 0.75rem 2rem;
+    grid-template-columns: minmax(0, 1fr);
+    padding-block: 1.5rem;
+    border-bottom: 1px solid var(--line);
+    align-items: baseline;
+  }
+  @media (min-width: 900px) { .type-row { grid-template-columns: 11rem minmax(0, 1fr) 10rem; } }
+  .type-row__meta { font-family: var(--mono); font-size: var(--text-label); color: var(--ink-dim); line-height: 1.7; }
+  .type-row__sample { min-width: 0; }
+  .type-row__spec { font-family: var(--mono); font-size: var(--text-label); color: var(--ink-mute); line-height: 1.7; }
+  .sample-display { font-family: var(--serif); font-weight: 600; font-size: clamp(2.5rem, 6vw, 4rem); line-height: 1.05; letter-spacing: 0.04em; }
+  .sample-h1 { font-family: var(--serif); font-weight: 600; font-size: var(--text-h1); }
+  .sample-h2 { font-family: var(--serif); font-weight: 600; font-size: var(--text-h2); }
+  .sample-h3 { font-family: var(--serif); font-weight: 600; font-size: var(--text-h3); }
+  .sample-body { font-family: var(--serif); font-size: var(--text-body); line-height: 1.9; max-width: 38rem; }
+  .sample-label { font-family: var(--mono); font-size: var(--text-label); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); }
+  .sample-display-latin { font-family: var(--serif); font-style: italic; font-size: 2.5rem; color: var(--primary); }
+
+  /* ---------- 线框 ---------- */
+  .wire {
+    border: 1px solid var(--line);
+    background: var(--raised);
+    padding: 1rem;
+    min-height: 100%;
+  }
+  .wire--bare { background: transparent; }
+  .wire__label {
+    font-family: var(--mono); font-size: var(--text-label);
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-mute);
+    margin-bottom: 0.85rem; display: flex; justify-content: space-between; gap: 1rem;
+  }
+  .wire__band {
+    border: 1px dashed var(--line-strong);
+    padding: 0.6rem 0.75rem;
+    font-family: var(--mono); font-size: var(--text-label); color: var(--ink-dim);
+    letter-spacing: 0.04em;
+  }
+  .wire__band + .wire__band { margin-top: 0.5rem; }
+  .wire__row { display: grid; gap: 0.5rem; grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .wire__spine { border-left: 1px solid var(--primary); padding-left: 0.5rem; }
+  .wire__text { display: flex; flex-direction: column; gap: 0.4rem; }
+  .wire__line { height: 6px; background: var(--line); }
+  .wire__line--short { width: 60%; }
+  .wire__line--mid { width: 80%; }
+  .wire__block { background: var(--soft); border: 1px solid var(--line); }
+
+  /* ---------- 组件样品 ---------- */
+  .specimen {
+    border: 1px solid var(--line);
+    padding: 1.5rem;
+    display: flex; flex-direction: column; gap: 1.25rem;
+    background: color-mix(in oklab, var(--raised) 55%, transparent);
+  }
+  .specimen__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+  .specimen__name { font-family: var(--mono); font-size: var(--text-tiny); letter-spacing: 0.06em; }
+  .specimen__desc { font-size: var(--text-small); color: var(--ink-dim); }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+    height: 44px; padding: 0 1.25rem;
+    border-radius: var(--radius-md);
+    border: 1px solid transparent;
+    font-family: var(--sans); font-size: var(--text-small);
+    cursor: pointer;
+    transition: background-color var(--fast) ease, color var(--fast) ease, border-color var(--fast) ease;
+  }
+  .btn--sm { height: 36px; padding: 0 0.875rem; font-size: var(--text-tiny); }
+  .btn--primary { background: var(--primary); color: var(--night); border-color: var(--primary); }
+  .btn--primary:hover { background: var(--primary-deep); border-color: var(--primary-deep); }
+  .btn--secondary { background: transparent; color: var(--ink); border-color: var(--line-strong); }
+  .btn--secondary:hover { background: var(--soft); }
+  .btn--ghost { background: transparent; color: var(--ink-dim); border-color: transparent; }
+  .btn--ghost:hover { color: var(--ink); background: var(--soft); }
+  .btn--danger { background: transparent; color: var(--crimson); border-color: color-mix(in oklab, var(--crimson) 40%, transparent); }
+  .btn--danger:hover { background: color-mix(in oklab, var(--crimson) 10%, transparent); }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+
+  .field { display: flex; flex-direction: column; gap: 0.4rem; max-width: 26rem; }
+  .field__label { font-family: var(--mono); font-size: var(--text-label); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); }
+  .input {
+    height: 44px; padding: 0 0.875rem;
+    background: var(--soft); color: var(--ink);
+    border: 1px solid var(--line); border-radius: var(--radius-md);
+    font-family: var(--sans); font-size: var(--text-body);
+  }
+  .input::placeholder { color: var(--ink-mute); }
+  .input:hover { border-color: var(--line-strong); }
+  .input:focus { outline: none; border-color: var(--flower); box-shadow: 0 0 0 2px color-mix(in oklab, var(--flower) 20%, transparent); }
+  .input--error { border-color: var(--crimson); }
+  .field__error { font-size: var(--text-small); color: var(--crimson); }
+
+  .tags { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .tag {
+    display: inline-flex; align-items: center;
+    height: 30px; padding: 0 0.7rem;
+    border: 1px solid var(--line); border-radius: var(--radius-sm);
+    font-size: var(--text-small); color: var(--ink-dim);
+    background: transparent;
+    transition: background-color var(--fast) ease, color var(--fast) ease;
+  }
+  .tag:hover { background: var(--soft); color: var(--ink); }
+
+  .surface { border: 1px solid var(--line); border-radius: var(--radius-xs); padding: 1.5rem; }
+  .surface--raised { background: var(--raised); }
+  .surface--outline { background: transparent; }
+  .surface--paper { background: var(--paper); color: var(--ink-on-paper); border-color: var(--paper-dim); }
+  .surface--paper .label { color: color-mix(in oklab, var(--ink-on-paper) 65%, transparent); }
+
+  .notice {
+    border: 1px solid var(--line);
+    border-left: 2px solid var(--primary);
+    background: var(--raised);
+    padding: 1.1rem 1.25rem;
+    border-radius: var(--radius-xs);
+    display: flex; flex-direction: column; gap: 0.4rem;
+  }
+  .notice__title { font-size: var(--text-h3); font-family: var(--serif); font-weight: 600; }
+  .notice__body { font-size: var(--text-small); color: var(--ink-dim); line-height: 1.8; }
+
+  .timeline { border-top: 1px solid var(--line); }
+  .timeline__row {
+    display: grid; gap: 0.25rem 1.5rem;
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0.85rem 0;
+    border-bottom: 1px solid var(--line);
+  }
+  @media (min-width: 640px) { .timeline__row { grid-template-columns: 8rem minmax(0, 1fr); } }
+  .timeline__date { font-family: var(--mono); font-size: var(--text-small); color: var(--ink-dim); }
+  .timeline__row[data-current="true"] .timeline__date { color: var(--primary); }
+  .timeline__title { font-size: var(--text-body); }
+  .timeline__note { font-size: var(--text-small); color: var(--ink-dim); }
+
+  .empty {
+    border: 1px solid var(--line);
+    padding: 3rem 1.5rem;
+    display: flex; flex-direction: column; align-items: center; gap: 0.75rem;
+    text-align: center;
+  }
+  .empty__title { font-family: var(--serif); font-size: var(--text-h3); }
+  .empty__desc { font-size: var(--text-small); color: var(--ink-dim); max-width: 26rem; }
+
+  .page-header { display: flex; flex-direction: column; gap: 0.9rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--line); }
+  .page-header__title { font-size: var(--text-h1); }
+
+  /* 状态矩阵 */
+  table { width: 100%; border-collapse: collapse; font-size: var(--text-small); }
+  caption { text-align: left; font-family: var(--mono); font-size: var(--text-label); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); padding-bottom: 0.75rem; }
+  th, td { text-align: left; vertical-align: top; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--line); }
+  th { font-family: var(--mono); font-size: var(--text-label); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-dim); font-weight: 500; }
+  td:first-child, th:first-child { padding-left: 0; }
+  code {
+    font-family: var(--mono); font-size: 0.9em;
+    background: var(--soft); border: 1px solid var(--line);
+    border-radius: var(--radius-sm); padding: 0.05em 0.35em;
+    color: var(--ink);
+  }
+
+  .decisions { border-top: 1px solid var(--line); }
+  .decision {
+    display: grid; gap: 0.5rem 1.5rem;
+    grid-template-columns: minmax(0, 1fr);
+    padding: 1.25rem 0;
+    border-bottom: 1px solid var(--line);
+  }
+  @media (min-width: 900px) { .decision { grid-template-columns: 2.5rem 13rem minmax(0, 1fr) 9rem; align-items: baseline; } }
+  .decision__no { font-family: var(--mono); font-size: var(--text-small); color: var(--primary); }
+  .decision__title { font-size: var(--text-body); }
+  .decision__body { font-size: var(--text-small); color: var(--ink-dim); line-height: 1.8; }
+  .decision__flag { font-family: var(--mono); font-size: var(--text-label); letter-spacing: 0.08em; color: var(--ink-mute); }
+
+  /* 页脚样品 */
+  .footer { border-top: 1px solid var(--line); padding-block: 3rem 2.5rem; }
+  .footer__grid { display: grid; gap: 2rem; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 900px) { .footer__grid { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr); gap: 3rem; } }
+  .footer h3 { font-family: var(--mono); font-size: var(--text-label); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); font-weight: 500; margin-bottom: 0.75rem; }
+  .footer p, .footer li { font-size: var(--text-small); color: var(--ink-dim); }
+  .footer li + li { margin-top: 0.35rem; }
+  .footer a:hover { color: var(--ink); }
+  .footer__bottom {
+    margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--line);
+    display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem;
+    font-family: var(--mono); font-size: var(--text-label); color: var(--ink-mute);
+  }
+
+  /* 右侧页码索引（PageIndex 样品） */
+  .index {
+    display: none;
+    position: fixed; right: 1.75rem; top: 50%; transform: translateY(-50%);
+    z-index: 30;
+  }
+  .index ol { display: flex; flex-direction: column; gap: 0.85rem; align-items: flex-end; }
+  .index a {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    font-family: var(--mono); font-size: var(--text-label); color: var(--ink-dim);
+    transition: color var(--fast) ease;
+  }
+  .index a:hover { color: var(--ink); }
+  .index a[aria-current="true"] { color: var(--primary); }
+  .index a[aria-current="true"]::before { content: ""; width: 16px; height: 1px; background: var(--primary); }
+  .index__label { max-width: 0; overflow: hidden; white-space: nowrap; opacity: 0; transition: max-width var(--fast) ease, opacity var(--fast) ease; }
+  .index a:hover .index__label, .index a:focus-visible .index__label, .index a[aria-current="true"] .index__label { max-width: 12rem; opacity: 1; }
+  @media (min-width: 1024px) { .index { display: block; } }
+
+  .note-bar {
+    display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: baseline;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--line);
+    border-left: 2px solid var(--primary);
+    background: var(--raised);
+    font-size: var(--text-small); color: var(--ink-dim);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+
+<header class="nav">
+  <div class="nav__inner">
+    <a class="brand" href="#cover">
+      <span class="brand__zh">堇色书屋</span>
+      <span class="brand__en">Sumire</span>
+    </a>
+    <nav aria-label="样例导航">
+      <ul class="nav__list">
+        <li><a class="nav__link" href="#concept">概念</a></li>
+        <li><a class="nav__link" href="#color">色彩</a></li>
+        <li><a class="nav__link" href="#type">字体</a></li>
+        <li><a class="nav__link" href="#layout">版式</a></li>
+        <li><a class="nav__link" href="#components">组件</a></li>
+        <li><a class="nav__link" href="#pages">页面</a></li>
+        <li><a class="nav__link" href="#decisions" aria-current="page">待确认</a></li>
+      </ul>
+    </nav>
+    <span class="nav__note">NavBar 样品 · 64px</span>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ================= 封面 ================= -->
+  <div class="shell" id="cover">
+    <div class="cover cover__grid">
+      <div>
+        <div class="cover__meta">
+          <span>VIRTUALREAL / 28期</span>
+          <span>设计校样 · PROOF 01</span>
+          <span>2026-11-01</span>
+        </div>
+
+        <div class="cover__title-row">
+          <h1 class="vertical-title">枝堇</h1>
+          <div class="cover__title-side">
+            <span class="cover__latin">Sumire</span>
+            <p class="eyebrow" style="letter-spacing:.2em">THE BINDING</p>
+            <p class="cover__bio">是老书屋的一株藤蔓，喜欢雨水和雾，破旧的纸张。</p>
+          </div>
+        </div>
+
+        <div class="stack-md" style="margin-top:2.5rem">
+          <div class="meta-line">
+            <span class="live-dot" aria-hidden="true"></span>
+            <span>直播中</span>
+            <span class="mono">今日 21:00</span>
+            <span>杂谈</span>
+          </div>
+          <p class="aside">
+            不画藤蔓，也不画蕾丝。把站点当作一本关于枝堇的书来排版：有装订线、有页码、有图版、有版权页。
+            这一页本身就是校样——你在屏幕上看到的色、字、线、组件，就是要落到全站的那一套。
+          </p>
+          <p class="aside" style="color:var(--ink-mute)">
+            非官方粉丝站 · 素材版权归主播及所属社团所有 · 本页为评审用概念页，非线上页面
+          </p>
+        </div>
+      </div>
+
+      <figure class="plate cover__plate" style="margin:0">
+        <div class="plate__frame">
+          <div class="plate__ph">
+            <div>图版占位 · standing-01</div>
+            <div style="margin-top:.5rem;color:var(--line-strong)">1px 描边 / 无圆角 / 无阴影</div>
+          </div>
+        </div>
+        <figcaption class="plate__cap">
+          <span>图版 01 · standing-01 · 立绘</span>
+          <span>4 : 5</span>
+        </figcaption>
+      </figure>
+    </div>
+  </div>
+
+  <!-- ================= 壹 · 概念 ================= -->
+  <section id="concept">
+    <div class="shell binding">
+      <div class="folio-row">
+        <span class="folio">壹</span>
+        <span class="eyebrow">CONCEPT / 设计概念</span>
+      </div>
+      <h2 class="h2">装订：一本书的五件事</h2>
+      <p class="lead" style="margin-top:1rem">
+        装饰不表达结构，就会被当成贴纸。这一版只用五个「书」的元素承担全部视觉识别，
+        其余一律留给字号、留白与 1px 线。
+      </p>
+
+      <div class="cols-2" style="margin-top:3rem">
+        <div>
+          <table>
+            <caption>书 → 站点</caption>
+            <thead>
+              <tr><th>书的元素</th><th>站点对应</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>装订线</td><td>公开页内容列左侧 1px 竖线，随版心移动</td></tr>
+              <tr><td>页码 / 卷次</td><td>章节 folio（壹/贰/叁…）与 <span class="mono">01 / 08</span> 元数据</td></tr>
+              <tr><td>图版</td><td>立绘 / 插画放进无圆角 1px 描边框，下方带题注</td></tr>
+              <tr><td>版权页</td><td>页脚三栏：站点说明 / 导航 / 外链</td></tr>
+              <tr><td>竖排书名</td><td>桌面首屏「枝堇」竖排，移动端横排</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="stack-md">
+          <div class="note-bar">
+            <strong style="color:var(--ink);font-weight:500">唯一的高风险动作</strong>
+            <span>桌面竖排书名 + 贯穿全站的装订线。不接受可退回横排，其余方案不受影响。</span>
+          </div>
+          <p class="label">删除清单</p>
+          <ul class="aside stack-sm">
+            <li>藤蔓分隔线（宽屏被拉伸变形的曲线与叶片）</li>
+            <li>蕾丝扇贝条（页脚顶部 14px 贴纸）</li>
+            <li>纸页角饰 + 22px 点阵纸纹</li>
+            <li>发光花节点与树状圆点索引</li>
+            <li>雾气色块、常驻粒子、立绘视差</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 贰 · 色彩 ================= -->
+  <section id="color">
+    <div class="shell binding">
+      <div class="folio-row">
+        <span class="folio">贰</span>
+        <span class="eyebrow">COLOR / 色彩</span>
+      </div>
+      <h2 class="h2">深墨底，暖骨白，堇色只点一处</h2>
+      <p class="lead" style="margin-top:1rem">
+        不再让 primary / flower / vine / eye 四色同时抢注意力。堇色是唯一品牌强调色，
+        功能语义色（eye / crimson / gold）只在弹幕看板、直播状态等有语义的位置出现。
+      </p>
+
+      <div class="swatches" style="margin-top:3rem">
+        <div class="swatch">
+          <div class="swatch__chip" style="background:#141017"></div>
+          <div class="swatch__body">
+            <span class="swatch__name">--color-night</span>
+            <span class="swatch__hex">#141017</span>
+            <span class="swatch__use">页面底色（墨）</span>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch__chip" style="background:#1b1620"></div>
+          <div class="swatch__body">
+            <span class="swatch__name">--color-raised</span>
+            <span class="swatch__hex">#1b1620</span>
+            <span class="swatch__use">抬升面：卡片、导航、弹层</span>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch__chip" style="background:#262029"></div>
+          <div class="swatch__body">
+            <span class="swatch__name">--color-soft</span>
+            <span class="swatch__hex">#262029</span>
+            <span class="swatch__use">hover / 选中 / 输入面</span>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch__chip" style="background:#3a323d"></div>
+          <div class="swatch__body">
+            <span class="swatch__name">--color-line</span>
+            <span class="swatch__hex">#3a323d</span>
+            <span class="swatch__use">1px 结构线、分隔线、卡片描边</span>
+            <span class="swatch__ratio">对 night <b>1.53</b> · 非文本</span>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch__chip" style="background:#75687e"></div>
+          <div class="swatch__body">
+            <span class="swatch__name">--color-line-strong</span>
+            <span class="swatch__hex">#75687e</span>
+            <span class="swatch__use">控件边界、图版描边、强调线</span>
+            <span class="swatch__ratio">对 night <b>3.62</b> · 满足 3:1</span>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch__chip" style="background:#e9e2dc"></div>
+          <div class="swatch__body">
+            <span class="swatch__name">--color-ink</span>
+            <span class="swatch__hex">#e9e2dc</span>
+            <span class="swatch__use">主文字（暖骨白）</span>
+            <span class="swatch__ratio">对 night <b>14.67</b></span>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch__chip" style="background:#a298a2"></div>
+          <div class="swatch__body">
+            <span class="swatch__name">--color-ink-dim</span>
+            <span class="swatch__hex">#a298a2</span>
+            <span class="swatch__use">次级文字、说明</span>
+            <span class="swatch__ratio">对 night <b>6.76</b></span>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch__chip" style="background:#776d78"></div>
+          <div class="swatch__body">
+            <span class="swatch__name">--color-ink-mute</span>
+            <span class="swatch__hex">#776d78</span>
+            <span class="swatch__use">仅禁用态 / 大号装饰文字</span>
+            <span class="swatch__ratio">对 night <b>3.80</b> · 不用于小号正文</span>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch__chip" style="background:#b4a6bf"></div>
+          <div class="swatch__body">
+            <span class="swatch__name">--color-primary</span>
+            <span class="swatch__hex">#b4a6bf</span>
+            <span class="swatch__use">应援色：页码、活动态、关键图形</span>
+            <span class="swatch__ratio">对 night <b>8.19</b></span>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch__chip" style="background:#8f7d9e"></div>
+          <div class="swatch__body">
+            <span class="swatch__name">--color-primary-deep</span>
+            <span class="swatch__hex">#8f7d9e</span>
+            <span class="swatch__use">主色加深：hover / 次级强调</span>
+            <span class="swatch__ratio">对 night <b>5.01</b></span>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch__chip" style="background:#a184c9"></div>
+          <div class="swatch__body">
+            <span class="swatch__name">--color-flower</span>
+            <span class="swatch__hex">#a184c9</span>
+            <span class="swatch__use">焦点环、链接、直播状态点（降饱和）</span>
+            <span class="swatch__ratio">对 night <b>5.97</b></span>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch__chip" style="background:#7fb0e6"></div>
+          <div class="swatch__body">
+            <span class="swatch__name">--color-eye</span>
+            <span class="swatch__hex">#7fb0e6</span>
+            <span class="swatch__use">功能语义：直播中 / 舰长</span>
+            <span class="swatch__ratio">对 night <b>8.29</b></span>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch__chip" style="background:#e06a7a"></div>
+          <div class="swatch__body">
+            <span class="swatch__name">--color-crimson</span>
+            <span class="swatch__hex">#e06a7a</span>
+            <span class="swatch__use">功能语义：危险 / 总督</span>
+            <span class="swatch__ratio">对 night <b>5.83</b></span>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch__chip" style="background:#d8b25c"></div>
+          <div class="swatch__body">
+            <span class="swatch__name">--color-gold</span>
+            <span class="swatch__hex">#d8b25c</span>
+            <span class="swatch__use">功能语义：礼物 / 提督</span>
+            <span class="swatch__ratio">对 night <b>9.36</b></span>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch__chip" style="background:#efe9e4"></div>
+          <div class="swatch__body">
+            <span class="swatch__name">--color-paper</span>
+            <span class="swatch__hex">#efe9e4</span>
+            <span class="swatch__use">仅「引用 / 海报式图版」反白面</span>
+            <span class="swatch__ratio">不作普通卡片底色</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="cols-2" style="margin-top:3rem">
+        <div class="stack-sm">
+          <p class="label">使用规则</p>
+          <ul class="aside stack-sm">
+            <li><code>vine</code> token 废弃，全部替换为 <code>line</code> / <code>line-strong</code>。</li>
+            <li><code>flower</code> 不再承担大面积背景与光晕，只做焦点、链接、状态点。</li>
+            <li>应援色不做小号正文色（对比度不足），只用于图形、页码、活动态与大号文字。</li>
+            <li>单屏应援色面积 ≤ 5%。</li>
+          </ul>
+        </div>
+        <div class="stack-sm">
+          <p class="label">同一行字的三种层级</p>
+          <p style="font-size:var(--text-body)">主文字：档案、正文、标题。</p>
+          <p style="font-size:var(--text-body);color:var(--ink-dim)">次级文字：说明、元数据、题注。</p>
+          <p style="font-size:var(--text-body);color:var(--ink-mute)">禁用文字：不可点击、不可读的提示。</p>
+          <p class="aside" style="margin-top:.5rem">层级只靠明度与字号，不靠发光，也不靠颜色反白。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 叁 · 字体 ================= -->
+  <section id="type">
+    <div class="shell binding">
+      <div class="folio-row">
+        <span class="folio">叁</span>
+        <span class="eyebrow">TYPE / 字体与字阶</span>
+      </div>
+      <h2 class="h2">宋体读书，黑体做事，等宽记事</h2>
+      <p class="lead" style="margin-top:1rem">
+        花体斜体从前被当成章节标签到处使用，承担了信息职责。现在它只出现在字标、图版编号与卷次；
+        章节标签交给等宽大写字距——好看是其次，认得出来才是第一。
+      </p>
+
+      <div style="margin-top:2.5rem">
+        <div class="type-row">
+          <div class="type-row__meta">display<br />Noto Serif SC 600</div>
+          <div class="type-row__sample"><span class="sample-display">枝堇</span></div>
+          <div class="type-row__spec">clamp(3.5rem, 7vw, 6.5rem)<br />仅首屏竖排书名</div>
+        </div>
+        <div class="type-row">
+          <div class="type-row__meta">h1<br />Noto Serif SC 600</div>
+          <div class="type-row__sample"><span class="h2 sample-h1">枝堇图鉴</span></div>
+          <div class="type-row__spec">clamp(2.25rem, 4vw, 3.25rem)<br />每页唯一</div>
+        </div>
+        <div class="type-row">
+          <div class="type-row__meta">h2<br />Noto Serif SC 600</div>
+          <div class="type-row__sample"><span class="sample-h2">信息</span></div>
+          <div class="type-row__spec">1.75rem<br />章节标题</div>
+        </div>
+        <div class="type-row">
+          <div class="type-row__meta">h3<br />Noto Serif SC 600</div>
+          <div class="type-row__sample"><span class="sample-h3">喜好</span></div>
+          <div class="type-row__spec">1.25rem<br />卡片 / 条目标题</div>
+        </div>
+        <div class="type-row">
+          <div class="type-row__meta">body<br />Noto Serif SC 400</div>
+          <div class="type-row__sample">
+            <p class="sample-body">旧书屋的木地板会响。她总在雨天把窗推开一条缝，让雾和纸页的味道一起进来。</p>
+          </div>
+          <div class="type-row__spec">1.0625rem / 1.9<br />单行 ≤ 38 字</div>
+        </div>
+        <div class="type-row">
+          <div class="type-row__meta">small<br />Noto Sans SC 400</div>
+          <div class="type-row__sample"><p style="font-size:var(--text-small);color:var(--ink-dim)">立即播放 · 下载原图 · 本素材仅供个人欣赏，请勿商用。</p></div>
+          <div class="type-row__spec">0.9375rem / 1.5<br />界面与说明</div>
+        </div>
+        <div class="type-row">
+          <div class="type-row__meta">label<br />ui-monospace 400</div>
+          <div class="type-row__sample"><span class="sample-label">PROFILE / 01 · 2026-11-01 · 1440 × 1080</span></div>
+          <div class="type-row__spec">0.75rem / 字距 .12em<br />元数据、页码、eyebrow</div>
+        </div>
+        <div class="type-row">
+          <div class="type-row__meta">display italic<br />Cormorant Garamond</div>
+          <div class="type-row__sample"><span class="sample-display-latin">Sumire</span></div>
+          <div class="type-row__spec">仅字标 / 图版编号 / 卷次</div>
+        </div>
+      </div>
+
+      <div class="note-bar" style="margin-top:2.5rem">
+        <strong style="color:var(--ink);font-weight:500">硬规则</strong>
+        <span>中文标题只用 600 字重，不再用 700「喊」；长文行高 1.9、界面 1.5；<code>font-display</code> 不再承担章节标签。</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 肆 · 版式 ================= -->
+  <section id="layout">
+    <div class="shell binding">
+      <div class="folio-row">
+        <span class="folio">肆</span>
+        <span class="eyebrow">LAYOUT / 版心与结构线</span>
+      </div>
+      <h2 class="h2">先对齐，再谈风格</h2>
+      <p class="lead" style="margin-top:1rem">
+        现在导航全屏宽、<code>/about</code> 限宽 4xl、<code>/assets</code> 全幅、页脚限宽 6xl——左右边线对不齐，
+        这是「不好看」最直接的结构性来源。全站只留两条版心。
+      </p>
+
+      <div class="cols-2" style="margin-top:3rem">
+        <div class="wire">
+          <div class="wire__label"><span>宽版心 · wide</span><span>88rem</span></div>
+          <div class="wire__row">
+            <div class="wire__band wire__spine" style="grid-column:1/13">
+              <div class="wire__text">
+                <div class="wire__line"></div>
+                <div class="wire__line wire__line--mid"></div>
+                <div class="wire__line wire__line--short"></div>
+              </div>
+              <p style="margin-top:.75rem">素材 / 日历 / 录播 / 首页内容列</p>
+            </div>
+          </div>
+          <p class="aside" style="margin-top:1rem">gutter：移动 20px / 平板 32px / 桌面 64px；桌面 12 列栅格。</p>
+        </div>
+
+        <div class="wire">
+          <div class="wire__label"><span>阅读版心 · prose</span><span>44rem</span></div>
+          <div class="wire__row">
+            <div class="wire__band wire__spine" style="grid-column:1/10">
+              <div class="wire__text">
+                <div class="wire__line"></div>
+                <div class="wire__line"></div>
+                <div class="wire__line wire__line--mid"></div>
+                <div class="wire__line wire__line--short"></div>
+              </div>
+              <p style="margin-top:.75rem">长文、设定故事、表单</p>
+            </div>
+          </div>
+          <p class="aside" style="margin-top:1rem">装订线是内容列上的 <code>border-left</code>，不是固定浮层；桌面才画，后台不画。</p>
+        </div>
+      </div>
+
+      <div class="cols-3" style="margin-top:2.5rem">
+        <div class="wire wire--bare">
+          <div class="wire__label"><span>圆角</span></div>
+          <div style="display:flex;gap:1rem;align-items:flex-end">
+            <div style="text-align:center"><div style="width:56px;height:56px;border:1px solid var(--line-strong);border-radius:2px"></div><span class="label" style="display:block;margin-top:.5rem">2px</span></div>
+            <div style="text-align:center"><div style="width:56px;height:56px;border:1px solid var(--line-strong);border-radius:4px"></div><span class="label" style="display:block;margin-top:.5rem">4px</span></div>
+            <div style="text-align:center"><div style="width:56px;height:56px;border:1px solid var(--line-strong);border-radius:8px"></div><span class="label" style="display:block;margin-top:.5rem">8px</span></div>
+          </div>
+          <p class="aside" style="margin-top:.75rem">图版/卡片 2px · 标签 4px · 输入/按钮/弹层 8px · 仅状态药丸 999px。</p>
+        </div>
+        <div class="wire wire--bare">
+          <div class="wire__label"><span>结构线</span></div>
+          <div class="stack-sm">
+            <div style="height:1px;background:var(--line)"></div>
+            <div style="height:1px;background:var(--line-strong)"></div>
+            <div style="height:2px;width:48px;background:var(--primary)"></div>
+          </div>
+          <p class="aside" style="margin-top:.75rem">结构 1px <code>line</code>；强调 1px <code>line-strong</code>；语义引线 2px <code>primary</code>。不用渐变描边、不用发光。</p>
+        </div>
+        <div class="wire wire--bare">
+          <div class="wire__label"><span>阴影</span></div>
+          <div style="border:1px solid var(--line);border-radius:8px;background:var(--raised);padding:1rem;box-shadow:var(--shadow-overlay)">
+            <span class="label">仅弹层</span>
+          </div>
+          <p class="aside" style="margin-top:.75rem">卡片、按钮、导航一律无阴影。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 伍 · 组件 ================= -->
+  <section id="components">
+    <div class="shell binding">
+      <div class="folio-row">
+        <span class="folio">伍</span>
+        <span class="eyebrow">COMPONENTS / 组件</span>
+      </div>
+      <h2 class="h2">按钮、输入、标签、面板与图版</h2>
+      <p class="lead" style="margin-top:1rem">
+        这一节全部是可交互样品：鼠标移上去就是真实 hover 态，Tab 进去就是真实焦点环。
+        评审时请直接操作，而不是只看截图。
+      </p>
+
+      <div class="cols-2" style="margin-top:3rem">
+        <div class="specimen">
+          <div class="specimen__head">
+            <span class="specimen__name">Button</span>
+            <span class="specimen__desc">四变体 / 两尺寸 / loading / disabled</span>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn--primary" type="button">播放</button>
+            <button class="btn btn--secondary" type="button">下载原图</button>
+            <button class="btn btn--ghost" type="button">返回</button>
+            <button class="btn btn--danger" type="button">删除</button>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn--primary btn--sm" type="button">播放</button>
+            <button class="btn btn--secondary btn--sm" type="button">复制链接</button>
+            <button class="btn btn--secondary" type="button" disabled style="opacity:.4;pointer-events:none">处理中…</button>
+          </div>
+          <p class="aside">主按钮一屏只有一个。没有泛光、没有渐变、没有上浮；hover 只换底色。</p>
+        </div>
+
+        <div class="specimen">
+          <div class="specimen__head">
+            <span class="specimen__name">Field</span>
+            <span class="specimen__desc">default / focus / error / disabled</span>
+          </div>
+          <label class="field">
+            <span class="field__label">昵称</span>
+            <input class="input" placeholder="输入昵称" />
+          </label>
+          <label class="field">
+            <span class="field__label">昵称</span>
+            <input class="input input--error" value="ab" />
+            <span class="field__error" role="alert">至少 3 个字符</span>
+          </label>
+          <p class="aside">标签在上、等宽大写；错误态用 <code>crimson</code> 描边 + 下方文案，不靠颜色单独表意。</p>
+        </div>
+
+        <div class="specimen">
+          <div class="specimen__head">
+            <span class="specimen__name">Tag</span>
+            <span class="specimen__desc">方形 chip / hover 填充</span>
+          </div>
+          <div class="tags">
+            <span class="tag">雨天</span>
+            <span class="tag">旧书</span>
+            <span class="tag">雾</span>
+            <span class="tag">藤蔓</span>
+            <span class="tag">民谣</span>
+          </div>
+          <p class="aside">高 30px（移动 36px），1px 描边、4px 圆角；hover 填 <code>soft</code>，不做颜色反白。</p>
+        </div>
+
+        <div class="specimen">
+          <div class="specimen__head">
+            <span class="specimen__name">Surface</span>
+            <span class="specimen__desc">raised / outline / paper</span>
+          </div>
+          <div class="surface surface--raised">
+            <p class="label">raised</p>
+            <p style="margin-top:.35rem;font-size:var(--text-small)">卡片、弹层内容、导航底色。</p>
+          </div>
+          <div class="surface surface--outline">
+            <p class="label">outline</p>
+            <p style="margin-top:.35rem;font-size:var(--text-small)">并列信息块、事件列。</p>
+          </div>
+          <div class="surface surface--paper">
+            <p class="label">paper</p>
+            <p style="margin-top:.35rem;font-size:var(--text-small)">只允许「引用 / 海报式图版」一种场景。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="cols-2" style="margin-top:1.5rem">
+        <div class="specimen" style="grid-column:span 1">
+          <div class="specimen__head">
+            <span class="specimen__name">Notice</span>
+            <span class="specimen__desc">替代纸页卡</span>
+          </div>
+          <div class="notice">
+            <p class="notice__title">素材版权</p>
+            <p class="notice__body">
+              本页素材版权归主播及所属社团所有，仅供个人欣赏。请勿二次修改、商用或用于任何形式的二次设定。
+            </p>
+          </div>
+          <p class="aside">左侧 2px <code>primary</code> 竖线 + <code>raised</code> 底；完整免责声明不截断。</p>
+        </div>
+
+        <div class="specimen">
+          <div class="specimen__head">
+            <span class="specimen__name">Plate</span>
+            <span class="specimen__desc">图版 + 题注</span>
+          </div>
+          <figure class="plate" style="margin:0">
+            <div class="plate__frame" style="aspect-ratio:16/10">
+              <div class="plate__ph">图版占位 · illustration-01</div>
+            </div>
+            <figcaption class="plate__cap">
+              <span>图版 02 · illustration-01 · 插画</span>
+              <span>1600 × 1000</span>
+            </figcaption>
+          </figure>
+          <p class="aside">hover 只把图片压到 <code>opacity .92</code> 并给题注加下划线；不放大、不上浮、不泛光。</p>
+        </div>
+      </div>
+
+      <div class="cols-2" style="margin-top:1.5rem">
+        <div class="specimen">
+          <div class="specimen__head">
+            <span class="specimen__name">Timeline</span>
+            <span class="specimen__desc">日期列 + 内容列</span>
+          </div>
+          <div class="timeline">
+            <div class="timeline__row" data-current="true">
+              <span class="timeline__date">2026-11-01</span>
+              <div><p class="timeline__title">全站视觉系统重设计启动</p><p class="timeline__note">装订（The Binding）</p></div>
+            </div>
+            <div class="timeline__row">
+              <span class="timeline__date">2026-09-18</span>
+              <div><p class="timeline__title">录播播放优化</p><p class="timeline__note">默认暂停 + 画面点击</p></div>
+            </div>
+            <div class="timeline__row">
+              <span class="timeline__date">2026-08-11</span>
+              <div><p class="timeline__title">粉丝站上线</p></div>
+            </div>
+          </div>
+          <p class="aside">不画轴、不画节点；当前项只把日期染成 <code>primary</code>。</p>
+        </div>
+
+        <div class="specimen">
+          <div class="specimen__head">
+            <span class="specimen__name">EmptyState / Rule</span>
+            <span class="specimen__desc">空态与结构线</span>
+          </div>
+          <div class="empty">
+            <p class="empty__title">这一周还没有安排</p>
+            <p class="empty__desc">开播计划更新后会自动出现在这里。</p>
+            <button class="btn btn--secondary btn--sm" type="button">查看上周</button>
+          </div>
+          <hr class="rule" style="margin:1.25rem 0" />
+          <div style="display:flex;align-items:center;gap:.75rem">
+            <span class="label">RULE</span>
+            <span style="flex:1;height:1px;background:var(--line)"></span>
+            <span class="label">可带左端标签</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="cols-2" style="margin-top:1.5rem">
+        <div class="specimen">
+          <div class="specimen__head">
+            <span class="specimen__name">PageHeader</span>
+            <span class="specimen__desc">eyebrow + h1 + lead + 1px 线</span>
+          </div>
+          <div class="page-header">
+            <span class="eyebrow">PROFILE / 枝堇图鉴</span>
+            <h3 class="page-header__title">枝堇图鉴</h3>
+            <p class="lead" style="font-size:var(--text-small)">一份关于她的公开信息与官方素材索引。</p>
+          </div>
+        </div>
+        <div class="specimen">
+          <div class="specimen__head">
+            <span class="specimen__name">SectionHeader</span>
+            <span class="specimen__desc">folio + eyebrow + title</span>
+          </div>
+          <div style="display:flex;align-items:baseline;gap:1rem">
+            <span class="folio" style="font-size:2rem">叁</span>
+            <div>
+              <span class="eyebrow">PROFILE / 喜好</span>
+              <h3 style="font-size:var(--text-h2);margin-top:.35rem">喜好</h3>
+            </div>
+          </div>
+          <hr class="rule" style="margin:1.25rem 0" />
+          <p class="aside">folio 表达真实顺序：首页是壹，档案五节是贰到陆，日历柒，素材捌。</p>
+        </div>
+      </div>
+
+      <div style="margin-top:3rem;overflow-x:auto">
+        <table>
+          <caption>状态矩阵（实现即以此为准）</caption>
+          <thead>
+            <tr><th>组件</th><th>default</th><th>hover</th><th>active</th><th>focus-visible</th><th>disabled</th><th>loading</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Button primary</td><td><code>bg-primary text-night</code></td><td><code>bg-primary-deep</code></td><td>下移 1px</td><td>2px flower 环</td><td>opacity .4</td><td>文案 → 处理中… + aria-busy</td></tr>
+            <tr><td>Button secondary</td><td>透明 + line-strong</td><td><code>bg-soft</code></td><td><code>bg-soft</code></td><td>同上</td><td>opacity .4</td><td>同上</td></tr>
+            <tr><td>Button ghost</td><td>透明 / ink-dim</td><td>文字转 ink</td><td>同上</td><td>同上</td><td>opacity .4</td><td>同上</td></tr>
+            <tr><td>Button danger</td><td>crimson 文字 + 40% 描边</td><td>crimson 10% 底</td><td>同上</td><td>同上</td><td>opacity .4</td><td>同上</td></tr>
+            <tr><td>Field</td><td>soft 底 + line</td><td>line-strong</td><td>—</td><td>flower 1px + 20% 外环</td><td>opacity .4</td><td>—</td></tr>
+            <tr><td>Tag</td><td>line 描边</td><td>soft 填充</td><td>—</td><td>焦点环（可交互时）</td><td>—</td><td>—</td></tr>
+            <tr><td>Nav item</td><td>ink-dim</td><td>ink</td><td>—</td><td>焦点环</td><td>—</td><td>—</td></tr>
+            <tr><td>Nav item active</td><td>ink + primary 下划线</td><td>同左</td><td>—</td><td>焦点环</td><td>—</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 陆 · 页面 ================= -->
+  <section id="pages">
+    <div class="shell binding">
+      <div class="folio-row">
+        <span class="folio">陆</span>
+        <span class="eyebrow">PAGES / 页面骨架</span>
+      </div>
+      <h2 class="h2">五屏档案，一条阅读轴</h2>
+      <p class="lead" style="margin-top:1rem">
+        现在的档案五屏左右交替，读的时候位置每屏跳一次。改法很朴素：文字永远在左、图版永远在右，
+        位置不再变，只有内容在变。
+      </p>
+
+      <div class="cols-2" style="margin-top:3rem">
+        <div class="wire">
+          <div class="wire__label"><span>首页 · Hero（桌面）</span><span>1440 × 900</span></div>
+          <div style="border-left:1px solid var(--primary);padding-left:.75rem">
+            <div style="display:flex;justify-content:space-between;gap:1rem">
+              <div style="flex:1;display:flex;flex-direction:column;gap:.5rem">
+                <span class="label">VIRTUALREAL / 28期</span>
+                <div style="display:flex;gap:1rem;align-items:flex-start">
+                  <span style="writing-mode:vertical-rl;font-family:var(--serif);font-size:2.5rem;font-weight:600;letter-spacing:.08em;line-height:1">枝堇</span>
+                  <div style="display:flex;flex-direction:column;gap:.4rem">
+                    <span style="font-family:var(--serif);font-style:italic;color:var(--primary)">Sumire</span>
+                    <div class="wire__line wire__line--mid" style="margin-top:.5rem"></div>
+                    <div class="wire__line wire__line--short"></div>
+                  </div>
+                </div>
+                <div style="display:flex;gap:.5rem;align-items:center;margin-top:.75rem;padding-top:.5rem;border-top:1px solid var(--line)">
+                  <span class="live-dot" aria-hidden="true"></span><span class="label">直播中</span><span class="label">今日 21:00</span>
+                </div>
+              </div>
+              <div class="wire__block" style="width:38%;aspect-ratio:4/5;display:grid;place-items:center">
+                <span class="label">图版 01</span>
+              </div>
+            </div>
+          </div>
+          <p class="aside" style="margin-top:1rem">无雾气、无粒子、无视差；背景只留一处静态径向微光（primary 6%）。</p>
+        </div>
+
+        <div class="wire">
+          <div class="wire__label"><span>档案屏 P1–P5（桌面）</span><span>固定阅读轴</span></div>
+          <div style="border-left:1px solid var(--primary);padding-left:.75rem">
+            <div class="folio-row" style="margin-bottom:.75rem"><span class="folio" style="font-size:1.5rem">贰</span><span class="label">PROFILE / 信息</span></div>
+            <div style="display:flex;gap:1.25rem">
+              <div style="flex:1;display:flex;flex-direction:column;gap:.35rem">
+                <div style="display:flex;gap:.75rem;padding:.35rem 0;border-bottom:1px solid var(--line)"><span class="label" style="width:3.5rem">本名</span><span style="font-size:var(--text-small)">枝堇Sumire</span></div>
+                <div style="display:flex;gap:.75rem;padding:.35rem 0;border-bottom:1px solid var(--line)"><span class="label" style="width:3.5rem">生日</span><span style="font-size:var(--text-small)">4月2日（白羊座）</span></div>
+                <div style="display:flex;gap:.75rem;padding:.35rem 0;border-bottom:1px solid var(--line)"><span class="label" style="width:3.5rem">应援色</span><span class="mono" style="font-size:var(--text-small);color:var(--primary)">#b4a6bf</span></div>
+              </div>
+              <div class="wire__block" style="width:36%;aspect-ratio:4/5;display:grid;place-items:center">
+                <span class="label">图版 02</span>
+              </div>
+            </div>
+            <p class="label" style="margin-top:.5rem">图版 02 · standing-02</p>
+          </div>
+          <p class="aside" style="margin-top:1rem">移动端：图版在上（40svh），文字在下；取消毛玻璃全屏底与背景立绘。</p>
+        </div>
+      </div>
+
+      <div class="cols-2" style="margin-top:1.5rem">
+        <div class="wire">
+          <div class="wire__label"><span>日历站（全幅月视图）</span><span>1px 网格</span></div>
+          <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border:1px solid var(--line)">
+            <div style="padding:.4rem;border-right:1px solid var(--line);border-bottom:1px solid var(--line)" class="label">一</div>
+            <div style="padding:.4rem;border-right:1px solid var(--line);border-bottom:1px solid var(--line)" class="label">二</div>
+            <div style="padding:.4rem;border-right:1px solid var(--line);border-bottom:1px solid var(--line)" class="label">三</div>
+            <div style="padding:.4rem;border-right:1px solid var(--line);border-bottom:1px solid var(--line)" class="label">四</div>
+            <div style="padding:.4rem;border-right:1px solid var(--line);border-bottom:1px solid var(--line)" class="label">五</div>
+            <div style="padding:.4rem;border-right:1px solid var(--line);border-bottom:1px solid var(--line)" class="label">六</div>
+            <div style="padding:.4rem;border-bottom:1px solid var(--line)" class="label">日</div>
+            <div style="padding:.4rem;border-right:1px solid var(--line);border-bottom:1px solid var(--line);min-height:54px" class="mono">1</div>
+            <div style="padding:.4rem;border-right:1px solid var(--line);border-bottom:1px solid var(--line);min-height:54px" class="mono">2</div>
+            <div style="padding:.4rem;border-right:1px solid var(--line);border-bottom:1px solid var(--line);min-height:54px;background:var(--soft)">
+              <span class="mono" style="color:var(--primary)">3</span>
+              <div class="mono" style="font-size:.65rem;color:var(--ink-dim);margin-top:.25rem">21:00 杂谈</div>
+            </div>
+            <div style="padding:.4rem;border-right:1px solid var(--line);border-bottom:1px solid var(--line);min-height:54px" class="mono">4</div>
+            <div style="padding:.4rem;border-right:1px solid var(--line);border-bottom:1px solid var(--line);min-height:54px" class="mono">5</div>
+            <div style="padding:.4rem;border-right:1px solid var(--line);border-bottom:1px solid var(--line);min-height:54px" class="mono">6</div>
+            <div style="padding:.4rem;border-bottom:1px solid var(--line);min-height:54px" class="mono">7</div>
+          </div>
+          <p class="aside" style="margin-top:1rem">单元格无圆角、无底色；今天只用一个 <code>primary</code> 圆点 + <code>primary</code> 日期；翻月是 44×44 图标按钮。</p>
+        </div>
+
+        <div class="wire">
+          <div class="wire__label"><span>素材站</span><span>图版网格 + 下划线分类</span></div>
+          <div style="display:flex;gap:1.25rem;align-items:baseline;border-bottom:1px solid var(--line)">
+            <span style="font-size:var(--text-small);color:var(--ink);border-bottom:1px solid var(--primary);padding-bottom:.45rem">全部</span>
+            <span style="font-size:var(--text-small);color:var(--ink-dim);padding-bottom:.45rem">立绘</span>
+            <span style="font-size:var(--text-small);color:var(--ink-dim);padding-bottom:.45rem">插画</span>
+            <span style="font-size:var(--text-small);color:var(--ink-dim);padding-bottom:.45rem">宣传图</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem;margin-top:.9rem">
+            <div class="wire__block" style="aspect-ratio:4/5;display:grid;place-items:center"><span class="label">01</span></div>
+            <div class="wire__block" style="aspect-ratio:4/5;display:grid;place-items:center"><span class="label">02</span></div>
+            <div class="wire__block" style="aspect-ratio:4/5;display:grid;place-items:center"><span class="label">03</span></div>
+          </div>
+          <p class="aside" style="margin-top:1rem">题注在图片下方；Lightbox 为 <code>night/96</code> 遮罩，底部信息条 + 一个主按钮「下载原图」。</p>
+        </div>
+      </div>
+
+      <div class="cols-2" style="margin-top:1.5rem">
+        <div class="wire">
+          <div class="wire__label"><span>移动端 375（档案 / 素材）</span><span>单列</span></div>
+          <div style="max-width:230px;margin:0 auto">
+            <div class="wire__band" style="padding:.35rem .5rem">NavBar 64px</div>
+            <div class="wire__block" style="height:96px;margin-top:.5rem;display:grid;place-items:center"><span class="label">图版 40svh</span></div>
+            <div class="stack-sm" style="margin-top:.75rem">
+              <div class="wire__line"></div>
+              <div class="wire__line wire__line--mid"></div>
+              <div class="wire__line wire__line--short"></div>
+              <div class="wire__line wire__line--mid"></div>
+            </div>
+          </div>
+          <p class="aside" style="margin-top:1rem">375px 无横向滚动；触摸目标 ≥44×44；菜单为全屏抽屉（Esc 关闭、焦点困于抽屉）。</p>
+        </div>
+
+        <div class="wire">
+          <div class="wire__label"><span>404 / 空态</span><span>无插画</span></div>
+          <div style="display:grid;place-items:center;padding:1.5rem 0;text-align:center">
+            <span class="mono" aria-hidden="true" style="font-size:3.5rem;color:var(--ink-mute);line-height:1">404</span>
+            <p style="font-family:var(--serif);font-size:var(--text-h3);margin-top:.5rem">页面不存在</p>
+            <p class="aside" style="margin-top:.35rem">你走进了书架间不存在的角落</p>
+            <button class="btn btn--secondary btn--sm" type="button" style="margin-top:1rem">返回首页</button>
+          </div>
+          <p class="aside">半透明大号 404 由 <code>aria-hidden</code> 承担，语义由 <code>h1</code> 承担；去掉径向紫光与花体 404。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 柒 · 动效与可访问性 ================= -->
+  <section id="motion">
+    <div class="shell binding">
+      <div class="folio-row">
+        <span class="folio">柒</span>
+        <span class="eyebrow">MOTION &amp; A11Y / 动效与可访问性</span>
+      </div>
+      <h2 class="h2">只留三种动效</h2>
+      <p class="lead" style="margin-top:1rem">
+        入场、悬停、翻页。环境循环动效全部删除；<code>prefers-reduced-motion</code> 不再有「公开站特批」，
+        全站一视同仁。
+      </p>
+
+      <div class="cols-2" style="margin-top:2.5rem">
+        <div>
+          <table>
+            <caption>动效规格</caption>
+            <tbody>
+              <tr><td>入场</td><td>opacity 0→1 + translateY 8px→0，480ms，cubic-bezier(.22, 1, .36, 1)</td></tr>
+              <tr><td>悬停 / 焦点</td><td>只改颜色、描边、透明度，140ms</td></tr>
+              <tr><td>整页翻页</td><td>当前屏淡出 + 上移 8px，下一屏反向，480ms；装订线与页码不参与位移</td></tr>
+              <tr><td>弹层</td><td>遮罩淡入，内容上移 8px，220ms</td></tr>
+              <tr><td>reduced-motion</td><td>无位移 / 缩放 / 视差 / 粒子；翻页 120ms 纯淡入或即时</td></tr>
+              <tr><td>循环动效</td><td>仅直播状态点 pulse（本页左上角那一个）</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="stack-md">
+          <p class="label">可访问性基线</p>
+          <ul class="aside stack-sm">
+            <li>正文与次级文字对比度 ≥ 4.5:1；大号文字 ≥ 3:1（色板已列实测值）。</li>
+            <li>所有交互元素 <code>:focus-visible</code> 2px flower 焦点环 + 2px 外偏移，不被 <code>overflow-hidden</code> 裁剪。</li>
+            <li>触摸目标 ≥ 44×44；键盘可完成导航、菜单、筛选、下载、关闭弹层。</li>
+            <li>移动抽屉与弹层：焦点陷阱、Esc 关闭、关闭后焦点回到触发元素、锁定背景滚动。</li>
+            <li>提供「跳到正文」skip link（本页 Tab 第一下即可见）。</li>
+            <li>不出现仅靠 hover 才能获取的信息；不靠颜色单独区分状态。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 捌 · 待确认 ================= -->
+  <section id="decisions">
+    <div class="shell binding">
+      <div class="folio-row">
+        <span class="folio">捌</span>
+        <span class="eyebrow">DECISIONS / 请重点确认</span>
+      </div>
+      <h2 class="h2">六件事，你点头我才往下做</h2>
+      <p class="lead" style="margin-top:1rem">
+        以下每条都写清了「建议」和「代价」。有异议直接在这里圈出来，不必等实现完再返工。
+      </p>
+
+      <div class="decisions" style="margin-top:2.5rem">
+        <div class="decision">
+          <span class="decision__no">01</span>
+          <span class="decision__title">移除粒子 / 视差 / 雾气</span>
+          <span class="decision__body">
+            建议移除，改为静态径向微光 + 暖骨白排版。站点从「动效氛围」转为「编辑设计」。
+            代价：少了动效卖点；收益：去掉视觉噪音、持续重绘与耗电，移动端不晕动。
+          </span>
+          <span class="decision__flag">已按「移除」绘制</span>
+        </div>
+        <div class="decision">
+          <span class="decision__no">02</span>
+          <span class="decision__title">reduced-motion 全站尊重</span>
+          <span class="decision__body">
+            建议把「公开站氛围层不降级」的特批改为全站尊重。代价：需同步修改设计文档与 spec 中的旧口径；
+            收益：可访问性一致，代码不再分叉。
+          </span>
+          <span class="decision__flag">本页已遵循</span>
+        </div>
+        <div class="decision">
+          <span class="decision__no">03</span>
+          <span class="decision__title">档案五屏取消左右交替</span>
+          <span class="decision__body">
+            建议取消交替，文字恒左、图版恒右。代价：少了「翻页节奏」的视觉变化；
+            收益：阅读位置稳定，五屏一套规则，移动端可直接单列堆叠。
+          </span>
+          <span class="decision__flag">已按「固定轴」绘制</span>
+        </div>
+        <div class="decision">
+          <span class="decision__no">04</span>
+          <span class="decision__title">后台只做 token + 控件 + 壳层</span>
+          <span class="decision__body">
+            建议不重排后台业务页布局。代价：后台与公开站气质不完全一致；
+            收益：回归面可控，不会在改视觉的同时碰坏管理流程。
+          </span>
+          <span class="decision__flag">范围已收窄</span>
+        </div>
+        <div class="decision">
+          <span class="decision__no">05</span>
+          <span class="decision__title">保留整页翻页 deck</span>
+          <span class="decision__body">
+            建议保留，只重做视觉与索引。若改成普通长页，属信息架构变更，不在本期范围。
+          </span>
+          <span class="decision__flag">本期不改 IA</span>
+        </div>
+        <div class="decision">
+          <span class="decision__no">06</span>
+          <span class="decision__title">桌面竖排书名</span>
+          <span class="decision__body">
+            建议采用，移动端横排，<code>@supports</code> 回退。这是整站唯一「一眼记得住」的排版动作。
+            若风险太高可退回横排，其余设计不受影响。
+          </span>
+          <span class="decision__flag">← 封面即样品</span>
+        </div>
+      </div>
+
+      <div class="note-bar" style="margin-top:2rem">
+        <strong style="color:var(--ink);font-weight:500">确认方式</strong>
+        <span>在 PR 中逐条回复「同意 / 改 X」，或直接在对应小节圈注。概念页只定方向，实现细节以 PRD 与实现方案为准。</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 页脚样品 ================= -->
+  <footer class="footer">
+    <div class="shell">
+      <div class="footer__grid">
+        <div>
+          <h3>堇色书屋</h3>
+          <p>枝堇Sumire（VirtuaReal 二十八期）非官方粉丝网站与工具集。</p>
+          <p style="margin-top:.6rem">本站为非官方粉丝作品，素材版权归主播及所属社团所有；所有内容以官方公开信息为准，禁止二次设定。</p>
+        </div>
+        <div>
+          <h3>站点</h3>
+          <ul>
+            <li><a href="#cover">主页</a></li>
+            <li><a href="#concept">档案</a></li>
+            <li><a href="#pages">素材</a></li>
+            <li><a href="#layout">日历</a></li>
+            <li><a href="#components">录播</a></li>
+            <li><a href="#decisions">棉花糖</a></li>
+          </ul>
+        </div>
+        <div>
+          <h3>关注</h3>
+          <ul>
+            <li>B 站空间 ↗</li>
+            <li>直播间 ↗</li>
+            <li>萌娘百科 ↗</li>
+            <li>小密室 ↗</li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer__bottom">
+        <span>应援色 #b4a6bf</span>
+        <span>© 2026 堇色书屋 · 概念页 PROOF 01</span>
+      </div>
+    </div>
+  </footer>
+</main>
+
+<nav class="index" aria-label="页面位置">
+  <ol>
+    <li><a href="#cover" aria-current="true"><span class="index__label">封面</span><span>卷首</span></a></li>
+    <li><a href="#concept"><span class="index__label">概念</span><span>壹</span></a></li>
+    <li><a href="#color"><span class="index__label">色彩</span><span>贰</span></a></li>
+    <li><a href="#type"><span class="index__label">字体</span><span>叁</span></a></li>
+    <li><a href="#layout"><span class="index__label">版式</span><span>肆</span></a></li>
+    <li><a href="#components"><span class="index__label">组件</span><span>伍</span></a></li>
+    <li><a href="#pages"><span class="index__label">页面</span><span>陆</span></a></li>
+    <li><a href="#motion"><span class="index__label">动效</span><span>柒</span></a></li>
+    <li><a href="#decisions"><span class="index__label">待确认</span><span>捌</span></a></li>
+  </ol>
+</nav>
+</body>
+</html>

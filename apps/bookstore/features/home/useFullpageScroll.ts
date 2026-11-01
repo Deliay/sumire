@@ -11,15 +11,12 @@ import {
 } from "@/features/home/fullpage";
 import type { SectionDef, SectionChangeDetail, NavigateDetail } from "@/features/home/sections";
 import { SECTION_CHANGE_EVENT, NAVIGATE_EVENT } from "@/features/home/sections";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 
 /** 翻页转场时长（ms）。 */
-const TRANSITION_MS = 800;
+const TRANSITION_MS = 480;
 /** free 模式回收为 deck 的死区（px）。 */
 const BOUNDARY_DEADZONE = 2;
-/** 冲量事件名。 */
-export const IMPULSE_EVENT = "sumire:flow-impulse";
-/** free 模式滚动速度冲量事件名（连续喂入）。 */
-export const SCROLL_IMPULSE_EVENT = "sumire:flow-scroll";
 
 export interface FullpageScrollConfig {
   /** 可见站序列（已按 API_CONFIGURED 过滤）。 */
@@ -30,17 +27,12 @@ export interface FullpageScrollConfig {
   trackRef: React.RefObject<HTMLElement | null>;
   /** 容器 DOM ref（free 模式切换 overflow）。 */
   containerRef: React.RefObject<HTMLElement | null>;
-  /** 站索引变化回调（用于 SectionRail 高亮与 hash 同步）。 */
+  /** 站索引变化回调（用于 PageIndex 高亮与 hash 同步）。 */
   onIndexChange?: (index: number) => void;
 }
 
 /** 翻页意图：-1 下一站，+1 上一站。 */
 export type TurnIntent = -1 | 1;
-
-/** 事件载荷：翻页方向（供粒子冲量消费）。 */
-export interface ImpulseDetail {
-  direction: TurnIntent;
-}
 
 /** 弹层打开时屏蔽翻页输入（Lightbox/当日详情），由调用方控制。 */
 export function useFullpageScroll({
@@ -53,6 +45,11 @@ export function useFullpageScroll({
   const [index, setIndexState] = useState(0);
   const [free, setFree] = useState(false);
   const [blocked, setBlocked] = useState(false);
+  const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
+  const reducedMotionRef = useRef(reducedMotion);
+  useEffect(() => {
+    reducedMotionRef.current = reducedMotion;
+  }, [reducedMotion]);
   const indexRef = useRef(0);
   const freeRef = useRef(false);
   const blockedRef = useRef(false);
@@ -60,9 +57,7 @@ export function useFullpageScroll({
   const touchStartRef = useRef<{ y: number; timestamp: number } | null>(null);
   // 触摸起始命中的实际可滚动容器（用于 touchmove 逐次判边界，到界同向越界时交接翻页）
   const touchScrollableRef = useRef<Element | null>(null);
-  const lastImpulseTimeRef = useRef(0);
   const lastScrollTopRef = useRef(0);
-  const lastScrollTimeRef = useRef(0);
   const lastDirectionRef = useRef<TurnIntent>(-1);
   const isFirstRenderRef = useRef(true);
   // rAF 驱动的 px 转场动画状态（规避 CSS viewport 单位 transition 插值兼容问题）
@@ -123,8 +118,8 @@ export function useFullpageScroll({
       const track = trackRef.current;
       if (!track) return;
       cancelAnim();
-      if (!animated) {
-        // 首渲染 / hash 直落：瞬时定位，无动画
+      if (!animated || reducedMotionRef.current) {
+        // 首渲染 / hash 直落 / reduced-motion：瞬时定位，不做位移转场
         currentOffsetPxRef.current = -i * getVh();
         track.style.transition = "none";
         track.style.transform = `translate3d(0, ${currentOffsetPxRef.current}px, 0)`;
@@ -158,12 +153,6 @@ export function useFullpageScroll({
         track.style.transition = "none";
         track.style.transform = `translate3d(0, ${offset}px, 0)`;
         if (t < 1) {
-          // 粒子流场耦合：velocity 取「翻页方向」语义（下翻 → 正 velocity → 下坠；上翻 → 负 → 上浮），
-          // 与 turn/goTo 派发的 direction 口径一致，避免与 free 滚动链方向打架。
-          const v = (drop ? 1 : -1) * (getVh() / (dur / 1000)) * (1 - t * 0.4);
-          window.dispatchEvent(
-            new CustomEvent(SCROLL_IMPULSE_EVENT, { detail: { velocity: v } }),
-          );
           animRef.current = requestAnimationFrame(step);
         } else {
           currentOffsetPxRef.current = to;
@@ -192,19 +181,6 @@ export function useFullpageScroll({
       }
     },
     [sections, onIndexChange],
-  );
-
-  /** 派发冲量事件（供 GlowParticles 消费）。 */
-  const dispatchImpulse = useCallback(
-    (direction: TurnIntent) => {
-      const now = performance.now();
-      if (now - lastImpulseTimeRef.current < 300) return;
-      lastImpulseTimeRef.current = now;
-      window.dispatchEvent(
-        new CustomEvent<ImpulseDetail>(IMPULSE_EVENT, { detail: { direction } }),
-      );
-    },
-    [],
   );
 
   /** free → deck 回收（顶越界上翻）：复位 free、隐藏溢出、置零 scrollTop，翻上一站（上浮缓出）。 */
@@ -242,10 +218,9 @@ export function useFullpageScroll({
       const target = nextIndex(indexRef.current, direction, sections.length);
       if (target === indexRef.current) return;
       lastDirectionRef.current = direction;
-      dispatchImpulse(direction);
       updateIndex(target);
     },
-    [assetsIndex, sections.length, containerRef, dispatchImpulse, updateIndex, reclaimToDeck],
+    [assetsIndex, sections.length, containerRef, updateIndex, reclaimToDeck],
   );
 
   /** 程序化跳转（导航/指示器点击），同翻页转场。 */
@@ -262,11 +237,10 @@ export function useFullpageScroll({
       }
       const clamped = Math.max(0, Math.min(sections.length - 1, i));
       if (clamped === indexRef.current) return;
-      dispatchImpulse(clamped > indexRef.current ? -1 : 1);
       lastDirectionRef.current = clamped > indexRef.current ? -1 : 1;
       updateIndex(clamped);
     },
-    [containerRef, sections.length, dispatchImpulse, updateIndex],
+    [containerRef, sections.length, updateIndex],
   );
 
   // 初始：挂载时解析 hash 直落对应站（无转场）。仅挂载执行一次（landedRef 守卫），
@@ -451,21 +425,6 @@ export function useFullpageScroll({
       if (scrollTop <= BOUNDARY_DEADZONE && scrollTop - lastScrollTopRef.current < 0) {
         reclaimToDeck();
         return;
-      }
-      // free 模式滚动速度 → 连续喂入粒子冲量（沿滚动方向）
-      const dt = Math.max(1, performance.now() - lastScrollTimeRef.current);
-      const velocity = ((scrollTop - lastScrollTopRef.current) * 1000) / dt;
-      lastScrollTimeRef.current = performance.now();
-      if (Math.abs(velocity) > 1) {
-        const now = performance.now();
-        if (now - lastImpulseTimeRef.current > 30) {
-          lastImpulseTimeRef.current = now;
-          window.dispatchEvent(
-            new CustomEvent(SCROLL_IMPULSE_EVENT, {
-              detail: { velocity },
-            }),
-          );
-        }
       }
       lastScrollTopRef.current = scrollTop;
     };

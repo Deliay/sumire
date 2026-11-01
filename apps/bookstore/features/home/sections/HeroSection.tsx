@@ -1,14 +1,13 @@
 "use client";
 
-import Image from "next/image";
 import LiveStatus from "@/features/home/LiveStatus";
 import TodaySchedule from "@/features/home/TodaySchedule";
-import ParallaxLayer from "@/features/home/ParallaxLayer";
+import Plate from "@/components/ui/Plate";
 import { API_CONFIGURED } from "@/features/backdoor/api";
 import type { Asset, Profile, Site } from "@/lib/content";
 import { assetOriginalWebpUrl } from "@/lib/content/shared";
 
-/** 首页站：雾气 + 光晕粒子 + 立绘视差 + 文案块（无 Footer floating，改小号免责声明行）。 */
+/** 首页站：竖排书名 + 右侧图版 + 元数据行（无雾气 / 无粒子 / 无视差）。 */
 export default function HeroSection({
   profile,
   site,
@@ -20,49 +19,61 @@ export default function HeroSection({
 }) {
   return (
     <section className="relative flex h-svh flex-col overflow-hidden">
-      {/* 雾气氛围 */}
-      <div className="fog fog-a -left-40 top-1/4 size-[42rem] bg-flower/10" aria-hidden />
-      <div className="fog fog-b -right-32 bottom-0 size-[36rem] bg-primary/10" aria-hidden />
+      {/* 一处静态径向微光（primary/6%，无动画） */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 60rem 40rem at 20% 30%, color-mix(in oklab, var(--color-primary) 6%, transparent), transparent 70%)",
+        }}
+      />
 
-      {/* 立绘视差衬底：四周外扩 PARALLAX_MAX(12px) 余量，视差最大位移时底/顶/左右边仍被 section overflow-hidden 覆盖，不露截断边 */}
-      <ParallaxLayer className="pointer-events-none absolute -inset-x-3 top-[10%] -bottom-3 lg:left-auto lg:right-[10%] lg:w-1/2">
-        <Image
-          src={assetOriginalWebpUrl(heroAsset)}
-          alt={heroAsset.title}
-          width={2000}
-          height={4000}
-          priority
-          className="ml-[25%] h-full w-full object-cover object-top lg:ml-0"
-        />
-      </ParallaxLayer>
-
-      {/* 左列内容 */}
-      <div className="relative flex min-h-0 flex-1 flex-col justify-end gap-5 p-5 lg:justify-end lg:gap-6 lg:p-10 lg:pr-[50%]">
-        <div className="flex flex-col items-start gap-3">
-          {API_CONFIGURED && <LiveStatus liveUrl={site.links.live} />}
-          {API_CONFIGURED && <TodaySchedule />}
+      <div className="relative flex h-full min-h-0 flex-col gap-6 px-5 pb-8 pt-24 lg:grid lg:grid-cols-12 lg:items-end lg:gap-8 lg:px-16 lg:pb-16 lg:pt-28">
+        {/* 图版：移动端在上（55svh），桌面右 6 列 */}
+        <div className="order-first min-h-0 lg:order-none lg:col-span-6 lg:col-start-7 lg:row-start-1">
+          <Plate
+            src={assetOriginalWebpUrl(heroAsset)}
+            alt={heroAsset.title}
+            width={2000}
+            height={4000}
+            priority
+            index={1}
+            caption={`${heroAsset.title} · 立绘`}
+            frameClassName="h-[55svh] lg:h-[68svh]"
+            imageClassName="object-top"
+            className="h-full"
+          />
         </div>
 
-        <div className="flex flex-col gap-3 lg:gap-4">
-          <p
-            className="animate-rise font-display text-sm italic tracking-[0.35em] text-ink-dim"
-            style={{ animationDelay: "0ms" }}
-          >
+        {/* 文字列：桌面左 5 列 */}
+        <div className="flex min-h-0 flex-col justify-end gap-5 lg:col-span-5 lg:col-start-1 lg:row-start-1">
+          <p className="font-mono text-label tracking-label uppercase text-ink-dim">
             VirtuaReal · 二十八期
           </p>
-          <h1 className="animate-rise flex flex-col gap-1" style={{ animationDelay: "120ms" }}>
-            <span className="font-serif text-display font-bold tracking-wider">枝堇</span>
-            <span className="font-display text-h1 italic text-primary">Sumire</span>
+
+          <h1 className="flex flex-wrap items-end gap-x-4">
+            <span className="animate-enter font-serif text-display font-semibold leading-none tracking-[0.08em] lg:[writing-mode:vertical-rl]">
+              枝堇
+            </span>
+            <span className="animate-enter font-display text-h1 italic text-primary">Sumire</span>
           </h1>
-          <p
-            className="animate-rise max-w-md leading-loose text-ink-dim"
-            style={{ animationDelay: "240ms" }}
-          >
+
+          <p className="max-w-[34rem] animate-enter font-serif leading-loose text-ink-dim">
             {profile.bio}
           </p>
-          <p className="mt-2 font-display text-xs italic tracking-widest text-ink-dim/70">
-            {site.disclaimer}
-          </p>
+
+          {API_CONFIGURED ? (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line pb-3 text-small">
+              <LiveStatus liveUrl={site.links.live} />
+              <span aria-hidden className="text-line-strong">
+                /
+              </span>
+              <TodaySchedule />
+            </div>
+          ) : null}
+
+          <p className="font-mono text-tiny text-ink-dim">{site.disclaimer}</p>
         </div>
       </div>
     </section>

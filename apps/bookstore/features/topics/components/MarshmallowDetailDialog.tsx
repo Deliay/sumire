@@ -30,7 +30,7 @@ export default function MarshmallowDetailDialog({
       onClick={onClose}
     >
       <div
-        className="w-[40rem] max-w-[calc(100vw-2.5rem)] rounded-lg border border-vine bg-raised p-6 flex flex-col"
+        className="w-[40rem] max-w-[calc(100vw-2.5rem)] rounded-lg border border-line bg-raised p-6 flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3 shrink-0">
@@ -39,7 +39,7 @@ export default function MarshmallowDetailDialog({
             <button
               type="button"
               onClick={() => onToggleAdopt(marshmallow.id, !marshmallow.adopted)}
-              className="text-xs text-ink-dim hover:text-ink border border-vine rounded px-2 py-1"
+              className="text-xs text-ink-dim hover:text-ink border border-line rounded px-2 py-1"
             >
               {marshmallow.adopted ? "取消采用" : "采用"}
             </button>

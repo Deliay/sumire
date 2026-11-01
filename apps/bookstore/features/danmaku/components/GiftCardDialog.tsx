@@ -66,7 +66,7 @@ export default function GiftCardDialog({ event, onClose }: GiftCardDialogProps) 
       aria-label="事件详情卡片"
     >
       <div
-        className="relative w-full max-w-md rounded-xl border border-vine/50 bg-raised p-6 shadow-2xl"
+        className="relative w-full max-w-md rounded-md border border-line bg-raised p-6 shadow-overlay"
         style={
           colors
             ? {
@@ -96,7 +96,7 @@ export default function GiftCardDialog({ event, onClose }: GiftCardDialogProps) 
                 ? "bg-white/20"
                 : isGuard && tone
                   ? `${tone.chip} ${tone.text}`
-                  : "bg-vine/20 text-ink-dim"
+                  : "bg-line text-ink-dim"
             }`}
           >
             {labelForType(event.type)}

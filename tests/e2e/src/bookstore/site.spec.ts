@@ -51,12 +51,14 @@ test.describe("bookstore 主页（整页滚动叙事容器）", () => {
     await expect(page.getByText(/了解更多 →/)).toHaveCount(0);
   });
 
-  test("site-home-indicator: 存在位置指示器（SectionRail，仅圆点无文字）", async ({ page }) => {
+  test("site-home-indicator: 右侧页码索引（中文页码 + 当前项 aria-current）", async ({ page }) => {
     await page.goto(BASE);
     const rail = page.getByRole("navigation", { name: "页面位置" });
     await expect(rail).toBeVisible();
-    // 指示器仅圆点节点（无文字），用 aria-label 定位「档案」主节点
-    await expect(rail.getByRole("link", { name: "档案" })).toBeVisible();
+    await expect(rail.getByRole("link", { name: "档案 · 信息" })).toBeVisible();
+    await expect(rail.getByRole("link", { name: "首页" })).toHaveAttribute("aria-current", "true");
+    await expect(rail).toContainText("壹");
+    await expect(rail).toContainText("捌");
   });
 
   test("site-home-nav-click: 首页内点击导航「档案」锚点平滑翻页至档案站", async ({ page }) => {
@@ -159,71 +161,54 @@ test.describe("bookstore 主页（整页滚动叙事容器）", () => {
     await expect(link).toHaveAttribute("target", "_blank");
   });
 
-  test("site-home-today: 今日日程组件存在（有计划或空态）", async ({ page }) => {
+  test("site-home-today: 元数据行为直播状态 + 今日日程（无标题）", async ({ page }) => {
     await page.goto(BASE);
-    await expect(page.getByRole("heading", { name: "今日日程" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /直播中|未开播|直播状态/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "今日日程" })).toHaveCount(0);
+    await expect(page.getByText(/今日暂无安排|\d{2}:\d{2}/).first()).toBeVisible();
   });
 
-  test("site-home-visual-fx: 首页存在常驻光晕粒子 canvas（fixed）与立绘视差层", async ({ page }) => {
+  test("site-home-visual-fx: 无 Canvas / 雾气 / 视差，存在图版题注", async ({ page }) => {
     await page.goto(BASE);
-    const canvas = page.locator('canvas[aria-hidden="true"]');
-    await expect(canvas).toHaveCount(1);
-    await expect(canvas).toHaveClass(/pointer-events-none/);
-    await expect(canvas).toHaveClass(/fixed/);
-    // 立绘 <img> 仍在（alt 为素材标题）——限定在首页站（hero）的视差层内
+    await expect(page.locator("canvas[aria-hidden='true']")).toHaveCount(0);
+    await expect(page.locator(".fog")).toHaveCount(0);
+    await expect(page.locator("[data-testid='parallax-layer']")).toHaveCount(0);
+    // 图版：figure + figcaption 题注
+    await expect(page.locator("[data-section='hero'] figure figcaption")).toContainText("图版 01");
     await expect(page.locator("[data-section='hero'] img[alt*='枝堇立绘']")).toBeVisible();
   });
 
-  test("site-home-archive-parallax-overscan: 档案屏立绘最大视差位移时底边仍被裁剪容器覆盖（不露截断边）", async ({ page }) => {
+  test("site-home-archive-axis: 档案屏固定阅读轴（文字左 / 图版右，图版 1px 描边）", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`${BASE}/#archive-1`);
     await page.waitForTimeout(1200);
-    // 桌面错位立绘层位于分栏 grid 内（移动端 hero 口径背景立绘层是 grid 外兄弟节点，排除）
-    const layer = page.locator("[data-section='archive-1'] .grid [data-testid='parallax-layer']");
-    await expect(layer).toBeVisible();
-    // 指针移到视口底/右 → 立绘向最大负向偏移（视差反向），验证裁剪容器与立绘边缘关系
-    await page.mouse.move(1439, 899);
-    await page.waitForTimeout(600);
     const geometry = await page.evaluate(() => {
-      const l = document.querySelector("[data-section='archive-1'] .grid [data-testid='parallax-layer']") as HTMLElement | null;
-      const clip = l?.parentElement as HTMLElement | null;
-      if (!l || !clip) return null;
-      const clipRect = clip.getBoundingClientRect();
-      const img = l.querySelector("img") as HTMLImageElement | null;
-      const imgRect = img?.getBoundingClientRect() ?? null;
-      return {
-        clipBottom: clipRect.bottom,
-        clipTop: clipRect.top,
-        clipLeft: clipRect.left,
-        clipRight: clipRect.right,
-        imgBottom: imgRect ? imgRect.bottom : null,
-        imgTop: imgRect ? imgRect.top : null,
-        imgLeft: imgRect ? imgRect.left : null,
-        imgRight: imgRect ? imgRect.right : null,
-      };
+      const section = document.querySelector("[data-section='archive-1']") as HTMLElement | null;
+      const grid = section?.querySelector(".grid") as HTMLElement | null;
+      const text = grid?.children[0] as HTMLElement | null;
+      const plate = grid?.children[1] as HTMLElement | null;
+      if (!grid || !text || !plate) return null;
+      const t = text.getBoundingClientRect();
+      const p = plate.getBoundingClientRect();
+      const figure = plate.querySelector("figure") as HTMLElement | null;
+      const border = figure ? getComputedStyle(figure.querySelector("div")!).borderTopWidth : "";
+      return { textRight: t.right, plateLeft: p.left, border };
     });
     expect(geometry).not.toBeNull();
-    // 立绘必须各方向外扩（img 边界在 clip 之外），保证 ±12px 位移时底/顶/左右边不外露
-    expect(geometry!.imgBottom).toBeGreaterThan(geometry!.clipBottom);
-    expect(geometry!.imgTop).toBeLessThan(geometry!.clipTop);
-    expect(geometry!.imgLeft).toBeLessThan(geometry!.clipLeft);
-    expect(geometry!.imgRight).toBeGreaterThan(geometry!.clipRight);
+    // 文字列恒左、图版恒右，间距 ≥24px
+    expect(geometry!.plateLeft).toBeGreaterThan(geometry!.textRight);
+    expect(geometry!.plateLeft - geometry!.textRight).toBeGreaterThanOrEqual(24);
+    expect(geometry!.border).toBe("1px");
   });
 
-  test("site-home-visual-fx-reduce: reduced-motion 下粒子/翻页/雾气与常规一致（不降级）", async ({ page }) => {
+  test("site-home-visual-fx-reduce: reduced-motion 下无视听氛围层，翻页直接落位", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto(BASE);
     await page.waitForTimeout(1000);
-    const canvas = page.locator('canvas[aria-hidden="true"]');
-    await expect(canvas).toHaveCount(1);
-    await expect(canvas).toHaveClass(/pointer-events-none/);
-    // 公开站氛围层不降级：reduced 下首页雾气仍带漂移动画（非 animation:none）
-    const fogAnim = await page
-      .locator(".fog-a")
-      .evaluate((el) => getComputedStyle(el).animationName);
-    expect(fogAnim).not.toBe("none");
-    // 展示向氛围层不降级：reduced 下仍可滚轮翻页（转场正常）
+    await expect(page.locator("canvas[aria-hidden='true']")).toHaveCount(0);
+    await expect(page.locator(".fog")).toHaveCount(0);
     await page.mouse.wheel(0, 500);
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(300);
     expect(await page.evaluate(() => window.location.hash)).toBe("#archive-1");
   });
 
@@ -248,32 +233,28 @@ test.describe("bookstore 主页（整页滚动叙事容器）", () => {
     expect(failed).toEqual([]);
   });
 
-  test("site-home-archive-bleed: 档案屏立绘列裁剪容器底边与窗口底边齐平（gap=0）且立绘覆盖出血", async ({ page }) => {
+  test("site-home-archive-plate: 图版不超出 main 水平边界、1px 描边可见", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto(`${BASE}/#archive-1`);
     await page.waitForTimeout(1200);
     const info = await page.evaluate(() => {
-      const layer = document.querySelector("[data-section='archive-1'] .grid [data-testid='parallax-layer']");
-      const clip = layer?.parentElement as HTMLElement | null;
-      if (!clip) return null;
-      const clipRect = clip.getBoundingClientRect();
-      const img = layer?.querySelector("img") as HTMLImageElement | null;
-      const imgRect = img?.getBoundingClientRect() ?? null;
+      const figure = document.querySelector("[data-section='archive-1'] figure") as HTMLElement | null;
+      if (!figure) return null;
+      const frame = figure.querySelector("div") as HTMLElement | null;
+      const fr = figure.getBoundingClientRect();
+      const main = document.querySelector("main#main")!.getBoundingClientRect();
       return {
-        clipBottom: clipRect.bottom,
-        clipTop: clipRect.top,
-        imgBottom: imgRect ? imgRect.bottom : null,
-        innerHeight: window.innerHeight,
+        left: fr.left,
+        right: fr.right,
+        mainLeft: main.left,
+        mainRight: main.right,
+        border: frame ? getComputedStyle(frame).borderTopWidth : "",
       };
     });
     expect(info).toBeTruthy();
-    if (info) {
-      // 立绘列裁剪容器底边贴齐视口底（允许 ≤2px 容差）——真正决定出血到窗口底边的边界
-      expect(Math.abs(info.innerHeight - info.clipBottom)).toBeLessThanOrEqual(2);
-      // 立绘 img 向下外扩出血（覆盖裁剪容器底部，防视差位移露截断边）
-      expect(info.imgBottom).not.toBeNull();
-      expect(info.imgBottom!).toBeGreaterThan(info.clipBottom);
-    }
+    expect(info!.left).toBeGreaterThanOrEqual(info!.mainLeft - 1);
+    expect(info!.right).toBeLessThanOrEqual(info!.mainRight + 1);
+    expect(info!.border).toBe("1px");
   });
 
   test("site-about-fields: /about 展示五组档案内容与分栏立绘", async ({ page }) => {

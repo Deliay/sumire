@@ -2,6 +2,10 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import PageHeader from "@/components/layout/PageHeader";
+import PageShell from "@/components/layout/PageShell";
+import EmptyState from "@/components/ui/EmptyState";
+import Surface from "@/components/ui/Surface";
 import { listOngoingTopics } from "@/features/topics/api";
 import { toSingleLinePlainText } from "@/features/markdown/toSingleLinePlainText";
 import type { TopicPublicInfo } from "@/features/topics/types";
@@ -25,7 +29,9 @@ export default function TopicsOngoingPage() {
       }
       setLoading(false);
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // 失败重试（事件处理器内允许同步 setState）
@@ -42,45 +48,53 @@ export default function TopicsOngoingPage() {
   };
 
   return (
-    <div className="max-w-[40rem] mx-auto px-5 py-8">
-      <h1 className="font-serif text-2xl font-semibold text-ink mb-2">进行中的棉花糖</h1>
-      <p className="text-sm text-ink-dim mb-6">选择一个正在收集的主题，前往投递你的棉花糖</p>
+    <PageShell width="prose">
+      <PageHeader
+        eyebrow="Marshmallow"
+        title="进行中的棉花糖"
+        lead="选择一个正在收集的主题，前往投递你的棉花糖。"
+      />
 
-      {loading ? (
-        <div className="text-center text-ink-dim py-8">加载中…</div>
-      ) : error ? (
-        <div className="text-center py-8">
-          <p className="text-sm text-ink-dim mb-3">加载失败，请稍后重试</p>
-          <button
-            type="button"
-            onClick={load}
-            className="px-4 py-1.5 text-sm border border-vine rounded text-ink-dim hover:text-ink"
-          >
-            重试
-          </button>
-        </div>
-      ) : topics.length === 0 ? (
-        <div className="text-center text-ink-dim py-8">暂无进行中的棉花糖</div>
-      ) : (
-        <div className="space-y-3">
-          {topics.map((t) => (
-            <Link
-              key={t.id}
-              href={`/topics?id=${t.id}`}
-              className="block rounded-lg border border-vine bg-raised p-4 transition-colors duration-150 hover:border-primary"
-            >
-              <h3 className="font-medium text-ink truncate">{t.title}</h3>
-              <p className="mt-1 line-clamp-3 text-sm text-ink-dim">
-                {toSingleLinePlainText(t.description)}
-              </p>
-              <p className="mt-2 text-xs text-ink-dim">
-                {new Date(t.startAt).toLocaleDateString()} –{" "}
-                {new Date(t.endAt).toLocaleDateString()}
-              </p>
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
+      <div className="mt-8">
+        {loading ? (
+          <div className="flex flex-col gap-3" aria-busy="true">
+            <div className="h-32 animate-pulse rounded-xs bg-soft" />
+            <div className="h-32 animate-pulse rounded-xs bg-soft" />
+          </div>
+        ) : error ? (
+          <EmptyState
+            title="加载失败"
+            description="请稍后重试"
+            action={
+              <button
+                type="button"
+                onClick={load}
+                className="min-h-11 rounded-md border border-line-strong px-4 text-small text-ink-dim transition-colors hover:text-ink"
+              >
+                重试
+              </button>
+            }
+          />
+        ) : topics.length === 0 ? (
+          <EmptyState title="暂无进行中的棉花糖" description="新的主题开始后，会出现在这里。" />
+        ) : (
+          <div className="flex flex-col gap-3">
+            {topics.map((t) => (
+              <Link key={t.id} href={`/topics?id=${t.id}`} className="block">
+                <Surface padding="sm" className="transition-colors duration-(--duration-fast) hover:border-line-strong">
+                  <h2 className="truncate font-serif text-h3 font-semibold text-ink">{t.title}</h2>
+                  <p className="mt-1 line-clamp-3 text-small text-ink-dim">
+                    {toSingleLinePlainText(t.description)}
+                  </p>
+                  <p className="mt-2 font-mono text-label text-ink-dim">
+                    {new Date(t.startAt).toLocaleDateString()} – {new Date(t.endAt).toLocaleDateString()}
+                  </p>
+                </Surface>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    </PageShell>
   );
 }

@@ -1,185 +1,54 @@
 ---
-description: 枝堇Sumire 粉丝站页面设计——全局框架与 V1 三个页面的布局、组件与交互细节
+description: 堇色书屋公开页设计现态——全局壳层、首页 deck、档案、素材、日历、录播、回放、棉花糖的页面骨架与组件
 type: Permanent
 ---
 
-# 页面设计
+# 公开页设计（装订）
 
-本文档描述 V1 全部页面的界面细节，视觉规则遵循 [[01-visual-identity.md]]。
+视觉 token 与通用规范见 [[01-visual-identity.md]]。页面骨架统一使用 `components/layout/PageShell`、`PageHeader`、`SectionHeader`，组件来自 `components/ui/` 与 `components/patterns/`。
 
-## 1. 全局框架
+## 1. 全局壳
 
-### 1.1 页面骨架
+- `app/(site)/layout.tsx`：skip link（`跳到正文` → `#main`）+ `NavBar` + `<main id="main">`。
+- `NavBar` 64px：左字标（宋体站点名 + Cormorant `Sumire`）；导航项 `text-small`、字距 0.04em，活动态 `ink` + 底部 1px `primary` 下划线；默认透明，滚动 >24px 或抽屉展开后 `night/90` + `backdrop-blur` + 底部 1px `line`；移动端全屏抽屉（`dialog` / `aria-modal`、大号列表、底部版权行、Esc / 焦点陷阱 / 滚动锁）。
+- `Footer` 版权页：三栏（站点说明 / 导航 / 关注）+ 顶部 1px `line`；导航列按 `API_CONFIGURED` / `RECORDINGS_CONFIGURED` 门控；外链 `↗` 图标 + `rel="noopener noreferrer"`；免责声明完整展示。首页仅在素材站尾部渲染 Footer；非首页经 `(content)/layout.tsx`。
+- 404：`404` mono 大号 `text-ink-mute` + `aria-hidden`，语义由 `h1` 承载，`Button` 返回首页。
+- `PageShell`：88rem / 44rem 版心、`px-5 sm:px-8 lg:px-16`、`pt-24 lg:pt-32`、`pb-24 lg:pb-32`、桌面装订线 `lg:border-l lg:border-line`。
+- `PageHeader` / `SectionHeader`：eyebrow（mono 大写 + 0.12em）+ folio（Cormorant `primary`）+ 标题（宋体 600）+ lead（`ink-dim`，≤38rem）+ actions + 底部 1px `line`。
 
-```mermaid
-flowchart TD
-    A[顶部导航 NavBar] --> B[页面内容区]
-    B --> C[页脚 Footer]
-    A -.半透明深色 + 雾面模糊.-> A
-```
+## 2. 首页 `/`
 
-- **NavBar**：固定在顶部，半透明 `--color-bg` + 背景模糊（雾面玻璃），**内容区全屏宽**（不再限宽）。左侧「枝堇Sumire」花体标识，右侧为已上线页面入口（V1：主页 / 档案 / 素材 / 日历）+ B 站图标外链。**未上线功能不出现在导航中**；后续工具上线时在导航增加「工具」分组，数据源为工具注册表。
-- **Footer**：**单行**排版——免责声明 +「B 站空间 / 直播间 / 萌娘百科」三外链。首页以**通栏贴底毛玻璃条**呈现（`border-t` + `backdrop-blur`，免责声明全端展示）；非首页流式底部。不再有应援色色条。
-- **内容区**：最大宽度 `72rem` 居中，左右留白 `1.25rem`（移动）/ `2.5rem`（桌面）。
+整页滚动容器（8 站：首页 → 档案五屏 → 日历 → 素材；未配置 API 时 7 站）。翻页仍由 `useFullpageScroll` 驱动：一次手势一屏、480ms rAF 位移、hash 同步；reduced-motion 下直接落位。已删除粒子 / 雾气 / 视差 / 冲量事件。
 
-### 1.2 响应式断点
-
-| 断点 | 宽度 | 关键变化 |
-|------|------|---------|
-| 移动 | < 640px | 单列；导航收起为菜单按钮；主页立绘全宽顶部裁剪 |
-| 平板 | 640–1024px | 两列网格；hero 图文堆叠 |
-| 桌面 | > 1024px | hero 左右布局；素材网格 3–4 列 |
-
-## 2. 主页 `/`
-
-**目标**：10 秒内传达"她是谁、是否在播、今天播什么、去哪看"，并建立雨夜书屋的氛围。
-
-```mermaid
-flowchart TD
-    A[导航 NavBar 全屏宽] --> B[立绘 右半宽×上半高]
-    B --> C[直播状态 + 今日日程]
-    C --> D[文案块 左下]
-    D --> E[Footer 单行 右下]
-```
-
-### 2.1 一屏封面页（100svh 不可滚动）
-
-- 首页 `100svh` 占满整屏、**不可滚动**，所有元素在一屏内排布、不溢出。
-- 背景：`--color-bg` 之上叠雾气渐变，缓慢漂移。
-- **立绘**（`standing-01`）：移动端从顶部 10% 起占 90% 高、全宽并向右偏移 25% 宽裁剪展示（`ml-[25%] object-cover object-top`，不变形）；桌面端右 10% 起占 90% 高、右半宽且不偏移。作为氛围元素，不遮挡交互（`pointer-events-none`）。外包 `ParallaxLayer` 驱动**视差**（仅 `transform`，`translate3d` 平滑 lerp，常规幅度 ±12px；公开站氛围层对 reduced-motion 不降级，保持 ±12px）。**立绘四周各外扩 12px 余量**，使最大位移时边缘仍被裁剪容器覆盖、不露截断边。
-- **背景光晕粒子层**（`GlowParticles`，Canvas 2D，z 序在雾气之上/立绘之下）：「紫花微光」语言——径向渐变圆点、低 alpha 柔光（不用 `filter: blur`）；取色 `@theme` token（`flower`/`primary`/`eye`，运行时读 CSS 变量）。定稿参数：指针附近偏置生成概率 0.6、半径 160px；粒子尺寸 2–8px、生命周期 2.5–6s、初速向上微漂；粒子数上限 `min(70, 视口面积/15000)`（桌面约 ≤70）；明灭 alpha 正弦调制。公开站氛围层对 reduced-motion 不降级（粒子全上限/明灭/冲量与常规一致）。`document.hidden` 暂停。
-- **文案块**（左下角，留 padding，桌面 > 移动端）错峰入场：
-  - 花体小字 `VirtuaReal · 二十八期`（`--color-ink-dim`）；
-  - 大名「枝堇」（Noto Serif SC，`--text-display`）+ 花体 `Sumire`（`--color-primary`）；
-  - 一句话简介（官方简介原文）。**不再有应援色复制按钮**。
-- **直播状态组件**（左下文案块上方）：药丸形，直播中显示状态点（`--color-eye`，呼吸动效）+「直播中」，未开播显示「未开播」，降级中性态；点击跳直播间（新窗口）。
-- **今日日程组件**（直播状态下方）：「今日日程」标题 + 当天计划 `HH:mm 主题`；无计划显示「今日暂无安排」；固定尺寸骨架防跳动。
-- **Footer 行**：通栏贴底毛玻璃条（免责声明全端展示 + 三外链）。
-- 移动端纵向顺序：立绘（顶部 50%）→ 直播状态 → 今日日程 → 文案块 → 链接行，紧凑不滚动不溢出。
-
-### 2.2 首页整页滚动（4 期，V4）
-
-首页改为**整页滚动叙事容器**（`FullpageDeck`）：8 个整屏站「首页 → 档案 P1~P5 → 日历 → 素材」逐屏翻页，一次滚轮/滑动手势一屏，键盘可达；素材站为最后一站、尾部释放为自然滚动直至结尾 + 全站唯一流式 Footer。整页翻页引擎 `useFullpageScroll`（window 被动监听、rAF px 插值直写轨道 `translate3d` 不触发重渲染、hash `replaceState` 同步、挂载时解析初始 hash 直落）。公开站氛围层对 reduced-motion 不降级。
-
-- **位置指示器** `SectionRail`：固定视口右侧竖向树状节点（模块→子内容两层，档案含 5 子节点），左侧细藤蔓线（`border-l` token 色）+ 微光紫花圆点主节点 + 档案缩进子节点（子层 `border-l` 树状连线）；当前站实时高亮（子节点精确到站、档案父节点次级高亮）、点击跳转、键盘可达；**节点仅圆点（无文字标签），可访问性经 `aria-label`/`aria-current` 承载**；移动端（<640px）收纳为仅主节点极简形态；仅节点 `<a>` 可点。
-- **粒子常驻与冲量**：`GlowParticles` 改 `fixed inset-0` 常驻视口层（z 序雾气之上/内容之下，全程 `pointer-events-none`、`aria-hidden`），覆盖所有模块与素材自然滚动区。翻页/滚动沿方向注入冲量（`impulse` 强度钳制上限、`decayFlow` 指数衰减半衰期约 0.5s，停止后滞留上浮/下坠感）；公开站氛围层对 reduced-motion 不降级（冲量照常注入）。
-- **档案五屏**（P1~P5 单左双右）：桌面 `grid` 左右分栏——单数屏立绘在左、双数屏立绘在右（`order`/条件类切换），立绘 `pointer-events-none`、按屏懒加载、**外包 ParallaxLayer 接视差（与首屏一致，公开站氛围层不降级）**，**立绘四周各外扩 12px 余量（视差最大位移不露截断边）**；内容侧渲染 `features/about/parts` 对应组件，居中收缩，桌面一屏不溢出（P2/P4 字号/间距收敛不产生屏内滚动条）；**移动端（<1024px）改按首页 hero 口径放置：全宽背景立绘（`top-[10%]` 起占 `90%` 高、`ml-[25%]` 右偏 25%、`object-cover object-top` 裁剪、四周 12px 出血、外包 ParallaxLayer 接视差，按与桌面同一「持书/非持书」cycle 交替——P1/P3/P5→standing-02、P2/P4→standing-01）+ 内容浮层**（内容浮层带铺满整屏的毛玻璃底 `bg-night/70 backdrop-blur-md min-h-full`，仅移动端生效；桌面错位分栏不变，该背景立绘与毛玻璃仅移动端可见）；P5 末尾官方外链按钮组。立绘**仅用 standing-01（持书）/standing-02（披肩），按「持书/非持书」错位：奇数屏非持书→standing-02、偶数屏持书→standing-01（P1/P3/P5→02、P2/P4→01，避开首页同款持书立绘 standing-01）**。
-- **日历站**：全幅 `immersive` 月视图——直角中号字（去圆角、日期 `text-base` 量级）、左右两侧全高翻月竖条、横向拖拽翻月；后台 `panel` 变体不变。
-- **素材站**：全幅网格（`xl:grid-cols-4`）+ 尾部流式 `Footer site`（全站唯一 Footer）。
-- **导航锚点化**：NavBar 导航项 href 改为锚点（`/#hero`、`/#archive-1`、`/#assets`、`/#calendar`），hash 取自站序列注册表；首页路由按 `location.hash` 匹配 navKey 高亮（档案 P1~P5 均视为「档案」），非首页按 pathname。
-- **定稿参数**：翻页转场 800ms、冲量强度 520px/s / 上限 600px/s、冲量衰减半衰期 0.5s、wheel 累积阈值 48px（低于单格，慢速单格一次一屏）、touch 位移阈值 50px、冷却 400ms、素材区顶部回收死区 2px、日历拖拽阈值 60px。
+- **右侧页码索引 `PageIndex`**：`nav aria-label="页面位置"`，中文页码 壹~捌；当前项 16px `primary` 横线 + 中文标签，非当前仅页码；点击经 `goTo` 跳站；`<1024px` 隐藏。移动端顶部 1px `line-strong` 进度条（`aria-hidden`）。
+- **Hero**：静态径向微光（`primary/6%`）；桌面 12 列——文字左 5 列、图版右 6 列；书名桌面竖排（`writing-mode: vertical-rl`），移动端横排；`Sumire` 置于书名右下；简介 + 元数据行（直播状态 / 今日日程，行内，1px 下划线）+ 小号免责声明；图版 `h-[55svh] lg:h-[68svh]`、`object-top`。
+- **档案五屏**：固定阅读轴，文字左 6 列 / 图版右 5 列（偏移 1 列）；每屏 `SectionHeader`（folio 贰~陆 + eyebrow + 标题）与图版题注。P1 定义表（`ProfilePart` bare）；P2 宋体正文、首行缩进、2px `primary` 引文；P3 方形 `Tag`；P4 `Timeline`；P5 两列 `Surface` + 外链 `Button` + `Rule label="传送门"`。移动端图版在上（40svh）、文字在下，内容列 `data-fullpage-scrollable`；桌面内容溢出时初始锚定底部。
+- **日历站**：全幅 immersive 月视图，见 [[../product/spec/calendar.md]]。
+- **素材站**：`SectionHeader` + 图版网格 + 全站唯一 `Footer`。
+- 档案屏立绘：P1/P3/P5→`standing-02`、P2/P4→`standing-01`，经 original webp，`Plate` 题注。
 
 ## 3. 档案页 `/about`
 
-**目标**：系统性呈现人设，阅读体验像"翻开店主留下的一册档案"。
+`PageShell width="wide"` + `PageHeader`（`Profile` / 壹 / 枝堇图鉴 / 引文）；五节各一个 `SectionHeader` + 固定阅读轴 `SplitSection`（文字左 / 图版右；移动端图版在上）。首节大屏立绘 `standing-01`（避开信息卡 `standing-02` 缩略图），其后 `01/02/01/02/01` 交错。内文测量宽 ≤36rem。
 
-```mermaid
-flowchart TD
-    A[页头：书名式标题] --> B[信息卡]
-    B --> C[设定故事·纸页]
-    C --> D[喜好标签]
-    D --> E[历程·藤蔓时间轴]
-    E --> F[逸闻卡片]
-    F --> G[外部链接]
-```
+## 4. 素材页 `/assets`
 
-### 3.1 页头
+`PageShell width="wide"` + `PageHeader`（`Assets` / 捌 / 素材架）+ `Notice` 版权说明 + `AssetGallery`。画廊：下划线 tab（`button` + `aria-pressed`，44px 高）→ 图版网格（1/2/3/4 列，`Plate` 题注）→ Lightbox（`night/96`、原图、`Surface` 信息条、`Button` 下载 / 关闭、焦点陷阱、Esc / 遮罩关闭、滚动锁）。
 
-- Noto Serif SC 标题「枝堇图鉴」+ 花体 `Profile`，下方蕾丝细线；
-- 右上一句飘浮引文：*"弹幕有点不乖啊"*（`--color-ink-dim`，花体）。
+## 5. 录播 / 回放
 
-### 3.2 信息卡
+- `/recordings`：`PageShell width="wide"` + `PageHeader`；实时录制状态（状态药丸 `eye` 呼吸点）+ 分组折叠（`Button` 风格）+ 文件行 hover `bg-soft` + 分页 + 空态 `EmptyState`。
+- `/recordings/replay`：`PageShell width="wide"` + `PageHeader`（场次信息）+ `ReplayStage`；视频黑底、弹幕浮层白字、事件列 `Surface outline`；双全屏状态机与全部请求逻辑不变。
+- 未配置录播服务：`RECORDINGS_CONFIGURED` 守卫渲染「服务未配置」`EmptyState`，导航不出现「录播」。
 
-- 桌面：左侧立绘②缩略（`character-full-02.png`，蕾丝边框），右侧两列定义表；
-- 字段：本名 枝堇Sumire / 生日 4月2日（白羊座）/ 种族 被人寄生的藤？/ 身高 165cm（未含藤蔓）/ 身份 小书店店主 / 所属 VirtuaReal·二十八期 / 粉丝勋章 小粉螈 / 应援色 `#b4a6bf`（带色块）/ 代表 Emoji 😁 / Live2D 天雨Rainfall；
-- 移动：立绘在上，表单项列。
+## 6. 棉花糖 `/topics`
 
-### 3.3 设定故事
+`PageShell` + `PageHeader`；进行中列表为 `Surface` 卡片；收集页复用 Markdown 编辑器 / 渲染器与 `ConfirmDialog`；错误色统一 `crimson`；提交、限速、客户端 key 逻辑不变。
 
-- **氛围层底色直排**（不用纸页卡片）：正文用 `--color-ink`（`text-ink`），Noto Serif SC 排印，段落首行缩进两字符；
-- 内容：官方出道设定（古老家族、魔气、破败书屋、紫色藤蔓共生）+ VirtuaReal 预告专栏简介节选；
-- 引用块用 `--color-flower` 细左边线，正文 `text-ink/80`、落款 `text-ink-dim`。
+## 7. 响应式
 
-### 3.4 喜好标签
-
-- 三组（及新增喜好类型组）：`喜欢`（纪录片、小说、雨水、雾、纯音乐、紫色的东西）、`不擅长`（硬核解密、茄子、唱歌——但喜欢❤️）、`常玩`（星露谷物语、泰拉瑞亚、我的世界、饥荒等）、`常读/常看`（通俗文学、悬疑、恐怖、奇幻、冒险、中式）、`常听`（东方系列、术力口、电子纯音、r&b）、`偏好类型`（模拟经营）；
-- 标签样式：细描边胶囊（`--color-vine` 描边），hover 填充 `--color-bg-soft`。
-
-### 3.5 历程时间轴
-
-- 竖向，**轴体本身是一根藤蔓**（SVG 曲线 + 叶片），每个节点是一朵微光紫花；
-- 节点：2026-08-05 开始活动·初投稿「天ノ弱」/ 2026-08-07 出道首播 / 2026-08-08 百人舰队 / 2026-08-09 一万粉丝；
-- 日期用花体西文，事件用正文；左右交错（桌面）/ 单侧（移动）。
-
-### 3.6 逸闻卡片
-
-- 深色卡片网格（桌面两列）："妈妈"弹幕梗、😁 打 Call 表情的由来、初投稿漏左括号等；
-- 卡片标题带 😁 或对应 emoji，正文 `--color-ink-dim`。
-
-### 3.7 外部链接
-
-- 按钮组：B 站个人空间、B 站直播间、萌娘百科词条；细描边按钮，hover 时 `--color-flower` 描边 + 微光。
-
-## 4. 素材库 `/assets`
-
-**目标**：找素材、看大图、下原图，同时明确版权边界。
-
-```mermaid
-flowchart TD
-    A[页头 + 版权提示条] --> B[分类筛选]
-    B --> C[素材网格]
-    C --> D[Lightbox 大图]
-    D --> E[下载原图]
-```
-
-### 4.1 版权提示条
-
-- 页头下方常驻一条纸页提示："本站为非官方粉丝作品，素材版权归枝堇Sumire 及 VirtuaReal 所有，请勿商用"。
-
-### 4.2 分类筛选
-
-- 胶囊式筛选：`全部 / 立绘 / 插画 / 宣传图`（数据源为素材清单的 `category`）；
-- 选中态：`--color-primary` 填充 + 深色文字。
-
-### 4.3 素材网格
-
-- 桌面 3 列 / 平板 2 列 / 移动 1 列，卡片等宽、图片等高比（按素材宽高比占位防跳动）；
-- 卡片：缩略图 + 标题 + 分类小字；hover 时蕾丝边框浮现 + 轻微上浮（`translateY(-2px)`）；
-- 点击进入 Lightbox。
-
-### 4.4 Lightbox
-
-- 全屏遮罩（深色 90% 不透明），大图居中适配视口；
-- 信息条：标题、尺寸、分类、备注（如"出道月大航海回馈宣传图"）、署名；
-- 操作：`下载原图`（主按钮，`--color-flower` 描边）、`关闭`；支持 Esc 与点击遮罩关闭；
-- 当前素材（V1）：立绘①、立绘②、氛围插画、大航海宣传图、周表宣传图（见 `references/`）。
-
-## 5. 组件清单
-
-| 组件 | 说明 | 关键状态 |
-|------|------|---------|
-| `NavBar` | 全局导航，雾面玻璃（内容区全屏宽） | 滚动时加深背景；移动菜单展开 |
-| `Footer` | 单行（免责声明全端展示 + 三外链）；首页通栏贴底毛玻璃条 | 首页 floating / 常规流式 |
-| `VineDivider` | 藤蔓分隔线 | 生长动画 / 静态 |
-| `LaceFrame` | 蕾丝边框容器 | 常显 / hover 浮现 |
-| `PaperCard` | 纸页卡片 | 默认 / 带角饰 |
-| `Tag` | 胶囊标签 | 默认 / hover |
-| `LiveStatus` | 直播状态（首页） | 直播中 / 未开播 / 降级 |
-| `TodaySchedule` | 今日日程（首页） | 有计划 / 空态 / 加载 |
-| `VineTimeline` | 藤蔓时间轴 | 交错 / 单侧 |
-| `AssetCard` | 素材卡片 | hover |
-| `Lightbox` | 大图查看 | 打开 / 关闭，键盘可达 |
-| `ExternalButton` | 外链按钮 | hover 微光 |
-
-## 6. 交互与无障碍
-
-- 所有交互元素键盘可达，焦点环使用 `--color-flower`；
-- Lightbox 打开时锁定背景滚动，焦点困于其中；
-- 图片均有 `alt`（素材标题）；
-- 环境动效（雾、藤蔓生长）公开站氛围层不降级；后台 `/backdoor` 在 `prefers-reduced-motion` 下关闭。
-
-## 7. 相关文档
-
-- 视觉识别：[[01-visual-identity.md]]
-- PRD：[[../product/requirements/reviewed/2026-08-11-sumire-fan-site-prd.md]]
-- 技术方案：[[../engineering/proposals/2026-08-11-fan-site-tech-proposal.md]]
+| 断点 | 导航 | 版心 | 档案 / 图版 | 日历 |
+|------|------|------|-------------|------|
+| `<640px` | 全屏抽屉 | 单列，gutter 20px | 图版在上（40svh），文字在下 | 周视图 |
+| `640–1024px` | 横向导航 | 单列 / 两列，gutter 32px | 图版在上 | 月视图（≥640） |
+| `>1024px` | 横向导航 + 装订线 | 12 列，gutter 64px | 文字左 / 图版右 | 月视图 + 拖拽 |

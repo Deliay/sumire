@@ -123,7 +123,7 @@ describe("CalendarView（月视图，默认无 matchMedia）", () => {
     const dayCells = screen.getAllByTestId("calendar-day");
     const todayCell = dayCells.find((el) => el.getAttribute("data-date") === today);
     expect(todayCell).toBeTruthy();
-    expect(todayCell?.className).toContain("border-flower");
+    expect(todayCell?.className).toContain("border-primary");
   });
 
   it("过去日期计划带已播出样式（opacity 弱化）", () => {
@@ -307,16 +307,17 @@ describe("CalendarView immersive 变体（月视图）", () => {
     expect(screen.getByLabelText("下一月")).toBeTruthy();
     expect(screen.getByLabelText("上一月")).toBeTruthy();
     const cells = screen.getAllByTestId("calendar-day");
-    cells.forEach((cell) => expect(cell.className).toContain("rounded-md"));
+    cells.forEach((cell) => expect(cell.className).toContain("rounded-xs"));
   });
 
-  it("immersive 渲染左右侧全高翻月竖条，点击上抛新区间", () => {
+  it("immersive 渲染 44×44 翻月图标按钮，点击上抛新区间", () => {
     const onRangeChange = vi.fn();
     render(<CalendarView entries={[]} onRangeChange={onRangeChange} variant="immersive" />);
-    const nextBar = screen.getByLabelText("下月");
-    const prevBar = screen.getByLabelText("上月");
-    expect(nextBar.className).toContain("inset-y-0");
-    expect(prevBar.className).toContain("inset-y-0");
+    const nextBar = screen.getByLabelText("下一月");
+    const prevBar = screen.getByLabelText("上一月");
+    expect(nextBar.className).toContain("size-11");
+    expect(prevBar.className).toContain("size-11");
+    expect(nextBar.className).not.toContain("inset-y-0");
     fireEvent.click(nextBar);
     expect(onRangeChange).toHaveBeenCalledTimes(1);
   });
@@ -324,7 +325,7 @@ describe("CalendarView immersive 变体（月视图）", () => {
   it("immersive 月视图 DayCell 直角化（无 rounded-md）", () => {
     render(<CalendarView entries={[]} variant="immersive" />);
     const cells = screen.getAllByTestId("calendar-day");
-    cells.forEach((cell) => expect(cell.className).not.toContain("rounded-md"));
+    cells.forEach((cell) => expect(cell.className).not.toContain("rounded-xs"));
   });
 
   it("immersive 模拟横向拖拽超阈值触发翻月（与按钮同口径）", () => {
@@ -369,8 +370,8 @@ describe("CalendarView immersive 变体（月视图）", () => {
     vi.stubGlobal("matchMedia", mq.stub);
     render(<CalendarView entries={[]} variant="immersive" />);
     expect(screen.queryByTestId("immersive-grid")).toBeNull();
-    expect(screen.queryByLabelText("下月")).toBeNull();
-    expect(screen.queryByLabelText("上月")).toBeNull();
+    expect(screen.queryByLabelText("下一月")).toBeNull();
+    expect(screen.queryByLabelText("上一月")).toBeNull();
   });
 });
 
@@ -380,11 +381,11 @@ describe("日历站 / 独立日历页为固定 NavBar 留位", () => {
     vi.unstubAllGlobals();
   });
 
-  it("CalendarViewPage 非 compact 形态顶部留位 pt-28（与 /about 独立页口径一致）", () => {
+  it("CalendarViewPage 非 compact 形态走 PageShell 导航留白（pt-24 / lg:pt-32）", () => {
     const { container } = render(<CalendarViewPage />);
-    const section = container.querySelector("section")!;
-    expect(section.className).toContain("pt-28");
-    expect(section.className).not.toContain("py-14");
+    const shell = container.firstElementChild as HTMLElement;
+    expect(shell.className).toContain("pt-24");
+    expect(shell.className).toContain("lg:pt-32");
   });
 
   it("CalendarSection 顶部留位 pt-20（≥ NavBar 64px + 余量），底部保持 pb-3", () => {

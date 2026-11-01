@@ -58,7 +58,7 @@ export default function ShareTopicDialog({ topic, onClose }: ShareTopicDialogPro
       onClick={onClose}
     >
       <div
-        className="w-[28rem] max-w-[calc(100vw-2.5rem)] rounded-lg border border-vine bg-raised p-6"
+        className="w-[28rem] max-w-[calc(100vw-2.5rem)] rounded-lg border border-line bg-raised p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-lg font-medium text-ink mb-1">分享投递链接</h2>
@@ -68,7 +68,7 @@ export default function ShareTopicDialog({ topic, onClose }: ShareTopicDialogPro
           <input
             readOnly
             value={link}
-            className="flex-1 min-w-0 rounded border border-vine bg-soft px-3 py-2 text-sm text-ink"
+            className="flex-1 min-w-0 rounded border border-line bg-soft px-3 py-2 text-sm text-ink"
             aria-label="投递链接"
           />
           <button
@@ -87,7 +87,7 @@ export default function ShareTopicDialog({ topic, onClose }: ShareTopicDialogPro
               alt="投递二维码"
               width={256}
               height={256}
-              className="rounded border border-vine bg-white p-2"
+              className="rounded border border-line bg-white p-2"
             />
           ) : (
             <div className="w-64 h-64 flex items-center justify-center text-ink-dim">
@@ -97,7 +97,7 @@ export default function ShareTopicDialog({ topic, onClose }: ShareTopicDialogPro
           <a
             href={qrDataUrl}
             download={filename}
-            className="mt-3 px-4 py-1.5 text-sm border border-vine rounded text-ink-dim hover:text-ink"
+            className="mt-3 px-4 py-1.5 text-sm border border-line rounded text-ink-dim hover:text-ink"
           >
             下载二维码
           </a>

@@ -208,7 +208,7 @@ const FeedSection = forwardRef<FeedSectionHandle, FeedSectionProps>(function Fee
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {label && (
-        <div className="border-b border-vine/30 px-3 py-1.5 text-xs font-medium text-ink-dim">
+        <div className="border-b border-line px-3 py-1.5 text-xs font-medium text-ink-dim">
           {label}
         </div>
       )}
@@ -225,7 +225,7 @@ const FeedSection = forwardRef<FeedSectionHandle, FeedSectionProps>(function Fee
           data-testid={testId}
         >
           {loading && events.length === 0 ? (
-            <div className="m-3 min-h-32 animate-pulse rounded-md border border-vine/50 bg-soft" aria-busy="true" />
+            <div className="m-3 min-h-32 animate-pulse rounded-md border border-line bg-soft" aria-busy="true" />
           ) : error ? (
             <div className="m-3 flex min-h-32 flex-col items-center justify-center gap-2 rounded-md border border-flower/60 bg-soft px-3 py-6 text-center">
               <p className="text-sm text-ink-dim">{error}</p>
@@ -233,7 +233,7 @@ const FeedSection = forwardRef<FeedSectionHandle, FeedSectionProps>(function Fee
                 <button
                   type="button"
                   onClick={onRetry}
-                  className="rounded-md border border-vine/50 px-2 py-1 text-xs text-ink-dim transition-colors duration-150 hover:border-flower hover:text-ink"
+                  className="rounded-md border border-line px-2 py-1 text-xs text-ink-dim transition-colors duration-150 hover:border-flower hover:text-ink"
                 >
                   重试
                 </button>
@@ -251,7 +251,7 @@ const FeedSection = forwardRef<FeedSectionHandle, FeedSectionProps>(function Fee
                     key={virtualItem.key}
                     data-index={virtualItem.index}
                     ref={virtualizer.measureElement}
-                    className={`absolute top-0 left-0 w-full border-b border-vine/30 ${
+                    className={`absolute top-0 left-0 w-full border-b border-line ${
                       // 滚动中禁用过渡避免 transform 滞后抖动；离顶时 prepend 由锚定补偿瞬时保持内容，
                       // 过渡会与补偿叠加闪回，同样禁用；仅贴顶跟随时列表变化（prepend/append/折叠）平滑平移
                       virtualizer.isScrolling || !isAtTop
@@ -296,7 +296,7 @@ const FeedSection = forwardRef<FeedSectionHandle, FeedSectionProps>(function Fee
           <button
             type="button"
             onClick={scrollToTop}
-            className="absolute right-3 bottom-3 rounded-md border border-vine/50 bg-soft px-3 py-1.5 text-xs text-ink shadow-lg transition-colors duration-150 hover:border-flower"
+            className="absolute right-3 bottom-3 rounded-md border border-line bg-soft px-3 py-1.5 text-xs text-ink shadow-overlay transition-colors duration-150 hover:border-flower"
           >
             回到顶部
           </button>

@@ -157,35 +157,36 @@ describe("NavBar 锚点化", () => {
     mobileArchive.forEach((a) => expect(a.getAttribute("href")).toBe("/#archive-1"));
   });
 
-  it("移动端默认态即带背景模糊条件类，不再无条件透明", () => {
+  it("移动端默认透明，滚动/展开后走雾化态（border-line）", () => {
     render(<NavBar siteName="枝堇" tools={tools} />);
     const header = document.querySelector("header") as HTMLElement;
-    expect(header.className).toContain("max-md:bg-night/85");
-    expect(header.className).toContain("max-md:backdrop-blur-md");
-    expect(header.className).toContain("max-md:shadow-[0_1px_0_0_var(--color-vine)]");
-    // 桌面端默认仍透明：不再使用无条件 bg-transparent
-    expect(header.className).not.toContain("bg-transparent");
+    // 桌面/移动默认均透明；不再有 max-md 无条件雾化补丁
+    expect(header.className).toContain("border-transparent");
+    expect(header.className).not.toContain("bg-night/90");
   });
 
-  it("滚动后仍走既有雾化态（回归）", () => {
+  it("滚动后走雾化态（border-line + night/90）", () => {
     render(<NavBar siteName="枝堇" tools={tools} />);
     window.scrollY = 100;
     act(() => {
       window.dispatchEvent(new Event("scroll"));
     });
     const header = document.querySelector("header") as HTMLElement;
-    expect(header.className).toContain("bg-night/85");
+    expect(header.className).toContain("bg-night/90");
     expect(header.className).toContain("backdrop-blur-md");
+    expect(header.className).toContain("border-line");
+    expect(header.className).not.toContain("shadow-[0_1px_0_0_var(--color-" + "vine)]");
   });
 
-  it("菜单展开态仍走既有雾化态（回归）", () => {
+  it("菜单展开态走雾化态（border-line + night/90）", () => {
     render(<NavBar siteName="枝堇" tools={tools} />);
     act(() => {
       (screen.getByRole("button", { name: "打开菜单" }) as HTMLButtonElement).click();
     });
     const header = document.querySelector("header") as HTMLElement;
-    expect(header.className).toContain("bg-night/85");
+    expect(header.className).toContain("bg-night/90");
     expect(header.className).toContain("backdrop-blur-md");
+    expect(header.className).toContain("border-line");
   });
 });
 
@@ -271,5 +272,75 @@ describe("导航不再出现「小密室」", () => {
       (screen.getByRole("button", { name: "打开菜单" }) as HTMLButtonElement).click();
     });
     expect(screen.queryByRole("link", { name: "小密室" })).toBeNull();
+  });
+});
+describe("移动端抽屉（焦点陷阱 / Esc / 滚动锁）", () => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    window.history.replaceState(null, "", "/");
+    mockPathname = "/";
+    document.body.style.overflow = "";
+  });
+
+  beforeEach(() => {
+    configured = true;
+    recordingsConfigured = true;
+    vi.stubGlobal("matchMedia", matchMediaStub);
+    window.scrollY = 0;
+  });
+
+  it("抽屉为 dialog + aria-modal，打开后锁定 body 滚动", () => {
+    render(<NavBar siteName="枝堇" tools={tools} />);
+    act(() => {
+      (screen.getByRole("button", { name: "打开菜单" }) as HTMLButtonElement).click();
+    });
+    const dialog = screen.getByRole("dialog", { name: "站点导航" });
+    expect(dialog.getAttribute("aria-modal")).toBe("true");
+    expect(document.body.style.overflow).toBe("hidden");
+  });
+
+  it("Esc 关闭抽屉并把焦点还给触发按钮", () => {
+    render(<NavBar siteName="枝堇" tools={tools} />);
+    const trigger = screen.getByRole("button", { name: "打开菜单" }) as HTMLButtonElement;
+    act(() => {
+      trigger.focus();
+      trigger.click();
+    });
+    expect(screen.getByRole("dialog", { name: "站点导航" })).toBeTruthy();
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    });
+    expect(screen.queryByRole("dialog", { name: "站点导航" })).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    expect(document.body.style.overflow).toBe("");
+  });
+
+  it("Tab 在抽屉内首尾循环", () => {
+    render(<NavBar siteName="枝堇" tools={tools} />);
+    act(() => {
+      (screen.getByRole("button", { name: "打开菜单" }) as HTMLButtonElement).click();
+    });
+    const dialog = screen.getByRole("dialog", { name: "站点导航" });
+    const links = Array.from(dialog.querySelectorAll<HTMLAnchorElement>("a"));
+    const last = links[links.length - 1]!;
+    act(() => {
+      last.focus();
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab" }));
+    });
+    expect(document.activeElement).toBe(links[0]);
+  });
+
+  it("点击抽屉内导航项关闭抽屉", () => {
+    mockPathname = "/about";
+    render(<NavBar siteName="枝堇" tools={tools} />);
+    act(() => {
+      (screen.getByRole("button", { name: "打开菜单" }) as HTMLButtonElement).click();
+    });
+    const dialog = screen.getByRole("dialog", { name: "站点导航" });
+    act(() => {
+      fireEvent.click(Array.from(dialog.querySelectorAll("a")).find((a) => a.textContent === "素材")!);
+    });
+    expect(screen.queryByRole("dialog", { name: "站点导航" })).toBeNull();
   });
 });

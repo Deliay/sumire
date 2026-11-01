@@ -142,14 +142,14 @@ export default function TopicDetailView() {
             <button
               type="button"
               onClick={() => setShowShare(true)}
-              className="text-xs text-ink-dim hover:text-ink border border-vine rounded px-2 py-1"
+              className="text-xs text-ink-dim hover:text-ink border border-line rounded px-2 py-1"
             >
               分享
             </button>
             <button
               type="button"
               onClick={() => window.open(`/backdoor/topics/presentation?id=${id}`, "_blank")}
-              className="text-xs text-ink-dim hover:text-ink border border-vine rounded px-2 py-1"
+              className="text-xs text-ink-dim hover:text-ink border border-line rounded px-2 py-1"
             >
               幻灯片
             </button>
@@ -158,21 +158,21 @@ export default function TopicDetailView() {
                 <button
                   type="button"
                   onClick={handleStartStop}
-                  className="text-xs text-ink-dim hover:text-ink border border-vine rounded px-2 py-1"
+                  className="text-xs text-ink-dim hover:text-ink border border-line rounded px-2 py-1"
                 >
                   {topic.status === "collecting" ? "结束收集" : "开始收集"}
                 </button>
                 <button
                   type="button"
                   onClick={handleArchive}
-                  className="text-xs text-ink-dim hover:text-ink border border-vine rounded px-2 py-1"
+                  className="text-xs text-ink-dim hover:text-ink border border-line rounded px-2 py-1"
                 >
                   归档
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowEdit(true)}
-                  className="text-xs text-ink-dim hover:text-ink border border-vine rounded px-2 py-1"
+                  className="text-xs text-ink-dim hover:text-ink border border-line rounded px-2 py-1"
                 >
                   修改主题
                 </button>

@@ -46,11 +46,11 @@ export default function ChangePasswordCard({ standalone = true }: ChangePassword
   return (
     <form
       onSubmit={handleSubmit}
-      className="w-full rounded-xl border border-vine/50 bg-raised shadow-lg"
+      className="w-full rounded-md border border-line bg-raised"
       style={{ maxWidth: "24rem" }}
     >
       {standalone && (
-        <div className="rounded-t-xl border-b border-vine/50 bg-paper px-6 py-3 text-sm text-ink-on-paper">
+        <div className="rounded-t-md border-b border-line bg-soft px-6 py-3 text-small text-ink">
           首次进入里屋，请先换一把自己的钥匙
         </div>
       )}
@@ -88,7 +88,7 @@ export default function ChangePasswordCard({ standalone = true }: ChangePassword
           确认修改
         </PrimaryButton>
         <div aria-live="polite">
-          <p className="min-h-5 text-sm text-flower" role="alert">
+          <p className="min-h-5 text-small text-crimson" role="alert">
             {error}
           </p>
         </div>

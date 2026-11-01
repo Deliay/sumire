@@ -135,7 +135,7 @@ export default function PresentationView() {
             <div className="flex items-center gap-2 shrink-0">
               <span className="text-sm text-ink-dim">字体</span>
               <div
-                className="inline-flex items-center gap-1 border border-vine rounded overflow-hidden"
+                className="inline-flex items-center gap-1 border border-line rounded overflow-hidden"
                 role="group"
                 aria-label="字号"
               >
@@ -159,7 +159,7 @@ export default function PresentationView() {
           </div>
 
           {/* 页头与放映区的明线分割 */}
-          <div className="shrink-0 border-t border-vine" />
+          <div className="shrink-0 border-t border-line" />
 
           {/* 放映区 */}
           <div className="flex-1 min-h-0 flex items-stretch">
@@ -199,7 +199,7 @@ export default function PresentationView() {
           {/* 首次引导遮盖层 */}
           {showGuide && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-night/85">
-              <div className="bg-raised border border-vine rounded-lg p-6 max-w-sm text-center">
+              <div className="bg-raised border border-line rounded-lg p-6 max-w-sm text-center">
                 <p className="text-sm text-ink mb-2">左右翻页按钮切换条目</p>
                 <p className="text-sm text-ink mb-2">条目内容可在内部滚动</p>
                 <p className="text-sm text-ink mb-4">小/中/大 调节字号</p>

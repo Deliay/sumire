@@ -76,9 +76,9 @@ export default function DayDetailDialog({
   const textMain = readOnly ? "text-ink-on-paper" : "text-ink";
   const textSub = readOnly ? "text-ink-on-paper/70" : "text-ink/70";
   const textDim = readOnly ? "text-ink-on-paper/60" : "text-ink-dim";
-  const divider = readOnly ? "border-ink-on-paper/10" : "border-vine/30";
+  const divider = readOnly ? "border-ink-on-paper/10" : "border-line";
   const emptyText = readOnly ? "text-ink-on-paper/50" : "text-ink-dim";
-  const tagCls = readOnly ? "border-ink-on-paper/30 text-ink-on-paper/60" : "border-vine/40 text-ink-dim";
+  const tagCls = readOnly ? "border-ink-on-paper/30 text-ink-on-paper/60" : "border-line text-ink-dim";
 
   const body = (
     <>
@@ -197,7 +197,7 @@ export default function DayDetailDialog({
         }}
       >
         {/* 公开站当日详情：悬浮面板形态，不整屏变灰/毛玻璃，保留可点击外部关闭 */}
-        <div className="w-full max-w-md rounded-xl border border-vine/50 bg-paper p-6 shadow-xl">
+        <div className="w-full max-w-md rounded-md border border-line bg-paper p-6 shadow-overlay">
           <div className="flex items-center justify-between">
             <h2 id="day-detail-title" className="font-serif text-xl font-semibold text-ink-on-paper">
               {dayTitle(date)}
@@ -228,7 +228,7 @@ export default function DayDetailDialog({
         if (e.target === e.currentTarget) handleClose();
       }}
     >
-      <div className="w-full max-w-md rounded-xl border border-vine/50 bg-raised p-6 shadow-xl">
+      <div className="w-full max-w-md rounded-md border border-line bg-raised p-6 shadow-overlay">
         <div className="flex items-center justify-between">
           <h2 id="day-detail-title" className="font-serif text-xl font-semibold text-ink">
             {dayTitle(date)}

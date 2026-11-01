@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { cleanup, render, screen, fireEvent, act } from "@testing-library/react";
+import { cleanup, render, screen, fireEvent, act, within } from "@testing-library/react";
 import FullpageDeck from "@/features/home/FullpageDeck";
 import { getProfile, getSite, getAssets, getAssetById } from "@/lib/content";
 
@@ -45,7 +45,7 @@ function renderDeck() {
   );
 }
 
-describe("FullpageDeck", () => {
+describe("FullpageDeck（装订版）", () => {
   beforeEach(() => {
     vi.stubGlobal("matchMedia", mockMatchMedia(false).stub);
   });
@@ -55,44 +55,47 @@ describe("FullpageDeck", () => {
     window.history.replaceState(null, "", "/");
   });
 
-  it("首屏直出站 0、无 transform", () => {
+  it("首屏直出站 0、无 transform、无粒子 canvas", () => {
     renderDeck();
-    const track = document.querySelector("[data-testid='glow-particles']");
-    expect(track).toBeTruthy(); // 粒子常驻
-    expect(screen.getByText("枝堇")).toBeTruthy(); // hero 站
+    expect(document.querySelector("canvas")).toBeNull();
+    expect(screen.getByText("枝堇")).toBeTruthy();
   });
 
-  it("渲染完整站序列与常驻粒子 canvas、SectionRail", () => {
+  it("渲染完整站序列与右侧页码索引（中文页码）", () => {
     renderDeck();
     const sections = document.querySelectorAll("[data-section]");
-    // 单测环境无 API_CONFIGURED → 7 站（首页/档案×5/素材，无日历）
     expect(sections.length).toBe(7);
-    expect(document.querySelector("nav[aria-label='页面位置']")).toBeTruthy();
-    expect(document.querySelector('[data-testid="glow-particles"]')).toBeTruthy();
+    const nav = document.querySelector("nav[aria-label='页面位置']");
+    expect(nav).toBeTruthy();
+    expect(nav!.textContent).toContain("壹");
+    expect(nav!.textContent).toContain("贰");
+    expect(nav!.textContent).toContain("柒");
   });
 
-  it("模拟 wheel 后指示器随动（档案高亮）", () => {
+  it("移动端进度条存在（1px line-strong、aria-hidden）", () => {
     renderDeck();
-    const wheel = () =>
-      act(() => {
-        window.dispatchEvent(new WheelEvent("wheel", { deltaY: 200 }));
-      });
-    wheel();
-    // 进入 archive-1
-    const rail = document.querySelector("nav[aria-label='页面位置']");
-    expect(rail).toBeTruthy();
-    // 无 API 时默认（单测环境无 NEXT_PUBLIC）序列为 7 站（无日历）
-    const sections = document.querySelectorAll("[data-section]");
-    expect(sections.length).toBe(7);
+    const progress = document.querySelector(".bg-line-strong.h-px");
+    expect(progress).toBeTruthy();
+    expect(progress!.getAttribute("aria-hidden")).toBe("true");
   });
 
-  it("SectionRail 当前站变化高亮正确、点击节点触发跳转", () => {
+  it("PageIndex 当前项 aria-current 标注，点击页码触发跳转", () => {
     renderDeck();
-    // 指示器节点无文字、用 aria-label 定位（右中侧导航仅圆点）
-    const link = screen.getByLabelText("素材");
+    const nav = screen.getByRole("navigation", { name: "页面位置" });
+    const link = within(nav).getByRole("link", { name: "素材" });
+    expect(link.getAttribute("aria-current")).toBeNull();
     fireEvent.click(link);
-    // 素材为末站，点击后应滚动到素材站
+    expect(within(screen.getByRole("navigation", { name: "页面位置" })).getByRole("link", { name: "素材" }).getAttribute("aria-current")).toBe("true");
     const sections = document.querySelectorAll("[data-section]");
     expect(sections.length).toBe(7);
+  });
+
+  it("模拟 wheel 翻页后索引随动", () => {
+    renderDeck();
+    act(() => {
+      window.dispatchEvent(new WheelEvent("wheel", { deltaY: 200 }));
+    });
+    const nav = screen.getByRole("navigation", { name: "页面位置" });
+    expect(within(nav).getByRole("link", { name: "档案 · 信息" }).getAttribute("aria-current")).toBe("true");
   });
 });

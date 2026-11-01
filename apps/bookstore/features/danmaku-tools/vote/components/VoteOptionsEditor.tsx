@@ -36,7 +36,7 @@ export default function VoteOptionsEditor({
           {options.map((option) => (
             <div
               key={option.id}
-              className="flex items-center justify-between rounded-md border border-vine/50 bg-raised px-3 py-2"
+              className="flex items-center justify-between rounded-md border border-line bg-raised px-3 py-2"
             >
               <div className="flex flex-col">
                 <span className="text-sm font-medium text-ink">{option.name}</span>
@@ -64,7 +64,7 @@ export default function VoteOptionsEditor({
             value={name}
             onChange={(e) => setName(e.target.value)}
             disabled={voting}
-            className="flex-1 rounded-md border border-vine/50 bg-transparent px-3 py-2 text-sm text-ink outline-none transition-colors placeholder:text-ink-dim/50 focus:border-flower disabled:opacity-50"
+            className="flex-1 rounded-md border border-line bg-transparent px-3 py-2 text-sm text-ink outline-none transition-colors placeholder:text-ink-dim/50 focus:border-flower disabled:opacity-50"
           />
           <input
             type="text"
@@ -72,7 +72,7 @@ export default function VoteOptionsEditor({
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             disabled={voting}
-            className="flex-1 rounded-md border border-vine/50 bg-transparent px-3 py-2 text-sm text-ink outline-none transition-colors placeholder:text-ink-dim/50 focus:border-flower disabled:opacity-50"
+            className="flex-1 rounded-md border border-line bg-transparent px-3 py-2 text-sm text-ink outline-none transition-colors placeholder:text-ink-dim/50 focus:border-flower disabled:opacity-50"
           />
         </div>
         <button

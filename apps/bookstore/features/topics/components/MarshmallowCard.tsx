@@ -39,7 +39,7 @@ export default function MarshmallowCard({
 
   return (
     <div
-      className={`relative w-full rounded-lg border border-vine bg-raised p-4 ${
+      className={`relative w-full rounded-lg border border-line bg-raised p-4 ${
         adopted ? "opacity-60" : ""
       }`}
     >

@@ -19,20 +19,20 @@ function formatUpdatedAt(iso: string): string {
 export default function RecordingStatusList({ state }: { state: RecordingStatusState }) {
   return (
     <section aria-labelledby="recording-status-heading" className="flex flex-col gap-4">
-      <h2 id="recording-status-heading" className="font-serif text-h2 text-ink">
+      <h2 id="recording-status-heading" className="font-serif text-h2 font-semibold text-ink">
         实时录制状态
       </h2>
 
       {state.kind === "loading" && <p className="text-ink-dim">正在获取录制状态…</p>}
 
       {state.kind === "degraded" && (
-        <p className="rounded-2xl border border-vine/50 bg-raised/60 px-5 py-6 text-ink-dim">
+        <p className="rounded-xs border border-line bg-raised/60 px-5 py-6 text-ink-dim">
           录播服务暂时不可用，请稍后再试。
         </p>
       )}
 
       {state.kind === "ok" && state.items.length === 0 && (
-        <p className="rounded-2xl border border-vine/50 bg-raised/60 px-5 py-6 text-ink-dim">
+        <p className="rounded-xs border border-line bg-raised/60 px-5 py-6 text-ink-dim">
           暂无录制中的直播间。
         </p>
       )}
@@ -44,13 +44,13 @@ export default function RecordingStatusList({ state }: { state: RecordingStatusS
             return (
               <li
                 key={item.roomId}
-                className="flex flex-col gap-2 rounded-2xl border border-vine/50 bg-raised/60 px-5 py-4"
+                className="flex flex-col gap-2 rounded-xs border border-line bg-raised/60 px-5 py-4"
               >
                 <div className="flex items-center justify-between gap-3">
                   <span className="font-serif text-ink">{item.streamerName || `直播间 ${item.roomId}`}</span>
                   <span
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-tiny ${
-                      recording ? "border-eye/60 text-eye" : "border-vine/60 text-ink-dim"
+                    className={`inline-flex items-center gap-1.5 rounded-pill border border-line px-2.5 py-0.5 text-tiny ${
+                      recording ? "border-eye/60 text-eye" : "border-line text-ink-dim"
                     }`}
                   >
                     <span
@@ -64,7 +64,7 @@ export default function RecordingStatusList({ state }: { state: RecordingStatusS
                 {item.sessionTitle && <p className="text-small text-ink-dim">{item.sessionTitle}</p>}
 
                 <div className="flex items-center justify-between gap-3">
-                  <time dateTime={item.updatedAt} className="text-tiny text-ink-dim">
+                  <time dateTime={item.updatedAt} className="font-mono text-tiny text-ink-dim">
                     更新于 {formatUpdatedAt(item.updatedAt)}
                   </time>
                   {recording && <LiveAudioButton url={liveAudioUrl(item.roomId)} />}

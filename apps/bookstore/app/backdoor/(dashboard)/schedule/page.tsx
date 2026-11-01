@@ -131,7 +131,7 @@ export default function SchedulePage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setImageOpen(true)}
-            className="rounded-md border border-vine/50 px-4 py-2 text-sm font-medium text-ink-dim transition-colors duration-150 hover:border-flower hover:text-ink"
+            className="rounded-md border border-line px-4 py-2 text-sm font-medium text-ink-dim transition-colors duration-150 hover:border-flower hover:text-ink"
           >
             生成周表图片
           </button>
@@ -149,7 +149,7 @@ export default function SchedulePage() {
         {error ? (
           <p className="text-sm text-flower">{error}</p>
         ) : loading ? (
-          <div className="h-full min-h-64 animate-pulse rounded-md border border-vine/50 bg-raised" aria-busy="true" />
+          <div className="h-full min-h-64 animate-pulse rounded-md border border-line bg-raised" aria-busy="true" />
         ) : (
           <CalendarView entries={entries} onRangeChange={handleRangeChange} onSelectDay={setSelectedDay} />
         )}
@@ -181,7 +181,7 @@ export default function SchedulePage() {
       />
 
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 rounded-md border border-flower/60 bg-raised px-4 py-2 text-sm text-ink shadow-xl">
+        <div className="fixed bottom-6 right-6 z-50 rounded-md border border-flower/60 bg-raised px-4 py-2 text-sm text-ink shadow-overlay">
           {toast}
           <button type="button" className="ml-2 text-ink-dim hover:text-ink" onClick={() => setToast("")}>
             ✕

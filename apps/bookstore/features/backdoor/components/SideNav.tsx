@@ -24,7 +24,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/backdoor/users", label: "用户管理", roles: ["superadmin"] },
 ];
 
-/** 左侧导航：按角色渲染可见项，选中态描边。 */
+/** 左侧导航：200px + 右 1px line；活动态 soft 底 + 左 2px primary。 */
 export default function SideNav({ role }: SideNavProps) {
   const pathname = usePathname();
   const items = NAV_ITEMS.filter((item) => item.roles.includes(role));
@@ -34,18 +34,18 @@ export default function SideNav({ role }: SideNavProps) {
     .sort((a, b) => b.href.length - a.href.length)[0]?.href;
 
   return (
-    <nav className="w-full border-r border-vine/50 bg-night lg:w-48" aria-label="后台导航">
-      <ul className="flex flex-col gap-1 p-3 lg:sticky lg:top-0">
+    <nav className="w-full border-r border-line bg-night lg:w-[200px]" aria-label="后台导航">
+      <ul className="flex flex-col gap-0.5 p-3 lg:sticky lg:top-0">
         {items.map((item) => {
           const active = item.href === activeHref;
           return (
             <li key={item.href}>
               <Link
                 href={item.href}
-                className={`flex items-center rounded-md px-3 py-2 text-sm transition-colors duration-150 ${
+                className={`flex min-h-11 items-center border-l-2 px-3 text-small transition-colors duration-(--duration-fast) ${
                   active
-                    ? "border-l-[3px] border-primary bg-soft text-ink"
-                    : "border-l-[3px] border-transparent text-ink-dim hover:text-ink"
+                    ? "border-primary bg-soft text-ink"
+                    : "border-transparent text-ink-dim hover:bg-soft/60 hover:text-ink"
                 }`}
               >
                 {item.label}

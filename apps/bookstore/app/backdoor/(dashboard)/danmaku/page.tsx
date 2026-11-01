@@ -62,7 +62,7 @@ export default function DanmakuPage() {
                       key={type}
                       type="button"
                       onClick={() => void dashboardRef.current?.replayTest(type)}
-                      className="rounded-md border border-vine/50 px-2 py-1 text-xs text-ink-dim transition-colors duration-150 hover:border-flower hover:text-ink"
+                      className="rounded-md border border-line px-2 py-1 text-xs text-ink-dim transition-colors duration-150 hover:border-flower hover:text-ink"
                     >
                       {label}
                     </button>
@@ -77,7 +77,7 @@ export default function DanmakuPage() {
               <ColumnCountSelector />
               <Link
                 href="/backdoor/danmaku/search"
-                className="rounded-md border border-vine/50 px-3 py-1.5 text-sm text-ink-dim transition-colors duration-150 hover:border-flower hover:text-ink"
+                className="rounded-md border border-line px-3 py-1.5 text-sm text-ink-dim transition-colors duration-150 hover:border-flower hover:text-ink"
               >
                 弹幕检索
               </Link>
@@ -86,7 +86,7 @@ export default function DanmakuPage() {
                 onClick={() => setIsFullscreen((v) => !v)}
                 aria-pressed={isFullscreen}
                 aria-label="全屏模式"
-                className="rounded-md border border-vine/50 px-3 py-1.5 text-sm text-ink-dim transition-colors duration-150 hover:border-flower hover:text-ink"
+                className="rounded-md border border-line px-3 py-1.5 text-sm text-ink-dim transition-colors duration-150 hover:border-flower hover:text-ink"
               >
                 全屏模式
               </button>
@@ -100,7 +100,7 @@ export default function DanmakuPage() {
           data-testid="danmaku-fullscreen"
           className="fixed inset-0 z-[60] flex h-svh flex-col overflow-hidden bg-night"
         >
-          <div className="relative z-10 flex shrink-0 items-center justify-between border-b border-vine/50 bg-raised px-3 py-2">
+          <div className="relative z-10 flex shrink-0 items-center justify-between border-b border-line bg-raised px-3 py-2">
             <h1 className="flex items-baseline gap-2 font-serif text-xl font-semibold text-ink">弹幕看板<OnlineCountText onlineCount={onlineCount} /></h1>
             <div className="flex items-center gap-3">
               {process.env.NODE_ENV === "development" && (
@@ -110,7 +110,7 @@ export default function DanmakuPage() {
                       key={type}
                       type="button"
                       onClick={() => void dashboardRef.current?.replayTest(type)}
-                      className="rounded-md border border-vine/50 px-2 py-1 text-xs text-ink-dim transition-colors duration-150 hover:border-flower hover:text-ink"
+                      className="rounded-md border border-line px-2 py-1 text-xs text-ink-dim transition-colors duration-150 hover:border-flower hover:text-ink"
                     >
                       {label}
                     </button>
@@ -128,7 +128,7 @@ export default function DanmakuPage() {
                 onClick={() => setIsFullscreen(false)}
                 aria-pressed={true}
                 aria-label="退出全屏"
-                className="rounded-md border border-vine/50 px-3 py-1.5 text-sm text-ink-dim transition-colors duration-150 hover:border-flower hover:text-ink"
+                className="rounded-md border border-line px-3 py-1.5 text-sm text-ink-dim transition-colors duration-150 hover:border-flower hover:text-ink"
               >
                 退出全屏
               </button>

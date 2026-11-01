@@ -21,10 +21,10 @@ export default function UserTable({ users, loading }: UserTableProps) {
     return <div className="text-sm text-ink-dim">正在加载账号…</div>;
   }
   return (
-    <div className="overflow-hidden rounded-lg border border-vine/50 bg-raised">
+    <div className="overflow-hidden rounded-lg border border-line bg-raised">
       <table className="w-full text-left text-sm">
         <thead>
-          <tr className="border-b border-vine/50 text-xs text-ink-dim">
+          <tr className="border-b border-line text-xs text-ink-dim">
             <th className="px-4 py-3 font-medium">用户名</th>
             <th className="px-4 py-3 font-medium">角色</th>
             <th className="px-4 py-3 font-medium">创建时间</th>
@@ -32,7 +32,7 @@ export default function UserTable({ users, loading }: UserTableProps) {
         </thead>
         <tbody>
           {users.map((user) => (
-            <tr key={user.username} className="border-b border-vine/20 last:border-0">
+            <tr key={user.username} className="border-b border-line last:border-0">
               <td className="px-4 py-3 text-ink">{user.username}</td>
               <td className="px-4 py-3">
                 <RoleBadge role={user.role as Role} />

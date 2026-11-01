@@ -87,7 +87,7 @@ export default function TopicFormDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-[28rem] max-w-[calc(100vw-2.5rem)] rounded-lg border border-vine bg-raised p-6">
+      <div className="w-[28rem] max-w-[calc(100vw-2.5rem)] rounded-lg border border-line bg-raised p-6">
         <h2 className="text-lg font-medium text-ink mb-1">
           {mode === "create" ? "新建主题" : "修改主题"}
         </h2>
@@ -100,7 +100,7 @@ export default function TopicFormDialog({
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full rounded border border-vine bg-soft px-3 py-2 text-sm text-ink"
+              className="w-full rounded border border-line bg-soft px-3 py-2 text-sm text-ink"
             />
           </div>
 
@@ -120,7 +120,7 @@ export default function TopicFormDialog({
                 type="datetime-local"
                 value={startAt}
                 onChange={(e) => setStartAt(e.target.value)}
-                className="w-full rounded border border-vine bg-soft px-3 py-2 text-sm text-ink"
+                className="w-full rounded border border-line bg-soft px-3 py-2 text-sm text-ink"
               />
             </div>
             <div>
@@ -129,7 +129,7 @@ export default function TopicFormDialog({
                 type="datetime-local"
                 value={endAt}
                 onChange={(e) => setEndAt(e.target.value)}
-                className="w-full rounded border border-vine bg-soft px-3 py-2 text-sm text-ink"
+                className="w-full rounded border border-line bg-soft px-3 py-2 text-sm text-ink"
               />
             </div>
           </div>
@@ -144,7 +144,7 @@ export default function TopicFormDialog({
               onChange={(e) => setCharLimit(Number(e.target.value))}
               min={100}
               max={10000}
-              className="w-full rounded border border-vine bg-soft px-3 py-2 text-sm text-ink"
+              className="w-full rounded border border-line bg-soft px-3 py-2 text-sm text-ink"
             />
           </div>
 
@@ -154,7 +154,7 @@ export default function TopicFormDialog({
                 type="checkbox"
                 checked={aiReviewEnabled}
                 onChange={(e) => setAiReviewEnabled(e.target.checked)}
-                className="rounded border-vine"
+                className="rounded border-line"
               />
               启用AI前置审核
             </label>
@@ -165,7 +165,7 @@ export default function TopicFormDialog({
         </div>
 
         {error && (
-          <div role="alert" className="mt-3 text-sm text-red-400">
+          <div role="alert" className="mt-3 text-sm text-crimson">
             {error}
           </div>
         )}

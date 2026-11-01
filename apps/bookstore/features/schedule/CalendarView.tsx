@@ -67,16 +67,16 @@ function DaySummaries({ entries, isPast, maxSummaries, showEmpty, immersive = fa
             key={isHistory ? `h-${e.record.startDate}-${e.record.title}` : e.plan.id}
             data-testid={isHistory ? "history-title" : "plan-title"}
             className={`truncate rounded px-1 py-0.5 leading-tight ${size} ${
-              isHistory || isPast ? "text-ink-dim/80" : "bg-soft text-ink"
+              isHistory || isPast ? "text-ink-dim/80" : "text-ink"
             }`}
           >
             <span
               aria-hidden
               className={`mr-0.5 inline-block h-1 w-1 rounded-full align-middle ${
-                isHistory ? "bg-vine" : "bg-eye"
+                isHistory ? "bg-line-strong" : "bg-eye"
               }`}
             />
-            <span className="tabular-nums">{e.kind === "plan" ? planTimeSlot(e.plan) : e.startTime}</span> {entryTitle(e)}
+            <span className="font-mono tabular-nums">{e.kind === "plan" ? planTimeSlot(e.plan) : e.startTime}</span> {entryTitle(e)}
           </span>
         );
       })}
@@ -115,21 +115,21 @@ function DayCell({ dateStr, day, inMonth, entries, today, maxSummaries, onSelect
       onClick={() => clickable && onSelectDay?.(dateStr)}
       aria-label={inMonth ? `查看 ${dateStr} 安排` : undefined}
       className={`relative flex h-full min-h-16 flex-col overflow-hidden border p-1.5 text-left transition-colors ${
-        immersive ? "" : "rounded-md"
-      } ${isToday ? "border-flower" : "border-vine/40"} ${!inMonth ? "opacity-35" : ""} ${
-        isToday ? "" : isPast ? "bg-night opacity-60" : "bg-raised hover:border-flower"
+        immersive ? "rounded-none bg-transparent" : "rounded-xs"
+      } ${isToday ? "border-primary" : "border-line"} ${!inMonth ? "opacity-35" : ""} ${
+        isToday ? "" : isPast ? "bg-transparent opacity-60" : "bg-transparent hover:border-primary"
       } ${clickable ? "cursor-pointer" : "cursor-default"}`}
     >
       {isToday && (
         <span
           aria-hidden
-          className="pointer-events-none absolute left-1 top-1 h-1.5 w-1.5 rounded-full bg-flower"
+          className="pointer-events-none absolute left-1 top-1 h-1.5 w-1.5 rounded-full bg-primary"
         />
       )}
       <span
-        className={`mb-0.5 pl-2 font-display ${
-          immersive ? "text-base" : "text-xs"
-        } ${isToday ? "font-bold text-flower" : isPast ? "text-ink-dim" : "text-ink"}`}
+        className={`mb-0.5 pl-2 font-mono tabular-nums ${
+          immersive ? "text-small" : "text-label"
+        } ${isToday ? "font-semibold text-primary" : isPast ? "text-ink-dim" : "text-ink"}`}
       >
         {day}
       </span>
@@ -232,7 +232,7 @@ export default function CalendarView({ entries, onRangeChange, onSelectDay, vari
             <button
               type="button"
               onClick={() => goWeek(-1)}
-              className="rounded-md border border-vine/50 px-2.5 py-1.5 text-sm text-ink-dim transition-colors hover:border-flower hover:text-ink"
+              className="rounded-xs border border-line-strong px-2.5 py-1.5 text-sm text-ink-dim transition-colors hover:border-primary hover:text-ink"
               aria-label="上一周"
             >
               ‹
@@ -240,7 +240,7 @@ export default function CalendarView({ entries, onRangeChange, onSelectDay, vari
             <button
               type="button"
               onClick={() => goWeek(1)}
-              className="rounded-md border border-vine/50 px-2.5 py-1.5 text-sm text-ink-dim transition-colors hover:border-flower hover:text-ink"
+              className="rounded-xs border border-line-strong px-2.5 py-1.5 text-sm text-ink-dim transition-colors hover:border-primary hover:text-ink"
               aria-label="下一周"
             >
               ›
@@ -252,7 +252,7 @@ export default function CalendarView({ entries, onRangeChange, onSelectDay, vari
           <button
             type="button"
             onClick={goToday}
-            className="rounded-md border border-vine/50 px-3 py-1.5 text-sm text-ink-dim transition-colors hover:border-flower hover:text-ink"
+            className="rounded-xs border border-line-strong px-3 py-1.5 text-sm text-ink-dim transition-colors hover:border-primary hover:text-ink"
           >
             今天
           </button>
@@ -272,23 +272,23 @@ export default function CalendarView({ entries, onRangeChange, onSelectDay, vari
                 data-testid="calendar-day"
                 onClick={() => onSelectDay?.(ds)}
                 aria-label={`查看 ${ds} 安排`}
-                className={`w-full rounded-md border p-3 text-left transition-colors ${
-                  isToday ? "border-flower" : "border-vine/40"
-                } ${isToday ? "" : isPast ? "bg-night opacity-60" : "bg-raised hover:border-flower"}`}
+                className={`w-full rounded-xs border border-line p-3 text-left transition-colors ${
+                  isToday ? "border-primary" : "border-line"
+                } ${isToday ? "" : isPast ? "bg-transparent opacity-60" : "bg-transparent hover:border-primary"}`}
               >
                 <div className="flex items-center gap-2">
                   <span
-                    className={`font-display text-sm ${
-                      isToday ? "font-bold text-flower" : isPast ? "text-ink-dim" : "text-ink"
+                    className={`font-mono text-label ${
+                      isToday ? "font-semibold text-primary" : isPast ? "text-ink-dim" : "text-ink"
                     }`}
                   >
                     周{WEEKDAYS[i]}
                   </span>
-                  <span className={`text-xs tabular-nums ${isToday ? "text-flower" : "text-ink-dim"}`}>
+                  <span className={`text-xs tabular-nums ${isToday ? "text-primary" : "text-ink-dim"}`}>
                     {p.m} 月 {p.d} 日
                   </span>
                   {isToday && (
-                    <span aria-hidden className="ml-auto h-1.5 w-1.5 rounded-full bg-flower" />
+                    <span aria-hidden className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" />
                   )}
                 </div>
                 <div className="mt-1.5">
@@ -309,7 +309,7 @@ export default function CalendarView({ entries, onRangeChange, onSelectDay, vari
           <button
             type="button"
             onClick={() => goMonth(-1)}
-            className="rounded-md border border-vine/50 px-3 py-1.5 text-sm text-ink-dim transition-colors hover:border-flower hover:text-ink"
+            className="rounded-xs border border-line-strong px-3 py-1.5 text-sm text-ink-dim transition-colors hover:border-primary hover:text-ink"
             aria-label="上一月"
           >
             ← 上月
@@ -320,7 +320,7 @@ export default function CalendarView({ entries, onRangeChange, onSelectDay, vari
           <button
             type="button"
             onClick={() => goMonth(1)}
-            className="rounded-md border border-vine/50 px-3 py-1.5 text-sm text-ink-dim transition-colors hover:border-flower hover:text-ink"
+            className="rounded-xs border border-line-strong px-3 py-1.5 text-sm text-ink-dim transition-colors hover:border-primary hover:text-ink"
             aria-label="下一月"
           >
             下月 →
@@ -338,16 +338,16 @@ export default function CalendarView({ entries, onRangeChange, onSelectDay, vari
           <button
             type="button"
             onClick={() => goMonth(-1)}
-            className="absolute inset-y-0 left-0 flex w-12 items-center justify-center text-2xl text-ink-dim transition-colors hover:text-flower sm:w-16"
-            aria-label="上月"
+            className="absolute left-0 top-0 inline-flex size-11 items-center justify-center rounded-md border border-line text-ink-dim transition-colors duration-(--duration-fast) hover:border-line-strong hover:text-ink"
+            aria-label="上一月"
           >
             ‹
           </button>
           <button
             type="button"
             onClick={() => goMonth(1)}
-            className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-2xl text-ink-dim transition-colors hover:text-flower sm:w-16"
-            aria-label="下月"
+            className="absolute right-0 top-0 inline-flex size-11 items-center justify-center rounded-md border border-line text-ink-dim transition-colors duration-(--duration-fast) hover:border-line-strong hover:text-ink"
+            aria-label="下一月"
           >
             ›
           </button>
@@ -358,7 +358,7 @@ export default function CalendarView({ entries, onRangeChange, onSelectDay, vari
         {WEEKDAYS.map((w) => (
           <div
             key={w}
-            className="pb-1 text-center font-display text-xs tracking-widest text-ink-dim"
+            className="pb-1 text-center font-mono text-label tracking-label uppercase text-ink-dim"
           >
             周{w}
           </div>

@@ -25,7 +25,7 @@ export default function VoteStatsTable({
         <table className="w-full text-sm">
           <caption className="sr-only">投票统计</caption>
           <thead>
-            <tr className="border-b border-vine/50">
+            <tr className="border-b border-line">
               <th className="px-3 py-2 text-left font-medium text-ink">名称</th>
               <th className="px-3 py-2 text-right font-medium text-ink">票数</th>
               <th className="px-3 py-2 text-right font-medium text-ink">占比</th>
@@ -33,7 +33,7 @@ export default function VoteStatsTable({
           </thead>
           <tbody>
             {options.map((option) => (
-              <tr key={option.id} className="border-b border-vine/50">
+              <tr key={option.id} className="border-b border-line">
                 <td className="px-3 py-2 text-ink">{option.name}</td>
                 <td className="px-3 py-2 text-right text-ink">{option.count}</td>
                 <td className="px-3 py-2 text-right text-ink-dim">

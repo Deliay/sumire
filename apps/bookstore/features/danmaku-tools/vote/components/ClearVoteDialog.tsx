@@ -48,7 +48,7 @@ export default function ClearVoteDialog({
       aria-modal="true"
       aria-labelledby="clear-vote-dialog-title"
     >
-      <div className="relative w-full max-w-md rounded-xl border border-vine/50 bg-raised p-6 shadow-2xl">
+      <div className="relative w-full max-w-md rounded-md border border-line bg-raised p-6 shadow-overlay">
         <h2
           id="clear-vote-dialog-title"
           className="font-serif text-lg font-semibold text-ink"
@@ -63,7 +63,7 @@ export default function ClearVoteDialog({
             ref={cancelButtonRef}
             type="button"
             onClick={onCancel}
-            className="rounded-md border border-vine/50 px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-raised"
+            className="rounded-md border border-line px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-raised"
           >
             取消
           </button>

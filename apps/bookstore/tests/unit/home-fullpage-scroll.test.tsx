@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { cleanup, render, act } from "@testing-library/react";
 import { useRef } from "react";
-import { useFullpageScroll, IMPULSE_EVENT, SCROLL_IMPULSE_EVENT } from "@/features/home/useFullpageScroll";
+import { useFullpageScroll } from "@/features/home/useFullpageScroll";
 import { visibleSections, SECTION_CHANGE_EVENT } from "@/features/home/sections";
 
 const sections8 = visibleSections(true);
@@ -116,7 +116,7 @@ describe("useFullpageScroll", () => {
     vi.unstubAllGlobals();
   });
 
-  it("下翻（下一站）rAF 转场按 px 向下平移，粒子流场 velocity 为正（下坠）", () => {
+  it("下翻（下一站）rAF 转场按 px 向下平移（480ms）", () => {
     // rAF 单步执行：首帧 t=0（起点），验证轨道向负 y 平移（下翻）
     const rafQueue: FrameRequestCallback[] = [];
     vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
@@ -126,29 +126,18 @@ describe("useFullpageScroll", () => {
     vi.stubGlobal("cancelAnimationFrame", () => {});
     let t = 0;
     vi.stubGlobal("performance", { now: () => (t += 100) });
-    const scrollSpy = vi.fn();
-    window.addEventListener(SCROLL_IMPULSE_EVENT, scrollSpy);
     render(<Harness />);
     const track = document.querySelector("[data-testid='track']") as HTMLElement;
     act(() => {
       window.dispatchEvent(new WheelEvent("wheel", { deltaY: 200 }));
     });
-    // 索引已切到 1；首帧动画起点为当前位置，随后帧应向 -vh 推进
     expect(track.dataset.index).toBe("1");
-    // 触发多帧，动画推进后 transform 用 px（不含 svh）
     act(() => {
       rafQueue.splice(0).forEach((cb) => cb(200));
       rafQueue.splice(0).forEach((cb) => cb(500));
     });
     expect(track.style.transform).toContain("px");
     expect(track.style.transform).not.toContain("svh");
-    // 下翻：转场期派发的 flow-scroll velocity 应为正（下坠语义，与 direction 一致）
-    const velocities = scrollSpy.mock.calls
-      .map((c) => (c[0] as CustomEvent).detail.velocity as number)
-      .filter((v) => Number.isFinite(v));
-    expect(velocities.length).toBeGreaterThan(0);
-    expect(velocities.every((v) => v > 0)).toBe(true);
-    window.removeEventListener(SCROLL_IMPULSE_EVENT, scrollSpy);
     vi.unstubAllGlobals();
   });
 
@@ -237,7 +226,7 @@ describe("useFullpageScroll", () => {
     expect(cb).toHaveBeenLastCalledWith(3);
   });
 
-  it("reduced-motion 下转场与冲量与常规一致（不降级）", () => {
+  it("reduced-motion 下翻页直接落位、不排 rAF 帧", () => {
     const mq = mockMatchMedia(true);
     vi.stubGlobal("matchMedia", mq.stub);
     let t = 0;
@@ -248,24 +237,15 @@ describe("useFullpageScroll", () => {
       return rafCalls.length;
     });
     vi.stubGlobal("cancelAnimationFrame", () => {});
-    const impulseSpy = vi.fn();
-    window.addEventListener(IMPULSE_EVENT, impulseSpy);
     render(<Harness />);
     const track = document.querySelector("[data-testid='track']") as HTMLElement;
     act(() => {
       window.dispatchEvent(new WheelEvent("wheel", { deltaY: 200 }));
     });
     expect(track.dataset.index).toBe("1");
-    // 转场仍用 px 插值（非 svh），且 rAF 动画照常调度
-    act(() => {
-      rafCalls.splice(0).forEach((cb) => cb(performance.now()));
-      rafCalls.splice(0).forEach((cb) => cb(performance.now()));
-    });
+    // reduced：不产生位移转场帧，直接落位
+    expect(rafCalls).toHaveLength(0);
     expect(track.style.transform).toContain("px");
-    expect(track.style.transform).not.toContain("svh");
-    // 冲量照常派发（展示向氛围层不降级 reduced-motion）
-    expect(impulseSpy).toHaveBeenCalled();
-    window.removeEventListener(IMPULSE_EVENT, impulseSpy);
     vi.unstubAllGlobals();
   });
 
@@ -310,31 +290,26 @@ describe("useFullpageScroll", () => {
     window.removeEventListener(SECTION_CHANGE_EVENT, spy);
   });
 
-  it("free 模式滚动派发 SCROLL_IMPULSE_EVENT（连续喂入粒子冲量）", () => {
-    // 让 performance.now 随调用递增，绕过 wheel 冷却（一次手势一屏但需多次翻页到末站）
+  it("free 模式滚动挂自由滚动（不再派发冲量事件）", () => {
     let t = 0;
     vi.stubGlobal("performance", {
       now: () => (t += 1000),
     });
     render(<Harness />);
-    // 进入 free：逐站滚到素材站（index 7）再下滚越界
     for (let i = 0; i < 8; i++) {
       act(() => {
         window.dispatchEvent(new WheelEvent("wheel", { deltaY: 200 }));
       });
     }
     const container = document.querySelector("[data-testid='container']") as HTMLElement;
-    expect(container.style.overflow).toBe("auto"); // 已进入 free 模式
-
-    const scrollSpy = vi.fn();
-    window.addEventListener(SCROLL_IMPULSE_EVENT, scrollSpy);
+    expect(container.style.overflow).toBe("auto");
     act(() => {
-      // 模拟素材区向下滚动：scrollTop 从 0 跳到 400
       container.scrollTop = 400;
       container.dispatchEvent(new Event("scroll"));
     });
-    expect(scrollSpy).toHaveBeenCalled();
-    window.removeEventListener(SCROLL_IMPULSE_EVENT, scrollSpy);
+    // 滚动本身不改变索引
+    const track = document.querySelector("[data-testid='track']") as HTMLElement;
+    expect(track.dataset.index).toBe("7");
     vi.unstubAllGlobals();
   });
 

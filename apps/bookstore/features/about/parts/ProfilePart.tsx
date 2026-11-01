@@ -1,9 +1,8 @@
-import Image from "next/image";
-import LaceFrame from "@/components/LaceFrame";
+import Plate from "@/components/ui/Plate";
 import type { Asset, Profile } from "@/lib/content";
 import { assetThumbnailUrl } from "@/lib/content/shared";
 
-/** P1 信息・Profile：立绘 + 基本信息卡。variant="bare" 省略立绘与蕾丝框（首页档案屏右侧信息区用，避免与大屏立绘重复）。 */
+/** P1 信息・Profile：定义表；full 变体附立绘图版，bare 变体只保留表（首页右侧信息区用）。 */
 export default function ProfilePart({
   profile,
   portrait,
@@ -25,7 +24,7 @@ export default function ProfilePart({
     ["Live2D", profile.modelArtist],
   ];
   const grid = (
-    <dl className="grid grid-cols-1 gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
+    <dl className="grid max-w-[36rem] grid-cols-1 gap-x-8 gap-y-3 text-small sm:grid-cols-2">
       {facts.map(([label, value]) => (
         <div key={label} className="flex gap-3">
           <dt className="w-20 shrink-0 text-ink-dim">{label}</dt>
@@ -36,11 +35,11 @@ export default function ProfilePart({
         <dt className="w-20 shrink-0 text-ink-dim">应援色</dt>
         <dd className="inline-flex items-center gap-2 text-ink">
           <span
-            className="inline-block size-3.5 rounded-full"
+            className="inline-block size-3.5 rounded-sm border border-line-strong"
             style={{ backgroundColor: profile.color }}
             aria-hidden
           />
-          <span className="font-display tracking-widest">{profile.color}</span>
+          <span className="font-mono text-label">{profile.color}</span>
         </dd>
       </div>
     </dl>
@@ -50,20 +49,17 @@ export default function ProfilePart({
   }
   return (
     <section>
-      <LaceFrame>
-        <div className="grid items-center gap-8 sm:grid-cols-[220px_1fr]">
-          <div className="mx-auto w-44 overflow-hidden rounded-lg border border-vine/50 bg-soft sm:w-full">
-            <Image
-              src={assetThumbnailUrl(portrait)}
-              alt={portrait.title}
-              width={500}
-              height={1000}
-              className="h-auto w-full"
-            />
-          </div>
-          {grid}
-        </div>
-      </LaceFrame>
+      <div className="grid items-center gap-8 sm:grid-cols-[220px_1fr]">
+        <Plate
+          src={assetThumbnailUrl(portrait)}
+          alt={portrait.title}
+          width={500}
+          height={1000}
+          className="mx-auto w-full max-w-44 sm:max-w-none"
+          frameClassName="aspect-[1/2]"
+        />
+        {grid}
+      </div>
     </section>
   );
 }

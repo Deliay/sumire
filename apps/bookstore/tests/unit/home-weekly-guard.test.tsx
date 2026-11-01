@@ -20,14 +20,6 @@ vi.mock("@/features/home/TodaySchedule", () => ({
   default: () => <div data-testid="today-schedule">今日日程</div>,
 }));
 
-vi.mock("@/features/home/GlowParticles", () => ({
-  default: () => <canvas data-testid="glow-particles" aria-hidden />,
-}));
-
-vi.mock("@/features/home/ParallaxLayer", () => ({
-  default: ({ children }: { children: React.ReactNode }) => <div data-testid="parallax-layer">{children}</div>,
-}));
-
 vi.mock("@/features/home/sections/ArchiveSection", () => ({
   default: () => <section data-testid="archive">档案</section>,
 }));

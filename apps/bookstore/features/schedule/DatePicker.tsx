@@ -83,7 +83,7 @@ export default function DatePicker({ id, value, onChange, invalid }: DatePickerP
         }}
         onChange={(e) => setEditing(e.target.value)}
         className={`w-full rounded-md border bg-soft px-3 py-2 text-base text-ink outline-none transition-colors duration-150 focus:border-flower ${
-          invalid ? "border-flower" : "border-vine/50"
+          invalid ? "border-flower" : "border-line"
         }`}
         placeholder="2026-08-15"
         aria-label="日期"
@@ -91,12 +91,12 @@ export default function DatePicker({ id, value, onChange, invalid }: DatePickerP
       />
       {hint && <p className="text-xs text-flower">{hint}</p>}
       {open && (
-        <div className="absolute left-0 top-full z-20 mt-2 w-72 rounded-lg border border-vine/50 bg-raised p-3 shadow-xl">
+        <div className="absolute left-0 top-full z-20 mt-2 w-72 rounded-lg border border-line bg-raised p-3 shadow-overlay">
           <div className="mb-2 flex items-center justify-between">
             <button
               type="button"
               onClick={() => goMonth(-1)}
-              className="rounded border border-vine/50 px-2 py-1 text-sm text-ink-dim hover:text-ink"
+              className="rounded border border-line px-2 py-1 text-sm text-ink-dim hover:text-ink"
               aria-label="上一月"
             >
               ←
@@ -107,7 +107,7 @@ export default function DatePicker({ id, value, onChange, invalid }: DatePickerP
             <button
               type="button"
               onClick={() => goMonth(1)}
-              className="rounded border border-vine/50 px-2 py-1 text-sm text-ink-dim hover:text-ink"
+              className="rounded border border-line px-2 py-1 text-sm text-ink-dim hover:text-ink"
               aria-label="下一月"
             >
               →

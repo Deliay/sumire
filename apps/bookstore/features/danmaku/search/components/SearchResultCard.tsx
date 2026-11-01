@@ -20,7 +20,7 @@ function DanmakuCard({ event, keyword }: { event: LiveEvent; keyword: string }) 
 
   return (
     <div className={`flex w-full gap-2.5 px-3 py-2 sm:w-[calc(50%-6px)] lg:w-[calc(33.333%-8px)]${tint ? ` ${tint}` : ""} rounded-md`}>
-      <span aria-hidden className="w-1 shrink-0 self-stretch rounded-full bg-vine/70" />
+      <span aria-hidden className="w-1 shrink-0 self-stretch rounded-full bg-line-strong" />
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <div className="flex items-center justify-between gap-2">
           <Sender sender={event.sender} compact />

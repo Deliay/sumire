@@ -59,8 +59,8 @@ describe("ReplayApp 参数校验与空态", () => {
     expect(await screen.findByText(/参数无效/)).toBeTruthy();
     expect(screen.getByRole("link", { name: /返回录播列表/ }).getAttribute("href")).toBe("/recordings");
     const container = screen.getByText(/参数无效/).parentElement as HTMLElement;
-    expect(container.className).toContain("px-1");
-    expect(container.className).toContain("lg:px-2");
+    expect(container.className).toContain("pt-24");
+    expect(container.className).toContain("lg:pt-32");
     expect(container.className).not.toContain("px-2.5");
     expect(h.getRoomRecordings).not.toHaveBeenCalled();
   });
@@ -92,9 +92,10 @@ describe("ReplayApp 参数校验与空态", () => {
     render(<ReplayApp />);
 
     await waitFor(() => expect(screen.getByTestId("stage")).toBeTruthy());
-    const container = screen.getByTestId("stage").parentElement as HTMLElement;
-    expect(container.className).toContain("px-1");
-    expect(container.className).toContain("lg:px-2");
+    const stageWrap = screen.getByTestId("stage").parentElement as HTMLElement;
+    expect(stageWrap.className).toContain("mt-6");
+    const container = screen.getByTestId("stage").closest("div.mx-auto") as HTMLElement;
+    expect(container.className).toContain("pt-24");
     expect(container.className).not.toContain("px-2.5");
     expect(h.getRoomRecordings).toHaveBeenCalledWith(1);
     expect(screen.getByTestId("stage").textContent).toContain(FILE.name);

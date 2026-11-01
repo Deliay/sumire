@@ -124,7 +124,7 @@ export default function PlanFormDialog({
     >
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-md rounded-xl border border-vine/50 bg-raised p-6 shadow-xl"
+        className="w-full max-w-md rounded-md border border-line bg-raised p-6 shadow-overlay"
       >
         <div className="flex items-center justify-between">
           <h2 id="plan-form-title" className="font-serif text-xl font-semibold text-ink">

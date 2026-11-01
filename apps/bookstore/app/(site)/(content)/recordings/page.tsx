@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import PageShell from "@/components/layout/PageShell";
 import { RECORDINGS_CONFIGURED } from "@/features/recordings/api";
 import RecordingsEmpty from "@/features/recordings/RecordingsEmpty";
 import RecordingsApp from "@/features/recordings/RecordingsApp";
@@ -11,9 +12,9 @@ export const metadata: Metadata = {
 export default function RecordingsPage() {
   if (!RECORDINGS_CONFIGURED) {
     return (
-      <div className="mx-auto w-full max-w-6xl px-5 py-24 lg:px-10">
+      <PageShell width="wide">
         <RecordingsEmpty reason="unconfigured" />
-      </div>
+      </PageShell>
     );
   }
   return <RecordingsApp />;

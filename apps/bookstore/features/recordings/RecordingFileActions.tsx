@@ -22,7 +22,7 @@ export default function RecordingFileActions({ roomId, file }: RecordingFileActi
 
   return (
     <div className="relative shrink-0" ref={containerRef}>
-      <div className="flex items-stretch overflow-hidden rounded-full border border-vine">
+      <div className="flex items-stretch overflow-hidden rounded-full border border-line">
         <a
           href={recordingReplayHref(roomId, file.name)}
           target="_blank"
@@ -38,7 +38,7 @@ export default function RecordingFileActions({ roomId, file }: RecordingFileActi
           aria-haspopup="menu"
           aria-expanded={menuOpen}
           aria-label="更多操作"
-          className={`${SEGMENT_CLASS} border-l border-vine`}
+          className={`${SEGMENT_CLASS} border-l border-line`}
         >
           <ChevronDown size={14} aria-hidden />
         </button>
@@ -47,7 +47,7 @@ export default function RecordingFileActions({ roomId, file }: RecordingFileActi
       {menuOpen && (
         <div
           role="menu"
-          className="absolute right-0 z-[80] mt-1 min-w-[8rem] rounded-md border border-vine/50 bg-raised shadow-xl"
+          className="absolute right-0 z-[80] mt-1 min-w-[8rem] rounded-md border border-line bg-raised shadow-overlay"
         >
           <a
             role="menuitem"

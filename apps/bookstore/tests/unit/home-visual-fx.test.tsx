@@ -20,18 +20,6 @@ vi.mock("@/features/home/TodaySchedule", () => ({
   default: () => <div data-testid="today-schedule">今日日程</div>,
 }));
 
-vi.mock("@/features/home/GlowParticles", () => ({
-  default: () => <canvas data-testid="glow-particles" aria-hidden />,
-}));
-
-vi.mock("@/features/home/ParallaxLayer", () => ({
-  default: ({ children, className }: { children: React.ReactNode; className?: string }) => (
-    <div data-testid="parallax-layer" className={className}>
-      {children}
-    </div>
-  ),
-}));
-
 vi.mock("next/image", () => ({
   default: (props: Record<string, unknown>) => <img alt="" {...props} />,
 }));
@@ -90,19 +78,12 @@ vi.mock("@/lib/content", () => ({
     disclaimer: "本站为非官方粉丝作品",
     links: { live: "https://live.example", bilibili: "https://b", moegirl: "https://m", secretRoom: "https://sumire.icu" },
   }),
-  getAssetById: () => ({
-    id: "standing-01",
-    title: "枝堇立绘",
-    file: "",
-    thumb: "",
-    assetType: "standing",
-  }),
+  getAssetById: () => ({ id: "standing-01", title: "枝堇立绘", file: "", thumb: "", assetType: "standing" }),
   getAssets: () => [],
 }));
 
 function matchMediaStub() {
-  const mql = { matches: false, media: "", addEventListener() {}, removeEventListener() {} };
-  return mql;
+  return { matches: false, media: "", addEventListener() {}, removeEventListener() {} };
 }
 
 function deckProps(): { profile: Profile; site: Site; heroAsset: Asset; archivePortraits: Asset[]; assets: Asset[] } {
@@ -152,7 +133,7 @@ function deckProps(): { profile: Profile; site: Site; heroAsset: Asset; archiveP
   };
 }
 
-describe("首页动效层接线结构守卫", () => {
+describe("首页视觉层结构守卫（装订版）", () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
@@ -164,31 +145,26 @@ describe("首页动效层接线结构守卫", () => {
     window.history.replaceState(null, "", "/");
   });
 
-  it("渲染粒子 canvas 层与 ParallaxLayer 包裹的立绘（首页站）", () => {
+  it("无 canvas、无雾气、无视差层，存在右侧页码索引与图版题注", () => {
     render(<FullpageDeck {...deckProps()} />);
-    const canvas = document.querySelector('[data-testid="glow-particles"]');
-    expect(canvas).toBeTruthy();
-    expect(canvas?.getAttribute("aria-hidden")).toBe("true");
-
-    const layer = screen.getByTestId("parallax-layer");
-    expect(layer).toBeTruthy();
-    expect(layer.className).toContain("pointer-events-none");
-    expect(layer.querySelector("img")).toBeTruthy();
+    expect(document.querySelector("canvas")).toBeNull();
+    expect(document.querySelector(".fog")).toBeNull();
+    expect(document.querySelector("[data-testid='parallax-layer']")).toBeNull();
+    expect(document.querySelector("nav[aria-label='页面位置']")).toBeTruthy();
+    expect(document.querySelector("figure figcaption")).toBeTruthy();
   });
 
-  it("API_CONFIGURED=true 时挂载直播状态与今日日程（动效层不影响守卫）", () => {
+  it("API_CONFIGURED=true 时挂载直播状态与今日日程", () => {
     render(<FullpageDeck {...deckProps()} />);
     expect(screen.getByTestId("live-status")).toBeTruthy();
     expect(screen.getByTestId("today-schedule")).toBeTruthy();
-    expect(screen.getByTestId("glow-particles")).toBeTruthy();
   });
 
-  it("API_CONFIGURED=false 时不渲染直播状态 / 今日日程，动效层仍渲染", () => {
+  it("API_CONFIGURED=false 时不渲染直播状态 / 今日日程（无占位）", () => {
     configured = false;
     vi.resetModules();
     render(<FullpageDeck {...deckProps()} />);
     expect(screen.queryByTestId("live-status")).toBeNull();
     expect(screen.queryByTestId("today-schedule")).toBeNull();
-    expect(document.querySelector('[data-testid="glow-particles"]')).toBeTruthy();
   });
 });

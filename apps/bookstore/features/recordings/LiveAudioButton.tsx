@@ -40,7 +40,7 @@ export default function LiveAudioButton({ url }: { url: string }) {
         type="button"
         onClick={handleClick}
         aria-pressed={playing}
-        className="inline-flex items-center gap-1.5 rounded-full border border-vine px-3 py-1 text-tiny text-ink-dim transition-colors hover:border-flower hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-flower"
+        className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-tiny text-ink-dim transition-colors hover:border-flower hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-flower"
       >
         {playing ? <Square size={13} aria-hidden /> : <Headphones size={13} aria-hidden />}
         {playing ? "停止" : "听直播"}

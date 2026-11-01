@@ -114,7 +114,7 @@ test.describe("backdoor 棉花糖（主题管理）", () => {
       "font-family",
       /Noto Serif SC|serif/,
     );
-    await expect(page.locator("div.border-t.border-vine").first()).toBeVisible();
+    await expect(page.locator("div.border-t.border-line").first()).toBeVisible();
 
     // 8. 幻灯片页头单行布局：标题/描述/字号控件同一行，「字体」label 可见，长描述限宽省略
     await expect(page.getByText("字体")).toBeVisible();

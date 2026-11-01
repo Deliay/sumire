@@ -88,12 +88,12 @@ export default function MarkReadButtonGroup({
             onClick={() => setDropdownOpen((v) => !v)}
             aria-expanded={dropdownOpen}
             aria-label="标记已读"
-            className="rounded-md border border-vine/50 px-2 py-1 text-xs text-ink-dim transition-colors duration-150 hover:border-flower hover:text-ink"
+            className="rounded-md border border-line px-2 py-1 text-xs text-ink-dim transition-colors duration-150 hover:border-flower hover:text-ink"
           >
             标记已读
           </button>
           {dropdownOpen && (
-            <div className="absolute right-0 z-[80] mt-1 min-w-[10rem] rounded-md border border-vine/50 bg-raised shadow-xl">
+            <div className="absolute right-0 z-[80] mt-1 min-w-[10rem] rounded-md border border-line bg-raised shadow-overlay">
               {readAllTypes.map((type) => (
                 <button
                   key={type}
@@ -116,7 +116,7 @@ export default function MarkReadButtonGroup({
                 className="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-ink-dim transition-colors duration-150 hover:bg-soft hover:text-ink"
               >
                 隐藏钢镚
-                <span className={`inline-block h-4 w-7 rounded-full transition-colors duration-150 ${hideLowSc ? "bg-flower" : "bg-vine/50"}`}>
+                <span className={`inline-block h-4 w-7 rounded-full transition-colors duration-150 ${hideLowSc ? "bg-flower" : "bg-line"}`}>
                   <span className={`block h-3.5 w-3.5 rounded-full bg-white transition-transform duration-150 ${hideLowSc ? "translate-x-3" : "translate-x-0.5"}`} />
                 </span>
               </button>
@@ -133,7 +133,7 @@ export default function MarkReadButtonGroup({
               className={`rounded-md border px-2 py-1 text-xs transition-colors duration-150 ${
                 confirming === type
                   ? "border-flower text-flower"
-                  : "border-vine/50 text-ink-dim hover:border-flower hover:text-ink"
+                  : "border-line text-ink-dim hover:border-flower hover:text-ink"
               }`}
             >
               {confirming === type ? "确认全部已读？" : READ_ALL_LABELS[type]}
@@ -148,7 +148,7 @@ export default function MarkReadButtonGroup({
             className={`rounded-md border px-2 py-1 text-xs transition-colors duration-150 ${
               hideLowSc
                 ? "border-flower text-ink"
-                : "border-vine/50 text-ink-dim hover:border-flower hover:text-ink"
+                : "border-line text-ink-dim hover:border-flower hover:text-ink"
             }`}
           >
             隐藏钢镚

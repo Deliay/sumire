@@ -48,22 +48,22 @@ export default function RoomRecordingsGroup({ roomId, streamerName }: RoomRecord
   const pageFiles = sortedFiles.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
-    <div className="rounded-2xl border border-vine/50 bg-raised/60">
+    <div className="rounded-xs border border-line bg-raised/60">
       <button
         type="button"
         onClick={toggle}
         aria-expanded={expanded}
-        className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:text-flower focus-visible:outline focus-visible:outline-2 focus-visible:outline-flower"
+        className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-flower"
       >
         <span className="flex items-center gap-2 font-serif text-ink">
           {expanded ? <ChevronDown size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />}
           {streamerName}
         </span>
-        <span className="text-tiny text-ink-dim">{expanded ? "收起" : "展开"}</span>
+        <span className="font-mono text-tiny text-ink-dim">{expanded ? "收起" : "展开"}</span>
       </button>
 
       {expanded && (
-        <div className="flex flex-col gap-3 border-t border-vine/30 px-5 py-4">
+        <div className="flex flex-col gap-3 border-t border-line px-5 py-4">
           {state.kind === "loading" && <p className="text-small text-ink-dim">正在加载录播列表…</p>}
 
           {state.kind === "error" && (
@@ -72,7 +72,7 @@ export default function RoomRecordingsGroup({ roomId, streamerName }: RoomRecord
               <button
                 type="button"
                 onClick={() => void load()}
-                className="rounded-full border border-vine px-3 py-1 text-tiny transition-colors hover:border-flower hover:text-ink"
+                className="rounded-md border border-line-strong px-3 py-1.5 text-tiny transition-colors hover:border-primary hover:text-ink"
               >
                 重试
               </button>
@@ -83,19 +83,19 @@ export default function RoomRecordingsGroup({ roomId, streamerName }: RoomRecord
 
           {state.kind === "ok" && sortedFiles.length > 0 && (
             <>
-              <ul className="flex flex-col divide-y divide-vine/20">
+              <ul className="flex flex-col divide-y divide-line">
                 {pageFiles.map((file) => (
                   <li key={file.name} className="flex items-center gap-3 py-2">
                     <a
                       href={recordingReplayHref(roomId, file.name)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex-1 truncate text-left text-small text-ink transition-colors hover:text-flower focus-visible:outline focus-visible:outline-2 focus-visible:outline-flower"
+                      className="flex-1 truncate text-left text-small text-ink transition-colors hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-flower"
                     >
                       {file.name}
                     </a>
-                    <span className="shrink-0 text-tiny text-ink-dim">{formatFileSize(file.size)}</span>
-                    <time dateTime={file.createdAt} className="shrink-0 text-tiny text-ink-dim">
+                    <span className="shrink-0 font-mono text-tiny text-ink-dim">{formatFileSize(file.size)}</span>
+                    <time dateTime={file.createdAt} className="shrink-0 font-mono text-tiny text-ink-dim">
                       {formatCreatedAt(file.createdAt)}
                     </time>
                     <RecordingFileActions roomId={roomId} file={file} />
@@ -104,12 +104,12 @@ export default function RoomRecordingsGroup({ roomId, streamerName }: RoomRecord
               </ul>
 
               {pageCount > 1 && (
-                <div className="flex items-center justify-center gap-3 text-tiny text-ink-dim">
+                <div className="flex items-center justify-center gap-3 font-mono text-tiny text-ink-dim">
                   <button
                     type="button"
                     disabled={page <= 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    className="rounded-full border border-vine px-3 py-1 disabled:opacity-40"
+                    className="rounded-md border border-line-strong px-3 py-1 disabled:opacity-40"
                   >
                     上一页
                   </button>
@@ -120,7 +120,7 @@ export default function RoomRecordingsGroup({ roomId, streamerName }: RoomRecord
                     type="button"
                     disabled={page >= pageCount}
                     onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-                    className="rounded-full border border-vine px-3 py-1 disabled:opacity-40"
+                    className="rounded-md border border-line-strong px-3 py-1 disabled:opacity-40"
                   >
                     下一页
                   </button>

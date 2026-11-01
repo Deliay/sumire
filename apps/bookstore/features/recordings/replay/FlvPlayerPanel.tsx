@@ -386,7 +386,7 @@ export default function FlvPlayerPanel({
         : "flex flex-col gap-3";
 
   const iconButtonClass =
-    "inline-flex size-9 items-center justify-center rounded-full border border-vine text-ink-dim transition-colors hover:border-flower hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-flower";
+    "inline-flex size-9 items-center justify-center rounded-full border border-line text-ink-dim transition-colors hover:border-flower hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-flower";
 
   const controls = (
     <>
@@ -472,12 +472,12 @@ export default function FlvPlayerPanel({
       {supported === null && <p className="text-small text-ink-dim">正在准备播放器…</p>}
 
       {supported === false && (
-        <div className="flex flex-col gap-3 rounded-lg border border-vine/40 bg-night/40 px-4 py-5 text-small text-ink-dim">
+        <div className="flex flex-col gap-3 rounded-lg border border-line bg-night/40 px-4 py-5 text-small text-ink-dim">
           <p>当前浏览器不支持在线播放，请下载后收听。</p>
           <a
             href={url}
             download
-            className="inline-flex w-fit items-center gap-1.5 rounded-full border border-vine px-3 py-1 text-tiny text-ink-dim transition-colors hover:border-flower hover:text-ink"
+            className="inline-flex w-fit items-center gap-1.5 rounded-full border border-line px-3 py-1 text-tiny text-ink-dim transition-colors hover:border-flower hover:text-ink"
           >
             <Download size={13} aria-hidden /> 下载
           </a>

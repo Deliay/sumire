@@ -89,7 +89,7 @@ export default function GiftFilterControl({ value, onChange }: GiftFilterControl
         className={`rounded-md border px-2 py-1 text-xs transition-colors duration-150 ${
           value > 0
             ? "border-flower text-ink"
-            : "border-vine/50 text-ink-dim hover:border-flower hover:text-ink"
+            : "border-line text-ink-dim hover:border-flower hover:text-ink"
         }`}
       >
         礼物筛选
@@ -98,7 +98,7 @@ export default function GiftFilterControl({ value, onChange }: GiftFilterControl
         createPortal(
           <div
             ref={popoverRef}
-            className="fixed z-[70] w-56 rounded-md border border-vine/50 bg-raised p-3 shadow-lg"
+            className="fixed z-[70] w-56 rounded-md border border-line bg-raised p-3 shadow-overlay"
             style={{ left: popPos.x, top: popPos.y }}
           >
             <label htmlFor="gift-min-price" className="mb-2 block text-xs text-ink-dim">
@@ -124,7 +124,7 @@ export default function GiftFilterControl({ value, onChange }: GiftFilterControl
                 onChange={(e) => handleDraftChange(e.target.value)}
                 onBlur={() => commit(draft)}
                 onKeyDown={handleKeyDown}
-                className="w-16 rounded border border-vine/50 bg-soft px-1 py-0.5 text-right text-sm text-ink"
+                className="w-16 rounded border border-line bg-soft px-1 py-0.5 text-right text-sm text-ink"
               />
             </div>
           </div>,

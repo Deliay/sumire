@@ -2,9 +2,9 @@
 @plugin "@tailwindcss/typography";
 
 /* ============================================================
-   堇色书屋 · 视觉识别
+   堇色书屋 · 视觉识别「装订（The Binding）」
    设计依据 docs/design/01-visual-identity.md：
-   雨夜书屋（深底）/ 旧纸张（纸页）/ 藤蔓（线）/ 蕾丝（框）/ 紫花微光（点）
+   深墨底 / 暖骨白文字 / 堇色单点强调 / 1px 结构线 / 编辑体排版
    ============================================================ */
 
 @theme {
@@ -12,23 +12,27 @@
   --color-primary: #b4a6bf;
   --color-primary-deep: #8f7d9e;
 
-  /* 夜 */
-  --color-night: #16121c;
-  --color-raised: #1f1929;
-  --color-soft: #2a2136;
+  /* 墨 */
+  --color-night: #141017;
+  --color-raised: #1b1620;
+  --color-soft: #262029;
 
-  /* 纸页 */
-  --color-paper: #f0eaf4;
-  --color-paper-dim: #d9cfe0;
+  /* 结构线 */
+  --color-line: #3a323d;
+  --color-line-strong: #75687e;
+
+  /* 反白面（仅引用 / 海报式图版） */
+  --color-paper: #efe9e4;
+  --color-paper-dim: #d7cfc9;
 
   /* 文字 */
-  --color-ink: #efeaf4;
-  --color-ink-dim: #a99bb8;
-  --color-ink-on-paper: #342a40;
+  --color-ink: #e9e2dc;
+  --color-ink-dim: #a298a2;
+  --color-ink-mute: #776d78;
+  --color-ink-on-paper: #2a232b;
 
-  /* 点睛 */
-  --color-flower: #8b5fd6;
-  --color-vine: #5e4a75;
+  /* 点睛与功能语义 */
+  --color-flower: #a184c9;
   --color-eye: #7fb0e6;
   --color-crimson: #e06a7a;
   --color-gold: #d8b25c;
@@ -37,17 +41,35 @@
   --font-serif: var(--font-noto-serif-sc), "Noto Serif SC", serif;
   --font-sans: var(--font-noto-sans-sc), "Noto Sans SC", sans-serif;
   --font-display: var(--font-cormorant), "Cormorant Garamond", serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
-  /* 字阶（整体上调一档，正文与标题可感知地大于现状） */
-  --text-display: 4rem;
-  --text-h1: 2.5rem;
-  --text-h2: 1.625rem;
+  /* 字阶 */
+  --text-display: clamp(3.5rem, 7vw, 6.5rem);
+  --text-h1: clamp(2.25rem, 4vw, 3.25rem);
+  --text-h2: 1.75rem;
+  --text-h3: 1.25rem;
   --text-body: 1.0625rem;
   --text-small: 0.9375rem;
+  --text-label: 0.75rem;
   --text-tiny: 0.8125rem;
+  --tracking-label: 0.12em;
 
-  /* 入场动效 */
-  --animate-rise: rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  /* 圆角（只允许 2 / 4 / 8 / 999 四档） */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-pill: 999px;
+
+  /* 阴影：仅弹层 */
+  --shadow-overlay: 0 24px 64px rgb(0 0 0 / 0.55);
+
+  /* 动效 */
+  --duration-fast: 140ms;
+  --duration-base: 220ms;
+  --duration-slow: 480ms;
+  --ease-out-quart: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-enter: enter 480ms var(--ease-out-quart) both;
   --animate-pulse: pulse 3.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   --animate-danmaku-enter: danmaku-enter 50ms ease-out both;
   --animate-danmaku-flash: danmaku-flash 1s ease-in-out both;
@@ -57,86 +79,24 @@ body {
   background-color: var(--color-night);
   color: var(--color-ink);
   font-size: var(--text-body);
+  line-height: 1.5;
+  text-rendering: optimizeLegibility;
 }
 
 ::selection {
-  background: color-mix(in oklab, var(--color-flower) 55%, transparent);
+  background: color-mix(in oklab, var(--color-flower) 45%, transparent);
 }
 
-/* ---------- 雾气：大面积径向渐变缓慢漂移 ---------- */
-@keyframes fog-drift {
-  from {
-    transform: translate3d(-4%, -2%, 0) scale(1);
-  }
-  to {
-    transform: translate3d(4%, 3%, 0) scale(1.08);
-  }
+:focus-visible {
+  outline: 2px solid var(--color-flower);
+  outline-offset: 2px;
 }
 
-.fog {
-  position: absolute;
-  border-radius: 9999px;
-  filter: blur(64px);
-  pointer-events: none;
-}
-
-.fog-a {
-  animation: fog-drift 26s ease-in-out infinite alternate;
-}
-
-.fog-b {
-  animation: fog-drift 34s ease-in-out infinite alternate-reverse;
-}
-
-/* ---------- 蕾丝花边：重复扇贝纹 ---------- */
-.lace-x {
-  height: 14px;
-  background-repeat: repeat-x;
-  background-size: 28px 14px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='14' viewBox='0 0 28 14'%3E%3Cpath d='M0 4 Q3.5 10 7 4 Q10.5 10 14 4 Q17.5 10 21 4 Q24.5 10 28 4' fill='none' stroke='%238f7d9e' stroke-width='1'/%3E%3Ccircle cx='7' cy='11' r='0.9' fill='%23b4a6bf'/%3E%3Ccircle cx='21' cy='11' r='0.9' fill='%23b4a6bf'/%3E%3C/svg%3E");
-}
-
-/* ---------- 纸页：细微噪点 + 泛黄径向渐变 ---------- */
-.paper {
-  background-color: var(--color-paper);
-  color: var(--color-ink-on-paper);
-  background-image:
-    radial-gradient(ellipse at 30% 0%, rgb(139 95 214 / 0.06), transparent 60%),
-    radial-gradient(circle at 1px 1px, rgb(52 42 64 / 0.05) 1px, transparent 0);
-  background-size:
-    100% 100%,
-    22px 22px;
-}
-
-/* ---------- 藤蔓生长（需配合 pathLength="1"） ---------- */
-.vine-draw path[data-grow] {
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: vine-grow 2.4s ease-out 0.7s forwards;
-}
-
-@keyframes vine-grow {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-/* ---------- 紫花节点：微光 ---------- */
-.flower-node {
-  background: radial-gradient(
-    circle,
-    #cfb2f2 0%,
-    var(--color-flower) 45%,
-    rgb(139 95 214 / 0) 72%
-  );
-  box-shadow: 0 0 14px 3px rgb(139 95 214 / 0.5);
-}
-
-/* ---------- 入场 ---------- */
-@keyframes rise {
+/* ---------- 入场：fade + 8px ---------- */
+@keyframes enter {
   from {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -156,21 +116,28 @@ body {
   }
 }
 
-/* ---------- 弹幕看板：定位闪光（背景闪烁 1s，尊重 reduced-motion） ---------- */
+/* ---------- 弹幕看板：定位闪光（背景闪烁 1s） ---------- */
 @keyframes danmaku-flash {
   0%, 100% {
     background-color: transparent;
   }
   20%, 40% {
-    background-color: rgb(139 95 214 / 0.15);
+    background-color: color-mix(in oklab, var(--color-flower) 15%, transparent);
   }
 }
 
-/* ---------- 尊重减少动态偏好 ----------
-   公开站氛围层（首页雾气 .fog、藤蔓生长 .vine-draw）对 prefers-reduced-motion 不降级（展示向口径）；
-   仅后台弹幕看板功能性定位闪光 .animate-danmaku-flash 保留降级。 */
+/* ---------- 全站尊重减少动态偏好（含公开站） ---------- */
 @media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
   .animate-danmaku-flash {
-    animation: none;
+    animation: none !important;
   }
 }

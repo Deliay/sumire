@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import MarkdownView from "@/features/markdown/MarkdownView";
 import { toSingleLinePlainText } from "@/features/markdown/toSingleLinePlainText";
@@ -46,6 +46,7 @@ export default function PresentationView() {
   const [fontSize, setFontSize] = useState(16);
   const [showGuide, setShowGuide] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   // Hydrate from localStorage after mount
   useEffect(() => {
@@ -106,6 +107,11 @@ export default function PresentationView() {
   };
 
   const current = marshmallows[index];
+
+  // 切换条目时回到内容顶部（长内容否则会保留上一条的滚动位置）
+  useEffect(() => {
+    if (contentRef.current) contentRef.current.scrollTop = 0;
+  }, [index]);
 
   return (
     <RequireRole role="admin">
@@ -179,7 +185,7 @@ export default function PresentationView() {
                   还没有已采用的棉花糖，请先在详情页采用
                 </div>
               ) : current ? (
-                <div className="w-full max-w-[50%] h-full overflow-y-auto p-4 text-left">
+                <div ref={contentRef} className="w-full max-w-[50%] h-full overflow-y-auto p-4 text-left">
                   <MarkdownView content={current.content} style={{ fontSize }} />
                 </div>
               ) : null}

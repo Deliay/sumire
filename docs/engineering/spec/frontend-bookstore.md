@@ -196,7 +196,7 @@ SSG 无 middleware/服务端守卫，所有守卫是体验层；安全依赖 API
 
 - **列表页**（`/backdoor/topics`）：RequireRole("admin") 守卫，页头视图切换「主题 / 已归档主题」，卡片栅格，编辑弹窗；已归档视图卡片仅「恢复」（confirm → POST restore）与进详情
 - **详情页**（`/backdoor/topics/detail?id={topicId}`）：RequireRole("admin") 守卫，折叠描述，棉花糖列表（条目默认折叠 5 行，超限渐变层「点击查看全文」开全文弹窗，弹窗 `max-h-[75vh]` 内部滚动且含采用按钮；AI 覆盖层不透明），工具栏含「分享」（ShareTopicDialog 浮层：投递链接复制 + 二维码展示/下载）。查询串方案（GitHub Pages 静态导出兼容动态路由），id 经客户端 `useSearchParams` 读取并包 Suspense。**已归档主题只读**：工具栏仅保留「分享」「幻灯片」，棉花糖卡片与全文弹窗不渲染采用按钮，AI 覆盖层不渲染「显示这条棉花糖」
-- **幻灯片页**（`/backdoor/topics/presentation?id={topicId}`）：查询串方案，独立页，RequireRole("admin") 守卫，分页拉取所有棉花糖；**单行页头**（左标题衬线+单行纯文本描述 max-w-25% 省略，右「字体」label+字号预设档位 小/中/大），页头与放映区 `border-t border-vine` 分割，条目 `max-w-[50%]` 居中文本左对齐
+- **幻灯片页**（`/backdoor/topics/presentation?id={topicId}`）：查询串方案，独立页，RequireRole("admin") 守卫，分页拉取所有棉花糖；**单行页头**（左标题衬线+单行纯文本描述 max-w-25% 省略，右「字体」label+字号预设档位 小/中/大），页头与放映区 `border-t border-vine` 分割，条目 `max-w-[50%]` 居中文本左对齐；条目内容超长时内容区内部滚动，切换条目自动回到内容顶部
 
 ### 公开收集页
 

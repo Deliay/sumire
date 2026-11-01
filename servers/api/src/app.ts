@@ -16,6 +16,7 @@ import { createMemoryLiveHistoryCache, type LiveHistoryCache } from "./infra/liv
 import { createMemoryLiveEventsReplayCache, type LiveEventsReplayCache } from "./infra/liveEventsReplayCache";
 import { createMemoryLiveStatusCache, type LiveStatusCache } from "./infra/liveStatusCache";
 import { createTopicsRouter, createMarshmallowsRouter, type TopicsRouterDeps } from "./routes/topics";
+import { createMemoryMarshRateLimiter, type MarshRateLimiter } from "./topics/rateLimit";
 import { MemoryReviewQueue, type ReviewQueue } from "./topics/reviewQueue";
 import { config } from "./config";
 
@@ -32,6 +33,8 @@ export interface AppDeps {
   liveEventsReplayCache?: LiveEventsReplayCache;
   /** 文本罗马音标注（缺省 kuroshiro 全文转换；单测可注入恒 null 避免加载字典）。 */
   toRomajiFn?: (text: string) => Promise<string | null>;
+  /** 棉花糖投递限速器 */
+  marshRateLimiter?: MarshRateLimiter;
   /** AI 审核队列 */
   reviewQueue?: ReviewQueue;
   /** AI 审核功能是否已配置并可用 */
@@ -107,6 +110,7 @@ export function createApp(deps: AppDeps): Application {
   api.use(
     "/topics",
     createTopicsRouter({
+      marshRateLimiter: deps.marshRateLimiter ?? createMemoryMarshRateLimiter(),
       reviewQueue: deps.reviewQueue ?? new MemoryReviewQueue(),
       aiReviewEnabled: deps.aiReviewEnabled,
     }),

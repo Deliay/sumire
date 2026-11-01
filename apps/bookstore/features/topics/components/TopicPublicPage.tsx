@@ -56,6 +56,9 @@ export default function TopicPublicPage() {
       const { status, data } = await submitMarshmallow(topicId, content.trim(), clientKey);
       if (status === 201 && data?.ok) {
         setViewState("done");
+      } else if (status === 429) {
+        setError("操作频率过快");
+        setViewState("form");
       } else if (status === 409 || status === 410) {
         setError(data?.error ?? "无法投递");
         setViewState("form");

@@ -47,17 +47,15 @@
 
 ### 流程
 
-1. 访客访问收集页，服务端颁发 `sumire_vid` HttpOnly Cookie（首次访问）
+1. 访客访问收集页，服务端颁发 `sumire_vid` HttpOnly Cookie（首次访问，用于访客标识与投递审计）
 2. 填写内容（Markdown），点击投递
 3. 确认弹窗提示 AI 审核告知
-4. 三维度限速检查：clientKey（localStorage）+ visitorId（Cookie）+ IP
-5. 落库，若启用 AI 审核则入队
-6. 返回 `{ ok: true }`（不含 id/aiReview 等内部字段）
+4. 落库，若启用 AI 审核则入队
+5. 返回 `{ ok: true }`（不含 id/aiReview 等内部字段）
 
-### 限速规则
+### 投递频率
 
-- 每个维度：1 条/分钟，5 条/小时
-- 三维度独立计数，任一超限返回 429
+不做频率限制，连续投递均按正常流程受理。
 
 ### AI 审核
 

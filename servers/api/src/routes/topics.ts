@@ -21,6 +21,7 @@ import {
 } from "../db/marshmallows";
 import { requireRole } from "../rbac/requireRole";
 import { visitorCookieMiddleware } from "../topics/visitorCookie";
+import { resolveClientIp } from "../infra/clientIp";
 import type { MarshRateLimiter } from "../topics/rateLimit";
 import type { ReviewQueue } from "../topics/reviewQueue";
 
@@ -348,7 +349,7 @@ export function createTopicsRouter(deps: TopicsRouterDeps): Router {
 
       // I11: 限速在状态与内容校验通过后执行；仅按 clientKey + visitorId 限速，
       // IP 仅用于审计，不参与限速（避免同一出口 IP 的用户互相影响）
-      const ip = req.ip ?? req.socket?.remoteAddress ?? "unknown";
+      const ip = resolveClientIp(req);
       const keys: string[] = [];
       if (clientKey.trim()) {
         keys.push(`ck:${sha256(clientKey.trim())}`);

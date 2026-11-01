@@ -13,6 +13,7 @@ Express 5 + TS strict 纯 API 服务，棉花糖域提供主题管理与匿名�
 | `src/topics/reviewQueue.ts` | Redis List 审核队列（独立连接避免阻塞） |
 | `src/topics/reviewWorker.ts` | BRPOP 消费循环 + AI 客户端（openai/claude） |
 | `src/topics/reviewPrompt.ts` | AI 审核系统提示词 |
+| `src/infra/clientIp.ts` | 客户端 IP 解析（反代请求头 + `req.ip` 回退） |
 | `src/routes/topics.ts` | 管理端点 + 公开端点路由 |
 
 ## 数据模型
@@ -66,6 +67,10 @@ aiReview 结构：
 - 属性：HttpOnly / Path=/ / SameSite=Lax / Max-Age=31536000（1 年）/ 生产 Secure
 - 首次访问颁发 `crypto.randomUUID()`，合法值透传，非法值重颁
 - GET `/api/topics/:id/public` 也挂载此中间件，确保访问时已颁发
+
+## 客户端 IP 解析
+
+投递审计 IP 由 `src/infra/clientIp.ts` 的 `resolveClientIp(req)` 解析：按 `X-Req-Real-IP` → `X-Real-IP` → `X-Client-IP` → `True-Client-IP` → `CF-Connecting-IP` → `X-Forwarded-For`（取首个）→ `X-Forwarded-By` 顺序取首个合法 IP，均无则回退 `req.ip` / socket 地址；非法值忽略，避免伪造字符串写入审计字段。
 
 ## 限速
 

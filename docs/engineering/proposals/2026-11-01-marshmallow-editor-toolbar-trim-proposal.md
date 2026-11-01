@@ -1,11 +1,11 @@
 ---
-description: 棉花糖编辑器工具栏精简技术提案——MarkdownEditor 经 @uiw/react-md-editor 的 commandsFilter 按 command.name denylist 精确剔除 code/codeBlock/link/image 四命令（按钮与快捷键同源失效），共享组件一处收敛，后台主题描述与公开投递口径一致；新增 markdown-editor 单测，实现 PR 内同步前端/产品 spec
+description: 棉花糖编辑器工具栏精简与默认实时预览技术提案——MarkdownEditor 经 @uiw/react-md-editor 的 commandsFilter 按 command.name denylist 精确剔除 code/codeBlock/link/image 四命令（按钮与快捷键同源失效），默认预览模式改为 Live code（preview="live" 分屏实时预览，只读态维持 preview="preview"）；共享组件一处收敛，新增 markdown-editor 单测，实现 PR 内同步前端/产品 spec
 type: Fleeting
 ---
 
-# 棉花糖编辑器工具栏精简 - 技术提案
+# 棉花糖编辑器工具栏精简与默认实时预览 - 技术提案
 
-**功能名称**: 棉花糖编辑器工具栏精简（Marshmallow Editor Toolbar Trim）
+**功能名称**: 棉花糖编辑器工具栏精简与默认实时预览（Marshmallow Editor Toolbar Trim & Default Live Preview）
 **关联 PRD**: `docs/product/requirements/draft/2026-11-01-marshmallow-editor-toolbar-trim-prd.md`
 **技术提案版本**: v1.0
 **创建日期**: 2026-11-01
@@ -38,16 +38,19 @@ unorderedListCommand, orderedListCommand, checkedListCommand, divider, help
 
 （注：`code.execute` 对多行选区回退调用 `codeBlock.execute`，两者均在移除清单内，无遗漏路径。）
 
+预览模式方面：`MDEditor` 的 `preview` prop 决定视图形态（`PreviewType = "edit" | "live" | "preview"`），`extraCommands` 默认含三个视图切换命令 `codeEdit`（"Edit code"，Ctrl/Cmd+7，`value: "edit"`）、`codeLive`（"Live code"，Ctrl/Cmd+8，`value: "live"`）、`codePreview`（"Preview code"，Ctrl/Cmd+9，`value: "preview"`）。当前封装默认取 `readOnly ? "preview" : "edit"`，即非只读默认「Edit code」纯编辑；追加需求要求默认改为「Live code」（`preview="live"`，编辑 + 预览分屏实时预览）。
+
 ### 1.2 目标
 
 - `MarkdownEditor` 工具栏剔除 `code` / `codeBlock` / `link` / `image` 四个命令，按钮与快捷键同源失效；
+- 非只读默认预览模式改为 `live`（Live code 分屏实时预览），只读态维持 `preview`（纯预览）；视图切换按钮（`codeEdit`/`codeLive`/`codePreview`）保留，用户仍可手动切换三模式；
 - 其余命令（含 `comment`、`table`、列表、`help`）与编辑/预览/只读行为零回归；
-- 单一共享组件一处收敛，两处使用点行为一致；单测先行覆盖过滤口径。
+- 单一共享组件一处收敛，两处使用点行为一致；单测先行覆盖过滤口径与默认模式。
 
 ### 1.3 范围
 
-- **做**：`MarkdownEditor.tsx` 命令过滤 + `apps/bookstore/tests/unit/markdown-editor.test.tsx` 新增用例；上线 PR 内同步 spec。
-- **不做**：API/契约/数据库变更；语法级内容过滤（手输/粘贴语法不拦截）；工具栏按钮重排或视觉改版；`MarkdownView` 渲染层变更；按场景区分工具栏口径。
+- **做**：`MarkdownEditor.tsx` 命令过滤 + 默认 `preview="live"`；`apps/bookstore/tests/unit/markdown-editor.test.tsx` 新增用例；上线 PR 内同步 spec。
+- **不做**：API/契约/数据库变更；语法级内容过滤（手输/粘贴语法不拦截）；工具栏按钮重排或视觉改版；`MarkdownView` 渲染层变更；按场景区分工具栏口径；移动端分屏布局定制（沿用库默认，窄屏策略列后续）。
 
 ## 2. 技术架构
 
@@ -57,7 +60,7 @@ unorderedListCommand, orderedListCommand, checkedListCommand, divider, help
 graph TD
     PUB[TopicPublicPage<br/>公开投递] --> MDE[MarkdownEditor.tsx<br/>共享封装]
     ADMIN[TopicFormDialog<br/>后台主题描述] --> MDE
-    MDE -->|commandsFilter| EDI[MDEditor<br/>@uiw/react-md-editor]
+    MDE -->|"commandsFilter + preview=live"| EDI[MDEditor<br/>@uiw/react-md-editor]
     EDI --> STORE[Context 命令列表<br/>state.commands]
     STORE --> BAR[工具栏渲染]
     STORE --> KEY[快捷键分发]
@@ -78,8 +81,8 @@ graph TD
 
 | 模块 | 职责 | 关键技术点 |
 |------|------|-----------|
-| `apps/bookstore/features/markdown/MarkdownEditor.tsx` | 工具栏命令过滤 | `commandsFilter` + `command.name` denylist；导出纯函数供单测 |
-| `apps/bookstore/tests/unit/markdown-editor.test.tsx` | 单测覆盖 | 过滤口径 / extraCommands 不误伤 / 只读透传 |
+| `apps/bookstore/features/markdown/MarkdownEditor.tsx` | 工具栏命令过滤 + 默认预览模式 | `commandsFilter` + `command.name` denylist；`preview="live"`；导出纯函数供单测 |
+| `apps/bookstore/tests/unit/markdown-editor.test.tsx` | 单测覆盖 | 过滤口径 / extraCommands 不误伤 / 默认模式与只读透传 |
 
 ## 3. API 设计
 
@@ -120,7 +123,19 @@ graph TD
 - `title` 是内含 heading1–6 的分组命令（`name: "title"`），过滤仅作用于顶层命令数组，分组内项不受影响，本期无需处理；
 - **风险点**: 过滤依赖 `command.name` 这一库的稳定标识（`commands/code.js` 等导出对象的 `name` 字段），库升级大版本时可能变化——单测对真实 `getCommands()` 全量断言，作为升级回归网（见 §8）。
 
-#### 实现点 2: 单元测试（markdown-editor.test.tsx）
+#### 实现点 2: 默认预览模式改为 Live code（MarkdownEditor.tsx）
+
+- 现行实现 `const preview = readOnly ? "preview" : "edit";`，改为：
+
+  ```ts
+  const preview = readOnly ? "preview" : "live";
+  ```
+
+  即非只读默认 `preview="live"`（「Live code」分屏：编辑区 + 预览区实时渲染），只读态维持 `preview="preview"`（纯预览）不变；
+- 视图切换命令 `codeEdit`/`codeLive`/`codePreview` 在 `extraCommands` 中，**不在移除清单内**（其 name 为 `edit`/`live`/`preview`，与 denylist 无交集），用户仍可手动切换三模式，切换为编辑器内部状态、不进组件 props；
+- **风险点**: `live` 模式下编辑区与预览区分屏并排，窄屏（移动端、后台弹窗内）可用宽度变窄——本期沿用库默认分屏表现（PRD 已列边界与后续项），不在封装内做响应式模式判定；如实现评审确认需要，可在后续以 `useMediaQuery` 断点决定窄屏默认 `edit`。
+
+#### 实现点 3: 单元测试（markdown-editor.test.tsx）
 
 - 导出的 `filterEditorCommand` 纯函数直接断言：四个 name 返回 `false`；其余（bold/italic/title/comment/table/help…）返回原对象；`isExtra=true` 时一律放行；
 - 集成断言：`vi.mock("@uiw/react-md-editor")` stub 捕获 `commandsFilter` props，渲染 `MarkdownEditor`，对**真实** `getCommands()`（`import { getCommands, getExtraCommands } from "@uiw/react-md-editor/lib/commands"`，不走 `lib/index` 以免引入 `.less`）逐项过 `commandsFilter`，断言：
@@ -128,12 +143,12 @@ graph TD
   - 其余默认命令全部保留（数量与 name 集合比对）；
   - `getExtraCommands()` 全量保留（`codeEdit`/`codeLive`/`codePreview`/`fullscreen` 不被 `code` 前缀误伤）；
   - 过滤结果不含 `keyCommand` 为 `code`/`codeBlock`/`link`/`image` 的命令（快捷键同源失效的可断言投影）；
-- 透传回归：`readOnly` 时 `hideToolbar` 为 true、`preview="preview"`；非只读 `hideToolbar` 为 false（既有行为不回归）。
+- 透传回归：`readOnly` 时 `hideToolbar` 为 true、`preview="preview"`；非只读 `hideToolbar` 为 false，且默认 `preview="live"`（Live code）。
 
-#### 实现点 3: Spec 同步（实现 PR 内）
+#### 实现点 4: Spec 同步（实现 PR 内）
 
-- `docs/engineering/spec/frontend-bookstore.md`：`features/markdown/MarkdownEditor.tsx` 行补充工具栏过滤现态（`commandsFilter` 剔除 `code`/`codeBlock`/`link`/`image` 及其快捷键）；
-- `docs/product/spec/topics.md`：公开收集页/主题描述的 Markdown 能力口径补一句（工具栏不含代码/代码块/图片/链接按钮）；
+- `docs/engineering/spec/frontend-bookstore.md`：`features/markdown/MarkdownEditor.tsx` 行补充现态（`commandsFilter` 剔除 `code`/`codeBlock`/`link`/`image` 及其快捷键；默认 `preview="live"`，只读 `preview="preview"`）；
+- `docs/product/spec/topics.md`：公开收集页/主题描述的 Markdown 能力口径补一句（工具栏不含代码/代码块/图片/链接按钮，默认 Live code 分屏实时预览）；
 - 根 `AGENTS.md` 无需变更（不涉及结构与约定）。
 
 ## 6. 技术决策
@@ -146,6 +161,8 @@ graph TD
 | 生效层级 | 共享 `MarkdownEditor` 组件一处收敛 | 仅公开投递页过滤、主题描述保留 | A | 两处工具栏此前即同口径（棉花糖域实现计划 §4.3/§5.2）；组件级收敛保证一致、只改一处；如未来需差异化再加 props |
 | 快捷键处理 | 随 `commandsFilter` 同源剔除 | 额外 keydown 拦截 | A | 过滤发生在命令进入 Context 列表之前，工具栏与快捷键共用该列表，无需额外键盘事件处理 |
 | 命令识别 | `command.name` 精确匹配 denylist | 命令对象 identity 比较（`commands.code` 等） | A | 封装内不依赖各命令的导出路径；name 为命令对象公开标识且与 `keyCommand` 一一对应；identity 比较需额外 import 四个命令对象，收益仅是防改名（由 §8 单测兜底） |
+| 默认预览模式 | `preview="live"`（Live code 分屏实时预览） | 维持 `preview="edit"`（Edit code 纯编辑） | A | 追加需求指定默认 Live code；实时渲染改善 Markdown 编辑体验；只读态维持 `preview="preview"`，手动切换能力保留 |
+| 窄屏分屏 | 沿用库默认分屏 | 封装内按断点窄屏默认 `edit` | A | 需求仅指默认模式；响应式判定引入 `useMediaQuery` 耦合与状态同步复杂度，待实测反馈再做（已列 PRD 后续项） |
 | 移除后视觉 | 保留既有 divider 序列 | 移除后重排/收敛分隔符 | A（仅瑕疵时微调） | 移除四命令后默认序列不产生连续 divider；若实测出现视觉瑕疵再收敛，不提前过度设计 |
 
 ### 6.2 依赖与约束
@@ -162,9 +179,9 @@ graph TD
 ```
 apps/bookstore/
 ├── features/markdown/
-│   └── MarkdownEditor.tsx        # HIDDEN_COMMAND_NAMES + filterEditorCommand + commandsFilter 传参
+│   └── MarkdownEditor.tsx        # HIDDEN_COMMAND_NAMES + filterEditorCommand + commandsFilter 传参 + 默认 preview="live"
 └── tests/unit/
-    └── markdown-editor.test.tsx  # 新增：过滤口径 / extraCommands 不误伤 / 只读透传
+    └── markdown-editor.test.tsx  # 新增：过滤口径 / extraCommands 不误伤 / 默认模式与只读透传
 docs/product/spec/topics.md                  # 实现 PR 内同步
 docs/engineering/spec/frontend-bookstore.md  # 实现 PR 内同步
 ```
@@ -180,7 +197,8 @@ docs/engineering/spec/frontend-bookstore.md  # 实现 PR 内同步
 - 对真实 `getCommands()` 过滤后：不含四命令、其余默认命令全保留；
 - 对真实 `getExtraCommands()` 过滤后全保留（`codeEdit`/`codeLive`/`codePreview` 不被误伤）；
 - 过滤结果不含 `keyCommand` 为 `code`/`codeBlock`/`link`/`image` 的命令（快捷键同源失效）；
-- 回归：`readOnly` / `hideToolbar` 透传行为不变，既有用例全绿。
+- 默认模式：stub `MDEditor` 断言非只读渲染时 `preview="live"`、`readOnly` 时 `preview="preview"` 且 `hideToolbar=true`、非只读 `hideToolbar=false`；
+- 回归：既有用例全绿。
 
 ### 8.2 测试类型
 
@@ -207,6 +225,7 @@ docs/engineering/spec/frontend-bookstore.md  # 实现 PR 内同步
 - [ ] 技术方案评审通过
 - [ ] 公开收集页与后台主题表单编辑器工具栏均不含「代码」「代码块」「link」「图片」按钮
 - [ ] 四命令快捷键（Ctrl/Cmd+J / Ctrl+Shift+J / Ctrl+L / Ctrl+K）不再插入语法，其余快捷键不受影响
+- [ ] 两处编辑器默认以 Live code（`preview="live"`）分屏实时预览打开；手动切换三模式正常；只读态仍纯预览
 - [ ] 其余工具栏按钮与编辑/预览/只读行为零回归
 - [ ] `markdown-editor.test.tsx` 新用例与既有用例全绿；`pnpm lint && pnpm test` 全绿
 - [ ] Spec 同步：实现 PR 内更新 `docs/product/spec/topics.md` 与 `docs/engineering/spec/frontend-bookstore.md`

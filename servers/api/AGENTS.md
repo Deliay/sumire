@@ -35,7 +35,7 @@ pnpm lint       # tsc --noEmit 类型检查
 | `src/session/` | Redis 会话与 Cookie |
 | `src/db/` | MongoDB 连接与 users、stream_plans、live_event_reads、topics、marshmallows 模型 |
 | `src/liveEvents/` | 直播事件上游客户端（`upstream.ts`）与 B 站 payload 归一化（`normalize.ts`） |
-| `src/topics/` | 棉花糖域：visitorCookie、reviewQueue、reviewWorker |
+| `src/topics/` | 棉花糖域：visitorCookie、rateLimit、reviewQueue、reviewWorker |
 | `src/routes/` | /api/auth/*、/api/users、/api/stream-plans、/api/live-history、/api/live-events、/api/topics、/api/marshmallows |
 | `src/infra/` | 直播缓存抽象：历史直播（`LiveHistoryCache`）、直播状态（`LiveStatusCache`）、录播回放事件（`LiveEventsReplayCache`）与各自实现 |
 | `tests/` | 单元测试 |

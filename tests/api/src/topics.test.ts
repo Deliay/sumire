@@ -1,4 +1,5 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { Redis } from "ioredis";
 import {
   request,
   asSuperadmin,
@@ -7,6 +8,10 @@ import {
   strongPassword,
 } from "./client.js";
 
+// 投递限速 key 清理用（经 aspire describe redis 取端点注入）；未提供则跳过清理，
+// 同一 IP 的 1 分钟/1 小时固定窗口限速可能使相邻投递用例串扰。
+const REDIS_URL = process.env.REDIS_URL ?? "";
+
 beforeAll(async () => {
   await waitForReady();
 });
@@ -14,6 +19,28 @@ beforeAll(async () => {
 const rand = () => `t_${Math.random().toString(36).slice(2, 10)}`;
 
 const INVALID_OBJECT_ID = "not-a-valid-object-id";
+
+/** 清理投递限速 Redis key（marsh:1m:* / marsh:1h:*），保证用例隔离可重复运行。 */
+async function clearRateLimit(): Promise<void> {
+  if (!REDIS_URL) return;
+  // Aspire 注入的 Redis 为 TLS（rediss://）自签证书，清理连接禁用证书校验
+  const opts = REDIS_URL.startsWith("rediss://")
+    ? { tls: { rejectUnauthorized: false } }
+    : {};
+  const redis = new Redis(REDIS_URL, { ...opts, lazyConnect: true });
+  try {
+    const keys = await redis.keys("marsh:*");
+    if (keys.length) await redis.del(...keys);
+  } catch (e) {
+    console.warn("限速 key 清理失败", e);
+  } finally {
+    redis.disconnect();
+  }
+}
+
+beforeEach(async () => {
+  await clearRateLimit();
+});
 
 // ===== 主题管理端点 =====
 
@@ -202,13 +229,44 @@ describe("POST /api/topics/:id/marshmallows（投递棉花糖）", () => {
     expect(res.status).toBe(400);
   });
 
-  it("marshmallows-post-no-rate-limit: 连续投递不再受频率限制", async () => {
+  it("marshmallows-post-rate-limit-client-key: 同一 clientKey 连续投递 → 429", async () => {
     const sa = await asSuperadmin();
     const createRes = await request("/api/topics", {
       method: "POST",
       jar: sa,
       body: {
-        title: `频率下线测试_${rand()}`,
+        title: `clientKey限速测试_${rand()}`,
+        description: "测试",
+        startAt: new Date(Date.now() - 86400000).toISOString(),
+        endAt: new Date(Date.now() + 86400000).toISOString(),
+        charLimit: 1000,
+        aiReviewEnabled: false,
+      },
+    });
+    const topicId = (createRes.body as { id: string }).id;
+    const clientKey = `ck-${rand()}`;
+
+    const first = await request(`/api/topics/${topicId}/marshmallows`, {
+      method: "POST",
+      body: { content: "第一条", clientKey },
+    });
+    expect(first.status).toBe(201);
+
+    const second = await request(`/api/topics/${topicId}/marshmallows`, {
+      method: "POST",
+      body: { content: "第二条", clientKey },
+    });
+    expect(second.status).toBe(429);
+    expect((second.body as { error: string }).error).toBe("操作频率过快");
+  });
+
+  it("marshmallows-post-no-ip-rate-limit: 同一 IP 不同 clientKey 连续投递不受限", async () => {
+    const sa = await asSuperadmin();
+    const createRes = await request("/api/topics", {
+      method: "POST",
+      jar: sa,
+      body: {
+        title: `IP限速下线测试_${rand()}`,
         description: "测试",
         startAt: new Date(Date.now() - 86400000).toISOString(),
         endAt: new Date(Date.now() + 86400000).toISOString(),
@@ -218,11 +276,11 @@ describe("POST /api/topics/:id/marshmallows（投递棉花糖）", () => {
     });
     const topicId = (createRes.body as { id: string }).id;
 
-    // 同一 clientKey + 同一来源 IP 连续投递 6 次：旧限速（1/分钟、5/小时）下必然出现 429
+    // 同一来源 IP、每次不同 clientKey（且不携带访客 Cookie）：旧 IP 维度会在第 2 次返回 429
     for (let i = 0; i < 6; i++) {
       const res = await request(`/api/topics/${topicId}/marshmallows`, {
         method: "POST",
-        body: { content: `连续投递 ${i}`, clientKey: "rate-limit-regression" },
+        body: { content: `连续投递 ${i}`, clientKey: `ip-test-${i}-${rand()}` },
       });
       expect(res.status).toBe(201);
     }

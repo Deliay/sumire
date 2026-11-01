@@ -9,6 +9,7 @@ Express 5 + TS strict 纯 API 服务，棉花糖域提供主题管理与匿名�
 | `src/db/topics.ts` | Topic model + deriveStatus 纯函数 + CRUD |
 | `src/db/marshmallows.ts` | Marshmallow model + CRUD + 审核状态更新 |
 | `src/topics/visitorCookie.ts` | 访客 Cookie 中间件（`sumire_vid`） |
+| `src/topics/rateLimit.ts` | 二维度固定窗口限速（Redis/Memory） |
 | `src/topics/reviewQueue.ts` | Redis List 审核队列（独立连接避免阻塞） |
 | `src/topics/reviewWorker.ts` | BRPOP 消费循环 + AI 客户端（openai/claude） |
 | `src/topics/reviewPrompt.ts` | AI 审核系统提示词 |
@@ -47,7 +48,7 @@ Express 5 + TS strict 纯 API 服务，棉花糖域提供主题管理与匿名�
 | aiReview | object \| null | 审核结果（null=未启用） |
 | visitorId | string | 访客 ID 哈希（sha256） |
 | clientKeyHash | string | 客户端标识哈希（sha256） |
-| ip | string | 投递 IP |
+| ip | string | 投递 IP（仅审计，不参与限速） |
 | createdAt | Date | 投递时间 |
 
 aiReview 结构：
@@ -66,9 +67,21 @@ aiReview 结构：
 - 首次访问颁发 `crypto.randomUUID()`，合法值透传，非法值重颁
 - GET `/api/topics/:id/public` 也挂载此中间件，确保访问时已颁发
 
-## 投递频率
+## 限速
 
-投递端点不做频率限制：同一 clientKey / visitorId / IP 连续投递均正常落库并返回 201。
+二维度固定窗口：clientKey（localStorage）+ visitorId（Cookie）；IP 仅用于投递审计，不参与限速
+
+| 维度 | 窗口 | 限制 |
+|------|------|------|
+| 每个 | 1 分钟 | 1 条 |
+| 每个 | 1 小时 | 5 条 |
+
+实现：
+- `check(key)`：读取当前计数，不递增
+- `record(key)`：原子递增所有窗口
+- 超限返回 429「操作频率过快」
+
+并发窗口：两个请求可能同时通过 check 后各自 record，突破「1分钟1条」限制。这是固定窗口限速的已知权衡，量级可接受。
 
 ## AI 审核
 

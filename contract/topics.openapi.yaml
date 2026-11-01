@@ -357,7 +357,7 @@ paths:
               required: [content, clientKey]
               properties:
                 content: { type: string, description: 棉花糖内容（trim 后非空，≤ charLimit） }
-                clientKey: { type: string, description: 客户端标识（用于投递来源审计） }
+                clientKey: { type: string, description: 客户端标识（用于限速） }
       responses:
         "201":
           description: 投递成功
@@ -376,6 +376,9 @@ paths:
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
         "410":
           description: 主题已归档，无法投递
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "429":
+          description: 操作频率过快
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
   /api/marshmallows/{id}:
     patch:

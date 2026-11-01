@@ -155,6 +155,7 @@
   @media (min-width: 1024px) { .binding { padding-left: 2rem; } }
 
   section { padding-block: 6rem; }
+  section, #cover { scroll-margin-top: 80px; }
   @media (min-width: 1024px) { section { padding-block: 8rem; } }
   section + section { border-top: 1px solid var(--line); }
 
@@ -303,10 +304,10 @@
   .type-row__sample { min-width: 0; }
   .type-row__spec { font-family: var(--mono); font-size: var(--text-label); color: var(--ink-mute); line-height: 1.7; }
   .sample-display { font-family: var(--serif); font-weight: 600; font-size: clamp(2.5rem, 6vw, 4rem); line-height: 1.05; letter-spacing: 0.04em; }
-  .sample-h1 { font-size: var(--text-h1); }
-  .sample-h2 { font-size: var(--text-h2); }
-  .sample-h3 { font-size: var(--text-h3); }
-  .sample-body { font-size: var(--text-body); line-height: 1.9; max-width: 38rem; }
+  .sample-h1 { font-family: var(--serif); font-weight: 600; font-size: var(--text-h1); }
+  .sample-h2 { font-family: var(--serif); font-weight: 600; font-size: var(--text-h2); }
+  .sample-h3 { font-family: var(--serif); font-weight: 600; font-size: var(--text-h3); }
+  .sample-body { font-family: var(--serif); font-size: var(--text-body); line-height: 1.9; max-width: 38rem; }
   .sample-label { font-family: var(--mono); font-size: var(--text-label); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); }
   .sample-display-latin { font-family: var(--serif); font-style: italic; font-size: 2.5rem; color: var(--primary); }
 
